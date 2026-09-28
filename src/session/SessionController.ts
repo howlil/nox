@@ -104,6 +104,7 @@ export class SessionController {
   async recordProposal(
     proposalId: string,
     proposal: EditProposal,
+    mutableFile?: string,
   ): Promise<void> {
     const session = this.getSession();
     session.messages.push({
@@ -111,6 +112,7 @@ export class SessionController {
       content: "",
       proposalId,
       proposal,
+      proposalMutableFile: mutableFile,
       proposalState: "pending",
     });
     this.store.updateSession(session);
@@ -119,6 +121,7 @@ export class SessionController {
 
   getProposal(proposalId: string): {
     proposal: EditProposal;
+    mutableFile?: string;
     state: "pending" | "applied" | "rejected" | "stale";
   } | null {
     const message = this.getSession().messages.find(
@@ -129,6 +132,7 @@ export class SessionController {
 
     return {
       proposal: { ...message.proposal },
+      mutableFile: message.proposalMutableFile,
       state: message.proposalState ?? "stale",
     };
   }
