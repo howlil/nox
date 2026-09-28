@@ -35,11 +35,13 @@ function createHarness(
     string,
     {
       proposal: EditProposal;
+      mutableFile?: string;
       state: "pending" | "applied" | "rejected" | "stale";
     }
   >();
   const prompts: string[] = [];
   let mutationCalls = 0;
+  let mutationTarget: string | undefined;
 
   const sessions = {
     getSession: () => session,
@@ -64,9 +66,11 @@ function createHarness(
     recordProposal: async (
       id: string,
       proposal: EditProposal,
+      mutableFile?: string,
     ) => {
       proposalRecords.set(id, {
         proposal,
+        mutableFile,
         state: "pending",
       });
     },
@@ -75,6 +79,7 @@ function createHarness(
       return record
         ? {
             proposal: { ...record.proposal },
+            mutableFile: record.mutableFile,
             state: record.state,
           }
         : null;
@@ -127,8 +132,9 @@ function createHarness(
   };
 
   const mutations = {
-    apply: async () => {
+    apply: async (_proposal: EditProposal, mutableFile?: string) => {
       mutationCalls += 1;
+      mutationTarget = mutableFile;
       return { ok: true as const };
     },
   };
@@ -153,6 +159,7 @@ function createHarness(
     controller,
     prompts,
     getMutationCalls: () => mutationCalls,
+    getMutationTarget: () => mutationTarget,
     getProposalState: (id: string) => proposalRecords.get(id)?.state,
   };
 }
@@ -293,6 +300,7 @@ test("proposal applicability comes from canonical session state", async () => {
 
   assert.equal(result.ok, true);
   assert.equal(harness.getMutationCalls(), 1);
+  assert.equal(harness.getMutationTarget(), "note.md");
   assert.equal(
     harness.getProposalState(proposal.edit.id),
     "applied",
