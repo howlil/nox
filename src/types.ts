@@ -72,6 +72,7 @@ export interface ChatMessage {
   sourcePath?: string;
   proposalId?: string;
   proposal?: EditProposal;
+  proposalMutableFile?: string;
   proposalState?: "pending" | "applied" | "rejected" | "stale";
 }
 

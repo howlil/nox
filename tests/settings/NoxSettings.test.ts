@@ -5,6 +5,7 @@ import {
   DEFAULT_NOX_SETTINGS,
   saveNoxSettings,
 } from "../../src/settings/NoxSettings";
+import { PluginDataRepository } from "../../src/persistence/PluginDataRepository";
 
 test("decodes settings field-by-field with safe defaults", () => {
   assert.deepEqual(
@@ -43,7 +44,10 @@ test("saving settings preserves unrelated plugin data", async () => {
     preferredModel: "model-a",
   };
 
-  await saveNoxSettings(plugin as never, settings);
+  await saveNoxSettings(
+    new PluginDataRepository(plugin as never),
+    settings,
+  );
 
   assert.deepEqual(saved, {
     unrelated: { keep: true },

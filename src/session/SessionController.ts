@@ -1,50 +1,32 @@
-import { Plugin } from "obsidian";
 import { SessionStore } from "./SessionStore";
+import { PluginDataRepository } from "../persistence/PluginDataRepository";
 import {
-  AgentAdapter,
-  AgentHealth,
-  AgentContext,
-  AgentInput,
-  AgentModel,
-  AgentStreamEvent,
   ChatSession,
+  EditProposal,
 } from "../types";
 
 /**
- * Owns chat/agent conversation persistence only.
+ * Owns durable conversation/session state.
  *
- * Learning orchestration, context resolution, and Markdown mutation live above
- * or beside this class. This keeps session state independent of Learning OS
- * behavior.
+ * Agent runtime health, model discovery, and turn execution live in the
+ * separate AgentRuntime boundary.
  */
 export class SessionController {
   private currentSession: ChatSession | null = null;
-  private models: AgentModel[] = [];
 
   constructor(
-    private readonly plugin: Plugin,
+    private readonly pluginData: PluginDataRepository,
     private readonly store: SessionStore,
-    private readonly adapter: AgentAdapter,
   ) {}
 
   async init(): Promise<void> {
-    const data = await this.plugin.loadData();
+    const data = await this.pluginData.read();
     await this.store.load(data);
 
     this.currentSession = this.store.getCurrentSession();
     if (!this.currentSession) {
       this.currentSession = this.store.createSession(this.store.getDefaultModel());
     }
-
-    try {
-      this.models = await this.adapter.listModels();
-    } catch {
-      this.models = [];
-    }
-  }
-
-  checkRuntime(): Promise<AgentHealth> {
-    return this.adapter.check();
   }
 
   getSession(): ChatSession {
@@ -53,6 +35,7 @@ export class SessionController {
   }
 
   async newSession(): Promise<ChatSession> {
+    this.stalePendingProposals(this.currentSession);
     const model = this.currentSession?.model ?? this.store.getDefaultModel();
     this.currentSession = this.store.createSession(model);
     await this.save();
@@ -67,62 +50,38 @@ export class SessionController {
     const session = this.store.getSession(id);
     if (!session) return null;
 
+    this.stalePendingProposals(this.currentSession);
     this.currentSession = session;
     this.store.setCurrentSession(id);
     await this.save();
     return session;
   }
 
-  setModel(modelId?: string): void {
+  async setModel(modelId?: string): Promise<void> {
     const normalized = modelId || undefined;
     this.store.setDefaultModel(normalized);
 
     if (this.currentSession) {
       this.currentSession.model = normalized;
       this.store.updateSession(this.currentSession);
-      void this.save();
     }
+
+    await this.save();
   }
 
-  getModels(): AgentModel[] {
-    return this.models;
-  }
-
-  /**
-   * Execute one prepared agent turn.
-   *
-   * Context is already resolved by LearningController. displayPrompt is the raw
-   * user text stored in local history so internal learning instructions do not
-   * leak into the visible/session transcript.
-   */
-  async *sendTurn(
-    prompt: string,
-    context: AgentContext[],
-    displayPrompt: string,
-    signal: AbortSignal,
-  ): AsyncIterable<AgentStreamEvent> {
+  async recordUserMessage(content: string): Promise<void> {
     const session = this.getSession();
-    const input: AgentInput = { prompt, context };
-
     session.messages.push({
       role: "user",
-      content: displayPrompt,
+      content,
     });
-
     this.store.updateSession(session);
     await this.save();
+  }
 
-    for await (const event of this.adapter.send(input, {
-      model: session.model,
-      conversationId: session.conversationId,
-    }, signal)) {
-      if (event.type === "completed" && event.conversationId) {
-        session.conversationId = event.conversationId;
-      }
-
-      yield event;
-    }
-
+  async setConversationId(conversationId?: string): Promise<void> {
+    const session = this.getSession();
+    session.conversationId = conversationId;
     this.store.updateSession(session);
     await this.save();
   }
@@ -144,7 +103,8 @@ export class SessionController {
 
   async recordProposal(
     proposalId: string,
-    proposal: import("../types").EditProposal,
+    proposal: EditProposal,
+    mutableFile?: string,
   ): Promise<void> {
     const session = this.getSession();
     session.messages.push({
@@ -152,10 +112,29 @@ export class SessionController {
       content: "",
       proposalId,
       proposal,
+      proposalMutableFile: mutableFile,
       proposalState: "pending",
     });
     this.store.updateSession(session);
     await this.save();
+  }
+
+  getProposal(proposalId: string): {
+    proposal: EditProposal;
+    mutableFile?: string;
+    state: "pending" | "applied" | "rejected" | "stale";
+  } | null {
+    const message = this.getSession().messages.find(
+      (item) => item.proposalId === proposalId,
+    );
+
+    if (!message?.proposal) return null;
+
+    return {
+      proposal: { ...message.proposal },
+      mutableFile: message.proposalMutableFile,
+      state: message.proposalState ?? "stale",
+    };
   }
 
   async updateProposalState(
@@ -165,14 +144,32 @@ export class SessionController {
     const message = this.getSession().messages.find(
       (item) => item.proposalId === proposalId,
     );
-    if (!message) return;
+    if (!message || message.proposalState !== "pending") return;
+
     message.proposalState = state;
     this.store.updateSession(this.getSession());
     await this.save();
   }
 
+  private stalePendingProposals(session: ChatSession | null): void {
+    if (!session) return;
+
+    let changed = false;
+    for (const message of session.messages) {
+      if (message.proposalState !== "pending") continue;
+      message.proposalState = "stale";
+      changed = true;
+    }
+
+    if (changed) {
+      this.store.updateSession(session);
+    }
+  }
+
   private async save(): Promise<void> {
-    const current = (await this.plugin.loadData()) ?? {};
-    await this.plugin.saveData({ ...current, ...this.store.serialize() });
+    await this.pluginData.update((current) => ({
+      ...current,
+      ...this.store.serialize(),
+    }));
   }
 }

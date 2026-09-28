@@ -1,5 +1,6 @@
 import { addIcon, FileSystemAdapter, Plugin } from "obsidian";
 import { AgyAdapter } from "./agent/AgyAdapter";
+import { AgentRuntime } from "./agent/AgentRuntime";
 import { ChatView, NOX_VIEW_TYPE } from "./chat/ChatView";
 import { ContextResolver } from "./context/ContextResolver";
 import { ObsidianContext } from "./context/ObsidianContext";
@@ -7,6 +8,7 @@ import { PolicyLoader } from "./context/PolicyLoader";
 import { LearningController } from "./learning/LearningController";
 import { MutationService } from "./mutation/MutationService";
 import { VaultLearningStore } from "./persistence/VaultLearningStore";
+import { PluginDataRepository } from "./persistence/PluginDataRepository";
 import { SessionController } from "./session/SessionController";
 import { SessionStore } from "./session/SessionStore";
 import {
@@ -26,6 +28,7 @@ import { NoxSettingsTab } from "./settings/SettingsTab";
 export default class NoxPlugin extends Plugin {
   private learning!: LearningController;
   private noxSettings!: NoxSettings;
+  private pluginData!: PluginDataRepository;
 
   async onload(): Promise<void> {
     const vaultAdapter = this.app.vault.adapter;
@@ -34,20 +37,24 @@ export default class NoxPlugin extends Plugin {
         ? vaultAdapter.getBasePath()
         : undefined;
 
-    this.noxSettings = decodeNoxSettings(await this.loadData());
+    this.pluginData = new PluginDataRepository(this);
+    this.noxSettings = decodeNoxSettings(await this.pluginData.read());
     const adapter = new AgyAdapter(vaultPath, () => ({
       executablePath: this.noxSettings.executablePath,
     }));
+    const runtime = new AgentRuntime(adapter);
     const sessionStore = new SessionStore();
     const sessions = new SessionController(
-      this,
+      this.pluginData,
       sessionStore,
-      adapter,
     );
 
-    await sessions.init();
+    await Promise.all([
+      runtime.init(),
+      sessions.init(),
+    ]);
     if (!sessions.getSession().model && this.noxSettings.preferredModel) {
-      sessions.setModel(this.noxSettings.preferredModel);
+      await sessions.setModel(this.noxSettings.preferredModel);
     }
 
     const obsidianContext = new ObsidianContext(this.app, this);
@@ -58,6 +65,7 @@ export default class NoxPlugin extends Plugin {
 
     this.learning = new LearningController(
       sessions,
+      runtime,
       contexts,
       policies,
       mutations,
@@ -145,9 +153,9 @@ export default class NoxPlugin extends Plugin {
 
   async updateSettings(update: Partial<NoxSettings>): Promise<void> {
     this.noxSettings = { ...this.noxSettings, ...update };
-    await saveNoxSettings(this, this.noxSettings);
+    await saveNoxSettings(this.pluginData, this.noxSettings);
     if (update.preferredModel !== undefined) {
-      this.learning.setModel(update.preferredModel || undefined);
+      await this.learning.setModel(update.preferredModel || undefined);
     }
   }
 

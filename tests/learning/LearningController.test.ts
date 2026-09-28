@@ -24,41 +24,86 @@ function createHarness(
     signal: AbortSignal,
   ) => AsyncIterable<AgentStreamEvent>,
 ) {
-  const session: ChatSession = {
+  let session: ChatSession = {
     id: "session-1",
     messages: [],
     createdAt: 1,
     updatedAt: 1,
   };
 
+  const proposalRecords = new Map<
+    string,
+    {
+      proposal: EditProposal;
+      mutableFile?: string;
+      state: "pending" | "applied" | "rejected" | "stale";
+    }
+  >();
   const prompts: string[] = [];
   let mutationCalls = 0;
+  let mutationTarget: string | undefined;
 
   const sessions = {
-    checkRuntime: async () => ({ status: "ready" as const }),
     getSession: () => session,
-    getModels: () => [],
-    setModel: (_model?: string) => {},
-    newSession: async () => ({
-      ...session,
-      id: "session-2",
-      messages: [],
-    }),
-    sendTurn: async function* (
-      prompt: string,
-      _context: unknown[],
-      _displayPrompt: string,
-      signal: AbortSignal,
-    ) {
-      prompts.push(prompt);
-      yield* sendTurn(prompt, signal);
+    listSessions: () => [session],
+    selectSession: async (_id: string) => session,
+    setModel: async (_model?: string) => {},
+    newSession: async () => {
+      for (const record of proposalRecords.values()) {
+        if (record.state === "pending") record.state = "stale";
+      }
+      session = {
+        id: "session-2",
+        messages: [],
+        createdAt: 2,
+        updatedAt: 2,
+      };
+      return session;
     },
+    recordUserMessage: async (_content: string) => {},
+    setConversationId: async (_id?: string) => {},
     recordAssistantMessage: async (_content: string) => {},
     recordProposal: async (
-      _id: string,
-      _proposal: EditProposal,
-    ) => {},
-    updateProposalState: async () => {},
+      id: string,
+      proposal: EditProposal,
+      mutableFile?: string,
+    ) => {
+      proposalRecords.set(id, {
+        proposal,
+        mutableFile,
+        state: "pending",
+      });
+    },
+    getProposal: (id: string) => {
+      const record = proposalRecords.get(id);
+      return record
+        ? {
+            proposal: { ...record.proposal },
+            mutableFile: record.mutableFile,
+            state: record.state,
+          }
+        : null;
+    },
+    updateProposalState: async (
+      id: string,
+      state: "applied" | "rejected" | "stale",
+    ) => {
+      const record = proposalRecords.get(id);
+      if (record?.state === "pending") record.state = state;
+    },
+  };
+
+  const runtime = {
+    check: async () => ({ status: "ready" as const }),
+    getModels: () => [],
+    send: async function* (
+      input: { prompt: string },
+      _opts: unknown,
+      signal: AbortSignal,
+    ) {
+      prompts.push(input.prompt);
+      yield* sendTurn(input.prompt, signal);
+    },
   };
 
   const contexts = {
@@ -87,8 +132,9 @@ function createHarness(
   };
 
   const mutations = {
-    apply: async () => {
+    apply: async (_proposal: EditProposal, mutableFile?: string) => {
       mutationCalls += 1;
+      mutationTarget = mutableFile;
       return { ok: true as const };
     },
   };
@@ -96,12 +142,12 @@ function createHarness(
   const state = baseState();
   const learningState = {
     load: async () => state,
-    recordPracticeEvaluation: async () => state,
-    recordReviewFindings: async () => state,
+    save: async (_next: LearningState) => {},
   };
 
   const controller = new LearningController(
     sessions,
+    runtime,
     contexts,
     policies,
     mutations,
@@ -113,6 +159,8 @@ function createHarness(
     controller,
     prompts,
     getMutationCalls: () => mutationCalls,
+    getMutationTarget: () => mutationTarget,
+    getProposalState: (id: string) => proposalRecords.get(id)?.state,
   };
 }
 
@@ -211,7 +259,7 @@ test("failed practice evaluation rolls back to the same question", async () => {
   assert.match(harness.prompts[2] ?? "", /retry answer/);
 });
 
-test("new session invalidates pending edit proposals", async () => {
+test("proposal applicability comes from canonical session state", async () => {
   const fence = String.fromCharCode(96).repeat(3);
   const harness = createHarness(async function* () {
     yield {
@@ -242,48 +290,94 @@ test("new session invalidates pending edit proposals", async () => {
   const proposal = events.find(
     (event) => event.type === "mutation-proposed",
   );
-
-  assert.ok(
-    proposal && proposal.type === "mutation-proposed",
+  assert.ok(proposal && proposal.type === "mutation-proposed");
+  assert.equal(
+    harness.getProposalState(proposal.edit.id),
+    "pending",
   );
+
+  const result = await harness.controller.applyProposal(proposal.edit.id);
+
+  assert.equal(result.ok, true);
+  assert.equal(harness.getMutationCalls(), 1);
+  assert.equal(harness.getMutationTarget(), "note.md");
+  assert.equal(
+    harness.getProposalState(proposal.edit.id),
+    "applied",
+  );
+});
+
+test("new session invalidates canonical pending edit proposals", async () => {
+  const fence = String.fromCharCode(96).repeat(3);
+  const harness = createHarness(async function* () {
+    yield {
+      type: "text",
+      content:
+        fence +
+        "edit-proposal\n" +
+        JSON.stringify({
+          file: "note.md",
+          original: "current",
+          replacement: "next",
+        }) +
+        "\n" +
+        fence,
+    };
+    yield { type: "completed" };
+  });
+
+  const events = await collectEvents(
+    harness.controller.run({
+      prompt: "fix this",
+      action: "edit",
+      explicitContext: [],
+    }),
+  );
+  const proposal = events.find(
+    (event) => event.type === "mutation-proposed",
+  );
+  assert.ok(proposal && proposal.type === "mutation-proposed");
 
   await harness.controller.newSession();
 
-  const result = await harness.controller.applyProposal(
-    proposal.edit.id,
-  );
+  const result = await harness.controller.applyProposal(proposal.edit.id);
 
   assert.equal(result.ok, false);
-  if (!result.ok) {
-    assert.equal(result.reason, "stale");
-  }
+  if (!result.ok) assert.equal(result.reason, "stale");
   assert.equal(harness.getMutationCalls(), 0);
 });
 
 test("context preparation failures become recoverable learning failures", async () => {
   const controller = new LearningController(
     {
-      checkRuntime: async () => ({ status: "ready" as const }),
       getSession: () => ({
         id: "s",
         messages: [],
         createdAt: 1,
         updatedAt: 1,
       }),
-      getModels: () => [],
-      setModel: () => {},
+      listSessions: () => [],
+      selectSession: async () => null,
+      setModel: async () => {},
       newSession: async () => ({
         id: "s2",
         messages: [],
         createdAt: 1,
         updatedAt: 1,
       }),
-      sendTurn: async function* () {
-        yield { type: "completed" as const };
-      },
+      recordUserMessage: async () => {},
+      setConversationId: async () => {},
       recordAssistantMessage: async () => {},
       recordProposal: async () => {},
+      getProposal: () => null,
       updateProposalState: async () => {},
+    },
+    {
+      check: async () => ({ status: "ready" as const }),
+      getModels: () => [],
+      send: async function* () {
+        yield { type: "completed" as const };
+      },
     },
     {
       resolve: async () => {
@@ -303,8 +397,7 @@ test("context preparation failures become recoverable learning failures", async 
     },
     {
       load: async () => baseState(),
-      recordPracticeEvaluation: async () => baseState(),
-      recordReviewFindings: async () => baseState(),
+      save: async (_next: LearningState) => {},
     },
   );
 
@@ -316,9 +409,7 @@ test("context preparation failures become recoverable learning failures", async 
     }),
   );
 
-  assert.deepEqual(events.map((event) => event.type), [
-    "failed",
-  ]);
+  assert.deepEqual(events.map((event) => event.type), ["failed"]);
 
   const failed = events[0];
   assert.equal(failed?.type, "failed");

@@ -1,4 +1,4 @@
-import { Plugin } from "obsidian";
+import type { PluginDataRepository } from "../persistence/PluginDataRepository";
 
 export const NOX_SETTINGS_KEY = "nox-settings";
 
@@ -31,12 +31,11 @@ export function decodeNoxSettings(
 }
 
 export async function saveNoxSettings(
-  plugin: Plugin,
+  pluginData: Pick<PluginDataRepository, "update">,
   settings: NoxSettings,
 ): Promise<void> {
-  const current = (await plugin.loadData()) ?? {};
-  await plugin.saveData({
+  await pluginData.update((current) => ({
     ...current,
     [NOX_SETTINGS_KEY]: settings,
-  });
+  }));
 }

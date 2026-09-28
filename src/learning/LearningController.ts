@@ -5,7 +5,6 @@ import {
   ApplyResult,
   AgentModel,
   ChatSession,
-  EditProposal,
 } from "../types";
 import type { ContextResolver } from "../context/ContextResolver";
 import {
@@ -16,7 +15,12 @@ import {
 import type { PolicyLoader } from "../context/PolicyLoader";
 import type { MutationService } from "../mutation/MutationService";
 import type { VaultLearningStore } from "../persistence/VaultLearningStore";
+import {
+  recordPracticeEvaluation,
+  recordReviewFindings,
+} from "../domain/learning-state/transitions";
 import type { SessionController } from "../session/SessionController";
+import type { AgentRuntimePort } from "../agent/AgentRuntime";
 import {
   buildActionInstruction,
   buildPracticeEvaluationInstruction,
@@ -40,16 +44,16 @@ import {
 
 type SessionPort = Pick<
   SessionController,
-  | "checkRuntime"
   | "getSession"
   | "listSessions"
   | "selectSession"
-  | "getModels"
   | "setModel"
   | "newSession"
-  | "sendTurn"
+  | "recordUserMessage"
+  | "setConversationId"
   | "recordAssistantMessage"
   | "recordProposal"
+  | "getProposal"
   | "updateProposalState"
 >;
 
@@ -60,10 +64,7 @@ type ContextPort = Pick<
 
 type PolicyPort = Pick<PolicyLoader, "load">;
 type MutationPort = Pick<MutationService, "apply">;
-type LearningStatePort = Pick<
-  VaultLearningStore,
-  "load" | "recordPracticeEvaluation" | "recordReviewFindings"
->;
+type LearningStatePort = Pick<VaultLearningStore, "load" | "save">;
 
 export interface LearningControllerOptions {
   turnTimeoutMs?: number;
@@ -74,7 +75,7 @@ export interface LearningControllerOptions {
  *
  * The view sends user intent here. This controller owns orchestration:
  * context -> policy -> learning state -> action -> agent session -> normalized
- * UI events. Provider transport stays behind SessionController/AgentAdapter.
+ * UI events. Provider transport stays behind the AgentRuntime boundary.
  */
 export class LearningController {
   private readonly practice = new PracticeStateMachine();
@@ -82,14 +83,11 @@ export class LearningController {
     controller: AbortController;
     cancelReason?: "user" | "timeout" | "dispose";
   } | null = null;
-  private readonly pendingProposals = new Map<
-    string,
-    { proposal: EditProposal; mutableFile?: string }
-  >();
   private readonly turnTimeoutMs: number;
 
   constructor(
     private readonly sessions: SessionPort,
+    private readonly runtime: AgentRuntimePort,
     private readonly contexts: ContextPort,
     private readonly policies: PolicyPort,
     private readonly mutations: MutationPort,
@@ -100,7 +98,7 @@ export class LearningController {
   }
 
   checkRuntime(): Promise<AgentHealth> {
-    return this.sessions.checkRuntime();
+    return this.runtime.check();
   }
 
   getSession(): ChatSession {
@@ -112,22 +110,20 @@ export class LearningController {
   }
 
   getModels(): AgentModel[] {
-    return this.sessions.getModels();
+    return this.runtime.getModels();
   }
 
-  setModel(modelId?: string): void {
-    this.sessions.setModel(modelId);
+  setModel(modelId?: string): Promise<void> {
+    return this.sessions.setModel(modelId);
   }
 
   async newSession(): Promise<ChatSession> {
     this.practice.reset();
-    this.pendingProposals.clear();
     return this.sessions.newSession();
   }
 
   async selectSession(id: string): Promise<ChatSession | null> {
     this.practice.reset();
-    this.pendingProposals.clear();
     return this.sessions.selectSession(id);
   }
 
@@ -307,10 +303,18 @@ export class LearningController {
     };
 
     try {
-      for await (const event of this.sessions.sendTurn(
-        preparedPrompt,
-        [...snapshot.visible, ...snapshot.system],
-        request.prompt,
+      const session = this.sessions.getSession();
+      await this.sessions.recordUserMessage(request.prompt);
+
+      for await (const event of this.runtime.send(
+        {
+          prompt: preparedPrompt,
+          context: [...snapshot.visible, ...snapshot.system],
+        },
+        {
+          model: session.model,
+          conversationId: session.conversationId,
+        },
         controller.signal,
       )) {
         if (event.type === "text") {
@@ -333,6 +337,7 @@ export class LearningController {
               await this.sessions.recordProposal(
                 mapped.edit.id,
                 mapped.edit.proposal,
+                snapshot.mutableFile,
               );
             }
 
@@ -342,6 +347,10 @@ export class LearningController {
         }
 
         if (event.type === "completed") {
+          if (event.conversationId) {
+            await this.sessions.setConversationId(event.conversationId);
+          }
+
           for await (const mapped of this.mapStructuredEvents(
             parser.finish(),
             request,
@@ -361,6 +370,7 @@ export class LearningController {
               await this.sessions.recordProposal(
                 mapped.edit.id,
                 mapped.edit.proposal,
+                snapshot.mutableFile,
               );
             }
 
@@ -443,10 +453,9 @@ export class LearningController {
   async applyProposal(
     proposalId: string,
   ): Promise<ApplyResult> {
-    const pending =
-      this.pendingProposals.get(proposalId);
+    const record = this.sessions.getProposal(proposalId);
 
-    if (!pending) {
+    if (!record || record.state !== "pending") {
       return {
         ok: false,
         reason: "stale",
@@ -456,11 +465,9 @@ export class LearningController {
     }
 
     const result = await this.mutations.apply(
-      pending.proposal,
-      pending.mutableFile,
+      record.proposal,
+      record.mutableFile,
     );
-
-    this.pendingProposals.delete(proposalId);
 
     await this.sessions.updateProposalState(
       proposalId,
@@ -473,7 +480,9 @@ export class LearningController {
   async rejectProposal(
     proposalId: string,
   ): Promise<void> {
-    this.pendingProposals.delete(proposalId);
+    const record = this.sessions.getProposal(proposalId);
+    if (!record || record.state !== "pending") return;
+
     await this.sessions.updateProposalState(
       proposalId,
       "rejected",
@@ -525,11 +534,6 @@ export class LearningController {
           proposal: event.proposal,
         };
 
-        this.pendingProposals.set(edit.id, {
-          proposal: edit.proposal,
-          mutableFile: context.mutableFile,
-        });
-
         yield {
           type: "mutation-proposed",
           edit,
@@ -560,15 +564,17 @@ export class LearningController {
           findings: event.findings,
         };
 
-        const nextState =
-          await this.learningState.recordReviewFindings(
+        if (event.findings.length > 0) {
+          const currentState = await this.learningState.load();
+          const nextState = recordReviewFindings(
+            currentState,
             {
               findings: event.findings,
               source,
             },
           );
+          await this.learningState.save(nextState);
 
-        if (event.findings.length > 0) {
           yield {
             type: "learning-state-updated",
             state: nextState,
@@ -600,13 +606,15 @@ export class LearningController {
           context.resolved.activeNote?.path ??
           "learning-session";
 
-        const nextState =
-          await this.learningState.recordPracticeEvaluation(
-            {
-              evaluation: event.evaluation,
-              source,
-            },
-          );
+        const currentState = await this.learningState.load();
+        const nextState = recordPracticeEvaluation(
+          currentState,
+          {
+            evaluation: event.evaluation,
+            source,
+          },
+        );
+        await this.learningState.save(nextState);
 
         yield {
           type: "learning-state-updated",
