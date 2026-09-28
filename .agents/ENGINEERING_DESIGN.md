@@ -344,6 +344,366 @@ UI may project domain/application state. It does not recreate business rules.
 
 ---
 
+## 4.1 Mandatory architecture boundary rules
+
+These rules are the default placement and dependency contract for every
+non-trivial code change.
+
+The goal is not to maximize layers. The goal is to make ownership and dependency
+direction obvious before code is written.
+
+### Layer responsibilities
+
+```text
+Presentation
+    ↓ commands / queries
+Application
+    ↓ domain decisions
+Domain
+
+Application
+    ↓ ports
+Infrastructure / adapters
+```
+
+#### Presentation
+
+Examples:
+
+- `ChatView`;
+- settings UI;
+- composer/menu/popover primitives;
+- Obsidian-specific rendering and interaction surfaces.
+
+Presentation owns:
+
+- rendering;
+- local visual state;
+- translating user interaction into application commands;
+- projecting application/domain state for display.
+
+Presentation must not own:
+
+- learning rules;
+- proposal validity;
+- practice transition rules;
+- persistence semantics;
+- provider/runtime protocol;
+- direct plugin-data writes.
+
+A UI check may improve interaction quality, but correctness must still be
+enforced below the UI boundary.
+
+#### Application
+
+Examples:
+
+- `RunLearningTurn`;
+- `ApplyProposal`;
+- `RejectProposal`;
+- `ChangeSession`;
+- model/session coordination use cases.
+
+Application owns:
+
+- workflow ordering;
+- effect coordination;
+- turn/session lifecycle coordination;
+- calling domain transitions;
+- deciding when repositories and external ports are invoked;
+- translating boundary failures into product/application failures.
+
+Application does not own the detailed meaning of domain state.
+
+Use this distinction:
+
+```text
+"What does this state transition mean?"
+→ domain
+
+"When should this transition and its effects happen?"
+→ application
+```
+
+Application may depend on domain modules and narrow ports.
+
+Application must not depend directly on:
+
+- AGY-specific protocol shapes;
+- child-process APIs;
+- Obsidian view/editor implementation details;
+- raw `plugin.loadData/saveData`;
+- persistence serialization formats.
+
+#### Domain
+
+Domain owns state meaning and valid transitions.
+
+Current Nox domain responsibilities include:
+
+- learning evidence and gap transitions;
+- practice lifecycle;
+- proposal lifecycle where transition validity is business state rather than
+  Obsidian write mechanics.
+
+Domain code must remain pure where practical.
+
+Domain must not import:
+
+- `obsidian`;
+- DOM APIs;
+- child-process APIs;
+- provider-specific protocol;
+- plugin-data APIs;
+- repository implementations;
+- UI components.
+
+Domain may expose plain types, pure functions, and state machines.
+
+#### Ports
+
+Create ports only for real side-effect, storage, or external-system boundaries.
+
+Valid examples:
+
+- `AgentRuntime`;
+- `SessionRepository`;
+- `LearningStateRepository`;
+- `PluginDataStore`;
+- `MutationPort`.
+
+Do not create an interface merely because a class exists.
+
+A port is justified when at least one is true:
+
+- application/domain must not depend on the external implementation;
+- the boundary represents I/O or durable state;
+- the boundary needs a faithful substitute in tests;
+- ownership would otherwise leak across layers.
+
+#### Infrastructure / adapters
+
+Infrastructure implements ports and owns integration mechanics.
+
+Examples:
+
+- `AgyAdapter` and provider protocol handling;
+- Obsidian vault/editor adapters;
+- plugin-data persistence;
+- session serialization;
+- vault learning-state serialization.
+
+Infrastructure decides **how** an effect happens.
+
+It must not decide **what domain state means**.
+
+Examples:
+
+```text
+GOOD
+LearningStateRepository.save(nextState)
+
+BAD
+VaultLearningStore.recordPracticeEvaluation(...)
+→ creates evidence
+→ decides gap transitions
+→ saves state
+```
+
+Persistence stores domain state; it does not own domain policy.
+
+#### Composition root
+
+`main.ts` owns construction and wiring only.
+
+It may:
+
+- instantiate adapters;
+- compose repositories and use cases;
+- register Obsidian views, commands, and settings;
+- dispose application/runtime resources.
+
+It must not become a fallback location for business rules or cross-module state
+reconciliation.
+
+### Mandatory placement test
+
+Before adding or moving non-trivial behavior, identify:
+
+```text
+responsibility
+→ authoritative owner
+→ layer
+→ allowed dependencies
+→ state/effects touched
+→ consumers
+```
+
+Then apply these questions in order:
+
+```text
+Does this determine the meaning or validity of state?
+→ Domain
+
+Does this coordinate a workflow or sequence effects?
+→ Application
+
+Does this only store/restore state?
+→ Repository / persistence adapter
+
+Does this communicate with Obsidian, AGY, filesystem, process, or plugin data?
+→ Infrastructure adapter
+
+Does this only capture user intent or render state?
+→ Presentation
+```
+
+If a responsibility cannot be placed without crossing these rules, fix the
+boundary before adding another parallel path.
+
+### Allowed dependency direction
+
+Canonical dependency direction:
+
+```text
+Presentation
+    ↓
+Application
+    ↓
+Domain
+
+Application
+    ↓
+Ports
+    ↑
+Infrastructure
+```
+
+Allowed:
+
+```text
+presentation → application
+application  → domain
+application  → port
+infrastructure → port contract
+infrastructure → domain data required for serialization
+main.ts → concrete implementations for composition
+```
+
+Forbidden:
+
+```text
+domain → presentation
+domain → infrastructure
+domain → Obsidian
+domain → AGY/provider
+domain → plugin data
+
+application → concrete AgyAdapter
+application → Obsidian view/editor implementation
+application → plugin.loadData/saveData
+
+repository → domain policy decisions
+UI → direct durable-state mutation
+adapter → product workflow decisions
+```
+
+Do not use an event bus, command bus, DI framework, or generic repository
+framework to enforce these rules. Direct dependencies are preferred when the
+boundary is already clear.
+
+### State authority rule
+
+Every consequential state must have exactly one authoritative owner.
+
+For each state answer:
+
+- who owns the source of truth?
+- what is its lifecycle?
+- who may mutate it?
+- who may read it?
+- may projections or cached copies exist?
+- what invalidates those copies?
+- does it require serialized writes or transaction-like ordering?
+
+Derived UI projections and immutable snapshots are allowed.
+
+Multiple mutable authorities are not.
+
+Examples:
+
+```text
+learning meaning
+→ learning-state domain
+
+learning-state storage
+→ LearningStateRepository
+
+conversation/session state
+→ SessionRepository
+
+proposal lifecycle
+→ proposal application/domain boundary
+
+practice lifecycle
+→ PracticeStateMachine scoped to session lifetime
+
+active turn/cancellation
+→ RunLearningTurn / application turn coordinator
+
+runtime/process state
+→ AgentRuntime adapter
+
+plugin-data writes
+→ one PluginDataRepository serialized writer
+```
+
+### One operation, one legal mutation path
+
+Callers must not retrieve repository-owned mutable objects and change them
+directly.
+
+Prefer:
+
+```text
+sessionRepository.appendMessage(sessionId, message)
+sessionRepository.setConversationId(sessionId, id)
+sessionRepository.transitionProposal(sessionId, proposalId, nextState)
+```
+
+over:
+
+```text
+const session = repository.getSession(id)
+session.messages.push(message)
+repository.updateSession(session)
+```
+
+Repository reads should return immutable values, snapshots, or values that
+cannot mutate repository-owned state accidentally.
+
+### Boundary-first refactoring rule
+
+Do not move files merely to make the directory tree resemble Clean
+Architecture.
+
+Refactor in this order:
+
+```text
+authority
+→ dependency direction
+→ mutation path
+→ test boundary
+→ file/module placement
+```
+
+A large file is not by itself an architecture violation.
+
+A small file can still violate architecture when it owns the wrong decision.
+
+
+---
+
 ## 5. Ownership map
 
 | Concern | Canonical owner |
