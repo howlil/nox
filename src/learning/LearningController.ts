@@ -337,6 +337,7 @@ export class LearningController {
               await this.sessions.recordProposal(
                 mapped.edit.id,
                 mapped.edit.proposal,
+                snapshot.mutableFile,
               );
             }
 
@@ -369,6 +370,7 @@ export class LearningController {
               await this.sessions.recordProposal(
                 mapped.edit.id,
                 mapped.edit.proposal,
+                snapshot.mutableFile,
               );
             }
 
@@ -464,7 +466,7 @@ export class LearningController {
 
     const result = await this.mutations.apply(
       record.proposal,
-      record.proposal.file,
+      record.mutableFile,
     );
 
     await this.sessions.updateProposalState(
