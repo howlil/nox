@@ -353,7 +353,7 @@ test("practice state is isolated by conversation session and resumes when return
 
   assert.match(
     harness.prompts[1] ?? "",
-    /Learning mode: practice question/,
+    /Generate exactly one active-recall question/,
   );
   assert.doesNotMatch(
     harness.prompts[1] ?? "",
