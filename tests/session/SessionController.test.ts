@@ -4,6 +4,7 @@ import { SessionController } from "../../src/session/SessionController";
 import { SessionStore } from "../../src/session/SessionStore";
 import { AgentAdapter } from "../../src/types";
 import { collectEvents } from "../support/collect-events";
+import { PluginDataRepository } from "../../src/persistence/PluginDataRepository";
 
 function pluginHarness(initial: Record<string, unknown> | null = null) {
   let data = initial;
@@ -31,7 +32,7 @@ test("initializes even when model discovery fails", async () => {
   };
 
   const controller = new SessionController(
-    harness.plugin as never,
+    new PluginDataRepository(harness.plugin as never),
     new SessionStore({
       now: () => 1,
       uuid: () => "session-1",
@@ -65,7 +66,7 @@ test("sendTurn stores only the display prompt and persists conversation id", asy
   };
 
   const controller = new SessionController(
-    harness.plugin as never,
+    new PluginDataRepository(harness.plugin as never),
     new SessionStore({
       now: () => 1,
       uuid: () => "session-1",
@@ -121,7 +122,7 @@ test("blank assistant messages are not persisted", async () => {
   };
 
   const controller = new SessionController(
-    harness.plugin as never,
+    new PluginDataRepository(harness.plugin as never),
     new SessionStore({
       now: () => 1,
       uuid: () => "session-1",
@@ -148,7 +149,7 @@ test("lists sessions and restores a selected session as current", async () => {
   let now = 0;
 
   const controller = new SessionController(
-    harness.plugin as never,
+    new PluginDataRepository(harness.plugin as never),
     new SessionStore({
       now: () => ++now,
       uuid: () => `session-${++id}`,
