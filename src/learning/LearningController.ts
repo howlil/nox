@@ -37,6 +37,7 @@ import {
   PracticeEvaluationAttempt,
   PracticeStateMachine,
 } from "./PracticeStateMachine";
+import { PracticeSessionRegistry } from "./PracticeSessionRegistry";
 import {
   StructuredStreamEvent,
   StructuredStreamParser,
@@ -78,7 +79,7 @@ export interface LearningControllerOptions {
  * UI events. Provider transport stays behind the AgentRuntime boundary.
  */
 export class LearningController {
-  private readonly practice = new PracticeStateMachine();
+  private readonly practices = new PracticeSessionRegistry();
   private activeTurn: {
     controller: AbortController;
     cancelReason?: "user" | "timeout" | "dispose";
@@ -118,12 +119,10 @@ export class LearningController {
   }
 
   async newSession(): Promise<ChatSession> {
-    this.practice.reset();
     return this.sessions.newSession();
   }
 
   async selectSession(id: string): Promise<ChatSession | null> {
-    this.practice.reset();
     return this.sessions.selectSession(id);
   }
 
@@ -235,15 +234,18 @@ export class LearningController {
 
     yield { type: "context-ready", context: snapshot };
 
+    const conversation = this.sessions.getSession();
+    const practice = this.practices.forSession(conversation.id);
+
     let preparedPrompt: string;
     let practiceAttempt:
       | PracticeEvaluationAttempt
       | undefined;
 
     if (request.action === "practice") {
-      if (this.practice.isWaitingForAnswer()) {
+      if (practice.isWaitingForAnswer()) {
         const attempt =
-          this.practice.beginEvaluation(request.prompt);
+          practice.beginEvaluation(request.prompt);
 
         if (!attempt) {
           yield {
@@ -265,14 +267,14 @@ export class LearningController {
             concept: attempt.concept,
           });
       } else {
-        this.practice.start();
+        practice.start();
         preparedPrompt =
           buildPracticeQuestionInstruction(
             request.prompt,
           );
       }
     } else {
-      this.practice.reset();
+      this.practices.reset(conversation.id);
       const instruction =
         buildActionInstruction(request.action);
       preparedPrompt =
@@ -296,14 +298,13 @@ export class LearningController {
 
     const rollbackPractice = () => {
       if (practiceAttempt) {
-        this.practice.rollbackEvaluation(
+        practice.rollbackEvaluation(
           practiceAttempt,
         );
       }
     };
 
     try {
-      const session = this.sessions.getSession();
       await this.sessions.recordUserMessage(request.prompt);
 
       for await (const event of this.runtime.send(
@@ -312,8 +313,8 @@ export class LearningController {
           context: [...snapshot.visible, ...snapshot.system],
         },
         {
-          model: session.model,
-          conversationId: session.conversationId,
+          model: conversation.model,
+          conversationId: conversation.conversationId,
         },
         controller.signal,
       )) {
@@ -322,6 +323,7 @@ export class LearningController {
             parser.push(event.content),
             request,
             snapshot,
+            practice,
             practiceAttempt,
           )) {
             if (mapped.type === "response-delta") {
@@ -355,6 +357,7 @@ export class LearningController {
             parser.finish(),
             request,
             snapshot,
+            practice,
             practiceAttempt,
           )) {
             if (mapped.type === "response-delta") {
@@ -379,7 +382,7 @@ export class LearningController {
 
           if (
             practiceAttempt &&
-            this.practice.snapshot()?.state ===
+            practice.snapshot()?.state ===
               "evaluating"
           ) {
             throw new Error(
@@ -496,6 +499,7 @@ export class LearningController {
   }
 
   dispose(): void {
+    this.practices.clear();
     if (!this.activeTurn) return;
     this.activeTurn.cancelReason = "dispose";
     this.activeTurn.controller.abort();
@@ -505,6 +509,7 @@ export class LearningController {
     events: StructuredStreamEvent[],
     request: LearningRequest,
     context: TurnContextSnapshot,
+    practice: PracticeStateMachine,
     practiceAttempt?: PracticeEvaluationAttempt,
   ): AsyncIterable<LearningEvent> {
     for (const event of events) {
@@ -542,7 +547,7 @@ export class LearningController {
       }
 
       if (event.type === "practice-question") {
-        this.practice.acceptQuestion(
+        practice.acceptQuestion(
           event.question,
         );
 
@@ -591,7 +596,7 @@ export class LearningController {
         }
 
         const nextQuestion =
-          this.practice.commitEvaluation(
+          practice.commitEvaluation(
             practiceAttempt,
             event.evaluation,
           );
