@@ -65,6 +65,109 @@ If existing behavior is unclear, inspect it before replacing it.
 
 ---
 
+# 1.1 Architecture gate before coding
+
+For every non-trivial code change, `.agents/ENGINEERING_DESIGN.md` is a
+mandatory engineering constraint, not optional background reading.
+
+Before implementation, determine:
+
+```text
+requested behavior
+→ responsibility
+→ authoritative owner
+→ architecture layer
+→ allowed dependencies
+→ state + side effects
+→ consumer
+```
+
+The default Nox boundary model is:
+
+```text
+Presentation
+    ↓
+Application
+    ↓
+Domain
+
+Application
+    ↓ ports
+Infrastructure / adapters
+```
+
+Use these placement rules:
+
+- state meaning and valid transitions → domain;
+- workflow ordering and effect coordination → application;
+- durable storage/serialization → repository or persistence adapter;
+- Obsidian, AGY, process, filesystem, and plugin-data mechanics →
+  infrastructure adapter;
+- user intent and rendering → presentation;
+- construction/wiring only → `main.ts`.
+
+Before writing code, answer:
+
+1. What module is the canonical owner of this responsibility?
+2. Is any existing module already authoritative for the same decision?
+3. Is this state authoritative, derived, cached, or purely presentational?
+4. Who is legally allowed to mutate it?
+5. Does the proposed dependency follow the allowed direction?
+6. Does this introduce a second mutable source of truth?
+7. Is a new interface/layer actually required by an I/O, lifecycle, ownership,
+   or test boundary?
+
+If ownership is ambiguous, reconstruct the current responsibility graph before
+implementing.
+
+Do not resolve ambiguity by adding another controller, service, wrapper,
+manager, store, or interface.
+
+Fix the ownership boundary first.
+
+### Architecture stop conditions
+
+Do not implement the proposed shape as-is when it would introduce any of these:
+
+- domain importing Obsidian, provider, process, persistence, or UI code;
+- application importing a concrete provider/Obsidian adapter when a real port
+  boundary is required;
+- persistence deciding learning/practice/proposal domain meaning;
+- UI directly mutating durable domain/session state;
+- multiple independent `plugin.loadData → merge → saveData` writers;
+- callers mutating repository-owned session objects directly;
+- a second mutable proposal, practice, session, or learning-state authority;
+- provider-specific events becoming UI or domain contracts;
+- business rules placed in `main.ts` because it is convenient.
+
+When one of these conditions appears:
+
+```text
+stop local implementation
+→ identify canonical owner
+→ route through or repair that boundary
+→ then continue the smallest vertical slice
+```
+
+### Architecture verification before ship
+
+For changed behavior, inspect the final dependency path:
+
+```text
+caller
+→ application use case
+→ domain rule and/or port
+→ adapter/repository
+→ result/event
+→ consumer
+```
+
+The change is not architecture-complete if the same rule or mutable state can
+still be changed through another competing path.
+
+
+---
+
 # 2. Model only what matters
 
 Choose one canonical owner for every rule.
