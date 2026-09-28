@@ -114,16 +114,25 @@ test("leaving a session makes its pending proposals stale", async () => {
 
   await controller.init();
   const firstId = controller.getSession().id;
-  await controller.recordProposal("proposal-1", {
-    file: "note.md",
-    original: "before",
-    replacement: "after",
-  });
-
-  assert.equal(
-    controller.getProposal("proposal-1")?.state,
-    "pending",
+  await controller.recordProposal(
+    "proposal-1",
+    {
+      file: "note.md",
+      original: "before",
+      replacement: "after",
+    },
+    "note.md",
   );
+
+  assert.deepEqual(controller.getProposal("proposal-1"), {
+    proposal: {
+      file: "note.md",
+      original: "before",
+      replacement: "after",
+    },
+    mutableFile: "note.md",
+    state: "pending",
+  });
 
   await controller.newSession();
   await controller.selectSession(firstId);
