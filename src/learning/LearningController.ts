@@ -5,7 +5,6 @@ import {
   ApplyResult,
   AgentModel,
   ChatSession,
-  EditProposal,
 } from "../types";
 import type { ContextResolver } from "../context/ContextResolver";
 import {
@@ -54,6 +53,7 @@ type SessionPort = Pick<
   | "setConversationId"
   | "recordAssistantMessage"
   | "recordProposal"
+  | "getProposal"
   | "updateProposalState"
 >;
 
@@ -83,10 +83,6 @@ export class LearningController {
     controller: AbortController;
     cancelReason?: "user" | "timeout" | "dispose";
   } | null = null;
-  private readonly pendingProposals = new Map<
-    string,
-    { proposal: EditProposal; mutableFile?: string }
-  >();
   private readonly turnTimeoutMs: number;
 
   constructor(
@@ -123,13 +119,11 @@ export class LearningController {
 
   async newSession(): Promise<ChatSession> {
     this.practice.reset();
-    this.pendingProposals.clear();
     return this.sessions.newSession();
   }
 
   async selectSession(id: string): Promise<ChatSession | null> {
     this.practice.reset();
-    this.pendingProposals.clear();
     return this.sessions.selectSession(id);
   }
 
@@ -457,10 +451,9 @@ export class LearningController {
   async applyProposal(
     proposalId: string,
   ): Promise<ApplyResult> {
-    const pending =
-      this.pendingProposals.get(proposalId);
+    const record = this.sessions.getProposal(proposalId);
 
-    if (!pending) {
+    if (!record || record.state !== "pending") {
       return {
         ok: false,
         reason: "stale",
@@ -470,11 +463,9 @@ export class LearningController {
     }
 
     const result = await this.mutations.apply(
-      pending.proposal,
-      pending.mutableFile,
+      record.proposal,
+      record.proposal.file,
     );
-
-    this.pendingProposals.delete(proposalId);
 
     await this.sessions.updateProposalState(
       proposalId,
@@ -487,7 +478,9 @@ export class LearningController {
   async rejectProposal(
     proposalId: string,
   ): Promise<void> {
-    this.pendingProposals.delete(proposalId);
+    const record = this.sessions.getProposal(proposalId);
+    if (!record || record.state !== "pending") return;
+
     await this.sessions.updateProposalState(
       proposalId,
       "rejected",
@@ -538,11 +531,6 @@ export class LearningController {
           id: crypto.randomUUID(),
           proposal: event.proposal,
         };
-
-        this.pendingProposals.set(edit.id, {
-          proposal: edit.proposal,
-          mutableFile: context.mutableFile,
-        });
 
         yield {
           type: "mutation-proposed",
