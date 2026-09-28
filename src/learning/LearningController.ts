@@ -16,6 +16,10 @@ import {
 import type { PolicyLoader } from "../context/PolicyLoader";
 import type { MutationService } from "../mutation/MutationService";
 import type { VaultLearningStore } from "../persistence/VaultLearningStore";
+import {
+  recordPracticeEvaluation,
+  recordReviewFindings,
+} from "../domain/learning-state/transitions";
 import type { SessionController } from "../session/SessionController";
 import {
   buildActionInstruction,
@@ -60,10 +64,7 @@ type ContextPort = Pick<
 
 type PolicyPort = Pick<PolicyLoader, "load">;
 type MutationPort = Pick<MutationService, "apply">;
-type LearningStatePort = Pick<
-  VaultLearningStore,
-  "load" | "recordPracticeEvaluation" | "recordReviewFindings"
->;
+type LearningStatePort = Pick<VaultLearningStore, "load" | "save">;
 
 export interface LearningControllerOptions {
   turnTimeoutMs?: number;
@@ -560,15 +561,17 @@ export class LearningController {
           findings: event.findings,
         };
 
-        const nextState =
-          await this.learningState.recordReviewFindings(
+        if (event.findings.length > 0) {
+          const currentState = await this.learningState.load();
+          const nextState = recordReviewFindings(
+            currentState,
             {
               findings: event.findings,
               source,
             },
           );
+          await this.learningState.save(nextState);
 
-        if (event.findings.length > 0) {
           yield {
             type: "learning-state-updated",
             state: nextState,
@@ -600,13 +603,15 @@ export class LearningController {
           context.resolved.activeNote?.path ??
           "learning-session";
 
-        const nextState =
-          await this.learningState.recordPracticeEvaluation(
-            {
-              evaluation: event.evaluation,
-              source,
-            },
-          );
+        const currentState = await this.learningState.load();
+        const nextState = recordPracticeEvaluation(
+          currentState,
+          {
+            evaluation: event.evaluation,
+            source,
+          },
+        );
+        await this.learningState.save(nextState);
 
         yield {
           type: "learning-state-updated",
