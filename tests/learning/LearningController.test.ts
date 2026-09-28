@@ -96,8 +96,7 @@ function createHarness(
   const state = baseState();
   const learningState = {
     load: async () => state,
-    recordPracticeEvaluation: async () => state,
-    recordReviewFindings: async () => state,
+    save: async (_next: LearningState) => {},
   };
 
   const controller = new LearningController(
@@ -303,8 +302,7 @@ test("context preparation failures become recoverable learning failures", async 
     },
     {
       load: async () => baseState(),
-      recordPracticeEvaluation: async () => baseState(),
-      recordReviewFindings: async () => baseState(),
+      save: async (_next: LearningState) => {},
     },
   );
 
