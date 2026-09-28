@@ -1,5 +1,5 @@
-import { Plugin } from "obsidian";
 import { SessionStore } from "./SessionStore";
+import { PluginDataRepository } from "../persistence/PluginDataRepository";
 import {
   AgentAdapter,
   AgentHealth,
@@ -22,13 +22,13 @@ export class SessionController {
   private models: AgentModel[] = [];
 
   constructor(
-    private readonly plugin: Plugin,
+    private readonly pluginData: PluginDataRepository,
     private readonly store: SessionStore,
     private readonly adapter: AgentAdapter,
   ) {}
 
   async init(): Promise<void> {
-    const data = await this.plugin.loadData();
+    const data = await this.pluginData.read();
     await this.store.load(data);
 
     this.currentSession = this.store.getCurrentSession();
@@ -172,7 +172,9 @@ export class SessionController {
   }
 
   private async save(): Promise<void> {
-    const current = (await this.plugin.loadData()) ?? {};
-    await this.plugin.saveData({ ...current, ...this.store.serialize() });
+    await this.pluginData.update((current) => ({
+      ...current,
+      ...this.store.serialize(),
+    }));
   }
 }
