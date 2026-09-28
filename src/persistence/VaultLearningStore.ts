@@ -1,11 +1,8 @@
 import { App, TFile } from "obsidian";
 import {
   DEFAULT_LEARNING_STATE,
-  LearningEvidence,
   LearningState,
 } from "../learning/learning-state";
-import { PracticeEvaluation } from "../learning/practice-types";
-import { ReviewFinding } from "../learning/review-types";
 import { decodeLearningState } from "./learning-state-schema";
 
 const ROOT = "00-learning-os";
@@ -19,9 +16,6 @@ function cloneDefaultState(): LearningState {
   };
 }
 
-function normalize(value: string): string {
-  return value.trim().toLowerCase();
-}
 
 /**
  * Durable Learning OS state stored inside the vault so progress travels with
@@ -68,98 +62,6 @@ export class VaultLearningStore {
     }
 
     await this.app.vault.create(PROGRESS_PATH, content);
-  }
-
-  async recordPracticeEvaluation(input: {
-    evaluation: PracticeEvaluation;
-    source: string;
-  }): Promise<LearningState> {
-    const state = await this.load();
-
-    const evidence: LearningEvidence = {
-      id: crypto.randomUUID(),
-      type: "practice",
-      scope: "learner",
-      concept: input.evaluation.concept,
-      source: input.source,
-      outcome: input.evaluation.outcome,
-      createdAt: Date.now(),
-    };
-
-    state.evidence.push(evidence);
-    state.currentTopic = input.evaluation.concept;
-
-    for (const misconception of input.evaluation.misconceptions) {
-      const existing = state.gaps.find(
-        (gap) =>
-          normalize(gap.concept) ===
-            normalize(input.evaluation.concept) &&
-          normalize(gap.reason) === normalize(misconception),
-      );
-
-      if (existing) {
-        if (!existing.evidenceIds.includes(evidence.id)) {
-          existing.evidenceIds.push(evidence.id);
-        }
-        existing.status = "open";
-      } else {
-        state.gaps.push({
-          id: crypto.randomUUID(),
-          concept: input.evaluation.concept,
-          reason: misconception,
-          evidenceIds: [evidence.id],
-          status: "open",
-        });
-      }
-    }
-
-    if (
-      input.evaluation.outcome === "correct" &&
-      input.evaluation.misconceptions.length === 0
-    ) {
-      for (const gap of state.gaps) {
-        if (
-          normalize(gap.concept) ===
-            normalize(input.evaluation.concept) &&
-          gap.status === "open"
-        ) {
-          // One good answer is evidence of improvement, not proof of mastery.
-          gap.status = "improving";
-          if (!gap.evidenceIds.includes(evidence.id)) {
-            gap.evidenceIds.push(evidence.id);
-          }
-        }
-      }
-    }
-
-    await this.save(state);
-    return state;
-  }
-
-  async recordReviewFindings(input: {
-    findings: ReviewFinding[];
-    source: string;
-  }): Promise<LearningState> {
-    const state = await this.load();
-    if (input.findings.length === 0) return state;
-
-    for (const finding of input.findings) {
-      const evidence: LearningEvidence = {
-        id: crypto.randomUUID(),
-        type: "review",
-        scope: "material",
-        concept: finding.concept,
-        source: input.source,
-        outcome: finding.kind,
-        createdAt: Date.now(),
-      };
-
-      state.evidence.push(evidence);
-      state.currentTopic = finding.concept;
-    }
-
-    await this.save(state);
-    return state;
   }
 
   private async ensureRoot(): Promise<void> {
