@@ -1612,21 +1612,32 @@ export class ChatView extends ItemView {
     if (!proposal) return;
     const wrap = this.renderProposal(proposal);
     const state = message.proposalState ?? "stale";
-    const labels: Record<string, string> = {
+
+    if (state === "pending" && message.proposalId) {
+      this.appendProposalActions(wrap, {
+        id: message.proposalId,
+        proposal,
+      });
+      return;
+    }
+
+    const labels: Record<"applied" | "rejected" | "stale", string> = {
       applied: `✓ Applied to ${proposal.file}`,
       rejected: "✕ Rejected",
       stale: "⚠ Expired after restart",
-      pending: "⚠ Expired after restart",
     };
-    const resultKind = state === "applied"
+    const settledState = state === "applied" || state === "rejected"
+      ? state
+      : "stale";
+    const resultKind = settledState === "applied"
       ? "success"
-      : state === "rejected"
+      : settledState === "rejected"
         ? "neutral"
         : "warning";
     createNoxStatus(wrap, {
-      cls: `nox-result-badge nox-badge--${state === "applied" ? "applied" : state === "rejected" ? "rejected" : "stale"}`,
+      cls: `nox-result-badge nox-badge--${settledState}`,
       kind: resultKind,
-      text: labels[state],
+      text: labels[settledState],
     });
   }
 
@@ -2035,9 +2046,16 @@ export class ChatView extends ItemView {
   }
 
   private appendProposalBubble(edit: ProposedEdit): void {
-    const proposal = edit.proposal;
-    const wrap = this.renderProposal(proposal);
+    const wrap = this.renderProposal(edit.proposal);
+    this.appendProposalActions(wrap, edit);
+    this.scrollThread();
+  }
 
+  private appendProposalActions(
+    wrap: HTMLElement,
+    edit: ProposedEdit,
+  ): void {
+    const proposal = edit.proposal;
     const actions = wrap.createDiv({
       cls: "nox-proposal-actions",
     });
@@ -2088,8 +2106,6 @@ export class ChatView extends ItemView {
         this.setUIState("ANSWER");
       }
     });
-
-    this.scrollThread();
   }
 
   private renderProposal(proposal: EditProposal): HTMLElement {
