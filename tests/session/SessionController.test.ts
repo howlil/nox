@@ -102,3 +102,34 @@ test("lists sessions and restores a selected session as current", async () => {
     first.id,
   );
 });
+
+
+test("leaving a session makes its pending proposals stale", async () => {
+  const harness = pluginHarness();
+  let id = 0;
+  const controller = createController(harness, {
+    now: () => 1,
+    uuid: () => `session-${++id}`,
+  });
+
+  await controller.init();
+  const firstId = controller.getSession().id;
+  await controller.recordProposal("proposal-1", {
+    file: "note.md",
+    original: "before",
+    replacement: "after",
+  });
+
+  assert.equal(
+    controller.getProposal("proposal-1")?.state,
+    "pending",
+  );
+
+  await controller.newSession();
+  await controller.selectSession(firstId);
+
+  assert.equal(
+    controller.getProposal("proposal-1")?.state,
+    "stale",
+  );
+});
