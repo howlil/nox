@@ -75,7 +75,7 @@ export interface LearningControllerOptions {
  *
  * The view sends user intent here. This controller owns orchestration:
  * context -> policy -> learning state -> action -> agent session -> normalized
- * UI events. Provider transport stays behind SessionController/AgentAdapter.
+ * UI events. Provider transport stays behind the AgentRuntime boundary.
  */
 export class LearningController {
   private readonly practice = new PracticeStateMachine();
