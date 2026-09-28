@@ -21,6 +21,7 @@ import {
   recordReviewFindings,
 } from "../domain/learning-state/transitions";
 import type { SessionController } from "../session/SessionController";
+import type { AgentRuntimePort } from "../agent/AgentRuntime";
 import {
   buildActionInstruction,
   buildPracticeEvaluationInstruction,
@@ -44,14 +45,13 @@ import {
 
 type SessionPort = Pick<
   SessionController,
-  | "checkRuntime"
   | "getSession"
   | "listSessions"
   | "selectSession"
-  | "getModels"
   | "setModel"
   | "newSession"
-  | "sendTurn"
+  | "recordUserMessage"
+  | "setConversationId"
   | "recordAssistantMessage"
   | "recordProposal"
   | "updateProposalState"
@@ -91,6 +91,7 @@ export class LearningController {
 
   constructor(
     private readonly sessions: SessionPort,
+    private readonly runtime: AgentRuntimePort,
     private readonly contexts: ContextPort,
     private readonly policies: PolicyPort,
     private readonly mutations: MutationPort,
@@ -101,7 +102,7 @@ export class LearningController {
   }
 
   checkRuntime(): Promise<AgentHealth> {
-    return this.sessions.checkRuntime();
+    return this.runtime.check();
   }
 
   getSession(): ChatSession {
@@ -113,11 +114,11 @@ export class LearningController {
   }
 
   getModels(): AgentModel[] {
-    return this.sessions.getModels();
+    return this.runtime.getModels();
   }
 
-  setModel(modelId?: string): void {
-    this.sessions.setModel(modelId);
+  setModel(modelId?: string): Promise<void> {
+    return this.sessions.setModel(modelId);
   }
 
   async newSession(): Promise<ChatSession> {
@@ -308,10 +309,18 @@ export class LearningController {
     };
 
     try {
-      for await (const event of this.sessions.sendTurn(
-        preparedPrompt,
-        [...snapshot.visible, ...snapshot.system],
-        request.prompt,
+      const session = this.sessions.getSession();
+      await this.sessions.recordUserMessage(request.prompt);
+
+      for await (const event of this.runtime.send(
+        {
+          prompt: preparedPrompt,
+          context: [...snapshot.visible, ...snapshot.system],
+        },
+        {
+          model: session.model,
+          conversationId: session.conversationId,
+        },
         controller.signal,
       )) {
         if (event.type === "text") {
@@ -343,6 +352,10 @@ export class LearningController {
         }
 
         if (event.type === "completed") {
+          if (event.conversationId) {
+            await this.sessions.setConversationId(event.conversationId);
+          }
+
           for await (const mapped of this.mapStructuredEvents(
             parser.finish(),
             request,
