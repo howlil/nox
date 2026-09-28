@@ -538,7 +538,9 @@ export class ChatView extends ItemView {
         this.syncModelMenuRows();
       });
       row.addEventListener("mousedown", (event) => event.preventDefault());
-      row.addEventListener("click", () => this.selectModel(model.id));
+      row.addEventListener("click", () => {
+        void this.selectModel(model.id);
+      });
       rows.push(row);
     }
 
@@ -561,8 +563,8 @@ export class ChatView extends ItemView {
     this.modelMenuState.syncTrigger(this.modelTrigger, "nox-model-menu");
   }
 
-  private selectModel(modelId: string): void {
-    this.learning.setModel(modelId || undefined);
+  private async selectModel(modelId: string): Promise<void> {
+    await this.learning.setModel(modelId || undefined);
     this.closeModelMenu();
     this.modelTrigger.focus();
   }
