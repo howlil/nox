@@ -30,6 +30,10 @@ function createHarness(
     createdAt: 1,
     updatedAt: 1,
   };
+  let nextSessionNumber = 1;
+  const sessionRecords = new Map<string, ChatSession>([
+    [session.id, session],
+  ]);
 
   const proposalRecords = new Map<
     string,
@@ -45,19 +49,26 @@ function createHarness(
 
   const sessions = {
     getSession: () => session,
-    listSessions: () => [session],
-    selectSession: async (_id: string) => session,
+    listSessions: () => Array.from(sessionRecords.values()),
+    selectSession: async (id: string) => {
+      const selected = sessionRecords.get(id);
+      if (!selected) return null;
+      session = selected;
+      return selected;
+    },
     setModel: async (_model?: string) => {},
     newSession: async () => {
       for (const record of proposalRecords.values()) {
         if (record.state === "pending") record.state = "stale";
       }
+      nextSessionNumber += 1;
       session = {
-        id: "session-2",
+        id: `session-${nextSessionNumber}`,
         messages: [],
-        createdAt: 2,
-        updatedAt: 2,
+        createdAt: nextSessionNumber,
+        updatedAt: nextSessionNumber,
       };
+      sessionRecords.set(session.id, session);
       return session;
     },
     recordUserMessage: async (_content: string) => {},
@@ -257,6 +268,205 @@ test("failed practice evaluation rolls back to the same question", async () => {
     /What makes a transaction atomic\?/,
   );
   assert.match(harness.prompts[2] ?? "", /retry answer/);
+});
+
+test("practice state is isolated by conversation session and resumes when returning", async () => {
+  let call = 0;
+  const fence = String.fromCharCode(96).repeat(3);
+
+  const harness = createHarness(async function* () {
+    call += 1;
+
+    if (call === 1) {
+      yield {
+        type: "text",
+        content:
+          fence +
+          "learning-practice\n" +
+          JSON.stringify({
+            kind: "question",
+            concept: "transactions",
+            question: "What makes a transaction atomic?",
+          }) +
+          "\n" +
+          fence,
+      };
+      yield { type: "completed" };
+      return;
+    }
+
+    if (call === 2) {
+      yield {
+        type: "text",
+        content:
+          fence +
+          "learning-practice\n" +
+          JSON.stringify({
+            kind: "question",
+            concept: "indexes",
+            question: "Why does index column order matter?",
+          }) +
+          "\n" +
+          fence,
+      };
+      yield { type: "completed" };
+      return;
+    }
+
+    yield {
+      type: "text",
+      content:
+        fence +
+        "learning-practice\n" +
+        JSON.stringify({
+          kind: "evaluation",
+          concept: "transactions",
+          outcome: "correct",
+          feedback: "Correct.",
+          misconceptions: [],
+        }) +
+        "\n" +
+        fence,
+    };
+    yield { type: "completed" };
+  });
+
+  const firstSessionId = harness.controller.getSession().id;
+
+  await collectEvents(
+    harness.controller.run({
+      prompt: "quiz transactions",
+      action: "practice",
+      explicitContext: [],
+    }),
+  );
+
+  const secondSession = await harness.controller.newSession();
+
+  await collectEvents(
+    harness.controller.run({
+      prompt: "quiz indexes",
+      action: "practice",
+      explicitContext: [],
+    }),
+  );
+
+  assert.match(
+    harness.prompts[1] ?? "",
+    /Generate exactly one active-recall question/,
+  );
+  assert.doesNotMatch(
+    harness.prompts[1] ?? "",
+    /What makes a transaction atomic\?/,
+  );
+
+  await harness.controller.selectSession(firstSessionId);
+
+  await collectEvents(
+    harness.controller.run({
+      prompt: "All-or-nothing effects",
+      action: "practice",
+      explicitContext: [],
+    }),
+  );
+
+  assert.notEqual(secondSession.id, firstSessionId);
+  assert.match(
+    harness.prompts[2] ?? "",
+    /Learning mode: practice evaluation/,
+  );
+  assert.match(
+    harness.prompts[2] ?? "",
+    /What makes a transaction atomic\?/,
+  );
+  assert.match(
+    harness.prompts[2] ?? "",
+    /All-or-nothing effects/,
+  );
+});
+
+test("non-practice action resets only the active session practice", async () => {
+  let call = 0;
+  const fence = String.fromCharCode(96).repeat(3);
+
+  const harness = createHarness(async function* (prompt) {
+    call += 1;
+
+    if (call === 1) {
+      yield {
+        type: "text",
+        content:
+          fence +
+          "learning-practice\n" +
+          JSON.stringify({
+            kind: "question",
+            concept: "transactions",
+            question: "What makes a transaction atomic?",
+          }) +
+          "\n" +
+          fence,
+      };
+      yield { type: "completed" };
+      return;
+    }
+
+    if (call === 2) {
+      yield { type: "text", content: "Plain answer" };
+      yield { type: "completed" };
+      return;
+    }
+
+    assert.match(prompt, /Learning mode: practice evaluation/);
+    yield {
+      type: "text",
+      content:
+        fence +
+        "learning-practice\n" +
+        JSON.stringify({
+          kind: "evaluation",
+          concept: "transactions",
+          outcome: "correct",
+          feedback: "Correct.",
+          misconceptions: [],
+        }) +
+        "\n" +
+        fence,
+    };
+    yield { type: "completed" };
+  });
+
+  const firstSessionId = harness.controller.getSession().id;
+
+  await collectEvents(
+    harness.controller.run({
+      prompt: "quiz me",
+      action: "practice",
+      explicitContext: [],
+    }),
+  );
+
+  await harness.controller.newSession();
+  await collectEvents(
+    harness.controller.run({
+      prompt: "explain indexes",
+      action: "ask",
+      explicitContext: [],
+    }),
+  );
+
+  await harness.controller.selectSession(firstSessionId);
+  await collectEvents(
+    harness.controller.run({
+      prompt: "All-or-nothing effects",
+      action: "practice",
+      explicitContext: [],
+    }),
+  );
+
+  assert.match(
+    harness.prompts[2] ?? "",
+    /What makes a transaction atomic\?/,
+  );
 });
 
 test("proposal applicability comes from canonical session state", async () => {
