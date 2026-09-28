@@ -35,6 +35,7 @@ export class SessionController {
   }
 
   async newSession(): Promise<ChatSession> {
+    this.stalePendingProposals(this.currentSession);
     const model = this.currentSession?.model ?? this.store.getDefaultModel();
     this.currentSession = this.store.createSession(model);
     await this.save();
@@ -49,6 +50,7 @@ export class SessionController {
     const session = this.store.getSession(id);
     if (!session) return null;
 
+    this.stalePendingProposals(this.currentSession);
     this.currentSession = session;
     this.store.setCurrentSession(id);
     await this.save();
@@ -115,6 +117,22 @@ export class SessionController {
     await this.save();
   }
 
+  getProposal(proposalId: string): {
+    proposal: EditProposal;
+    state: "pending" | "applied" | "rejected" | "stale";
+  } | null {
+    const message = this.getSession().messages.find(
+      (item) => item.proposalId === proposalId,
+    );
+
+    if (!message?.proposal) return null;
+
+    return {
+      proposal: { ...message.proposal },
+      state: message.proposalState ?? "stale",
+    };
+  }
+
   async updateProposalState(
     proposalId: string,
     state: "applied" | "rejected" | "stale",
@@ -122,10 +140,26 @@ export class SessionController {
     const message = this.getSession().messages.find(
       (item) => item.proposalId === proposalId,
     );
-    if (!message) return;
+    if (!message || message.proposalState !== "pending") return;
+
     message.proposalState = state;
     this.store.updateSession(this.getSession());
     await this.save();
+  }
+
+  private stalePendingProposals(session: ChatSession | null): void {
+    if (!session) return;
+
+    let changed = false;
+    for (const message of session.messages) {
+      if (message.proposalState !== "pending") continue;
+      message.proposalState = "stale";
+      changed = true;
+    }
+
+    if (changed) {
+      this.store.updateSession(session);
+    }
   }
 
   private async save(): Promise<void> {
