@@ -1689,52 +1689,6 @@ export class ChatView extends ItemView {
     });
   }
 
-  private showError(message: string): void {
-    this.stopLoadingTimer();
-    this.thread.empty();
-    this.agentCursorEl = null;
-    this.statusEl = null;
-
-    const slate = this.thread.createDiv({
-      cls: "nox-error-slate",
-    });
-    slate.createDiv({
-      cls: "nox-error-icon",
-      text: "⚠",
-    });
-    slate.createDiv({
-      cls: "nox-error-title",
-      text: "Nox unavailable",
-    });
-    slate.createDiv({
-      cls: "nox-error-body",
-      text: message,
-    });
-
-    const actions = slate.createDiv({ cls: "nox-error-actions" });
-    const retry = createNoxButton(actions, {
-      cls: "nox-retry-btn",
-      variant: "accent",
-      text: "Retry",
-    });
-    retry.addEventListener("click", () => {
-      retry.disabled = true;
-      retry.textContent = "Checking…";
-      void this.retryRuntime();
-    });
-
-    const configure = createNoxButton(actions, {
-      cls: "nox-configure-btn",
-      variant: "secondary",
-      text: "Configure Nox",
-    });
-    configure.addEventListener("click", () => {
-      this.openSettings();
-    });
-
-    this.setUIState("ERROR");
-  }
-
   private appendUserBubble(text: string): void {
     this.thread.querySelector(".nox-empty-slate")?.remove();
     const bubble = this.thread.createDiv({
