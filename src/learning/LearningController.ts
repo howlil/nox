@@ -222,7 +222,31 @@ export class LearningController {
       }
     }
 
-    const visible = this.contexts.toAgentContext(context);
+    const resolvedContext = this.contexts.toAgentContext(context);
+    // A Review follow-up practices its originating material, even if the user
+    // navigated to another note before sending. Other explicit refs remain additive.
+    let visible = resolvedContext;
+    if (request.sourcePath && request.action === "practice") {
+      const source = resolvedContext.find((item) => item.file === request.sourcePath);
+      if (!source) {
+        this.activeTurn = null;
+        yield {
+          type: "failed",
+          failure: {
+            code: "unknown",
+            message: `Review source ${request.sourcePath} is no longer available.`,
+          },
+        };
+        return;
+      }
+      const automaticPath = context.selection?.file ?? context.activeNote?.path;
+      visible = [
+        source,
+        ...resolvedContext.filter(
+          (item) => item !== source && item.file !== automaticPath,
+        ),
+      ];
+    }
     const system: AgentContext[] = [];
 
     if (policy.rawInstructions) {
