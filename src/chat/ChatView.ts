@@ -963,6 +963,7 @@ export class ChatView extends ItemView {
   }
 
   private setAction(action: LearningActionKind): void {
+    if (action !== this.selectedAction) this.pendingFindingSource = null;
     this.selectedAction = action;
     if (this.promptMenu === "command") {
       this.promptMenuState.setActive(this.getPromptMenuStartIndex("command"));
@@ -2026,7 +2027,7 @@ export class ChatView extends ItemView {
     this.scrollThread();
   }
 
-  private appendReviewFindings(findings: ReviewFinding[]): void {
+  private appendReviewFindings(findings: ReviewFinding[], sourcePath: string | null): void {
     if (!this.agentCursorEl) return;
 
     const wrap = this.agentCursorEl.createDiv({ cls: "nox-review" });
@@ -2054,6 +2055,7 @@ export class ChatView extends ItemView {
       });
       practice.addEventListener("click", () => {
         this.setAction("practice");
+        this.pinFindingSource(sourcePath);
         this.input.value = `Practice this gap: ${finding.concept} — ${finding.detail}`;
         this.onInput();
         this.input.focus();
@@ -2066,13 +2068,36 @@ export class ChatView extends ItemView {
       });
       fix.addEventListener("click", () => {
         this.setAction("edit");
+        this.pinFindingSource(sourcePath);
         this.input.value = `Fix this learning gap: ${finding.detail}`;
         this.onInput();
         this.input.focus();
+        if (sourcePath && this.currentContext?.activeNote?.path !== sourcePath) {
+          void this.app.workspace.openLinkText(sourcePath, sourcePath, false)
+            .then(() => this.syncChips())
+            .catch(() => {
+              this.appendInlineStatus(this.thread, "failed", `Open ${sourcePath} to edit this finding.`);
+            });
+        }
       });
     }
 
     this.scrollThread();
+  }
+
+  private pinFindingSource(sourcePath: string | null): void {
+    this.pendingFindingSource = sourcePath;
+    if (!sourcePath) return;
+    const primary = this.currentContext?.selection?.file ?? this.currentContext?.activeNote?.path;
+    if (primary === sourcePath) return;
+    if (this.extraCtx.some((ref) => ref.kind === "vault-note" && ref.path === sourcePath)) return;
+    this.attachments.push({
+      name: sourcePath.split("/").pop() ?? sourcePath,
+      ref: { kind: "vault-note", path: sourcePath },
+    });
+    this.extraCtx = this.attachments.map((item) => item.ref);
+    this.renderAttachments();
+    void this.syncChips();
   }
 
   private appendProgressUpdate(
@@ -2119,38 +2144,65 @@ export class ChatView extends ItemView {
       text: "Apply ✓",
     });
 
-    rejectBtn.addEventListener("click", () => {
-      void this.learning.rejectProposal(edit.id);
-      actions.remove();
-      createNoxStatus(wrap, {
-        cls: "nox-result-badge nox-badge--rejected",
-        kind: "neutral",
-        text: "✕ Rejected",
-      });
-      this.setUIState("ANSWER");
+    rejectBtn.addEventListener("click", async () => {
+      rejectBtn.disabled = true;
+      applyBtn.disabled = true;
+      try {
+        await this.learning.rejectProposal(edit.id);
+        actions.remove();
+        createNoxStatus(wrap, {
+          cls: "nox-result-badge nox-badge--rejected",
+          kind: "neutral",
+          text: "✕ Rejected",
+        });
+        this.setUIState("ANSWER");
+      } catch {
+        rejectBtn.disabled = false;
+        applyBtn.disabled = false;
+        this.appendInlineStatus(wrap, "failed", "Could not save rejection. Retry.");
+      }
     });
 
     applyBtn.addEventListener("click", async () => {
       applyBtn.disabled = true;
+      rejectBtn.disabled = true;
       applyBtn.textContent = "Applying…";
 
-      const result = await this.learning.applyProposal(edit.id);
-      actions.remove();
-
-      if (result.ok) {
-        createNoxStatus(wrap, {
-          cls: "nox-result-badge nox-badge--applied",
-          kind: "success",
-          text: "✓ Applied to " + proposal.file,
-        });
-        this.setUIState("APPLIED");
-      } else {
-        createNoxStatus(wrap, {
-          cls: "nox-result-badge nox-badge--stale",
-          kind: "warning",
-          text: "⚠ " + result.message,
-        });
-        this.setUIState("ANSWER");
+      try {
+        const result = await this.learning.applyProposal(edit.id);
+        wrap.querySelector(".nox-proposal-retry-status")?.remove();
+        if (result.ok) {
+          actions.remove();
+          createNoxStatus(wrap, {
+            cls: "nox-result-badge nox-badge--applied",
+            kind: "success",
+            text: "✓ Applied to " + proposal.file,
+          });
+          this.setUIState("APPLIED");
+        } else if (result.reason === "no-editor" || result.reason === "error") {
+          // Source remains valid: keep Apply available after the user fixes the blocker.
+          applyBtn.disabled = false;
+          rejectBtn.disabled = false;
+          applyBtn.textContent = "Retry Apply";
+          createNoxStatus(wrap, {
+            cls: "nox-proposal-retry-status",
+            kind: "warning",
+            text: result.message,
+          });
+        } else {
+          actions.remove();
+          createNoxStatus(wrap, {
+            cls: "nox-result-badge nox-badge--stale",
+            kind: "warning",
+            text: result.message,
+          });
+          this.setUIState("ANSWER");
+        }
+      } catch {
+        applyBtn.disabled = false;
+        rejectBtn.disabled = false;
+        applyBtn.textContent = "Retry Apply";
+        this.appendInlineStatus(wrap, "failed", "Could not save the result. Check the note before retrying.");
       }
     });
   }
