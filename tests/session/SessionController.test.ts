@@ -142,3 +142,29 @@ test("leaving a session makes its pending proposals stale", async () => {
     "stale",
   );
 });
+
+test("late turn writes are scoped to the original session even after switching", async () => {
+  const harness = pluginHarness();
+  let id = 0;
+  const controller = createController(harness, {
+    now: () => 1,
+    uuid: () => `session-${++id}`,
+  });
+  await controller.init();
+  const originalId = controller.getSession().id;
+  const second = await controller.newSession();
+
+  await controller.recordUserMessage("from A", originalId);
+  await controller.recordAssistantMessage("answer A", "note-a.md", originalId);
+  await controller.setConversationId("conversation-A", originalId);
+
+  assert.equal(controller.getSession().id, second.id);
+  assert.deepEqual(controller.getSession().messages, []);
+  assert.equal(controller.getSession().conversationId, undefined);
+
+  await controller.selectSession(originalId);
+  assert.deepEqual(controller.getSession().messages.map(message => message.content), [
+    "from A", "answer A",
+  ]);
+  assert.equal(controller.getSession().conversationId, "conversation-A");
+});

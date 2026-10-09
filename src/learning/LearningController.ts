@@ -80,6 +80,7 @@ export interface LearningControllerOptions {
  */
 export class LearningController {
   private readonly practices = new PracticeSessionRegistry();
+  private readonly applyingProposals = new Set<string>();
   private activeTurn: {
     controller: AbortController;
     cancelReason?: "user" | "timeout" | "dispose";
@@ -119,11 +120,17 @@ export class LearningController {
   }
 
   async newSession(): Promise<ChatSession> {
+    if (this.activeTurn) throw new Error("Finish or stop the active turn before creating a session.");
     return this.sessions.newSession();
   }
 
   async selectSession(id: string): Promise<ChatSession | null> {
+    if (this.activeTurn) throw new Error("Finish or stop the active turn before switching sessions.");
     return this.sessions.selectSession(id);
+  }
+
+  hasActivePracticeQuestion(): boolean {
+    return this.practices.hasWaitingQuestion(this.sessions.getSession().id);
   }
 
   async resolveContext(
@@ -153,19 +160,33 @@ export class LearningController {
       return;
     }
 
+    // Lock before asynchronous context/policy preparation.
+    const controller = new AbortController();
+    const activeTurn = { controller } as {
+      controller: AbortController;
+      cancelReason?: "user" | "timeout" | "dispose";
+    };
+    this.activeTurn = activeTurn;
+
     let context: LearningContext;
     let policy: Awaited<ReturnType<PolicyPort["load"]>>;
     let state: Awaited<ReturnType<LearningStatePort["load"]>>;
 
     try {
-      context = await this.contexts.resolve(
-        request.explicitContext,
-      );
+      const refs = [...request.explicitContext];
+      if (
+        request.sourcePath &&
+        !refs.some((ref) => ref.kind === "vault-note" && ref.path === request.sourcePath)
+      ) {
+        refs.push({ kind: "vault-note", path: request.sourcePath });
+      }
+      context = await this.contexts.resolve(refs);
       [policy, state] = await Promise.all([
         this.policies.load(),
         this.learningState.load(),
       ]);
     } catch (error) {
+      if (this.activeTurn === activeTurn) this.activeTurn = null;
       yield {
         type: "failed",
         failure: {
@@ -180,7 +201,52 @@ export class LearningController {
       return;
     }
 
-    const visible = this.contexts.toAgentContext(context);
+    if (controller.signal.aborted) {
+      this.activeTurn = null;
+      yield { type: "cancelled" };
+      return;
+    }
+
+    if (request.sourcePath && request.action === "edit") {
+      const primary = context.selection?.file ?? context.activeNote?.path;
+      if (primary !== request.sourcePath) {
+        this.activeTurn = null;
+        yield {
+          type: "failed",
+          failure: {
+            code: "unknown",
+            message: `Open ${request.sourcePath} before fixing this review finding.`,
+          },
+        };
+        return;
+      }
+    }
+
+    const resolvedContext = this.contexts.toAgentContext(context);
+    // A Review follow-up practices its originating material, even if the user
+    // navigated to another note before sending. Other explicit refs remain additive.
+    let visible = resolvedContext;
+    if (request.sourcePath && request.action === "practice") {
+      const source = resolvedContext.find((item) => item.file === request.sourcePath);
+      if (!source) {
+        this.activeTurn = null;
+        yield {
+          type: "failed",
+          failure: {
+            code: "unknown",
+            message: `Review source ${request.sourcePath} is no longer available.`,
+          },
+        };
+        return;
+      }
+      const automaticPath = context.selection?.file ?? context.activeNote?.path;
+      visible = [
+        source,
+        ...resolvedContext.filter(
+          (item) => item !== source && item.file !== automaticPath,
+        ),
+      ];
+    }
     const system: AgentContext[] = [];
 
     if (policy.rawInstructions) {
@@ -235,6 +301,7 @@ export class LearningController {
     yield { type: "context-ready", context: snapshot };
 
     const conversation = this.sessions.getSession();
+    const turnSessionId = conversation.id;
     const practice = this.practices.forSession(conversation.id);
 
     let preparedPrompt: string;
@@ -248,6 +315,7 @@ export class LearningController {
           practice.beginEvaluation(request.prompt);
 
         if (!attempt) {
+          if (this.activeTurn === activeTurn) this.activeTurn = null;
           yield {
             type: "failed",
             failure: {
@@ -282,12 +350,6 @@ export class LearningController {
     }
 
     const parser = new StructuredStreamParser();
-    const controller = new AbortController();
-    const activeTurn = { controller } as {
-      controller: AbortController;
-      cancelReason?: "user" | "timeout" | "dispose";
-    };
-    this.activeTurn = activeTurn;
 
     const timeout = setTimeout(() => {
       activeTurn.cancelReason = "timeout";
@@ -305,7 +367,9 @@ export class LearningController {
     };
 
     try {
-      await this.sessions.recordUserMessage(request.prompt);
+      if (!request.retry) {
+        await this.sessions.recordUserMessage(request.prompt, turnSessionId);
+      }
 
       for await (const event of this.runtime.send(
         {
@@ -334,12 +398,14 @@ export class LearningController {
               await this.sessions.recordAssistantMessage(
                 visibleText,
                 snapshot.mutableFile,
+                turnSessionId,
               );
               visibleText = "";
               await this.sessions.recordProposal(
                 mapped.edit.id,
                 mapped.edit.proposal,
                 snapshot.mutableFile,
+                turnSessionId,
               );
             }
 
@@ -350,7 +416,7 @@ export class LearningController {
 
         if (event.type === "completed") {
           if (event.conversationId) {
-            await this.sessions.setConversationId(event.conversationId);
+            await this.sessions.setConversationId(event.conversationId, turnSessionId);
           }
 
           for await (const mapped of this.mapStructuredEvents(
@@ -368,12 +434,14 @@ export class LearningController {
               await this.sessions.recordAssistantMessage(
                 visibleText,
                 snapshot.mutableFile,
+                turnSessionId,
               );
               visibleText = "";
               await this.sessions.recordProposal(
                 mapped.edit.id,
                 mapped.edit.proposal,
                 snapshot.mutableFile,
+                turnSessionId,
               );
             }
 
@@ -393,6 +461,7 @@ export class LearningController {
           await this.sessions.recordAssistantMessage(
             visibleText,
             snapshot.mutableFile,
+            turnSessionId,
           );
           yield { type: "completed" };
           return;
@@ -458,7 +527,7 @@ export class LearningController {
   ): Promise<ApplyResult> {
     const record = this.sessions.getProposal(proposalId);
 
-    if (!record || record.state !== "pending") {
+    if (this.applyingProposals.has(proposalId) || !record || record.state !== "pending") {
       return {
         ok: false,
         reason: "stale",
@@ -467,17 +536,28 @@ export class LearningController {
       };
     }
 
-    const result = await this.mutations.apply(
-      record.proposal,
-      record.mutableFile,
-    );
+    this.applyingProposals.add(proposalId);
+    try {
+      const result = await this.mutations.apply(
+        record.proposal,
+        record.mutableFile,
+      );
 
-    await this.sessions.updateProposalState(
-      proposalId,
-      result.ok ? "applied" : "stale",
-    );
+      if (result.ok) {
+        await this.sessions.updateProposalState(proposalId, "applied");
+      } else if (
+        result.reason === "stale" ||
+        result.reason === "ambiguous" ||
+        result.reason === "unauthorized" ||
+        result.reason === "missing-file"
+      ) {
+        await this.sessions.updateProposalState(proposalId, "stale");
+      }
 
-    return result;
+      return result;
+    } finally {
+      this.applyingProposals.delete(proposalId);
+    }
   }
 
   async rejectProposal(

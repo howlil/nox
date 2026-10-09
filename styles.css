@@ -181,24 +181,6 @@
   margin-left: auto;
 }
 
-.nox-mode-tabs {
-  @apply flex w-full max-w-full gap-1 overflow-x-auto rounded-[10px] p-[3px];
-  display: flex;
-  gap: 3px;
-  width: 100%;
-  max-width: 100%;
-  overflow-x: auto;
-  padding: 3px;
-  border: 1px solid var(--nox-line);
-  border-radius: var(--nox-radius-card);
-  background: var(--nox-canvas);
-  scrollbar-width: none;
-}
-
-.nox-mode-tabs::-webkit-scrollbar {
-  display: none;
-}
-
 .nox-new-btn,
 .nox-more-btn,
 .nox-send-btn,
@@ -270,74 +252,14 @@
   text-align: left;
 }
 
-.nox-error-slate {
-  display: flex;
-  flex: 1;
-  min-height: 220px;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  padding: 32px 24px;
-  text-align: center;
-}
 
-.nox-empty-logo {
-  display: block;
-  width: 42px;
-  height: 42px;
-  margin-bottom: 4px;
-  border: 1px solid var(--nox-accent-border);
-  border-radius: var(--nox-radius-window);
-  object-fit: cover;
-}
 
-.nox-empty-kicker {
-  color: var(--nox-accent);
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.13em;
-}
 
-.nox-empty-label {
-  max-width: 300px;
-  color: var(--nox-ink);
-  font-size: 14px;
-  font-weight: 600;
-  line-height: 1.4;
-}
 
-.nox-empty-hint {
-  max-width: 280px;
-  color: var(--nox-ink-2);
-  font-size: 12px;
-  line-height: 1.5;
-}
 
-.nox-error-icon {
-  color: var(--nox-red);
-  font-size: 28px;
-}
 
-.nox-error-title {
-  color: var(--nox-red);
-  font-size: 14px;
-  font-weight: 650;
-}
 
-.nox-error-body {
-  max-width: 320px;
-  color: var(--nox-ink-2);
-  font-size: 12px;
-  line-height: 1.5;
-}
 
-.nox-error-actions {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  margin-top: 4px;
-}
 
 .nox-button {
   display: inline-flex;
@@ -1209,13 +1131,10 @@
 }
 
 .nox-composer-box {
-  @apply flex flex-col gap-2 rounded-[10px] p-2.5;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding: 8px;
+  display: block;
+  padding: 8px 9px;
   border: 1px solid var(--nox-line-strong);
-  border-radius: 14px;
+  border-radius: var(--nox-radius-window);
   background: var(--nox-surface);
   box-shadow: var(--nox-composer-shadow);
   cursor: text;
@@ -1267,7 +1186,10 @@
 }
 
 .nox-composer-controls {
-  @apply flex min-w-0 items-center gap-1.5;
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr) auto auto;
+  align-items: end;
+  width: 100%;
   min-width: 0;
   gap: 6px;
 }
@@ -1331,9 +1253,7 @@
 }
 
 .nox-composer-footer {
-  @apply flex items-center justify-between gap-2;
-  justify-content: space-between;
-  gap: 8px;
+  display: contents;
 }
 
 .nox-btn-group {
@@ -2133,22 +2053,6 @@
 }
 
 /* ── Inline-context composer v1 ─────────────────────────────────────────── */
-.nox-composer-box {
-  display: block;
-  padding: 8px 9px;
-  border-radius: var(--nox-radius-window);
-  box-shadow: var(--nox-composer-shadow);
-}
-
-.nox-composer-controls {
-  display: grid !important;
-  grid-template-columns: 28px minmax(0, 1fr) auto auto;
-  align-items: end;
-  width: 100%;
-  min-width: 0;
-  gap: 6px;
-}
-
 .nox-input-line {
   display: flex;
   grid-column: 2;
@@ -2237,8 +2141,6 @@
   padding: 2px 0;
   line-height: 20px;
 }
-
-.nox-composer-footer { display: contents; }
 
 .nox-prompt-plus {
   grid-column: 1;

@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  AgentContext,
   AgentStreamEvent,
+  ApplyResult,
   ChatSession,
   EditProposal,
 } from "../../src/types";
@@ -23,6 +25,11 @@ function createHarness(
     prompt: string,
     signal: AbortSignal,
   ) => AsyncIterable<AgentStreamEvent>,
+  options: {
+    mutationResult?: ApplyResult;
+    contextOverride?: { activeNote: { path: string; content: string }; explicit: Array<{ type: "note"; path: string; content: string; source: "explicit" }> };
+    agentContexts?: AgentContext[];
+  } = {},
 ) {
   let session: ChatSession = {
     id: "session-1",
@@ -44,8 +51,10 @@ function createHarness(
     }
   >();
   const prompts: string[] = [];
+  const sentContexts: AgentContext[][] = [];
   let mutationCalls = 0;
   let mutationTarget: string | undefined;
+  let recordedUserMessages = 0;
 
   const sessions = {
     getSession: () => session,
@@ -71,7 +80,7 @@ function createHarness(
       sessionRecords.set(session.id, session);
       return session;
     },
-    recordUserMessage: async (_content: string) => {},
+    recordUserMessage: async (_content: string) => { recordedUserMessages += 1; },
     setConversationId: async (_id?: string) => {},
     recordAssistantMessage: async (_content: string) => {},
     recordProposal: async (
@@ -108,17 +117,18 @@ function createHarness(
     check: async () => ({ status: "ready" as const }),
     getModels: () => [],
     send: async function* (
-      input: { prompt: string },
+      input: { prompt: string; context: AgentContext[] },
       _opts: unknown,
       signal: AbortSignal,
     ) {
       prompts.push(input.prompt);
+      sentContexts.push(input.context);
       yield* sendTurn(input.prompt, signal);
     },
   };
 
   const contexts = {
-    resolve: async () => ({
+    resolve: async () => options.contextOverride ?? ({
       activeNote: {
         path: "note.md",
         content: "current note",
@@ -126,7 +136,7 @@ function createHarness(
       explicit: [],
     }),
     searchNotes: () => [],
-    toAgentContext: () => [
+    toAgentContext: () => options.agentContexts ?? [
       {
         type: "note" as const,
         file: "note.md",
@@ -146,7 +156,7 @@ function createHarness(
     apply: async (_proposal: EditProposal, mutableFile?: string) => {
       mutationCalls += 1;
       mutationTarget = mutableFile;
-      return { ok: true as const };
+      return options.mutationResult ?? { ok: true as const };
     },
   };
 
@@ -169,7 +179,9 @@ function createHarness(
   return {
     controller,
     prompts,
+    getSentContexts: () => sentContexts,
     getMutationCalls: () => mutationCalls,
+    getUserWrites: () => recordedUserMessages,
     getMutationTarget: () => mutationTarget,
     getProposalState: (id: string) => proposalRecords.get(id)?.state,
   };
@@ -240,6 +252,7 @@ test("failed practice evaluation rolls back to the same question", async () => {
   assert.ok(
     first.some((event) => event.type === "practice-question"),
   );
+  assert.equal(harness.controller.hasActivePracticeQuestion(), true);
 
   const failed = await collectEvents(
     harness.controller.run({
@@ -630,4 +643,105 @@ test("context preparation failures become recoverable learning failures", async 
       /missing explicit note/,
     );
   }
+});
+
+
+test("active turn locks session transitions during context preparation and streaming", async () => {
+  const harness = createHarness(async function* () {
+    yield { type: "text", content: "answer" };
+    yield { type: "completed" };
+  });
+
+  const iterator = harness.controller.run({
+    prompt: "hello",
+    action: "ask",
+    explicitContext: [],
+  })[Symbol.asyncIterator]();
+
+  const first = await iterator.next();
+  assert.equal(first.value?.type, "context-ready");
+  await assert.rejects(() => harness.controller.newSession(), /active turn/);
+  await assert.rejects(
+    () => harness.controller.selectSession("session-1"),
+    /active turn/,
+  );
+
+  while (!(await iterator.next()).done) {
+    // Drain and release the turn lock.
+  }
+  const newSession = await harness.controller.newSession();
+  assert.equal(newSession.id, "session-2");
+});
+
+test("retry does not persist the logical user message a second time", async () => {
+  const harness = createHarness(async function* () {
+    yield { type: "text", content: "answer" };
+    yield { type: "completed" };
+  });
+  const request = { prompt: "Explain transactions", action: "ask" as const, explicitContext: [] };
+  await collectEvents(harness.controller.run(request));
+  await collectEvents(harness.controller.run({ ...request, retry: true }));
+  assert.equal(harness.getUserWrites(), 1);
+});
+
+test("recoverable missing editor keeps proposal pending for retry", async () => {
+  const fence = String.fromCharCode(96).repeat(3);
+  const harness = createHarness(async function* () {
+    yield { type: "text", content: fence + "edit-proposal\n" +
+      JSON.stringify({ file: "note.md", original: "current", replacement: "next" }) +
+      "\n" + fence };
+    yield { type: "completed" };
+  }, { mutationResult: { ok: false, reason: "no-editor", message: "Open the note." } });
+  const events = await collectEvents(harness.controller.run({
+    prompt: "improve",
+    action: "edit",
+    explicitContext: [],
+  }));
+  const proposal = events.find(event => event.type === "mutation-proposed");
+  assert.ok(proposal && proposal.type === "mutation-proposed");
+  const result = await harness.controller.applyProposal(proposal.edit.id);
+  assert.deepEqual(result, { ok: false, reason: "no-editor", message: "Open the note." });
+  assert.equal(harness.getProposalState(proposal.edit.id), "pending");
+});
+
+test("review edit follow-up refuses a different active note", async () => {
+  const harness = createHarness(async function* () {
+    yield { type: "completed" };
+  });
+  const events = await collectEvents(harness.controller.run({
+    prompt: "fix finding",
+    action: "edit",
+    explicitContext: [],
+    sourcePath: "another-note.md",
+  }));
+  assert.equal(events[0]?.type, "failed");
+  if (events[0]?.type === "failed") {
+    assert.match(events[0].failure.message, /Open another-note\.md/);
+  }
+});
+
+test("review practice follow-up uses the pinned source instead of newly active note", async () => {
+  const harness = createHarness(async function* () {
+    yield { type: "completed" };
+  }, {
+    contextOverride: {
+      activeNote: { path: "other.md", content: "unrelated material" },
+      explicit: [
+        { type: "note", path: "source.md", content: "original reviewed material", source: "explicit" },
+      ],
+    },
+    agentContexts: [
+      { type: "note", file: "other.md", content: "unrelated material" },
+      { type: "note", file: "source.md", content: "original reviewed material" },
+    ],
+  });
+  await collectEvents(harness.controller.run({
+    prompt: "Practice the finding",
+    action: "practice",
+    explicitContext: [],
+    sourcePath: "source.md",
+  }));
+  const context = harness.getSentContexts()[0] ?? [];
+  assert.equal(context[0]?.file, "source.md");
+  assert.equal(context.some((item) => item.file === "other.md"), false);
 });

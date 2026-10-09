@@ -145,6 +145,11 @@ export class ChatView extends ItemView {
   private lastTurnRequest: LearningRequest | null = null;
   private turnTerminal = false;
   private workspaceEventsRegistered = false;
+  private runtimeReady = false;
+  private runtimeFailureMessage: string | null = null;
+  private contextSyncRequest = 0;
+  private turnContextSource: string | null = null;
+  private pendingFindingSource: string | null = null;
 
   private extraCtx: ExplicitContextRef[] = [];
   private currentContext: LearningContext | null = null;
@@ -183,8 +188,9 @@ export class ChatView extends ItemView {
     });
     this.buildComposer(this.composer);
 
-    if (!(await this.ensureRuntimeReady())) return;
+    // Local transcripts remain available even if AGY is offline.
     await this.restoreRuntimeState();
+    await this.ensureRuntimeReady();
   }
 
   async onClose(): Promise<void> {
@@ -195,14 +201,27 @@ export class ChatView extends ItemView {
   private async ensureRuntimeReady(): Promise<boolean> {
     try {
       const health = await this.learning.checkRuntime();
-      if (health.status === "ready") return true;
-
-      this.showError(health.failure.message);
+      if (health.status === "ready") {
+        this.runtimeReady = true;
+        this.runtimeFailureMessage = null;
+        this.thread.querySelector(".nox-runtime-error")?.remove();
+        this.setUIState(this.learning.getSession().messages.length ? "ANSWER" : "EMPTY");
+        return true;
+      }
+      this.showRuntimeError(health.failure.message);
     } catch {
-      this.showError("Agent runtime is unavailable. Check Nox runtime settings.");
+      this.showRuntimeError("Agent runtime is unavailable. Check Nox runtime settings.");
     }
-
     return false;
+  }
+
+  private showRuntimeError(message: string): void {
+    this.runtimeReady = false;
+    this.runtimeFailureMessage = message;
+    this.thread.querySelector(".nox-runtime-error")?.remove();
+    const row = this.thread.createDiv({ cls: "nox-runtime-error" });
+    this.appendInlineStatus(row, "failed", message, () => void this.retryRuntime());
+    this.setUIState("ERROR");
   }
 
   private async restoreRuntimeState(): Promise<void> {
@@ -278,9 +297,11 @@ export class ChatView extends ItemView {
       title: "New learning session",
     });
     newBtn.addEventListener("click", async () => {
+      if (this.uiState === "RUNNING") return;
       try {
         await this.learning.newSession();
         this.lastTurnRequest = null;
+        this.pendingFindingSource = null;
         this.systemContextFiles = [];
         this.extraCtx = [];
         this.attachments = [];
@@ -440,15 +461,19 @@ export class ChatView extends ItemView {
 
     this.closeHistoryMenu();
     this.lastTurnRequest = null;
+    this.pendingFindingSource = null;
     this.systemContextFiles = [];
     this.extraCtx = [];
     this.attachments = [];
     this.renderAttachments();
     this.closePromptMenu();
     this.closeModelMenu();
-    this.setAction("ask");
+    this.setAction(this.learning.hasActivePracticeQuestion() ? "practice" : "ask");
     await this.syncChips();
     await this.restoreSession();
+    if (!this.runtimeReady && this.runtimeFailureMessage) {
+      this.showRuntimeError(this.runtimeFailureMessage);
+    }
     this.focusComposer();
   }
 
@@ -938,7 +963,12 @@ export class ChatView extends ItemView {
   }
 
   private setAction(action: LearningActionKind): void {
+    const changed = action !== this.selectedAction;
     this.selectedAction = action;
+    if (changed && this.pendingFindingSource) {
+      this.pendingFindingSource = null;
+      this.syncContextChips();
+    }
     if (this.promptMenu === "command") {
       this.promptMenuState.setActive(this.getPromptMenuStartIndex("command"));
     }
@@ -949,8 +979,9 @@ export class ChatView extends ItemView {
   }
 
   private runSelectionAction(action: NoxSelectionAction): void {
-    if (this.uiState === "RUNNING" || !this.currentContext?.selection) return;
+    if (this.uiState === "RUNNING" || !this.runtimeReady || !this.currentContext?.selection) return;
 
+    this.pendingFindingSource = null;
     this.setAction(action.learningAction);
     this.input.value = action.prompt;
     this.onInput();
@@ -1013,7 +1044,15 @@ export class ChatView extends ItemView {
   }
 
   private async syncChips(): Promise<void> {
-    const context = await this.learning.resolveContext(this.extraCtx);
+    const requestId = ++this.contextSyncRequest;
+    let context: LearningContext;
+    try {
+      context = await this.learning.resolveContext(this.extraCtx);
+    } catch {
+      // Deleted supporting notes receive an actionable error at turn start.
+      return;
+    }
+    if (requestId !== this.contextSyncRequest) return;
     this.currentContext = context;
     this.syncContextChips();
     this.selectionActions?.setSelection(
@@ -1038,7 +1077,19 @@ export class ChatView extends ItemView {
   private syncContextChips(): void {
     const contexts: NoxComposerContext[] = [];
     const selection = this.currentContext?.selection;
-    if (selection) {
+    const pinned = this.pendingFindingSource &&
+      (this.selectedAction === "practice" || this.selectedAction === "edit")
+        ? this.pendingFindingSource
+        : null;
+    const automaticPath = selection?.file ?? this.currentContext?.activeNote?.path;
+    if (pinned && pinned !== automaticPath) {
+      contexts.push({
+        key: "review-source",
+        text: `@${pinned.split("/").pop() ?? pinned}`,
+        title: `Pinned review source: ${pinned}`,
+        icon: "file-text",
+      });
+    } else if (selection) {
       contexts.push({
         key: "selection",
         text: "@selection",
@@ -1048,7 +1099,7 @@ export class ChatView extends ItemView {
     }
 
     const activeNote = this.currentContext?.activeNote;
-    if (activeNote) {
+    if (!selection && activeNote && !(pinned && pinned !== automaticPath)) {
       contexts.push({
         key: "note",
         text: `@${activeNote.path.split("/").pop() ?? activeNote.path}`,
@@ -1136,6 +1187,9 @@ export class ChatView extends ItemView {
       prompt,
       action: this.selectedAction,
       explicitContext: [...this.extraCtx],
+      sourcePath: (this.selectedAction === "edit" || this.selectedAction === "practice")
+        ? this.pendingFindingSource ?? undefined
+        : undefined,
     };
 
     this.lastTurnRequest = request;
@@ -1174,12 +1228,16 @@ export class ChatView extends ItemView {
     this.turnTerminal = false;
 
     this.runningAction = request.action;
+    this.turnContextSource = null;
     if (appendUserMessage) this.appendUserBubble(request.prompt);
     this.setUIState("RUNNING");
     this.ensureThinkingTrace();
 
     try {
-      for await (const event of this.learning.run(request)) {
+      for await (const event of this.learning.run({
+        ...request,
+        retry: !appendUserMessage,
+      })) {
         this.handleLearningEvent(event);
       }
     } catch (error) {
@@ -1195,6 +1253,9 @@ export class ChatView extends ItemView {
   private handleLearningEvent(event: LearningEvent): void {
     if (event.type === "context-ready") {
       this.currentContext = event.context.resolved;
+      this.turnContextSource =
+        event.context.resolved.selection?.file ??
+        event.context.resolved.activeNote?.path ?? null;
       this.systemContextFiles = event.context.system.map((item) => item.file);
       this.syncContextChips();
       this.setThinkingStage(1);
@@ -1220,14 +1281,13 @@ export class ChatView extends ItemView {
       this.setThinkingStage(2);
       this.ensureAgentBubble();
       this.appendPracticeEvaluation(event.evaluation);
-      if (!event.evaluation.nextQuestion?.trim()) this.setAction("ask");
       return;
     }
 
     if (event.type === "review-findings") {
       this.setThinkingStage(2);
       this.ensureAgentBubble();
-      this.appendReviewFindings(event.findings);
+      this.appendReviewFindings(event.findings, this.turnContextSource);
       return;
     }
 
@@ -1237,7 +1297,7 @@ export class ChatView extends ItemView {
     }
 
     if (event.type === "mutation-proposed") {
-      this.setUIState("PROPOSAL");
+      // The request remains running even after a proposal is streamed.
       this.appendProposalBubble(event.edit);
       return;
     }
@@ -1282,7 +1342,11 @@ export class ChatView extends ItemView {
       this.setUIState("ANSWER");
     }
 
-    if (action && shouldResetAction(action, outcome)) {
+    if (action && shouldResetAction(
+      action,
+      outcome,
+      this.learning.hasActivePracticeQuestion(),
+    )) {
       this.setAction("ask");
     }
     this.runningAction = null;
@@ -1513,7 +1577,7 @@ export class ChatView extends ItemView {
 
     this.syncCapabilityCards();
 
-    this.setUIState("EMPTY");
+    this.setUIState(this.runtimeReady ? "EMPTY" : "ERROR");
     animateNoxEnter(slate, 5);
   }
 
@@ -1575,7 +1639,7 @@ export class ChatView extends ItemView {
         this.appendRestoredProposal(message);
       }
     }
-    this.setUIState("ANSWER");
+    this.setUIState(this.runtimeReady ? "ANSWER" : "ERROR");
     this.scrollThread();
   }
 
@@ -1639,52 +1703,6 @@ export class ChatView extends ItemView {
       kind: resultKind,
       text: labels[settledState],
     });
-  }
-
-  private showError(message: string): void {
-    this.stopLoadingTimer();
-    this.thread.empty();
-    this.agentCursorEl = null;
-    this.statusEl = null;
-
-    const slate = this.thread.createDiv({
-      cls: "nox-error-slate",
-    });
-    slate.createDiv({
-      cls: "nox-error-icon",
-      text: "⚠",
-    });
-    slate.createDiv({
-      cls: "nox-error-title",
-      text: "Nox unavailable",
-    });
-    slate.createDiv({
-      cls: "nox-error-body",
-      text: message,
-    });
-
-    const actions = slate.createDiv({ cls: "nox-error-actions" });
-    const retry = createNoxButton(actions, {
-      cls: "nox-retry-btn",
-      variant: "accent",
-      text: "Retry",
-    });
-    retry.addEventListener("click", () => {
-      retry.disabled = true;
-      retry.textContent = "Checking…";
-      void this.retryRuntime();
-    });
-
-    const configure = createNoxButton(actions, {
-      cls: "nox-configure-btn",
-      variant: "secondary",
-      text: "Configure Nox",
-    });
-    configure.addEventListener("click", () => {
-      this.openSettings();
-    });
-
-    this.setUIState("ERROR");
   }
 
   private appendUserBubble(text: string): void {
@@ -1979,7 +1997,7 @@ export class ChatView extends ItemView {
     this.scrollThread();
   }
 
-  private appendReviewFindings(findings: ReviewFinding[]): void {
+  private appendReviewFindings(findings: ReviewFinding[], sourcePath: string | null): void {
     if (!this.agentCursorEl) return;
 
     const wrap = this.agentCursorEl.createDiv({ cls: "nox-review" });
@@ -2007,6 +2025,7 @@ export class ChatView extends ItemView {
       });
       practice.addEventListener("click", () => {
         this.setAction("practice");
+        this.pinFindingSource(sourcePath);
         this.input.value = `Practice this gap: ${finding.concept} — ${finding.detail}`;
         this.onInput();
         this.input.focus();
@@ -2019,13 +2038,28 @@ export class ChatView extends ItemView {
       });
       fix.addEventListener("click", () => {
         this.setAction("edit");
+        this.pinFindingSource(sourcePath);
         this.input.value = `Fix this learning gap: ${finding.detail}`;
         this.onInput();
         this.input.focus();
+        if (sourcePath && this.currentContext?.activeNote?.path !== sourcePath) {
+          void this.app.workspace.openLinkText(sourcePath, sourcePath, false)
+            .then(() => this.syncChips())
+            .catch(() => {
+              this.appendInlineStatus(this.thread, "failed", `Open ${sourcePath} to edit this finding.`);
+            });
+        }
       });
     }
 
     this.scrollThread();
+  }
+
+  private pinFindingSource(sourcePath: string | null): void {
+    this.pendingFindingSource = sourcePath;
+    // LearningController resolves this note as a fresh explicit source on send.
+    // Show one pinned primary chip instead of duplicating it as an attachment.
+    this.syncContextChips();
   }
 
   private appendProgressUpdate(
@@ -2072,38 +2106,65 @@ export class ChatView extends ItemView {
       text: "Apply ✓",
     });
 
-    rejectBtn.addEventListener("click", () => {
-      void this.learning.rejectProposal(edit.id);
-      actions.remove();
-      createNoxStatus(wrap, {
-        cls: "nox-result-badge nox-badge--rejected",
-        kind: "neutral",
-        text: "✕ Rejected",
-      });
-      this.setUIState("ANSWER");
+    rejectBtn.addEventListener("click", async () => {
+      rejectBtn.disabled = true;
+      applyBtn.disabled = true;
+      try {
+        await this.learning.rejectProposal(edit.id);
+        actions.remove();
+        createNoxStatus(wrap, {
+          cls: "nox-result-badge nox-badge--rejected",
+          kind: "neutral",
+          text: "✕ Rejected",
+        });
+        this.setUIState("ANSWER");
+      } catch {
+        rejectBtn.disabled = false;
+        applyBtn.disabled = false;
+        this.appendInlineStatus(wrap, "failed", "Could not save rejection. Retry.");
+      }
     });
 
     applyBtn.addEventListener("click", async () => {
       applyBtn.disabled = true;
+      rejectBtn.disabled = true;
       applyBtn.textContent = "Applying…";
 
-      const result = await this.learning.applyProposal(edit.id);
-      actions.remove();
-
-      if (result.ok) {
-        createNoxStatus(wrap, {
-          cls: "nox-result-badge nox-badge--applied",
-          kind: "success",
-          text: "✓ Applied to " + proposal.file,
-        });
-        this.setUIState("APPLIED");
-      } else {
-        createNoxStatus(wrap, {
-          cls: "nox-result-badge nox-badge--stale",
-          kind: "warning",
-          text: "⚠ " + result.message,
-        });
-        this.setUIState("ANSWER");
+      try {
+        const result = await this.learning.applyProposal(edit.id);
+        wrap.querySelector(".nox-proposal-retry-status")?.remove();
+        if (result.ok) {
+          actions.remove();
+          createNoxStatus(wrap, {
+            cls: "nox-result-badge nox-badge--applied",
+            kind: "success",
+            text: "✓ Applied to " + proposal.file,
+          });
+          this.setUIState("APPLIED");
+        } else if (result.reason === "no-editor" || result.reason === "error") {
+          // Source remains valid: keep Apply available after the user fixes the blocker.
+          applyBtn.disabled = false;
+          rejectBtn.disabled = false;
+          applyBtn.textContent = "Retry Apply";
+          createNoxStatus(wrap, {
+            cls: "nox-proposal-retry-status",
+            kind: "warning",
+            text: result.message,
+          });
+        } else {
+          actions.remove();
+          createNoxStatus(wrap, {
+            cls: "nox-result-badge nox-badge--stale",
+            kind: "warning",
+            text: result.message,
+          });
+          this.setUIState("ANSWER");
+        }
+      } catch {
+        applyBtn.disabled = false;
+        rejectBtn.disabled = false;
+        applyBtn.textContent = "Retry Apply";
+        this.appendInlineStatus(wrap, "failed", "Could not save the result. Check the note before retrying.");
       }
     });
   }
