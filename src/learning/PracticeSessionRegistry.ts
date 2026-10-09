@@ -20,6 +20,10 @@ export class PracticeSessionRegistry {
     return machine;
   }
 
+  hasWaitingQuestion(sessionId: string): boolean {
+    return this.machines.get(sessionId)?.isWaitingForAnswer() ?? false;
+  }
+
   reset(sessionId: string): void {
     this.machines.delete(sessionId);
   }
