@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  AgentContext,
   AgentStreamEvent,
   ApplyResult,
   ChatSession,
@@ -24,7 +25,11 @@ function createHarness(
     prompt: string,
     signal: AbortSignal,
   ) => AsyncIterable<AgentStreamEvent>,
-  options: { mutationResult?: ApplyResult } = {},
+  options: {
+    mutationResult?: ApplyResult;
+    contextOverride?: { activeNote: { path: string; content: string }; explicit: Array<{ type: "note"; path: string; content: string; source: "explicit" }> };
+    agentContexts?: AgentContext[];
+  } = {},
 ) {
   let session: ChatSession = {
     id: "session-1",
@@ -46,6 +51,7 @@ function createHarness(
     }
   >();
   const prompts: string[] = [];
+  const sentContexts: AgentContext[][] = [];
   let mutationCalls = 0;
   let mutationTarget: string | undefined;
   let recordedUserMessages = 0;
@@ -111,17 +117,18 @@ function createHarness(
     check: async () => ({ status: "ready" as const }),
     getModels: () => [],
     send: async function* (
-      input: { prompt: string },
+      input: { prompt: string; context: AgentContext[] },
       _opts: unknown,
       signal: AbortSignal,
     ) {
       prompts.push(input.prompt);
+      sentContexts.push(input.context);
       yield* sendTurn(input.prompt, signal);
     },
   };
 
   const contexts = {
-    resolve: async () => ({
+    resolve: async () => options.contextOverride ?? ({
       activeNote: {
         path: "note.md",
         content: "current note",
@@ -129,7 +136,7 @@ function createHarness(
       explicit: [],
     }),
     searchNotes: () => [],
-    toAgentContext: () => [
+    toAgentContext: () => options.agentContexts ?? [
       {
         type: "note" as const,
         file: "note.md",
@@ -172,6 +179,7 @@ function createHarness(
   return {
     controller,
     prompts,
+    getSentContexts: () => sentContexts,
     getMutationCalls: () => mutationCalls,
     getUserWrites: () => recordedUserMessages,
     getMutationTarget: () => mutationTarget,
@@ -710,4 +718,30 @@ test("review edit follow-up refuses a different active note", async () => {
   if (events[0]?.type === "failed") {
     assert.match(events[0].failure.message, /Open another-note\.md/);
   }
+});
+
+test("review practice follow-up uses the pinned source instead of newly active note", async () => {
+  const harness = createHarness(async function* () {
+    yield { type: "completed" };
+  }, {
+    contextOverride: {
+      activeNote: { path: "other.md", content: "unrelated material" },
+      explicit: [
+        { type: "note", path: "source.md", content: "original reviewed material", source: "explicit" },
+      ],
+    },
+    agentContexts: [
+      { type: "note", file: "other.md", content: "unrelated material" },
+      { type: "note", file: "source.md", content: "original reviewed material" },
+    ],
+  });
+  await collectEvents(harness.controller.run({
+    prompt: "Practice the finding",
+    action: "practice",
+    explicitContext: [],
+    sourcePath: "source.md",
+  }));
+  const context = harness.getSentContexts()[0] ?? [];
+  assert.equal(context[0]?.file, "source.md");
+  assert.equal(context.some((item) => item.file === "other.md"), false);
 });
