@@ -34,3 +34,15 @@ test("clear drops all transient practice state", () => {
   assert.notEqual(registry.forSession("session-1"), first);
   assert.notEqual(registry.forSession("session-2"), second);
 });
+
+test("status query does not create a session and reflects question lifecycle", () => {
+  const registry = new PracticeSessionRegistry();
+  assert.equal(registry.hasWaitingQuestion("missing"), false);
+  const practice = registry.forSession("s1");
+  practice.start();
+  assert.equal(registry.hasWaitingQuestion("s1"), false);
+  practice.acceptQuestion({ kind: "question", concept: "transactions", question: "What is atomicity?" });
+  assert.equal(registry.hasWaitingQuestion("s1"), true);
+  registry.reset("s1");
+  assert.equal(registry.hasWaitingQuestion("s1"), false);
+});
