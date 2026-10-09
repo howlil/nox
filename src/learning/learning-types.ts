@@ -21,6 +21,10 @@ export interface LearningRequest {
   prompt: string;
   action: LearningActionKind;
   explicitContext: ExplicitContextRef[];
+  /** Origin of a Review finding; follow-ups must not silently retarget edits. */
+  sourcePath?: string;
+  /** A retry is another attempt at the same logical user turn. */
+  retry?: boolean;
 }
 
 export interface ProposedEdit {
