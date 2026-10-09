@@ -82,7 +82,9 @@ Ask is the default.
 Explain, Review, and Edit are one-turn intents.
 
 Practice is the only persistent learning mode because it has a multi-turn state
-machine.
+machine. The UI intent persists after a question is generated until the answer
+is evaluated and the practice session ends; generating a question does not end
+the user's practice interaction.
 
 ### 2.5 Native Obsidian behavior matters
 
@@ -405,7 +407,9 @@ finding
 ```
 
 Review evidence remains material-scoped unless a separate learner interaction
-creates learner evidence.
+creates learner evidence. Each follow-up Practice/Fix action retains the
+source note provenance of the Review finding. A Fix cannot silently write to
+a different active note after navigation.
 
 ---
 
@@ -433,7 +437,9 @@ authorized current note
 Supporting context cannot become a mutation target merely because the model
 mentions it.
 
-Native Undo must remain available after Apply.
+Native Undo must remain available after Apply. Missing open editor and
+transient write failures keep the proposal pending for a safe retry. A changed,
+missing, or ambiguous source makes the proposal stale and requires regeneration.
 
 ---
 
@@ -442,7 +448,9 @@ Native Undo must remain available after Apply.
 The user may create and switch conversations.
 
 A session switch restores conversation history and session-level settings that
-belong to that conversation.
+belong to that conversation. Switching and creating sessions are unavailable
+during active turns. All asynchronous writes remain bound to the session that
+started the turn, regardless of which conversation is currently visible.
 
 Pending proposal state must never be restored as silently applicable after a
 restart when its source document can no longer be trusted as unchanged.
@@ -469,7 +477,9 @@ Recoverable failure states include:
 - ambiguous replacement;
 - missing context.
 
-After failure or cancellation, the composer returns to a usable state.
+After failure or cancellation, the composer returns to a usable state when
+runtime is available. When the agent runtime is unavailable, the local
+conversation history remains readable while sending is disabled.
 
 Errors should describe the action the user can take next rather than expose raw
 provider protocol.
