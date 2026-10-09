@@ -145,6 +145,11 @@ export class ChatView extends ItemView {
   private lastTurnRequest: LearningRequest | null = null;
   private turnTerminal = false;
   private workspaceEventsRegistered = false;
+  private runtimeReady = false;
+  private runtimeFailureMessage: string | null = null;
+  private contextSyncRequest = 0;
+  private turnContextSource: string | null = null;
+  private pendingFindingSource: string | null = null;
 
   private extraCtx: ExplicitContextRef[] = [];
   private currentContext: LearningContext | null = null;
@@ -183,8 +188,9 @@ export class ChatView extends ItemView {
     });
     this.buildComposer(this.composer);
 
-    if (!(await this.ensureRuntimeReady())) return;
+    // Local transcripts remain available even if AGY is offline.
     await this.restoreRuntimeState();
+    await this.ensureRuntimeReady();
   }
 
   async onClose(): Promise<void> {
@@ -195,14 +201,27 @@ export class ChatView extends ItemView {
   private async ensureRuntimeReady(): Promise<boolean> {
     try {
       const health = await this.learning.checkRuntime();
-      if (health.status === "ready") return true;
-
-      this.showError(health.failure.message);
+      if (health.status === "ready") {
+        this.runtimeReady = true;
+        this.runtimeFailureMessage = null;
+        this.thread.querySelector(".nox-runtime-error")?.remove();
+        this.setUIState(this.learning.getSession().messages.length ? "ANSWER" : "EMPTY");
+        return true;
+      }
+      this.showRuntimeError(health.failure.message);
     } catch {
-      this.showError("Agent runtime is unavailable. Check Nox runtime settings.");
+      this.showRuntimeError("Agent runtime is unavailable. Check Nox runtime settings.");
     }
-
     return false;
+  }
+
+  private showRuntimeError(message: string): void {
+    this.runtimeReady = false;
+    this.runtimeFailureMessage = message;
+    this.thread.querySelector(".nox-runtime-error")?.remove();
+    const row = this.thread.createDiv({ cls: "nox-runtime-error" });
+    this.appendInlineStatus(row, "failed", message, () => void this.retryRuntime());
+    this.setUIState("ERROR");
   }
 
   private async restoreRuntimeState(): Promise<void> {
@@ -278,9 +297,11 @@ export class ChatView extends ItemView {
       title: "New learning session",
     });
     newBtn.addEventListener("click", async () => {
+      if (this.uiState === "RUNNING") return;
       try {
         await this.learning.newSession();
         this.lastTurnRequest = null;
+        this.pendingFindingSource = null;
         this.systemContextFiles = [];
         this.extraCtx = [];
         this.attachments = [];
@@ -440,15 +461,19 @@ export class ChatView extends ItemView {
 
     this.closeHistoryMenu();
     this.lastTurnRequest = null;
+    this.pendingFindingSource = null;
     this.systemContextFiles = [];
     this.extraCtx = [];
     this.attachments = [];
     this.renderAttachments();
     this.closePromptMenu();
     this.closeModelMenu();
-    this.setAction("ask");
+    this.setAction(this.learning.hasActivePracticeQuestion() ? "practice" : "ask");
     await this.syncChips();
     await this.restoreSession();
+    if (!this.runtimeReady && this.runtimeFailureMessage) {
+      this.showRuntimeError(this.runtimeFailureMessage);
+    }
     this.focusComposer();
   }
 
@@ -949,8 +974,9 @@ export class ChatView extends ItemView {
   }
 
   private runSelectionAction(action: NoxSelectionAction): void {
-    if (this.uiState === "RUNNING" || !this.currentContext?.selection) return;
+    if (this.uiState === "RUNNING" || !this.runtimeReady || !this.currentContext?.selection) return;
 
+    this.pendingFindingSource = null;
     this.setAction(action.learningAction);
     this.input.value = action.prompt;
     this.onInput();
@@ -1013,7 +1039,15 @@ export class ChatView extends ItemView {
   }
 
   private async syncChips(): Promise<void> {
-    const context = await this.learning.resolveContext(this.extraCtx);
+    const requestId = ++this.contextSyncRequest;
+    let context: LearningContext;
+    try {
+      context = await this.learning.resolveContext(this.extraCtx);
+    } catch {
+      // Deleted supporting notes receive an actionable error at turn start.
+      return;
+    }
+    if (requestId !== this.contextSyncRequest) return;
     this.currentContext = context;
     this.syncContextChips();
     this.selectionActions?.setSelection(
@@ -1048,7 +1082,7 @@ export class ChatView extends ItemView {
     }
 
     const activeNote = this.currentContext?.activeNote;
-    if (activeNote) {
+    if (!selection && activeNote) {
       contexts.push({
         key: "note",
         text: `@${activeNote.path.split("/").pop() ?? activeNote.path}`,
@@ -1136,6 +1170,9 @@ export class ChatView extends ItemView {
       prompt,
       action: this.selectedAction,
       explicitContext: [...this.extraCtx],
+      sourcePath: (this.selectedAction === "edit" || this.selectedAction === "practice")
+        ? this.pendingFindingSource ?? undefined
+        : undefined,
     };
 
     this.lastTurnRequest = request;
@@ -1174,12 +1211,16 @@ export class ChatView extends ItemView {
     this.turnTerminal = false;
 
     this.runningAction = request.action;
+    this.turnContextSource = null;
     if (appendUserMessage) this.appendUserBubble(request.prompt);
     this.setUIState("RUNNING");
     this.ensureThinkingTrace();
 
     try {
-      for await (const event of this.learning.run(request)) {
+      for await (const event of this.learning.run({
+        ...request,
+        retry: !appendUserMessage,
+      })) {
         this.handleLearningEvent(event);
       }
     } catch (error) {
@@ -1195,6 +1236,9 @@ export class ChatView extends ItemView {
   private handleLearningEvent(event: LearningEvent): void {
     if (event.type === "context-ready") {
       this.currentContext = event.context.resolved;
+      this.turnContextSource =
+        event.context.resolved.selection?.file ??
+        event.context.resolved.activeNote?.path ?? null;
       this.systemContextFiles = event.context.system.map((item) => item.file);
       this.syncContextChips();
       this.setThinkingStage(1);
@@ -1220,14 +1264,13 @@ export class ChatView extends ItemView {
       this.setThinkingStage(2);
       this.ensureAgentBubble();
       this.appendPracticeEvaluation(event.evaluation);
-      if (!event.evaluation.nextQuestion?.trim()) this.setAction("ask");
       return;
     }
 
     if (event.type === "review-findings") {
       this.setThinkingStage(2);
       this.ensureAgentBubble();
-      this.appendReviewFindings(event.findings);
+      this.appendReviewFindings(event.findings, this.turnContextSource);
       return;
     }
 
@@ -1237,7 +1280,7 @@ export class ChatView extends ItemView {
     }
 
     if (event.type === "mutation-proposed") {
-      this.setUIState("PROPOSAL");
+      // The request remains running even after a proposal is streamed.
       this.appendProposalBubble(event.edit);
       return;
     }
@@ -1282,7 +1325,11 @@ export class ChatView extends ItemView {
       this.setUIState("ANSWER");
     }
 
-    if (action && shouldResetAction(action, outcome)) {
+    if (action && shouldResetAction(
+      action,
+      outcome,
+      this.learning.hasActivePracticeQuestion(),
+    )) {
       this.setAction("ask");
     }
     this.runningAction = null;
@@ -1513,7 +1560,7 @@ export class ChatView extends ItemView {
 
     this.syncCapabilityCards();
 
-    this.setUIState("EMPTY");
+    this.setUIState(this.runtimeReady ? "EMPTY" : "ERROR");
     animateNoxEnter(slate, 5);
   }
 
@@ -1575,7 +1622,7 @@ export class ChatView extends ItemView {
         this.appendRestoredProposal(message);
       }
     }
-    this.setUIState("ANSWER");
+    this.setUIState(this.runtimeReady ? "ANSWER" : "ERROR");
     this.scrollThread();
   }
 
