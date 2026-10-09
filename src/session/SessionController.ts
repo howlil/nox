@@ -69,8 +69,14 @@ export class SessionController {
     await this.save();
   }
 
-  async recordUserMessage(content: string): Promise<void> {
-    const session = this.getSession();
+  private sessionForWrite(sessionId?: string): ChatSession {
+    const session = sessionId ? this.store.getSession(sessionId) : this.getSession();
+    if (!session) throw new Error(`Session ${sessionId} no longer exists`);
+    return session;
+  }
+
+  async recordUserMessage(content: string, sessionId?: string): Promise<void> {
+    const session = this.sessionForWrite(sessionId);
     session.messages.push({
       role: "user",
       content,
@@ -79,8 +85,8 @@ export class SessionController {
     await this.save();
   }
 
-  async setConversationId(conversationId?: string): Promise<void> {
-    const session = this.getSession();
+  async setConversationId(conversationId?: string, sessionId?: string): Promise<void> {
+    const session = this.sessionForWrite(sessionId);
     session.conversationId = conversationId;
     this.store.updateSession(session);
     await this.save();
@@ -89,9 +95,10 @@ export class SessionController {
   async recordAssistantMessage(
     content: string,
     sourcePath?: string,
+    sessionId?: string,
   ): Promise<void> {
     if (!content.trim()) return;
-    const session = this.getSession();
+    const session = this.sessionForWrite(sessionId);
     session.messages.push({
       role: "assistant",
       content,
@@ -105,8 +112,9 @@ export class SessionController {
     proposalId: string,
     proposal: EditProposal,
     mutableFile?: string,
+    sessionId?: string,
   ): Promise<void> {
-    const session = this.getSession();
+    const session = this.sessionForWrite(sessionId);
     session.messages.push({
       role: "assistant",
       content: "",
