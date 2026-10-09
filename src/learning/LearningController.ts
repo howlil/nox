@@ -130,7 +130,7 @@ export class LearningController {
   }
 
   hasActivePracticeQuestion(): boolean {
-    return this.practices.forSession(this.sessions.getSession().id).isWaitingForAnswer();
+    return this.practices.hasWaitingQuestion(this.sessions.getSession().id);
   }
 
   async resolveContext(
