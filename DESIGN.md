@@ -171,7 +171,10 @@ Normal AI explanation is PlainResponse, not a card.
 Ask is implicit default.
 
 Explain, Review, Edit are one-shot. Practice is persistent until the practice
-session completes or the user exits it.
+session completes or the user exits it. The intent remains Practice after a
+question is emitted; it must not reset merely because the question-generation
+agent turn completed. Session switching restores the in-memory active Practice
+intent for that session.
 
 `/` chooses intent, creates an IntentChip, and removes command text from the
 actual prompt.
@@ -316,6 +319,29 @@ transform motion while preserving readable state changes.
 Action and model triggers expose their open state through the same visible
 surface treatment as their popovers. A menu that is open must look connected to
 the trigger; a native browser popup is not an accepted substitute.
+
+## Runtime and recovery contracts
+
+- Transcript and history are local capabilities; they remain readable if the
+  external AGY runtime is unavailable. Only actions requiring AGY are blocked.
+- New/switch session is unavailable during an active turn. Async writes are
+  scoped to the originating conversation ID, never the currently visible tab.
+- Retry is another attempt at the same logical user message; do not append a
+  second user bubble or durable message.
+- Review follow-up Practice/Fix actions carry their source note path. A Fix
+  cannot silently retarget a different active document.
+- Failed Apply due to a missing open editor is recoverable: keep the proposal
+  pending and expose Retry Apply. Stale/ambiguous source text requires a new
+  proposal.
+- Selection or active note is the primary visible context, not both. Supporting
+  attachments and system progress remain distinguishable.
+
+## CSS ownership
+
+The compact composer layout has one canonical rule for its outer surface,
+grid container, and footer. Do not append versioned blocks that override these
+same structural declarations. Remove dead legacy selectors after verifying
+their corresponding feature components no longer render them.
 
 ## Avoid
 
