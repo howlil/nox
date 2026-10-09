@@ -963,8 +963,12 @@ export class ChatView extends ItemView {
   }
 
   private setAction(action: LearningActionKind): void {
-    if (action !== this.selectedAction) this.pendingFindingSource = null;
+    const changed = action !== this.selectedAction;
     this.selectedAction = action;
+    if (changed && this.pendingFindingSource) {
+      this.pendingFindingSource = null;
+      this.syncContextChips();
+    }
     if (this.promptMenu === "command") {
       this.promptMenuState.setActive(this.getPromptMenuStartIndex("command"));
     }
@@ -1073,7 +1077,19 @@ export class ChatView extends ItemView {
   private syncContextChips(): void {
     const contexts: NoxComposerContext[] = [];
     const selection = this.currentContext?.selection;
-    if (selection) {
+    const pinned = this.pendingFindingSource &&
+      (this.selectedAction === "practice" || this.selectedAction === "edit")
+        ? this.pendingFindingSource
+        : null;
+    const automaticPath = selection?.file ?? this.currentContext?.activeNote?.path;
+    if (pinned && pinned !== automaticPath) {
+      contexts.push({
+        key: "review-source",
+        text: `@${pinned.split("/").pop() ?? pinned}`,
+        title: `Pinned review source: ${pinned}`,
+        icon: "file-text",
+      });
+    } else if (selection) {
       contexts.push({
         key: "selection",
         text: "@selection",
@@ -1083,7 +1099,7 @@ export class ChatView extends ItemView {
     }
 
     const activeNote = this.currentContext?.activeNote;
-    if (!selection && activeNote) {
+    if (!selection && activeNote && !(pinned && pinned !== automaticPath)) {
       contexts.push({
         key: "note",
         text: `@${activeNote.path.split("/").pop() ?? activeNote.path}`,
@@ -2041,17 +2057,9 @@ export class ChatView extends ItemView {
 
   private pinFindingSource(sourcePath: string | null): void {
     this.pendingFindingSource = sourcePath;
-    if (!sourcePath) return;
-    const primary = this.currentContext?.selection?.file ?? this.currentContext?.activeNote?.path;
-    if (primary === sourcePath) return;
-    if (this.extraCtx.some((ref) => ref.kind === "vault-note" && ref.path === sourcePath)) return;
-    this.attachments.push({
-      name: sourcePath.split("/").pop() ?? sourcePath,
-      ref: { kind: "vault-note", path: sourcePath },
-    });
-    this.extraCtx = this.attachments.map((item) => item.ref);
-    this.renderAttachments();
-    void this.syncChips();
+    // LearningController resolves this note as a fresh explicit source on send.
+    // Show one pinned primary chip instead of duplicating it as an attachment.
+    this.syncContextChips();
   }
 
   private appendProgressUpdate(
