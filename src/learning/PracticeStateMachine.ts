@@ -2,11 +2,13 @@ import {
   PracticeEvaluation,
   PracticeQuestion,
   PracticeSession,
+  PracticeOrigin,
 } from "./practice-types";
 
 export interface PracticeEvaluationAttempt {
   id: string;
   sessionId: string;
+  origin?: PracticeOrigin;
   question: string;
   concept?: string;
   answer: string;
@@ -24,9 +26,10 @@ export class PracticeStateMachine {
     this.session = null;
   }
 
-  start(): PracticeSession {
+  start(origin?: PracticeOrigin): PracticeSession {
     this.session = {
       id: this.makeId(),
+      origin,
       state: "generating",
       turns: [],
     };
@@ -86,6 +89,7 @@ export class PracticeStateMachine {
     const attempt: PracticeEvaluationAttempt = {
       id: this.makeId(),
       sessionId: session.id,
+      origin: session.origin,
       question: session.currentQuestion,
       concept: session.concept,
       answer,

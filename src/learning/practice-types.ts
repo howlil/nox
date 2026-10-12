@@ -1,3 +1,8 @@
+export interface PracticeOrigin {
+  file: string;
+  selectedText?: string;
+}
+
 export interface PracticeQuestion {
   kind: "question";
   concept: string;
@@ -28,6 +33,7 @@ export interface PracticeTurn {
 
 export interface PracticeSession {
   id: string;
+  origin?: PracticeOrigin;
   concept?: string;
   state:
     | "generating"

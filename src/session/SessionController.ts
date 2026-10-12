@@ -76,11 +76,16 @@ export class SessionController {
     return session;
   }
 
-  async recordUserMessage(content: string, sessionId?: string): Promise<void> {
+  async recordUserMessage(
+    content: string,
+    sessionId?: string,
+    action?: "ask" | "explain" | "practice" | "review" | "edit",
+  ): Promise<void> {
     const session = this.sessionForWrite(sessionId);
     session.messages.push({
       role: "user",
       content,
+      action,
     });
     this.store.updateSession(session);
     await this.save();

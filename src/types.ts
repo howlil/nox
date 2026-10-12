@@ -72,6 +72,8 @@ export interface ChatMessage {
   role: "user" | "assistant";
   content: string;
   parts?: TranscriptPart[];
+  /** Action retained for practice recovery after session reload. */
+  action?: "ask" | "explain" | "practice" | "review" | "edit";
   sourcePath?: string;
   proposalId?: string;
   proposal?: EditProposal;

@@ -32,7 +32,7 @@ import {
   LearningRequest,
   ProposedEdit,
 } from "./learning-types";
-import { PracticeQuestion } from "./practice-types";
+import { PracticeQuestion, PracticeOrigin } from "./practice-types";
 import {
   PracticeEvaluationAttempt,
   PracticeStateMachine,
@@ -131,7 +131,28 @@ export class LearningController {
   }
 
   hasActivePracticeQuestion(): boolean {
-    return this.practices.hasWaitingQuestion(this.sessions.getSession().id);
+    return this.practiceForSession(this.sessions.getSession()).isWaitingForAnswer();
+  }
+
+  /** Reconstruct the active question from the same durable conversation transcript. */
+  private practiceForSession(session: ChatSession): PracticeStateMachine {
+    const practice = this.practices.forSession(session.id);
+    if (practice.snapshot()) return practice;
+    for (let i = session.messages.length - 1; i >= 0; i--) {
+      const message = session.messages[i];
+      if (message.role === "user" && message.action && message.action !== "practice") break;
+      const parts = message.parts ?? [];
+      for (let j = parts.length - 1; j >= 0; j--) {
+        const part = parts[j];
+        if (part.type === "practice-evaluation") return practice;
+        if (part.type === "practice-question") {
+          practice.start(part.origin);
+          practice.acceptQuestion(part.question);
+          return practice;
+        }
+      }
+    }
+    return practice;
   }
 
   async resolveContext(
@@ -169,17 +190,26 @@ export class LearningController {
     };
     this.activeTurn = activeTurn;
 
+    const sessionAtStart = this.sessions.getSession();
+    const existingPractice = request.action === "practice"
+      ? this.practiceForSession(sessionAtStart)
+      : undefined;
+    const previousOrigin = existingPractice?.isWaitingForAnswer()
+      ? existingPractice.snapshot()?.origin
+      : undefined;
+    const pinnedPracticeSource = request.action === "practice"
+      ? (previousOrigin?.file ?? request.sourcePath)
+      : undefined;
+
     let context: LearningContext;
     let policy: Awaited<ReturnType<PolicyPort["load"]>>;
     let state: Awaited<ReturnType<LearningStatePort["load"]>>;
 
     try {
       const refs = [...request.explicitContext];
-      if (
-        request.sourcePath &&
-        !refs.some((ref) => ref.kind === "vault-note" && ref.path === request.sourcePath)
-      ) {
-        refs.push({ kind: "vault-note", path: request.sourcePath });
+      const sourceRef = pinnedPracticeSource ?? request.sourcePath;
+      if (sourceRef && !refs.some((ref) => ref.kind === "vault-note" && ref.path === sourceRef)) {
+        refs.push({ kind: "vault-note", path: sourceRef });
       }
       context = await this.contexts.resolve(refs);
       [policy, state] = await Promise.all([
@@ -227,22 +257,24 @@ export class LearningController {
     // A Review follow-up practices its originating material, even if the user
     // navigated to another note before sending. Other explicit refs remain additive.
     let visible = resolvedContext;
-    if (request.sourcePath && request.action === "practice") {
-      const source = resolvedContext.find((item) => item.file === request.sourcePath);
+    if (pinnedPracticeSource && request.action === "practice") {
+      const source = resolvedContext.find((item) => item.file === pinnedPracticeSource);
       if (!source) {
         this.activeTurn = null;
         yield {
           type: "failed",
           failure: {
             code: "unknown",
-            message: `Review source ${request.sourcePath} is no longer available.`,
+            message: `Practice source ${pinnedPracticeSource} is no longer available.`,
           },
         };
         return;
       }
       const automaticPath = context.selection?.file ?? context.activeNote?.path;
       visible = [
-        source,
+        ...(previousOrigin?.selectedText
+          ? [{ type: "selection" as const, file: source.file, content: previousOrigin.selectedText }]
+          : [source]),
         ...resolvedContext.filter(
           (item) => item !== source && item.file !== automaticPath,
         ),
@@ -288,6 +320,7 @@ export class LearningController {
     );
 
     const mutableFile =
+      pinnedPracticeSource ??
       context.selection?.file ??
       context.activeNote?.path;
 
@@ -303,7 +336,7 @@ export class LearningController {
 
     const conversation = this.sessions.getSession();
     const turnSessionId = conversation.id;
-    const practice = this.practices.forSession(conversation.id);
+    const practice = this.practiceForSession(conversation);
 
     let preparedPrompt: string;
     let practiceAttempt:
@@ -336,7 +369,14 @@ export class LearningController {
             concept: attempt.concept,
           });
       } else {
-        practice.start();
+        const originFile = pinnedPracticeSource ??
+          context.selection?.file ?? context.activeNote?.path;
+        const origin: PracticeOrigin | undefined = originFile
+          ? { file: originFile,
+              selectedText: context.selection?.file === originFile
+                ? context.selection.content : undefined }
+          : undefined;
+        practice.start(origin);
         preparedPrompt =
           buildPracticeQuestionInstruction(
             request.prompt,
@@ -369,7 +409,7 @@ export class LearningController {
 
     try {
       if (!request.retry) {
-        await this.sessions.recordUserMessage(request.prompt, turnSessionId);
+        await this.sessions.recordUserMessage(request.prompt, turnSessionId, request.action);
       }
 
       for await (const event of this.runtime.send(
@@ -632,7 +672,7 @@ export class LearningController {
 
       if (event.type === "practice-question") {
         await this.sessions.recordStructuredPart(
-          { type: "practice-question", question: event.question },
+          { type: "practice-question", question: event.question, origin: practice.snapshot()?.origin },
           context.mutableFile,
           sessionId,
         );
@@ -689,6 +729,7 @@ export class LearningController {
         }
 
         const source =
+          practiceAttempt.origin?.file ??
           context.resolved.selection?.file ??
           context.resolved.activeNote?.path ??
           "learning-session";
@@ -717,7 +758,7 @@ export class LearningController {
 
         if (nextQuestion) {
           await this.sessions.recordStructuredPart(
-            { type: "practice-question", question: nextQuestion },
+            { type: "practice-question", question: nextQuestion, origin: practice.snapshot()?.origin },
             source,
             sessionId,
           );

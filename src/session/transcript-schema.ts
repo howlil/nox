@@ -6,8 +6,11 @@ export function isTranscriptPart(value: unknown): value is TranscriptPart {
   const part = value as Record<string, unknown>;
   if (part.type === "practice-question") {
     const q = part.question as Record<string, unknown> | undefined;
+    const origin = part.origin as Record<string, unknown> | undefined;
     return Boolean(q && q.kind === "question" && typeof q.concept === "string" &&
-      typeof q.question === "string" && (q.hint === undefined || typeof q.hint === "string"));
+      typeof q.question === "string" && (q.hint === undefined || typeof q.hint === "string") &&
+      (origin === undefined || (typeof origin.file === "string" &&
+        (origin.selectedText === undefined || typeof origin.selectedText === "string"))));
   }
   if (part.type === "practice-evaluation") {
     const e = part.evaluation as Record<string, unknown> | undefined;
