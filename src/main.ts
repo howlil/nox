@@ -5,7 +5,7 @@ import { ChatView, NOX_VIEW_TYPE } from "./chat/ChatView";
 import { ContextResolver } from "./context/ContextResolver";
 import { ObsidianContext } from "./context/ObsidianContext";
 import { PolicyLoader } from "./context/PolicyLoader";
-import { LearningController } from "./learning/LearningController";
+import { LearningController } from "./application/LearningController";
 import { MutationService } from "./mutation/MutationService";
 import { VaultLearningStore } from "./persistence/VaultLearningStore";
 import { PluginDataRepository } from "./persistence/PluginDataRepository";

@@ -1,4 +1,4 @@
-import type { LearningActionKind } from "../learning/learning-types";
+import type { LearningActionKind } from "../application/learning-types";
 
 export type TerminalOutcome = "completed" | "stopped" | "failed";
 
