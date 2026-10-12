@@ -89,6 +89,11 @@ NoxComposer
 NoxMessageMeta
 ```
 
+Feature components own learning-specific presentation, while the controller
+owns learning effects. `src/chat/learning-card-renderers.ts` creates Practice
+and Review card DOM for both live and restored transcripts; callbacks execute
+actions through `ChatView`, never directly through persistence.
+
 Feature components own learning meaning and domain actions:
 
 ```text
