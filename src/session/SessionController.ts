@@ -32,7 +32,7 @@ export class SessionController {
 
   getSession(): ChatSession {
     if (!this.currentSession) throw new Error("Session not initialized");
-    return this.currentSession;
+    return structuredClone(this.currentSession);
   }
 
   async newSession(): Promise<ChatSession> {
@@ -40,7 +40,7 @@ export class SessionController {
     const model = this.currentSession?.model ?? this.store.getDefaultModel();
     this.currentSession = this.store.createSession(model);
     await this.save();
-    return this.currentSession;
+    return this.getSession();
   }
 
   listSessions(): ChatSession[] {
@@ -55,7 +55,7 @@ export class SessionController {
     this.currentSession = session;
     this.store.setCurrentSession(id);
     await this.save();
-    return session;
+    return this.getSession();
   }
 
   async setModel(modelId?: string): Promise<void> {
@@ -64,14 +64,22 @@ export class SessionController {
 
     if (this.currentSession) {
       this.currentSession.model = normalized;
-      this.store.updateSession(this.currentSession);
+      this.commitSession(this.currentSession);
     }
 
     await this.save();
   }
 
+  /** The only path for applying session mutations to the store. */
+  private commitSession(session: ChatSession): void {
+    this.store.updateSession(session);
+    if (this.currentSession?.id === session.id) {
+      this.currentSession = this.store.getSession(session.id);
+    }
+  }
+
   private sessionForWrite(sessionId?: string): ChatSession {
-    const session = sessionId ? this.store.getSession(sessionId) : this.getSession();
+    const session = sessionId ? this.store.getSession(sessionId) : this.currentSession;
     if (!session) throw new Error(`Session ${sessionId} no longer exists`);
     return session;
   }
@@ -87,14 +95,14 @@ export class SessionController {
       content,
       action,
     });
-    this.store.updateSession(session);
+    this.commitSession(session);
     await this.save();
   }
 
   async setConversationId(conversationId?: string, sessionId?: string): Promise<void> {
     const session = this.sessionForWrite(sessionId);
     session.conversationId = conversationId;
-    this.store.updateSession(session);
+    this.commitSession(session);
     await this.save();
   }
 
@@ -110,7 +118,7 @@ export class SessionController {
       content,
       sourcePath,
     });
-    this.store.updateSession(session);
+    this.commitSession(session);
     await this.save();
   }
 
@@ -124,7 +132,7 @@ export class SessionController {
       session.messages.some((message) => message.parts?.some((existing) =>
         existing.type === part.type && existing.questionId === part.questionId))) return;
     session.messages.push({ role: "assistant", content: "", parts: [part], sourcePath });
-    this.store.updateSession(session);
+    this.commitSession(session);
     await this.save();
   }
 
@@ -143,7 +151,7 @@ export class SessionController {
       proposalMutableFile: mutableFile,
       proposalState: "pending",
     });
-    this.store.updateSession(session);
+    this.commitSession(session);
     await this.save();
   }
 
@@ -169,13 +177,12 @@ export class SessionController {
     proposalId: string,
     state: "applied" | "rejected" | "stale",
   ): Promise<void> {
-    const message = this.getSession().messages.find(
-      (item) => item.proposalId === proposalId,
-    );
+    const session = this.sessionForWrite();
+    const message = session.messages.find((item) => item.proposalId === proposalId);
     if (!message || message.proposalState !== "pending") return;
 
     message.proposalState = state;
-    this.store.updateSession(this.getSession());
+    this.commitSession(session);
     await this.save();
   }
 
@@ -190,7 +197,7 @@ export class SessionController {
     }
 
     if (changed) {
-      this.store.updateSession(session);
+      this.commitSession(session);
     }
   }
 

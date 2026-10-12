@@ -108,3 +108,33 @@ test("invalid sessions are skipped during decoding", async () => {
   assert.equal(store.getCurrentSession(), null);
   assert.deepEqual(store.listSessions(), []);
 });
+
+test("read and serialized snapshots cannot mutate stored sessions", () => {
+  const store = new SessionStore({ now: () => 42, uuid: () => "immutable" });
+  store.createSession();
+  store.getSession("immutable")!.messages.push({ role: "user", content: "injected" });
+  store.listSessions()[0]!.model = "injected";
+  const saved = store.serialize() as { "nox-sessions": { sessions: Record<string, { messages: unknown[] }> } };
+  saved["nox-sessions"].sessions.immutable.messages.push("injected");
+  assert.equal(store.getSession("immutable")!.messages.length, 0);
+  assert.equal(store.getSession("immutable")!.model, undefined);
+});
+
+test("typed practice question survives session serialization", async () => {
+  const store = new SessionStore({ now: () => 1, uuid: () => "practice" });
+  const session = store.createSession();
+  session.messages.push({ role: "assistant", content: "", parts: [{
+    type: "practice-question", questionId: "q-1",
+    question: { kind: "question", concept: "SQL", question: "What is ACID?" },
+    origin: { file: "note.md", selectedText: "ACID" },
+  }] });
+  store.updateSession(session);
+  const restored = new SessionStore();
+  await restored.load(store.serialize());
+  const part = restored.getCurrentSession()?.messages[0]?.parts?.[0];
+  assert.equal(part?.type, "practice-question");
+  if (part?.type === "practice-question") {
+    assert.equal(part.questionId, "q-1");
+    assert.equal(part.origin?.file, "note.md");
+  }
+});

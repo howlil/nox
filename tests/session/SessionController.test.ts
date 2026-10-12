@@ -168,3 +168,20 @@ test("late turn writes are scoped to the original session even after switching",
   ]);
   assert.equal(controller.getSession().conversationId, "conversation-A");
 });
+
+test("public getters cannot mutate canonical proposal history", async () => {
+  const h = pluginHarness();
+  const controller = createController(h);
+  await controller.init();
+  await controller.recordProposal("proposal", {
+    file: "note.md", original: "old", replacement: "new",
+  }, "note.md");
+  const session = controller.getSession();
+  session.messages[0]!.proposal!.replacement = "injected";
+  session.messages[0]!.proposalState = "applied";
+  controller.listSessions()[0]!.messages.length = 0;
+  assert.equal(controller.getProposal("proposal")?.proposal.replacement, "new");
+  assert.equal(controller.getProposal("proposal")?.state, "pending");
+  await controller.updateProposalState("proposal", "applied");
+  assert.equal(controller.getProposal("proposal")?.state, "applied");
+});
