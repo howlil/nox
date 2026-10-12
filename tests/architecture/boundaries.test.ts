@@ -47,3 +47,21 @@ test("application-owned port and normalized parser stay usable", () => {
       'import { StructuredStreamParser } from "../agent/StructuredStreamParser";' }];
   assert.deepEqual(validateArchitecture(files), []);
 });
+
+test("guard handles type imports, dynamic imports and re-exports", () => {
+  const files = [
+    { path: "src/domain/practice/Code.ts", source:
+      'const q = import("../../chat/FutureView");\n' +
+      'type T = import("../../persistence/VaultLearningStore").VaultLearningStore;\n' +
+      'export { X } from "../../ui/primitives";' },
+    { path: "src/chat/FutureView.ts", source: "" },
+    { path: "src/persistence/VaultLearningStore.ts", source: "" },
+    { path: "src/ui/primitives.ts", source: "" },
+  ];
+  assert.equal(validateArchitecture(files).length, 3);
+});
+test("strings and comments that look like import statements are ignored", () => {
+  const files = [{ path: "src/domain/practice/Code.ts",
+    source: '// import { App } from "obsidian";\nconst sample = \'import("node:fs")\';' }];
+  assert.deepEqual(validateArchitecture(files), []);
+});

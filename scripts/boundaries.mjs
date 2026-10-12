@@ -1,4 +1,5 @@
 import path from "node:path";
+import ts from "typescript";
 
 /**
  * Fail closed for unknown owners. Cross-boundary imports are deliberate
@@ -17,7 +18,35 @@ const ALLOWED_OWNERS = {
   ui: ["ui"],
 };
 const ROOT_FILES = new Set(["src/main.ts", "src/types.ts"]);
-const IMPORTS = /\b(?:from\s*|import\s*\(\s*|require\s*\(\s*|import\s*)(["'])([^"']+)\1/g;
+function extractModuleSpecifiers(filename, source) {
+  // TypeScript's AST avoids false matches inside user strings/comments and
+  // covers imports, re-exports, dynamic imports, type imports and require().
+  const file = ts.createSourceFile(filename, source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
+  const imports = [];
+  const visit = (node) => {
+    if ((ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) &&
+      node.moduleSpecifier && ts.isStringLiteral(node.moduleSpecifier)) {
+      imports.push(node.moduleSpecifier.text);
+    } else if (ts.isImportEqualsDeclaration(node) &&
+      ts.isExternalModuleReference(node.moduleReference) &&
+      node.moduleReference.expression &&
+      ts.isStringLiteral(node.moduleReference.expression)) {
+      imports.push(node.moduleReference.expression.text);
+    } else if (ts.isImportTypeNode(node) && ts.isLiteralTypeNode(node.argument) &&
+      ts.isStringLiteral(node.argument.literal)) {
+      imports.push(node.argument.literal.text);
+    } else if (ts.isCallExpression(node) &&
+      (node.expression.kind === ts.SyntaxKind.ImportKeyword ||
+        (ts.isIdentifier(node.expression) && node.expression.text === "require")) &&
+      node.arguments.length > 0 && ts.isStringLiteral(node.arguments[0])) {
+      imports.push(node.arguments[0].text);
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(file);
+  return imports;
+}
+
 
 function isApprovedEdge(from, to) {
   const owner = from.split("/")[1];
@@ -57,12 +86,7 @@ export function validateArchitecture(files) {
       issues.push(`${filename}: unrecognized module owner; place code in a documented boundary`);
       continue;
     }
-    if (owner === "learning") {
-      issues.push(`${filename}: legacy src/learning/ is not an owner`);
-      continue;
-    }
-    for (const match of source.matchAll(IMPORTS)) {
-      const specifier = match[2];
+    for (const specifier of extractModuleSpecifiers(filename, source)) {
       if (specifier.startsWith(".")) {
         const basename = path.posix.normalize(path.posix.join(path.posix.dirname(filename), specifier));
         const target = present.has(basename) ? basename
