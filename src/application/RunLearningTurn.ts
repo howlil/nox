@@ -18,29 +18,29 @@ import {
 } from "../domain/learning-state/transitions";
 import type { SessionController } from "../session/SessionController";
 import { findCommittedPracticeOutcome, findCommittedReview, type TranscriptPart } from "../session/transcript-types";
-import type { ReviewFinding } from "../learning/review-types";
+import type { ReviewFinding } from "../domain/review/types";
 import type { AgentRuntimePort } from "../agent/AgentRuntime";
 import {
   buildActionInstruction,
   buildPracticeEvaluationInstruction,
   buildPracticeQuestionInstruction,
-} from "../learning/action-builders";
-import { toPromptLearningState } from "../learning/learning-state-projection";
+} from "./action-builders";
+import { toPromptLearningState } from "./learning-state-projection";
 import {
   LearningEvent,
   LearningRequest,
   ProposedEdit,
-} from "../learning/learning-types";
-import { PracticeQuestion, PracticeOrigin, PracticeEvaluation } from "../learning/practice-types";
+} from "./learning-types";
+import { PracticeQuestion, PracticeOrigin, PracticeEvaluation } from "../domain/practice/types";
 import {
   PracticeEvaluationAttempt,
   PracticeStateMachine,
-} from "../learning/PracticeStateMachine";
-import { PracticeSessionRegistry } from "../learning/PracticeSessionRegistry";
+} from "../domain/practice/PracticeStateMachine";
+import { PracticeSessionRegistry } from "./PracticeSessionRegistry";
 import {
   StructuredStreamEvent,
   StructuredStreamParser,
-} from "../learning/StructuredStreamParser";
+} from "../agent/StructuredStreamParser";
 
 type SessionPort = Pick<
   SessionController,
