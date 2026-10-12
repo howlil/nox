@@ -83,6 +83,7 @@ function createHarness(
     recordUserMessage: async (_content: string) => { recordedUserMessages += 1; },
     setConversationId: async (_id?: string) => {},
     recordAssistantMessage: async (_content: string) => {},
+    recordStructuredPart: async (_part: unknown) => {},
     recordProposal: async (
       id: string,
       proposal: EditProposal,

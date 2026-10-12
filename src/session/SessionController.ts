@@ -1,4 +1,5 @@
 import { SessionStore } from "./SessionStore";
+import type { TranscriptPart } from "./transcript-types";
 import { PluginDataRepository } from "../persistence/PluginDataRepository";
 import {
   ChatSession,
@@ -104,6 +105,17 @@ export class SessionController {
       content,
       sourcePath,
     });
+    this.store.updateSession(session);
+    await this.save();
+  }
+
+  async recordStructuredPart(
+    part: TranscriptPart,
+    sourcePath?: string,
+    sessionId?: string,
+  ): Promise<void> {
+    const session = this.sessionForWrite(sessionId);
+    session.messages.push({ role: "assistant", content: "", parts: [part], sourcePath });
     this.store.updateSession(session);
     await this.save();
   }

@@ -1638,6 +1638,7 @@ export class ChatView extends ItemView {
       if (message.proposal) {
         this.appendRestoredProposal(message);
       }
+      this.appendRestoredStructuredParts(message);
     }
     this.setUIState(this.runtimeReady ? "ANSWER" : "ERROR");
     this.scrollThread();
@@ -1669,6 +1670,20 @@ export class ChatView extends ItemView {
       this,
     );
     this.wireMarkdownLinks(content, sourcePath);
+  }
+
+  private appendRestoredStructuredParts(message: ChatMessage): void {
+    for (const part of message.parts ?? []) {
+      const bubble = this.thread.createDiv({ cls: "nox-bubble nox-bubble--agent" });
+      createNoxMessageMeta(bubble, { label: "Nox", sub: "Restored" });
+      if (part.type === "practice-question") {
+        this.appendPracticeQuestion(part.question, bubble);
+      } else if (part.type === "practice-evaluation") {
+        this.appendPracticeEvaluation(part.evaluation, bubble);
+      } else if (part.type === "review-findings") {
+        this.appendReviewFindings(part.findings, part.sourcePath ?? message.sourcePath ?? null, bubble);
+      }
+    }
   }
 
   private appendRestoredProposal(message: ChatMessage): void {
@@ -1838,7 +1853,7 @@ export class ChatView extends ItemView {
       });
     }
 
-    this.scrollThread();
+    // Follow-scroll is decided by the caller, not by every streamed token.
   }
 
   private flushStreamingText(): void {
@@ -1928,10 +1943,11 @@ export class ChatView extends ItemView {
 
   private appendPracticeQuestion(
     question: PracticeQuestion,
+    parent: HTMLElement | null = this.agentCursorEl,
   ): void {
-    if (!this.agentCursorEl) return;
+    if (!parent) return;
 
-    const card = createNoxSurface(this.agentCursorEl, "nox-practice-card");
+    const card = createNoxSurface(parent, "nox-practice-card");
     card.createDiv({
       cls: "nox-practice-label",
       text: `Practice · ${question.concept}`,
@@ -1953,11 +1969,12 @@ export class ChatView extends ItemView {
 
   private appendPracticeEvaluation(
     evaluation: PracticeEvaluation,
+    parent: HTMLElement | null = this.agentCursorEl,
   ): void {
-    if (!this.agentCursorEl) return;
+    if (!parent) return;
 
     const card = createNoxSurface(
-      this.agentCursorEl,
+      parent,
       `nox-practice-evaluation nox-outcome--${evaluation.outcome}`,
     );
 
@@ -1997,10 +2014,14 @@ export class ChatView extends ItemView {
     this.scrollThread();
   }
 
-  private appendReviewFindings(findings: ReviewFinding[], sourcePath: string | null): void {
-    if (!this.agentCursorEl) return;
+  private appendReviewFindings(
+    findings: ReviewFinding[],
+    sourcePath: string | null,
+    parent: HTMLElement | null = this.agentCursorEl,
+  ): void {
+    if (!parent) return;
 
-    const wrap = this.agentCursorEl.createDiv({ cls: "nox-review" });
+    const wrap = parent.createDiv({ cls: "nox-review" });
     wrap.createDiv({
       cls: "nox-review-summary",
       text: findings.length === 0

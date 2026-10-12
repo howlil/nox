@@ -1,4 +1,5 @@
 import { ChatSession } from "../types";
+import { isTranscriptPart } from "./transcript-schema";
 
 const STORE_KEY = "nox-sessions";
 const LEGACY_STORE_KEY = "agy-sessions";
@@ -147,6 +148,9 @@ export class SessionStore {
         })
         .map((message) => ({
           ...message,
+          parts: Array.isArray(message.parts)
+            ? message.parts.filter(isTranscriptPart)
+            : undefined,
           proposalState:
             message.proposalState === "pending"
               ? "stale"

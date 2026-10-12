@@ -53,6 +53,7 @@ type SessionPort = Pick<
   | "recordUserMessage"
   | "setConversationId"
   | "recordAssistantMessage"
+  | "recordStructuredPart"
   | "recordProposal"
   | "getProposal"
   | "updateProposalState"
@@ -387,6 +388,7 @@ export class LearningController {
             parser.push(event.content),
             request,
             snapshot,
+            turnSessionId,
             practice,
             practiceAttempt,
           )) {
@@ -423,6 +425,7 @@ export class LearningController {
             parser.finish(),
             request,
             snapshot,
+            turnSessionId,
             practice,
             practiceAttempt,
           )) {
@@ -589,6 +592,7 @@ export class LearningController {
     events: StructuredStreamEvent[],
     request: LearningRequest,
     context: TurnContextSnapshot,
+    sessionId: string,
     practice: PracticeStateMachine,
     practiceAttempt?: PracticeEvaluationAttempt,
   ): AsyncIterable<LearningEvent> {
@@ -627,9 +631,12 @@ export class LearningController {
       }
 
       if (event.type === "practice-question") {
-        practice.acceptQuestion(
-          event.question,
+        await this.sessions.recordStructuredPart(
+          { type: "practice-question", question: event.question },
+          context.mutableFile,
+          sessionId,
         );
+        practice.acceptQuestion(event.question);
 
         yield {
           type: "practice-question",
@@ -643,6 +650,12 @@ export class LearningController {
           context.resolved.selection?.file ??
           context.resolved.activeNote?.path ??
           "learning-session";
+
+        await this.sessions.recordStructuredPart(
+          { type: "review-findings", findings: event.findings, sourcePath: source },
+          source,
+          sessionId,
+        );
 
         yield {
           type: "review-findings",
@@ -675,17 +688,6 @@ export class LearningController {
           );
         }
 
-        const nextQuestion =
-          practice.commitEvaluation(
-            practiceAttempt,
-            event.evaluation,
-          );
-
-        yield {
-          type: "practice-evaluation",
-          evaluation: event.evaluation,
-        };
-
         const source =
           context.resolved.selection?.file ??
           context.resolved.activeNote?.path ??
@@ -700,13 +702,25 @@ export class LearningController {
           },
         );
         await this.learningState.save(nextState);
+        await this.sessions.recordStructuredPart(
+          { type: "practice-evaluation", evaluation: event.evaluation },
+          source,
+          sessionId,
+        );
+        const nextQuestion = practice.commitEvaluation(practiceAttempt, event.evaluation);
 
+        yield { type: "practice-evaluation", evaluation: event.evaluation };
         yield {
           type: "learning-state-updated",
           state: nextState,
         };
 
         if (nextQuestion) {
+          await this.sessions.recordStructuredPart(
+            { type: "practice-question", question: nextQuestion },
+            source,
+            sessionId,
+          );
           yield {
             type: "practice-question",
             question: nextQuestion,

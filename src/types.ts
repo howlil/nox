@@ -1,3 +1,5 @@
+import type { TranscriptPart } from "./session/transcript-types";
+
 // Shared transport/session types.
 
 // ── Context ─────────────────────────────────────────────────────────────────
@@ -69,6 +71,7 @@ export type ApplyResult =
 export interface ChatMessage {
   role: "user" | "assistant";
   content: string;
+  parts?: TranscriptPart[];
   sourcePath?: string;
   proposalId?: string;
   proposal?: EditProposal;
