@@ -196,11 +196,14 @@ export class RunLearningTurn {
       state = await this.reconcileTranscriptEvidence(sessionAtStart, state);
     } catch (error) {
       if (this.activeTurn === activeTurn) this.activeTurn = null;
+      const persistenceFailed = error instanceof PersistenceError;
       yield {
         type: "failed",
         failure: {
-          code: "unknown",
-          message: "Nox could not prepare this learning turn.",
+          code: persistenceFailed ? "persistence-failed" : "unknown",
+          message: persistenceFailed
+            ? "Nox could not save recovered learning progress. Check vault storage, then retry."
+            : "Nox could not prepare this learning turn.",
           diagnostic:
             error instanceof Error
               ? error.message

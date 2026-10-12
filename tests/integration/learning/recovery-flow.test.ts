@@ -245,3 +245,51 @@ test("selection survives sidebar focus; edit stays on authorized editor and mock
   rig.undoMockEditor();
   assert.equal(rig.getEditedNote(), original);
 });
+
+test("cancelled agent turn cannot commit already-parsed Practice evaluation", async () => {
+  const rig = makeRig();
+  const { learning, sessions, learningState } = await rig.createLearning();
+  rig.queue(practice({ kind: "question", concept: "ACID", question: "Define atomicity." }));
+  await collectEvents(learning.run({
+    prompt: "Practice", action: "practice", explicitContext: [],
+  }));
+  const evaluation = { kind: "evaluation", concept: "ACID",
+    outcome: "correct", feedback: "Correct", misconceptions: [] };
+  rig.queue([
+    { type: "text", content: "```learning-practice\n" + JSON.stringify(evaluation) + "\n```" },
+    { type: "cancelled" },
+  ]);
+  const outcome = await collectEvents(learning.run({
+    prompt: "One atomic operation", action: "practice", explicitContext: [],
+  }));
+  assert.ok(outcome.some((event) => event.type === "cancelled"));
+  assert.equal(outcome.some((event) => event.type === "practice-evaluation"), false);
+  assert.equal(learning.hasActivePracticeQuestion(), true);
+  assert.equal((await learningState.load()).evidence.length, 0);
+  assert.equal(sessions.getSession().messages.flatMap((message) => message.parts ?? [])
+    .filter((part) => part.type === "practice-evaluation").length, 0);
+});
+
+test("next Practice question and its source survive plugin recreation", async () => {
+  const rig = makeRig();
+  const first = await rig.createLearning();
+  rig.queue(practice({ kind: "question", concept: "ACID", question: "What is atomicity?" }));
+  await collectEvents(first.learning.run({
+    prompt: "Practice", action: "practice", explicitContext: [],
+  }));
+  rig.queue(practice({ kind: "evaluation", concept: "ACID", outcome: "correct",
+    feedback: "Good", misconceptions: [], nextQuestion: "What is durability?" }));
+  await collectEvents(first.learning.run({
+    prompt: "All-or-nothing", action: "practice", explicitContext: [],
+  }));
+  const session = first.sessions.getSession();
+  const outcomes = session.messages.flatMap((message) => message.parts ?? []);
+  assert.equal(outcomes.filter((part) => part.type === "practice-evaluation").length, 1);
+  assert.equal(outcomes.filter((part) => part.type === "practice-question").length, 2);
+  first.learning.dispose();
+  const restored = await rig.createLearning();
+  assert.equal(restored.learning.hasActivePracticeQuestion(), true);
+  assert.equal(restored.learning.getActivePracticeOrigin()?.file, "notes/acid.md");
+  assert.equal(restored.sessions.getSession().messages.flatMap((message) => message.parts ?? [])
+    .filter((part) => part.type === "practice-question").length, 2);
+});
