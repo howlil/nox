@@ -1,4 +1,7 @@
-import type { PluginDataRepository } from "../persistence/PluginDataRepository";
+/** Minimum serialized plugin-data writer needed by settings. */
+export interface SettingsDataPort {
+  update(update: (current: Record<string, unknown>) => Record<string, unknown>): Promise<void>;
+}
 
 export const NOX_SETTINGS_KEY = "nox-settings";
 
@@ -31,7 +34,7 @@ export function decodeNoxSettings(
 }
 
 export async function saveNoxSettings(
-  pluginData: Pick<PluginDataRepository, "update">,
+  pluginData: SettingsDataPort,
   settings: NoxSettings,
 ): Promise<void> {
   await pluginData.update((current) => ({

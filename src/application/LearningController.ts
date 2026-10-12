@@ -1,41 +1,10 @@
 import type { AgentHealth, AgentModel, ApplyResult, ChatSession } from "../types";
-import type { ContextResolver } from "../context/ContextResolver";
 import type { ExplicitContextRef, LearningContext } from "../context/context-types";
-import type { PolicyLoader } from "../context/PolicyLoader";
-import type { MutationService } from "../mutation/MutationService";
-import type { VaultLearningStore } from "../persistence/VaultLearningStore";
-import type { SessionController } from "../session/SessionController";
+import type { SessionPort, ContextPort, PolicyPort, MutationPort, LearningStatePort } from "./ports";
 import type { AgentRuntimePort } from "../agent/AgentRuntime";
 import type { LearningEvent, LearningRequest } from "./learning-types";
 import type { PracticeOrigin } from "../domain/practice/types";
 import { RunLearningTurn } from "./RunLearningTurn";
-
-type SessionPort = Pick<
-  SessionController,
-  | "getSession"
-  | "listSessions"
-  | "selectSession"
-  | "setModel"
-  | "newSession"
-  | "recordUserMessage"
-  | "setConversationId"
-  | "recordAssistantMessage"
-  | "recordStructuredPart"
-  | "recordPracticeOutcome"
-  | "recordReviewOutcome"
-  | "recordProposal"
-  | "getProposal"
-  | "updateProposalState"
->;
-
-type ContextPort = Pick<
-  ContextResolver,
-  "resolve" | "searchNotes" | "toAgentContext"
->;
-
-type PolicyPort = Pick<PolicyLoader, "load">;
-type MutationPort = Pick<MutationService, "apply">;
-type LearningStatePort = Pick<VaultLearningStore, "load" | "save">;
 
 export interface LearningControllerOptions {
   turnTimeoutMs?: number;

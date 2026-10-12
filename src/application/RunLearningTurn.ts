@@ -3,20 +3,17 @@ import {
   AgentFailure,
   ChatSession,
 } from "../types";
-import type { ContextResolver } from "../context/ContextResolver";
 import {
   ExplicitContextRef,
   LearningContext,
   TurnContextSnapshot,
 } from "../context/context-types";
-import type { PolicyLoader } from "../context/PolicyLoader";
-import type { VaultLearningStore } from "../persistence/VaultLearningStore";
+import type { SessionPort, ContextPort, PolicyPort, LearningStatePort } from "./ports";
 import { PersistenceError } from "../persistence/PersistenceError";
 import {
   recordPracticeEvaluation,
   recordReviewFindings,
 } from "../domain/learning-state/transitions";
-import type { SessionController } from "../session/SessionController";
 import { findCommittedPracticeOutcome, findCommittedReview, type TranscriptPart } from "../session/transcript-types";
 import type { ReviewFinding } from "../domain/review/types";
 import type { AgentRuntimePort } from "../agent/AgentRuntime";
@@ -41,32 +38,6 @@ import {
   StructuredStreamEvent,
   StructuredStreamParser,
 } from "../agent/StructuredStreamParser";
-
-type SessionPort = Pick<
-  SessionController,
-  | "getSession"
-  | "listSessions"
-  | "selectSession"
-  | "setModel"
-  | "newSession"
-  | "recordUserMessage"
-  | "setConversationId"
-  | "recordAssistantMessage"
-  | "recordStructuredPart"
-  | "recordPracticeOutcome"
-  | "recordReviewOutcome"
-  | "recordProposal"
-  | "getProposal"
-  | "updateProposalState"
->;
-
-type ContextPort = Pick<
-  ContextResolver,
-  "resolve" | "searchNotes" | "toAgentContext"
->;
-
-type PolicyPort = Pick<PolicyLoader, "load">;
-type LearningStatePort = Pick<VaultLearningStore, "load" | "save">;
 
 /**
  * Application boundary for the Learning OS.
