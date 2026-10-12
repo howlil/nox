@@ -1,7 +1,7 @@
 import { SessionStore } from "./SessionStore";
 import { PersistenceError } from "../persistence/PersistenceError";
 import type { TranscriptPart } from "./transcript-types";
-import { findCommittedPracticeOutcome } from "./transcript-types";
+import { findCommittedPracticeOutcome, findCommittedReview } from "./transcript-types";
 import { PluginDataRepository } from "../persistence/PluginDataRepository";
 import {
   ChatSession,
@@ -165,6 +165,28 @@ export class SessionController {
       return structuredClone(message?.parts ?? [existing]);
     }
 
+    await this.persistOutcome(session, parts, sourcePath);
+    return structuredClone(parts);
+  }
+
+  async recordReviewOutcome(
+    part: Extract<TranscriptPart, { type: "review-findings" }>,
+    sourcePath: string,
+    sessionId: string,
+  ): Promise<Extract<TranscriptPart, { type: "review-findings" }>> {
+    if (!part.reviewId) throw new Error("Review outcome requires stable reviewId");
+    const session = this.sessionForWrite(sessionId);
+    const existing = findCommittedReview(session, part.reviewId);
+    if (existing) return structuredClone(existing);
+    await this.persistOutcome(session, [part], sourcePath);
+    return structuredClone(part);
+  }
+
+  private async persistOutcome(
+    session: ChatSession,
+    parts: TranscriptPart[],
+    sourcePath: string,
+  ): Promise<void> {
     const next: ChatSession = {
       ...session,
       messages: [...session.messages, {
@@ -181,13 +203,12 @@ export class SessionController {
         ...staged.serialized,
       }));
     } catch (error) {
-      throw new PersistenceError("Unable to persist practice outcome", error);
+      throw new PersistenceError("Unable to persist learning outcome", error);
     }
     this.store.acceptPersistedSession(staged.committed);
-    if (this.currentSession?.id === sessionId) {
-      this.currentSession = this.store.getSession(sessionId);
+    if (this.currentSession?.id === session.id) {
+      this.currentSession = this.store.getSession(session.id);
     }
-    return structuredClone(parts);
   }
 
   async recordProposal(

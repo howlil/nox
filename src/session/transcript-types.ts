@@ -6,7 +6,19 @@ export type TranscriptPart =
   | { type: "practice-question"; question: PracticeQuestion; questionId?: string; origin?: PracticeOrigin }
   | { type: "practice-evaluation"; evaluation: PracticeEvaluation; questionId?: string;
       operationId?: string; nextQuestionId?: string; sourcePath?: string }
-  | { type: "review-findings"; findings: ReviewFinding[]; sourcePath?: string };
+  | { type: "review-findings"; findings: ReviewFinding[]; sourcePath?: string; reviewId?: string };
+
+export function findCommittedReview(
+  session: import("../types").ChatSession,
+  reviewId: string,
+): Extract<TranscriptPart, { type: "review-findings" }> | undefined {
+  for (const message of session.messages) {
+    for (const part of message.parts ?? []) {
+      if (part.type === "review-findings" && part.reviewId === reviewId) return part;
+    }
+  }
+  return undefined;
+}
 
 /** An outcome committed to the transcript is authoritative for its question. */
 export function findCommittedPracticeOutcome(

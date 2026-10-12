@@ -28,6 +28,7 @@ export function isTranscriptPart(value: unknown): value is TranscriptPart {
   if (part.type === "review-findings") {
     return Array.isArray(part.findings) &&
       (part.sourcePath === undefined || typeof part.sourcePath === "string") &&
+      (part.reviewId === undefined || typeof part.reviewId === "string") &&
       part.findings.every((value: unknown) => {
         if (!value || typeof value !== "object") return false;
         const f = value as Record<string, unknown>;

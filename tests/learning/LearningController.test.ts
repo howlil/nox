@@ -115,6 +115,16 @@ function createHarness(
       session.messages.push({ role: "assistant", content: "", parts: parts as ChatSession["messages"][number]["parts"] });
       return parts;
     },
+    recordReviewOutcome: async (
+      part: { type: "review-findings"; reviewId?: string; findings: unknown[]; sourcePath?: string },
+    ) => {
+      const existing = session.messages.flatMap((message) => message.parts ?? [])
+        .find((entry) => entry.type === "review-findings" && entry.reviewId === part.reviewId);
+      if (existing && existing.type === "review-findings") return existing;
+      session.messages.push({ role: "assistant", content: "",
+        parts: [part as ChatSession["messages"][number]["parts"] extends (infer T)[] ? T : never] });
+      return part;
+    },
     recordProposal: async (
       id: string,
       proposal: EditProposal,
