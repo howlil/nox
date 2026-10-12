@@ -25,6 +25,7 @@ export type AgentFailureCode =
   | "permission-required"
   | "protocol-invalid"
   | "process-failed"
+  | "persistence-failed"
   | "unknown";
 
 export interface AgentFailure {

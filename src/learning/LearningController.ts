@@ -15,6 +15,7 @@ import {
 import type { PolicyLoader } from "../context/PolicyLoader";
 import type { MutationService } from "../mutation/MutationService";
 import type { VaultLearningStore } from "../persistence/VaultLearningStore";
+import { PersistenceError } from "../persistence/PersistenceError";
 import {
   recordPracticeEvaluation,
   recordReviewFindings,
@@ -546,14 +547,15 @@ export class LearningController {
     } catch (error) {
       rollbackPractice();
 
+      const persistenceFailed = error instanceof PersistenceError;
       const failure: AgentFailure = {
-        code: "protocol-invalid",
-        message:
-          "Nox could not interpret the agent response.",
-        diagnostic:
-          error instanceof Error
-            ? error.message
-            : String(error),
+        code: persistenceFailed ? "persistence-failed" : "protocol-invalid",
+        message: persistenceFailed
+          ? "Nox could not save this turn. Retry after checking vault storage."
+          : "Nox could not interpret the agent response.",
+        diagnostic: persistenceFailed
+          ? error.diagnostic
+          : error instanceof Error ? error.message : String(error),
       };
 
       yield { type: "failed", failure };

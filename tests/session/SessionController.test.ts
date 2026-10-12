@@ -185,3 +185,37 @@ test("public getters cannot mutate canonical proposal history", async () => {
   await controller.updateProposalState("proposal", "applied");
   assert.equal(controller.getProposal("proposal")?.state, "applied");
 });
+
+test("retrying a staged structured part after save failure persists exactly once", async () => {
+  let saves = 0;
+  let durable: Record<string, unknown> | null = null;
+  const plugin = {
+    loadData: async () => durable,
+    saveData: async (next: Record<string, unknown>) => {
+      if (++saves === 1) throw new Error("temporary disk error");
+      durable = next;
+    },
+  };
+  const controller = new SessionController(
+    new PluginDataRepository(plugin as never),
+    new SessionStore({ now: () => 1, uuid: () => "retry-session" }),
+  );
+  await controller.init();
+  const part = {
+    type: "practice-evaluation" as const,
+    questionId: "q-1",
+    evaluation: {
+      kind: "evaluation" as const,
+      concept: "ACID",
+      outcome: "correct" as const,
+      feedback: "Correct",
+      misconceptions: [],
+    },
+  };
+  await assert.rejects(controller.recordStructuredPart(part));
+  await controller.recordStructuredPart(part);
+  const reloaded = new SessionStore();
+  await reloaded.load(durable);
+  assert.equal(reloaded.getCurrentSession()?.messages.length, 1);
+  assert.equal(reloaded.getCurrentSession()?.messages[0]?.parts?.[0]?.type, "practice-evaluation");
+});

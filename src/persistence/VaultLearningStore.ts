@@ -1,4 +1,5 @@
 import { App, TFile } from "obsidian";
+import { PersistenceError } from "./PersistenceError";
 import {
   DEFAULT_LEARNING_STATE,
   LearningState,
@@ -51,17 +52,18 @@ export class VaultLearningStore {
   }
 
   async save(state: LearningState): Promise<void> {
-    await this.ensureRoot();
-
-    const content = JSON.stringify(state, null, 2) + "\n";
-    const file = this.app.vault.getFileByPath(PROGRESS_PATH);
-
-    if (file && file instanceof TFile) {
-      await this.app.vault.modify(file, content);
-      return;
+    try {
+      await this.ensureRoot();
+      const content = JSON.stringify(state, null, 2) + "\n";
+      const file = this.app.vault.getFileByPath(PROGRESS_PATH);
+      if (file && file instanceof TFile) {
+        await this.app.vault.modify(file, content);
+        return;
+      }
+      await this.app.vault.create(PROGRESS_PATH, content);
+    } catch (error) {
+      throw new PersistenceError("Unable to persist learning progress", error);
     }
-
-    await this.app.vault.create(PROGRESS_PATH, content);
   }
 
   private async ensureRoot(): Promise<void> {

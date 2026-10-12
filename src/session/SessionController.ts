@@ -1,4 +1,5 @@
 import { SessionStore } from "./SessionStore";
+import { PersistenceError } from "../persistence/PersistenceError";
 import type { TranscriptPart } from "./transcript-types";
 import { PluginDataRepository } from "../persistence/PluginDataRepository";
 import {
@@ -130,7 +131,11 @@ export class SessionController {
     const session = this.sessionForWrite(sessionId);
     if (part.type !== "review-findings" && part.questionId &&
       session.messages.some((message) => message.parts?.some((existing) =>
-        existing.type === part.type && existing.questionId === part.questionId))) return;
+        existing.type === part.type && existing.questionId === part.questionId))) {
+      // A previous write may have failed after staging this item in memory.
+      await this.save();
+      return;
+    }
     session.messages.push({ role: "assistant", content: "", parts: [part], sourcePath });
     this.commitSession(session);
     await this.save();
@@ -202,9 +207,13 @@ export class SessionController {
   }
 
   private async save(): Promise<void> {
-    await this.pluginData.update((current) => ({
-      ...current,
-      ...this.store.serialize(),
-    }));
+    try {
+      await this.pluginData.update((current) => ({
+        ...current,
+        ...this.store.serialize(),
+      }));
+    } catch (error) {
+      throw new PersistenceError("Unable to persist Nox session", error);
+    }
   }
 }
