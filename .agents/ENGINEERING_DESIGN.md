@@ -28,7 +28,7 @@ timeouts, and practice/review event persistence behind a stable
 extract by behavior, not line count. No separate practice/review persistence
 stores should be created.
 
-**Verification boundary:** GitHub CI covers typecheck, unit/integration
+**Verification boundary:** GitHub CI covers typecheck, lint, unit/integration
 tests, build, and artifacts. Real Obsidian UI verification (including
 selection restore, panel lifecycles and native Undo) still requires a manual
 smoke test; do not represent CI as equivalent to that testing.
@@ -1194,6 +1194,7 @@ Do not mock a boundary so deeply that the test merely restates implementation.
 
 ```text
 pnpm typecheck
+→ pnpm lint
 → pnpm test:unit
 → pnpm test:integration
 → pnpm build
