@@ -7,8 +7,8 @@ import type { VaultLearningStore } from "../persistence/VaultLearningStore";
 import type { SessionController } from "../session/SessionController";
 import type { AgentRuntimePort } from "../agent/AgentRuntime";
 import type { LearningEvent, LearningRequest } from "./learning-types";
-import type { PracticeOrigin } from "./practice-types";
-import { RunLearningTurn } from "../application/RunLearningTurn";
+import type { PracticeOrigin } from "../domain/practice/types";
+import { RunLearningTurn } from "./RunLearningTurn";
 
 type SessionPort = Pick<
   SessionController,

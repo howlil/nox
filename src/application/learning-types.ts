@@ -3,12 +3,12 @@ import {
   ExplicitContextRef,
   TurnContextSnapshot,
 } from "../context/context-types";
-import { LearningState } from "./learning-state";
+import { LearningState } from "../domain/learning-state/types";
 import {
   PracticeEvaluation,
   PracticeQuestion,
-} from "./practice-types";
-import { ReviewFinding } from "./review-types";
+} from "../domain/practice/types";
+import { ReviewFinding } from "../domain/review/types";
 
 export type LearningActionKind =
   | "ask"

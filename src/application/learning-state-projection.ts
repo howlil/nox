@@ -2,7 +2,7 @@ import {
   LearningEvidence,
   LearningState,
   KnowledgeGap,
-} from "./learning-state";
+} from "../domain/learning-state/types";
 
 export interface PromptLearningState {
   version: 2;
