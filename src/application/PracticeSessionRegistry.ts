@@ -1,4 +1,4 @@
-import { PracticeStateMachine } from "./PracticeStateMachine";
+import { PracticeStateMachine } from "../domain/practice/PracticeStateMachine";
 
 /**
  * Owns the in-process association between a conversation session and its

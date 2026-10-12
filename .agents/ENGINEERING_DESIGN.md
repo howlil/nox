@@ -310,47 +310,53 @@ Refactor only when a concrete slice crosses one of these boundaries.
 
 ---
 
-## 3. Target repository shape
+## 3. Canonical repository shape (enforced)
 
-Nox can stay a single package.
-
-Recommended direction:
+This is the **current, actively enforced** source layout. The former
+`src/learning/` is eliminated; it mixed domain rules, application orchestration
+and provider parsing. The existing adapter folders remain: do not move them to
+fictional layers or split the package to satisfy a diagram.
 
 ```text
 src/
 ├── application/
-│   ├── RunLearningTurn.ts
-│   ├── ApplyProposal.ts
-│   ├── ChangeSession.ts
-│   └── ports.ts
+│   ├── LearningController.ts         # UI-facing application façade
+│   ├── RunLearningTurn.ts            # canonical turn/use-case owner
+│   ├── PracticeSessionRegistry.ts    # per-session transient lifecycle
+│   ├── action-builders.ts            # action instruction assembly
+│   ├── learning-state-projection.ts  # prompt-only projection
+│   ├── learning-types.ts             # normalized product commands/events
+│   └── ports.ts                      # narrow structural I/O contracts
 ├── domain/
-│   ├── learning-state/
-│   │   ├── types.ts
-│   │   └── transitions.ts
-│   ├── practice/
-│   │   ├── types.ts
-│   │   └── PracticeStateMachine.ts
-│   └── proposal/
-│       └── types.ts
-├── agent/
-│   ├── AgentAdapter.ts
-│   ├── StructuredStreamParser.ts
-│   └── AgyAdapter.ts
-├── context/
-├── persistence/
-│   ├── LearningStateRepository.ts
-│   └── SessionRepository.ts
-├── mutation/
-├── chat/
-├── ui/
+│   ├── learning-state/{types,transitions}.ts
+│   ├── practice/{types,PracticeStateMachine}.ts
+│   ├── review/types.ts
+│   └── mutation/replacement.ts
+├── agent/{AgentRuntime,AgyAdapter,AgyProtocol,StructuredStreamParser}.ts
+├── context/{ContextResolver,ObsidianContext,PolicyLoader,context-types}.ts
+├── session/{SessionController,SessionStore,transcript-types,transcript-schema}.ts
+├── persistence/{PluginDataRepository,VaultLearningStore,PersistenceError,learning-state-schema}.ts
+├── mutation/MutationService.ts
+├── chat/                         # Obsidian view, chat mechanics and cards
+├── ui/                           # reused interaction primitives
 ├── settings/
-└── main.ts
+├── types.ts                      # legacy shared transport/session contracts
+└── main.ts                       # wiring only
 ```
 
-This is a dependency/ownership target, not a required bulk file move.
+`tests/` mirrors feature owners; integration workflows remain under
+`tests/integration/`. Do not create generic `utils/services/managers` buckets.
+New behavior goes into its authoritative owner first, even when it is only
+one file. Do not move `ChatView` or create new layers based on file length alone.
 
-A compatibility `LearningController` facade may remain while use cases migrate
-behind it.
+The rules are executable in `scripts/boundaries.mjs`, exercised by
+`tests/architecture/boundaries.test.ts`, and enforced via
+`pnpm check:boundaries` in `pnpm verify` and CI. Exceptions must be narrowly
+documented in the code-level guard: application may import normalized
+`agent/AgentRuntime.ts` and `agent/StructuredStreamParser.ts`,
+`session/transcript-types.ts` for durable outcome shape, and the
+`persistence/PersistenceError.ts` failure contract. Do not expand the
+exceptions as a workaround for unclear ownership.
 
 ---
 

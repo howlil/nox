@@ -3,70 +3,41 @@ import {
   AgentFailure,
   ChatSession,
 } from "../types";
-import type { ContextResolver } from "../context/ContextResolver";
 import {
   ExplicitContextRef,
   LearningContext,
   TurnContextSnapshot,
 } from "../context/context-types";
-import type { PolicyLoader } from "../context/PolicyLoader";
-import type { VaultLearningStore } from "../persistence/VaultLearningStore";
+import type { SessionPort, ContextPort, PolicyPort, LearningStatePort } from "./ports";
 import { PersistenceError } from "../persistence/PersistenceError";
 import {
   recordPracticeEvaluation,
   recordReviewFindings,
 } from "../domain/learning-state/transitions";
-import type { SessionController } from "../session/SessionController";
 import { findCommittedPracticeOutcome, findCommittedReview, type TranscriptPart } from "../session/transcript-types";
-import type { ReviewFinding } from "../learning/review-types";
+import type { ReviewFinding } from "../domain/review/types";
 import type { AgentRuntimePort } from "../agent/AgentRuntime";
 import {
   buildActionInstruction,
   buildPracticeEvaluationInstruction,
   buildPracticeQuestionInstruction,
-} from "../learning/action-builders";
-import { toPromptLearningState } from "../learning/learning-state-projection";
+} from "./action-builders";
+import { toPromptLearningState } from "./learning-state-projection";
 import {
   LearningEvent,
   LearningRequest,
   ProposedEdit,
-} from "../learning/learning-types";
-import { PracticeQuestion, PracticeOrigin, PracticeEvaluation } from "../learning/practice-types";
+} from "./learning-types";
+import { PracticeQuestion, PracticeOrigin, PracticeEvaluation } from "../domain/practice/types";
 import {
   PracticeEvaluationAttempt,
   PracticeStateMachine,
-} from "../learning/PracticeStateMachine";
-import { PracticeSessionRegistry } from "../learning/PracticeSessionRegistry";
+} from "../domain/practice/PracticeStateMachine";
+import { PracticeSessionRegistry } from "./PracticeSessionRegistry";
 import {
   StructuredStreamEvent,
   StructuredStreamParser,
-} from "../learning/StructuredStreamParser";
-
-type SessionPort = Pick<
-  SessionController,
-  | "getSession"
-  | "listSessions"
-  | "selectSession"
-  | "setModel"
-  | "newSession"
-  | "recordUserMessage"
-  | "setConversationId"
-  | "recordAssistantMessage"
-  | "recordStructuredPart"
-  | "recordPracticeOutcome"
-  | "recordReviewOutcome"
-  | "recordProposal"
-  | "getProposal"
-  | "updateProposalState"
->;
-
-type ContextPort = Pick<
-  ContextResolver,
-  "resolve" | "searchNotes" | "toAgentContext"
->;
-
-type PolicyPort = Pick<PolicyLoader, "load">;
-type LearningStatePort = Pick<VaultLearningStore, "load" | "save">;
+} from "../agent/StructuredStreamParser";
 
 /**
  * Application boundary for the Learning OS.

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { PracticeSessionRegistry } from "../../src/learning/PracticeSessionRegistry";
+import { PracticeSessionRegistry } from "../../src/application/PracticeSessionRegistry";
 
 test("returns one practice state machine per conversation session", () => {
   const registry = new PracticeSessionRegistry();

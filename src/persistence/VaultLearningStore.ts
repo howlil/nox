@@ -3,7 +3,7 @@ import { PersistenceError } from "./PersistenceError";
 import {
   DEFAULT_LEARNING_STATE,
   LearningState,
-} from "../learning/learning-state";
+} from "../domain/learning-state/types";
 import { decodeLearningState } from "./learning-state-schema";
 
 const ROOT = "00-learning-os";

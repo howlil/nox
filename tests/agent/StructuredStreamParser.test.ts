@@ -3,7 +3,7 @@ import test from "node:test";
 import {
   StructuredStreamEvent,
   StructuredStreamParser,
-} from "../../src/learning/StructuredStreamParser";
+} from "../../src/agent/StructuredStreamParser";
 
 const fence = String.fromCharCode(96).repeat(3);
 

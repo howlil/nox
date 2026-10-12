@@ -3,7 +3,7 @@ import {
   PracticeQuestion,
   PracticeSession,
   PracticeOrigin,
-} from "./practice-types";
+} from "./types";
 
 export interface PracticeEvaluationAttempt {
   id: string;

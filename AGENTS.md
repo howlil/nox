@@ -168,6 +168,79 @@ still be changed through another competing path.
 
 ---
 
+# 1.2 Folder ownership — mandatory for all new code
+
+Folder placement is an executable contract, not a stylistic preference.
+Before adding a file or moving behavior, read the current architecture map in
+`.agents/ENGINEERING_DESIGN.md` and select one existing canonical owner.
+
+```text
+src/
+├── application/  # workflow / orchestration / narrow I/O contracts
+├── domain/
+│   ├── learning-state/  # evidence and gap invariants
+│   ├── practice/        # question/evaluation lifecycle
+│   ├── review/          # material-quality findings
+│   └── mutation/        # pure exact replacement planning
+├── agent/        # runtime boundary, normalized stream parser, AGY adapter
+├── context/      # selection, note resolution, vault policy adapter
+├── session/      # durable transcript, session, proposal persistence
+├── persistence/  # plugin data and vault progress adapters
+├── mutation/     # Obsidian editor mutation adapter
+├── chat/         # Nox panel/view and feature renderers
+├── ui/           # shared visual primitives
+├── settings/     # settings model and Obsidian settings tab
+├── types.ts      # existing shared contracts only; prefer owner-local types
+└── main.ts       # composition only
+```
+
+Ownership test for **every new module**:
+
+- Domain state meaning, invariants, or pure transitions → `domain/<feature>/`.
+- User intent, sequencing, retry, and use-case ports → `application/`.
+- Provider parsing, processes, runtime → `agent/`.
+- Note context and policy collection → `context/`.
+- Session history and serialization → `session/`.
+- Raw plugin/vault storage → `persistence/`.
+- Native note edits → `mutation/`.
+- Rendering and interaction → `chat/`; reusable UI only → `ui/`.
+- Settings only → `settings/`; wiring only → `main.ts`.
+
+Do **not** recreate `src/learning/`, `src/helpers/`, `src/common/`,
+`src/managers/`, `src/services/`, or broad `utils.ts` buckets.
+Do not create a new top-level owner without changing this contract, the
+architecture guard, and its regression tests in the **same PR**.
+
+Dependency rules:
+
+```text
+chat → application → domain
+                  ↘ narrow I/O ports
+infrastructure (agent/context/session/persistence/mutation) implements effects
+main.ts → all concrete implementations (composition root only)
+```
+
+- `domain/` imports only `domain/`, never Obsidian, provider, session,
+  runtime, persistence, or application.
+- `application/` consumes structural contracts in `application/ports.ts`,
+  domain types/rules, normalized agent events, and narrow transcript contracts.
+  It must not import concrete session, context, mutation, or vault adapters.
+- `chat/` and `ui/` never read/write persistence directly.
+- `src/types.ts` is existing shared transport/session compatibility only;
+  new feature contracts live with their owner.
+- Co-locate tests in matching `tests/<owner>/`; complete workflows live under
+  `tests/integration/`.
+- Avoid barrel exports and path aliases that hide cross-boundary edges.
+- Prefer **moving one responsibility and fixing its imports** over introducing
+  a generic interface, repository, event bus, manager or dependency-injection
+  framework.
+
+After any file/import change, run `pnpm check:boundaries` and `pnpm verify`.
+The guard rejects unknown owners, unresolved relative imports, and forbidden
+dependency edges in CI. Never bypass it with a suppression merely to ship.
+
+---
+
 # 2. Model only what matters
 
 Choose one canonical owner for every rule.

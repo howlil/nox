@@ -1,5 +1,5 @@
-import type { PracticeQuestion, PracticeEvaluation, PracticeOrigin } from "../learning/practice-types";
-import type { ReviewFinding } from "../learning/review-types";
+import type { PracticeQuestion, PracticeEvaluation, PracticeOrigin } from "../domain/practice/types";
+import type { ReviewFinding } from "../domain/review/types";
 
 /** Durable structured assistant content. Legacy text/proposal fields remain readable. */
 export type TranscriptPart =

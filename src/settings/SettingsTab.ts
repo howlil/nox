@@ -1,8 +1,13 @@
 import { App, PluginSettingTab, Setting } from "obsidian";
-import type NoxPlugin from "../main";
+import type { NoxSettings } from "./NoxSettings";
+
+export interface NoxSettingsHost {
+  getSettings(): NoxSettings;
+  updateSettings(next: Partial<NoxSettings>): Promise<void>;
+}
 
 export class NoxSettingsTab extends PluginSettingTab {
-  constructor(app: App, private readonly nox: NoxPlugin) {
+  constructor(app: App, private readonly nox: NoxSettingsHost & import("obsidian").Plugin) {
     super(app, nox);
   }
 

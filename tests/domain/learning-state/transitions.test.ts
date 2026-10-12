@@ -4,7 +4,7 @@ import {
   recordPracticeEvaluation,
   recordReviewFindings,
 } from "../../../src/domain/learning-state/transitions";
-import { LearningState } from "../../../src/learning/learning-state";
+import { LearningState } from "../../../src/domain/learning-state/types";
 
 function baseState(): LearningState {
   return {

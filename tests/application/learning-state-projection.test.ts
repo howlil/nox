@@ -4,7 +4,7 @@ import {
   MAX_PROMPT_EVIDENCE,
   MAX_PROMPT_GAPS,
   toPromptLearningState,
-} from "../../src/learning/learning-state-projection";
+} from "../../src/application/learning-state-projection";
 
 test("prompt learning state is bounded and excludes resolved gaps", () => {
   const gaps = Array.from({ length: 30 }, (_, index) => ({

@@ -1,9 +1,9 @@
 import {
   LearningEvidence,
   LearningState,
-} from "../../learning/learning-state";
-import { PracticeEvaluation } from "../../learning/practice-types";
-import { ReviewFinding } from "../../learning/review-types";
+} from "./types";
+import { PracticeEvaluation } from "../practice/types";
+import { ReviewFinding } from "../review/types";
 
 export interface LearningTransitionDeps {
   now?: () => number;

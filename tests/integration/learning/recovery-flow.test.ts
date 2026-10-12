@@ -5,7 +5,7 @@ import type { AgentStreamEvent, EditProposal } from "../../../src/types";
 import { AgentRuntime } from "../../../src/agent/AgentRuntime";
 import { ContextResolver } from "../../../src/context/ContextResolver";
 import { ObsidianContext } from "../../../src/context/ObsidianContext";
-import { LearningController } from "../../../src/learning/LearningController";
+import { LearningController } from "../../../src/application/LearningController";
 import { MutationService } from "../../../src/mutation/MutationService";
 import { PluginDataRepository } from "../../../src/persistence/PluginDataRepository";
 import { VaultLearningStore } from "../../../src/persistence/VaultLearningStore";

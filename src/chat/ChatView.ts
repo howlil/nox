@@ -4,13 +4,13 @@ import {
   WorkspaceLeaf,
   type IconName,
 } from "obsidian";
-import { LearningController } from "../learning/LearningController";
+import { LearningController } from "../application/LearningController";
 import {
   LearningActionKind,
   LearningEvent,
   LearningRequest,
   ProposedEdit,
-} from "../learning/learning-types";
+} from "../application/learning-types";
 import {
   ExplicitContextRef,
   LearningContext,
@@ -18,8 +18,8 @@ import {
 import {
   PracticeEvaluation,
   PracticeQuestion,
-} from "../learning/practice-types";
-import { ReviewFinding } from "../learning/review-types";
+} from "../domain/practice/types";
+import { ReviewFinding } from "../domain/review/types";
 import {
   renderPracticeQuestionCard,
   renderPracticeEvaluationCard,

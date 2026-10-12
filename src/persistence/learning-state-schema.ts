@@ -2,7 +2,7 @@ import {
   KnowledgeGap,
   LearningEvidence,
   LearningState,
-} from "../learning/learning-state";
+} from "../domain/learning-state/types";
 
 interface LearningEvidenceV1 {
   id: string;

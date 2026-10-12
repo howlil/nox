@@ -3,8 +3,8 @@ import {
   PracticeEvaluation,
   PracticePayload,
   PracticeQuestion,
-} from "./practice-types";
-import { ReviewFinding, ReviewPayload } from "./review-types";
+} from "../domain/practice/types";
+import { ReviewFinding, ReviewPayload } from "../domain/review/types";
 
 export type StructuredStreamEvent =
   | { type: "text"; text: string }
