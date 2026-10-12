@@ -97,6 +97,24 @@ function createHarness(
         structuredParts.push(part);
       }
     },
+    recordPracticeOutcome: async (
+      parts: Array<{ type: string; questionId?: string; evaluation?: unknown }>,
+    ) => {
+       if (options.evaluationTranscriptFailures && transcriptFailures-- > 0) {
+        throw new Error("Simulated session persistence failure");
+      }
+      const evaluation = parts.find((part) => part.type === "practice-evaluation");
+      const existing = evaluation?.questionId && structuredParts.some((part) =>
+        part.type === "practice-evaluation" && part.questionId === evaluation.questionId);
+      if (existing && evaluation) {
+        const prior = session.messages.find((message) => message.parts?.some((part) =>
+          part.type === "practice-evaluation" && part.questionId === evaluation.questionId));
+        return prior?.parts ?? parts;
+      }
+      structuredParts.push(...parts);
+      session.messages.push({ role: "assistant", content: "", parts: parts as ChatSession["messages"][number]["parts"] });
+      return parts;
+    },
     recordProposal: async (
       id: string,
       proposal: EditProposal,
@@ -789,16 +807,18 @@ test("practice evidence remains consistent when vault persistence fails then use
   assert.ok(failed.some((event) => event.type === "failed"));
   assert.equal(harness.controller.hasActivePracticeQuestion(), true);
   assert.equal(harness.getEvidence().length, 0);
-  assert.equal(harness.getStructuredParts().filter((part) => part.type === "practice-evaluation").length, 0);
+  // Canonical evaluation is durable, but its learning evidence is not yet projected.
+  assert.equal(harness.getStructuredParts().filter((part) => part.type === "practice-evaluation").length, 1);
 
   const recovered = await collectEvents(harness.controller.run({
     prompt: "All or nothing", action: "practice", explicitContext: [],
   }));
   assert.ok(recovered.some((event) => event.type === "practice-evaluation"));
   assert.equal(harness.getEvidence().length, 1);
+  assert.equal(calls, 2, "retry must not ask the model to grade again");
 });
 
-test("transcript persistence failure after evidence save does not duplicate evidence on retry", async () => {
+test("transcript failure occurs before evidence mutation and retry can regrade", async () => {
   const fence = "```";
   let calls = 0;
   const harness = createHarness(async function* () {
@@ -819,7 +839,7 @@ test("transcript persistence failure after evidence save does not duplicate evid
   }));
   assert.ok(failed.some((event) => event.type === "failed"));
   assert.equal(harness.controller.hasActivePracticeQuestion(), true);
-  assert.equal(harness.getEvidence().length, 1);
+  assert.equal(harness.getEvidence().length, 0);
 
   const recovered = await collectEvents(harness.controller.run({
     prompt: "first answer", action: "practice", explicitContext: [],
@@ -871,4 +891,36 @@ test("practice evaluation stays grounded in the question origin after navigating
   assert.equal(sent[0]?.file, "note-a.md");
   assert.equal(sent.some((part) => part.file === "note-b.md"), false);
   assert.equal(harness.getEvidence()[0]?.source, "note-a.md");
+});
+
+// Canonical transcript can outlive a failed evidence projection. Even if a
+// subsequent agent reply would disagree, recovery must replay the first verdict.
+test("different second model verdict cannot replace a committed practice evaluation", async () => {
+  const fence = "```";
+  let calls = 0;
+  const h = createHarness(async function* () {
+    calls++;
+    const payload = calls === 1
+      ? { kind: "question", concept: "atomicity", question: "What is atomicity?" }
+      : calls === 2
+        ? { kind: "evaluation", concept: "atomicity", outcome: "correct",
+            feedback: "Correct result", misconceptions: [] }
+        : { kind: "evaluation", concept: "atomicity", outcome: "incorrect",
+            feedback: "Conflicting result", misconceptions: ["misconception"] };
+    yield { type: "text", content: fence + "learning-practice\n" + JSON.stringify(payload) + "\n" + fence };
+    yield { type: "completed" };
+  }, { learningSaveFailures: 1 });
+  await collectEvents(h.controller.run({
+    prompt: "Practice", action: "practice", explicitContext: [],
+  }));
+  const failed = await collectEvents(h.controller.run({
+    prompt: "All or nothing", action: "practice", explicitContext: [],
+  }));
+  assert.ok(failed.some((event) => event.type === "failed"));
+  const restored = await collectEvents(h.controller.run({
+    prompt: "All or nothing", action: "practice", explicitContext: [], retry: true,
+  }));
+  assert.equal(calls, 2, "second agent verdict must never be requested");
+  assert.equal(h.getEvidence()[0]?.outcome, "correct");
+  assert.equal(restored.find((event) => event.type === "practice-evaluation")?.type, "practice-evaluation");
 });

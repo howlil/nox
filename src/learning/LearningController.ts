@@ -21,6 +21,7 @@ type SessionPort = Pick<
   | "setConversationId"
   | "recordAssistantMessage"
   | "recordStructuredPart"
+  | "recordPracticeOutcome"
   | "recordProposal"
   | "getProposal"
   | "updateProposalState"

@@ -20,7 +20,10 @@ export function isTranscriptPart(value: unknown): value is TranscriptPart {
       typeof e.feedback === "string" && Array.isArray(e.misconceptions) &&
       e.misconceptions.every((value: unknown) => typeof value === "string") &&
       (e.nextQuestion === undefined || typeof e.nextQuestion === "string") &&
-      (part.questionId === undefined || typeof part.questionId === "string"));
+      (part.questionId === undefined || typeof part.questionId === "string") &&
+      (part.operationId === undefined || typeof part.operationId === "string") &&
+      (part.nextQuestionId === undefined || typeof part.nextQuestionId === "string") &&
+      (part.sourcePath === undefined || typeof part.sourcePath === "string"));
   }
   if (part.type === "review-findings") {
     return Array.isArray(part.findings) &&
