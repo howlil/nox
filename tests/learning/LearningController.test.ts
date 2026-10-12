@@ -97,6 +97,18 @@ function createHarness(
         structuredParts.push(part);
       }
     },
+    recordPracticeOutcome: async (
+      parts: Array<{ type: string; questionId?: string; evaluation?: unknown }>,
+    ) => {
+       if (options.evaluationTranscriptFailures && transcriptFailures-- > 0) {
+        throw new Error("Simulated session persistence failure");
+      }
+      const evaluation = parts.find((part) => part.type === "practice-evaluation");
+      const existing = evaluation?.questionId && structuredParts.some((part) =>
+        part.type === "practice-evaluation" && part.questionId === evaluation.questionId);
+      if (!existing) structuredParts.push(...parts);
+      return parts;
+    },
     recordProposal: async (
       id: string,
       proposal: EditProposal,

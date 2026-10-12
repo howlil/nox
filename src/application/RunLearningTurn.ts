@@ -17,6 +17,8 @@ import {
   recordReviewFindings,
 } from "../domain/learning-state/transitions";
 import type { SessionController } from "../session/SessionController";
+import { findCommittedPracticeOutcome } from "../session/transcript-types";
+import type { TranscriptPart } from "../session/transcript-types";
 import type { AgentRuntimePort } from "../agent/AgentRuntime";
 import {
   buildActionInstruction,
@@ -51,6 +53,7 @@ type SessionPort = Pick<
   | "setConversationId"
   | "recordAssistantMessage"
   | "recordStructuredPart"
+  | "recordPracticeOutcome"
   | "recordProposal"
   | "getProposal"
   | "updateProposalState"
@@ -189,6 +192,7 @@ export class RunLearningTurn {
         this.policies.load(),
         this.learningState.load(),
       ]);
+      state = await this.reconcilePracticeEvidence(sessionAtStart, state);
     } catch (error) {
       if (this.activeTurn === activeTurn) this.activeTurn = null;
       yield {
@@ -385,6 +389,30 @@ export class RunLearningTurn {
         await this.sessions.recordUserMessage(request.prompt, turnSessionId, request.action);
       }
 
+      // A previous attempt can commit the outcome but fail while projecting
+      // progress. Do not invoke the model again and risk a different verdict.
+      if (practiceAttempt) {
+        const committed = findCommittedPracticeOutcome(
+          this.sessions.getSession(), practiceAttempt.questionId,
+        );
+        if (committed) {
+          practice.commitEvaluation(practiceAttempt, committed.evaluation, committed.nextQuestionId);
+          yield { type: "practice-evaluation", evaluation: committed.evaluation };
+          if (committed.evaluation.nextQuestion?.trim()) {
+            yield {
+              type: "practice-question",
+              question: {
+                kind: "question",
+                concept: committed.evaluation.concept,
+                question: committed.evaluation.nextQuestion.trim(),
+              },
+            };
+          }
+          yield { type: "completed" };
+          return;
+        }
+      }
+
       for await (const event of this.runtime.send(
         {
           prompt: preparedPrompt,
@@ -539,6 +567,32 @@ export class RunLearningTurn {
     }
   }
 
+  /** Replays committed transcript outcomes missing from progress.json. */
+  private async reconcilePracticeEvidence(
+    session: ChatSession,
+    initial: Awaited<ReturnType<LearningStatePort["load"]>>,
+  ): Promise<Awaited<ReturnType<LearningStatePort["load"]>>> {
+    let state = initial;
+    let changed = false;
+    for (const message of session.messages) {
+      for (const part of message.parts ?? []) {
+        if (part.type !== "practice-evaluation" || !part.questionId) continue;
+        const operationId = part.operationId ?? `practice:${session.id}:${part.questionId}`;
+        const next = recordPracticeEvaluation(state, {
+          evaluation: part.evaluation,
+          source: part.sourcePath ?? message.sourcePath ?? "learning-session",
+          evidenceId: operationId,
+        });
+        if (next.evidence.length !== state.evidence.length) {
+          changed = true;
+          state = next;
+        }
+      }
+    }
+    if (changed) await this.learningState.save(state);
+    return state;
+  }
+
   cancel(): void {
     if (!this.activeTurn) return;
     this.activeTurn.cancelReason = "user";
@@ -660,43 +714,46 @@ export class RunLearningTurn {
           context.resolved.activeNote?.path ??
           "learning-session";
 
-        const currentState = await this.learningState.load();
-        const nextState = recordPracticeEvaluation(
-          currentState,
-          {
-            evaluation: event.evaluation,
-            source,
-            evidenceId: `practice:${sessionId}:${practiceAttempt.questionId}`,
-          },
-        );
-        await this.learningState.save(nextState);
-
         const nextText = event.evaluation.nextQuestion?.trim();
         const nextQuestion: PracticeQuestion | undefined = nextText
           ? { kind: "question", concept: event.evaluation.concept, question: nextText }
           : undefined;
         const nextId = nextQuestion ? crypto.randomUUID() : undefined;
-
-        await this.sessions.recordStructuredPart(
+        const operationId = `practice:${sessionId}:${practiceAttempt.questionId}`;
+        const parts: TranscriptPart[] = [
           { type: "practice-evaluation", evaluation: event.evaluation,
-            questionId: practiceAttempt.questionId },
-          source,
-          sessionId,
+            questionId: practiceAttempt.questionId, operationId,
+            nextQuestionId: nextId, sourcePath: source },
+          ...(nextQuestion ? [{
+            type: "practice-question" as const, question: nextQuestion,
+            questionId: nextId, origin: practice.snapshot()?.origin,
+          }] : []),
+        ];
+        const committed = await this.sessions.recordPracticeOutcome(
+          parts, operationId, source, sessionId,
         );
-        if (nextQuestion) {
-          await this.sessions.recordStructuredPart(
-            { type: "practice-question", question: nextQuestion,
-              questionId: nextId, origin: practice.snapshot()?.origin },
-            source,
-            sessionId,
-          );
+        const evaluationPart = committed.find((part) => part.type === "practice-evaluation");
+        if (!evaluationPart || evaluationPart.type !== "practice-evaluation") {
+          throw new Error("Committed practice outcome missing evaluation");
+        }
+        const currentState = await this.learningState.load();
+        const nextState = recordPracticeEvaluation(currentState, {
+          evaluation: evaluationPart.evaluation,
+          source: evaluationPart.sourcePath ?? source,
+          evidenceId: operationId,
+        });
+        if (nextState.evidence.length !== currentState.evidence.length) {
+          await this.learningState.save(nextState);
         }
 
-        practice.commitEvaluation(practiceAttempt, event.evaluation, nextId);
-        yield { type: "practice-evaluation", evaluation: event.evaluation };
+        practice.commitEvaluation(practiceAttempt, evaluationPart.evaluation, evaluationPart.nextQuestionId);
+        yield { type: "practice-evaluation", evaluation: evaluationPart.evaluation };
         yield { type: "learning-state-updated", state: nextState };
-        if (nextQuestion) {
-          yield { type: "practice-question", question: nextQuestion };
+        if (evaluationPart.evaluation.nextQuestion?.trim()) {
+          yield { type: "practice-question", question: {
+            kind: "question", concept: evaluationPart.evaluation.concept,
+            question: evaluationPart.evaluation.nextQuestion.trim(),
+          }};
         }
 
         continue;

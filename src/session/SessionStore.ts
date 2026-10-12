@@ -91,6 +91,24 @@ export class SessionStore {
     return this.getSession(this.data.currentSessionId);
   }
 
+  /**
+   * Build the next durable snapshot without modifying the live store.
+   * The caller publishes it to memory only after saveData succeeds.
+   */
+  stageSessionUpdate(session: ChatSession): {
+    serialized: Record<string, unknown>;
+    committed: ChatSession;
+  } {
+    const next = structuredClone(this.data);
+    const committed = { ...structuredClone(session), updatedAt: this.now() };
+    next.sessions[session.id] = committed;
+    return { serialized: { [STORE_KEY]: next }, committed };
+  }
+
+  acceptPersistedSession(session: ChatSession): void {
+    this.data.sessions[session.id] = structuredClone(session);
+  }
+
   updateSession(session: ChatSession): void {
     this.data.sessions[session.id] = { ...structuredClone(session), updatedAt: this.now() };
   }

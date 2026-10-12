@@ -1,6 +1,7 @@
 import { SessionStore } from "./SessionStore";
 import { PersistenceError } from "../persistence/PersistenceError";
 import type { TranscriptPart } from "./transcript-types";
+import { findCommittedPracticeOutcome } from "./transcript-types";
 import { PluginDataRepository } from "../persistence/PluginDataRepository";
 import {
   ChatSession,
@@ -139,6 +140,54 @@ export class SessionController {
     session.messages.push({ role: "assistant", content: "", parts: [part], sourcePath });
     this.commitSession(session);
     await this.save();
+  }
+
+  /**
+   * One durable write for the evaluation and any follow-up question.
+   * The store is not mutated if plugin-data persistence fails.
+   */
+  async recordPracticeOutcome(
+    parts: TranscriptPart[],
+    operationId: string,
+    sourcePath: string,
+    sessionId: string,
+  ): Promise<TranscriptPart[]> {
+    const session = this.sessionForWrite(sessionId);
+    const evaluation = parts.find((part) => part.type === "practice-evaluation");
+    if (!evaluation || evaluation.type !== "practice-evaluation" ||
+      evaluation.operationId !== operationId || !evaluation.questionId) {
+      throw new Error("Invalid practice outcome");
+    }
+
+    const existing = findCommittedPracticeOutcome(session, evaluation.questionId);
+    if (existing) {
+      const message = session.messages.find((item) => item.parts?.includes(existing));
+      return structuredClone(message?.parts ?? [existing]);
+    }
+
+    const next: ChatSession = {
+      ...session,
+      messages: [...session.messages, {
+        role: "assistant",
+        content: "",
+        parts: structuredClone(parts),
+        sourcePath,
+      }],
+    };
+    const staged = this.store.stageSessionUpdate(next);
+    try {
+      await this.pluginData.update((current) => ({
+        ...current,
+        ...staged.serialized,
+      }));
+    } catch (error) {
+      throw new PersistenceError("Unable to persist practice outcome", error);
+    }
+    this.store.acceptPersistedSession(staged.committed);
+    if (this.currentSession?.id === sessionId) {
+      this.currentSession = this.store.getSession(sessionId);
+    }
+    return structuredClone(parts);
   }
 
   async recordProposal(
