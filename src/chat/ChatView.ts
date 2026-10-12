@@ -232,10 +232,7 @@ export class ChatView extends ItemView {
 
   private async restoreRuntimeState(): Promise<void> {
     await this.syncChips();
-    if (this.learning.hasActivePracticeQuestion()) {
-      this.setAction("practice");
-      this.pinFindingSource(this.learning.getActivePracticeOrigin()?.file ?? null);
-    }
+    this.syncPracticeComposerState();
     await this.restoreSession();
 
     if (!this.workspaceEventsRegistered) {
@@ -463,6 +460,15 @@ export class ChatView extends ItemView {
     return date.toLocaleDateString([], { month: "short", day: "numeric" });
   }
 
+  /** The same practice projection is used after startup and history navigation. */
+  private syncPracticeComposerState(): void {
+    const active = this.learning.hasActivePracticeQuestion();
+    this.setAction(active ? "practice" : "ask");
+    this.pinFindingSource(
+      active ? this.learning.getActivePracticeOrigin()?.file ?? null : null,
+    );
+  }
+
   private async selectHistorySession(id: string): Promise<void> {
     if (this.uiState === "RUNNING") return;
 
@@ -478,7 +484,7 @@ export class ChatView extends ItemView {
     this.renderAttachments();
     this.closePromptMenu();
     this.closeModelMenu();
-    this.setAction(this.learning.hasActivePracticeQuestion() ? "practice" : "ask");
+    this.syncPracticeComposerState();
     await this.syncChips();
     await this.restoreSession();
     if (!this.runtimeReady && this.runtimeFailureMessage) {

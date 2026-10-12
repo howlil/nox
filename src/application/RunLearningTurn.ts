@@ -377,6 +377,7 @@ export class RunLearningTurn {
     }, this.turnTimeoutMs);
 
     let visibleText = "";
+    let executionPhase: "agent" | "processing" = "agent";
     const reviewBuffer: { observed: boolean; findings: ReviewFinding[] } = {
       observed: false, findings: [],
     };
@@ -440,6 +441,7 @@ export class RunLearningTurn {
         controller.signal,
       )) {
         if (event.type === "text") {
+          executionPhase = "processing";
           for await (const mapped of this.mapStructuredEvents(
             parser.push(event.content),
             request,
@@ -470,10 +472,12 @@ export class RunLearningTurn {
 
             yield mapped;
           }
+          executionPhase = "agent";
           continue;
         }
 
         if (event.type === "completed") {
+          executionPhase = "processing";
           if (event.conversationId) {
             await this.sessions.setConversationId(event.conversationId, turnSessionId);
           }
@@ -585,10 +589,13 @@ export class RunLearningTurn {
 
       const persistenceFailed = error instanceof PersistenceError;
       const failure: AgentFailure = {
-        code: persistenceFailed ? "persistence-failed" : "protocol-invalid",
+        code: persistenceFailed ? "persistence-failed"
+          : executionPhase === "agent" ? "process-failed" : "unknown",
         message: persistenceFailed
           ? "Nox could not save this turn. Retry after checking vault storage."
-          : "Nox could not interpret the agent response.",
+          : executionPhase === "agent"
+            ? "The agent process failed during this turn."
+            : "Nox could not complete this learning operation.",
         diagnostic: persistenceFailed
           ? error.diagnostic
           : error instanceof Error ? error.message : String(error),

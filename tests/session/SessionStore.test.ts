@@ -138,3 +138,57 @@ test("typed practice question survives session serialization", async () => {
     assert.equal(part.origin?.file, "note.md");
   }
 });
+
+test("decoder strips invalid proposal payloads without losing other history", async () => {
+  const store = new SessionStore();
+  await store.load({
+    "nox-sessions": {
+      currentSessionId: "safe",
+      sessions: {
+        safe: {
+          id: "safe", createdAt: 1, updatedAt: 2,
+          messages: [
+            { role: "assistant", content: "valid text",
+              proposalId: "unsafe", proposalState: "pending",
+              proposal: { file: 123, original: "A", replacement: "B" },
+              parts: [
+                { type: "unknown", arbitrary: "discard" },
+                { type: "practice-question", questionId: "q1",
+                  question: { kind: "question", concept: "SQL", question: "Explain ACID." },
+                  origin: { file: "valid.md" } },
+              ],
+              ignored: { unexpected: "data" } },
+          ],
+        },
+      },
+    },
+  });
+  const restored = store.getCurrentSession()?.messages[0];
+  assert.equal(restored?.content, "valid text");
+  assert.equal(restored?.proposal, undefined);
+  assert.equal(restored?.proposalId, undefined);
+  assert.equal(restored?.proposalState, undefined);
+  assert.equal(restored?.parts?.length, 1);
+  assert.equal(restored?.parts?.[0]?.type, "practice-question");
+  assert.equal("ignored" in (restored ?? {}), false);
+});
+
+test("valid legacy proposal is preserved but never actionable after restart", async () => {
+  const store = new SessionStore();
+  await store.load({
+    "agy-sessions": {
+      currentSessionId: "old",
+      sessions: {
+        old: { id: "old", createdAt: 1, updatedAt: 1,
+          messages: [{
+            role: "assistant", content: "", proposalId: "p1",
+            proposalState: "pending", proposalMutableFile: "old.md",
+            proposal: { file: "old.md", original: "a", replacement: "b" },
+          }] },
+      },
+    },
+  });
+  const restored = store.getCurrentSession()?.messages[0];
+  assert.equal(restored?.proposal?.file, "old.md");
+  assert.equal(restored?.proposalState, "stale");
+});

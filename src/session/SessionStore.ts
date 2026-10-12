@@ -1,4 +1,4 @@
-import { ChatSession } from "../types";
+import { ChatSession, ChatMessage, EditProposal } from "../types";
 import { isTranscriptPart } from "./transcript-schema";
 
 const STORE_KEY = "nox-sessions";
@@ -136,6 +136,54 @@ export class SessionStore {
       .map((session) => structuredClone(session));
   }
 
+  /**
+   * Decode every field individually. Never spread untrusted plugin data into a
+   * persisted message or pass malformed edit proposals into the UI.
+   */
+  private decodeMessage(value: unknown): ChatMessage | null {
+    if (!value || typeof value !== "object") return null;
+    const raw = value as Record<string, unknown>;
+    if ((raw.role !== "user" && raw.role !== "assistant") ||
+      typeof raw.content !== "string") return null;
+
+    const message: ChatMessage = {
+      role: raw.role,
+      content: raw.content,
+    };
+    if (typeof raw.sourcePath === "string") message.sourcePath = raw.sourcePath;
+    if (["ask", "explain", "practice", "review", "edit"].includes(String(raw.action))) {
+      message.action = raw.action as ChatMessage["action"];
+    }
+    if (Array.isArray(raw.parts)) {
+      message.parts = raw.parts.filter(isTranscriptPart).map((part) => structuredClone(part));
+    }
+
+    if (raw.role === "assistant" && raw.proposal && typeof raw.proposal === "object") {
+      const proposal = raw.proposal as Record<string, unknown>;
+      if (typeof proposal.file === "string" &&
+        typeof proposal.original === "string" &&
+        typeof proposal.replacement === "string" &&
+        (proposal.reason === undefined || typeof proposal.reason === "string")) {
+        const decoded: EditProposal = {
+          file: proposal.file,
+          original: proposal.original,
+          replacement: proposal.replacement,
+        };
+        if (typeof proposal.reason === "string") decoded.reason = proposal.reason;
+        message.proposal = decoded;
+        if (typeof raw.proposalId === "string") message.proposalId = raw.proposalId;
+        if (typeof raw.proposalMutableFile === "string") {
+          message.proposalMutableFile = raw.proposalMutableFile;
+        }
+        message.proposalState = ["applied", "rejected", "stale"].includes(String(raw.proposalState))
+          ? raw.proposalState as "applied" | "rejected" | "stale"
+          : "stale";
+      }
+    }
+
+    return message;
+  }
+
   private decodeSession(value: unknown): ChatSession | null {
     if (!value || typeof value !== "object") return null;
     const session = value as Partial<ChatSession>;
@@ -156,26 +204,8 @@ export class SessionStore {
           : undefined,
       model: typeof session.model === "string" ? session.model : undefined,
       messages: session.messages
-        .filter((message) => {
-          if (!message || typeof message !== "object") return false;
-          const candidate = message as { role?: unknown; content?: unknown };
-          return (
-            (candidate.role === "user" || candidate.role === "assistant") &&
-            typeof candidate.content === "string"
-          );
-        })
-        .map((message) => ({
-          ...message,
-          action: ["ask", "explain", "practice", "review", "edit"]
-            .includes(String(message.action)) ? message.action : undefined,
-          parts: Array.isArray(message.parts)
-            ? message.parts.filter(isTranscriptPart)
-            : undefined,
-          proposalState:
-            message.proposalState === "pending"
-              ? "stale"
-              : message.proposalState,
-        })),
+        .map((message) => this.decodeMessage(message))
+        .filter((message): message is ChatMessage => message !== null),
       createdAt: session.createdAt,
       updatedAt: session.updatedAt,
     };
