@@ -17,9 +17,8 @@ import {
   recordReviewFindings,
 } from "../domain/learning-state/transitions";
 import type { SessionController } from "../session/SessionController";
-import { findCommittedPracticeOutcome, findCommittedReview } from "../session/transcript-types";
+import { findCommittedPracticeOutcome, findCommittedReview, type TranscriptPart } from "../session/transcript-types";
 import type { ReviewFinding } from "../learning/review-types";
-import type { TranscriptPart } from "../session/transcript-types";
 import type { AgentRuntimePort } from "../agent/AgentRuntime";
 import {
   buildActionInstruction,
