@@ -102,3 +102,15 @@ test("reset removes the active practice session", () => {
   assert.equal(machine.snapshot(), null);
   assert.equal(machine.beginEvaluation("answer"), null);
 });
+
+test("a practice question retains its source and question id during evaluation", () => {
+  const machine = new PracticeStateMachine(ids());
+  machine.start({ file: "original.md", selectedText: "isolation" });
+  machine.acceptQuestion({
+    kind: "question", concept: "isolation", question: "Define isolation?",
+  }, "durable-question");
+  const attempt = machine.beginEvaluation("An answer");
+  assert.equal(attempt?.origin?.file, "original.md");
+  assert.equal(attempt?.origin?.selectedText, "isolation");
+  assert.equal(attempt?.questionId, "durable-question");
+});

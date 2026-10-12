@@ -144,6 +144,7 @@ export class ChatView extends ItemView {
   private systemContextFiles: string[] = [];
   private lastTurnRequest: LearningRequest | null = null;
   private turnTerminal = false;
+  private restoringSession = false;
   private workspaceEventsRegistered = false;
   private runtimeReady = false;
   private runtimeFailureMessage: string | null = null;
@@ -226,6 +227,10 @@ export class ChatView extends ItemView {
 
   private async restoreRuntimeState(): Promise<void> {
     await this.syncChips();
+    if (this.learning.hasActivePracticeQuestion()) {
+      this.setAction("practice");
+      this.pinFindingSource(this.learning.getActivePracticeOrigin()?.file ?? null);
+    }
     await this.restoreSession();
 
     if (!this.workspaceEventsRegistered) {
@@ -1254,8 +1259,12 @@ export class ChatView extends ItemView {
     if (event.type === "context-ready") {
       this.currentContext = event.context.resolved;
       this.turnContextSource =
+        event.context.mutableFile ??
         event.context.resolved.selection?.file ??
         event.context.resolved.activeNote?.path ?? null;
+      if (this.runningAction === "practice") {
+        this.pinFindingSource(this.turnContextSource);
+      }
       this.systemContextFiles = event.context.system.map((item) => item.file);
       this.syncContextChips();
       this.setThinkingStage(1);
@@ -1627,21 +1636,26 @@ export class ChatView extends ItemView {
     }
 
     this.thread.empty();
-    for (const message of messages) {
-      if (message.role === "user") {
-        this.appendUserBubble(message.content);
-        continue;
+    this.restoringSession = true;
+    try {
+      for (const message of messages) {
+        if (message.role === "user") {
+          this.appendUserBubble(message.content);
+          continue;
+        }
+        if (message.content.trim()) {
+          await this.appendRestoredAssistant(message.content, message.sourcePath);
+        }
+        if (message.proposal) {
+          this.appendRestoredProposal(message);
+        }
+        this.appendRestoredStructuredParts(message);
       }
-      if (message.content.trim()) {
-        await this.appendRestoredAssistant(message.content, message.sourcePath);
-      }
-      if (message.proposal) {
-        this.appendRestoredProposal(message);
-      }
-      this.appendRestoredStructuredParts(message);
+    } finally {
+      this.restoringSession = false;
     }
     this.setUIState(this.runtimeReady ? "ANSWER" : "ERROR");
-    this.scrollThread();
+    this.scrollThread("auto");
   }
 
   private async appendRestoredAssistant(
@@ -2241,6 +2255,7 @@ export class ChatView extends ItemView {
   }
 
   private scrollThread(behavior: ScrollBehavior = "smooth"): void {
+    if (this.restoringSession) return;
     this.thread.scrollTo({
       top: this.thread.scrollHeight,
       behavior,

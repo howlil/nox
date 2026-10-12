@@ -135,6 +135,11 @@ export class LearningController {
     return this.practiceForSession(this.sessions.getSession()).isWaitingForAnswer();
   }
 
+  getActivePracticeOrigin(): PracticeOrigin | undefined {
+    const practice = this.practiceForSession(this.sessions.getSession());
+    return practice.isWaitingForAnswer() ? practice.snapshot()?.origin : undefined;
+  }
+
   /** Reconstruct the active question from the same durable conversation transcript. */
   private practiceForSession(session: ChatSession): PracticeStateMachine {
     const practice = this.practices.forSession(session.id);
