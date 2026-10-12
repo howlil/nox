@@ -35,3 +35,5 @@ export class Plugin {
 }
 
 export class App {}
+
+export function setIcon(_element: unknown, _icon: string): void {}

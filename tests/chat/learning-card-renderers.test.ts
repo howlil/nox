@@ -25,7 +25,7 @@ class FakeElement {
   }
   click(): void { this.handlers.get("click")?.(); }
   find(cls: string): FakeElement | undefined {
-    if (this.cls.includes(cls)) return this;
+    if (this.cls.split(/\s+/).includes(cls)) return this;
     for (const child of this.children) {
       const match = child.find(cls);
       if (match) return match;
