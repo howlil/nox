@@ -828,3 +828,47 @@ test("transcript persistence failure after evidence save does not duplicate evid
   assert.equal(harness.getEvidence().length, 1);
   assert.equal(harness.getStructuredParts().filter((part) => part.type === "practice-evaluation").length, 1);
 });
+
+test("practice evaluation stays grounded in the question origin after navigating to another note", async () => {
+  const fence = "```";
+  let turn = 0;
+  const context = {
+    activeNote: { path: "note-a.md", content: "Atomic transaction notes" },
+    explicit: [] as Array<{ type: "note"; path: string; content: string; source: "explicit" }>,
+  };
+  const options = {
+    contextOverride: context,
+    agentContexts: [{ type: "note" as const, file: "note-a.md", content: "Atomic transaction notes" }],
+  };
+  const harness = createHarness(async function* () {
+    turn++;
+    const payload = turn === 1
+      ? { kind: "question", concept: "transactions", question: "What is atomicity?" }
+      : { kind: "evaluation", concept: "transactions", outcome: "correct",
+          feedback: "Correct", misconceptions: [] };
+    yield { type: "text", content: fence + "learning-practice\n" +
+      JSON.stringify(payload) + "\n" + fence };
+    yield { type: "completed" };
+  }, options);
+
+  await collectEvents(harness.controller.run({
+    prompt: "Practice atomicity", action: "practice", explicitContext: [],
+  }));
+  context.activeNote.path = "note-b.md";
+  context.activeNote.content = "Unrelated content";
+  context.explicit.push({
+    type: "note", path: "note-a.md",
+    content: "Atomic transaction notes", source: "explicit",
+  });
+  options.agentContexts = [
+    { type: "note", file: "note-b.md", content: "Unrelated content" },
+    { type: "note", file: "note-a.md", content: "Atomic transaction notes" },
+  ];
+  await collectEvents(harness.controller.run({
+    prompt: "All or nothing", action: "practice", explicitContext: [],
+  }));
+  const sent = harness.getSentContexts()[1] ?? [];
+  assert.equal(sent[0]?.file, "note-a.md");
+  assert.equal(sent.some((part) => part.file === "note-b.md"), false);
+  assert.equal(harness.getEvidence()[0]?.source, "note-a.md");
+});

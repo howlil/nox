@@ -4,7 +4,32 @@ Status: **Canonical target architecture with incremental migration**
 Depends on: `PRODUCT_DESIGN.md`, `../DESIGN.md`
 Scope: Obsidian plugin runtime, learning orchestration, context, agent adapter,
 persistence, mutation, testing, and delivery
-Last updated: 2026-09-25
+Last updated: 2026-10-12
+
+---
+
+## Implementation checkpoint — 2026-10-12
+
+The migration discussions in sections 2 and 22 include historical September
+baseline observations. Always inspect current code before treating them as
+unresolved issues.
+
+**Implemented:** learning policies are pure domain transitions; plugin-data
+writes use a serialized repository; runtime and conversation lifecycles are
+separate; proposal state is session-owned; practice is session-scoped with
+transcript-based unanswered-question restoration; structured learning cards
+survive session restore; evidence is idempotent per practice question; session
+reads return defensive copies; persistence failures have a distinct failure
+category; streaming text no longer unconditionally forces scroll.
+
+**Still intentional:** `LearningController` owns broad turn orchestration and
+`ChatView` owns multiple UI responsibilities. Extract by behavior, not file
+size. No separate practice/review persistence stores should be created.
+
+**Verification boundary:** GitHub CI covers typecheck, unit/integration
+tests, build, and artifacts. Real Obsidian UI verification (including
+selection restore, panel lifecycles and native Undo) still requires a manual
+smoke test; do not represent CI as equivalent to that testing.
 
 ---
 
@@ -92,18 +117,23 @@ fully separated responsibilities
 | `MutationService` | coherent mutation boundary | keep until a concrete split is justified |
 | `main.ts` | correct composition root | keep composition-only |
 | UI primitives/composer/menu | useful mechanical extraction | keep |
-| `VaultLearningStore` | persistence + learning policy | persistence only |
-| `SessionController` | conversation + runtime execution | split responsibilities |
-| `LearningController` | broad orchestration + state/effect ownership | thin facade over application use cases |
-| proposal state | transient Map + persisted session state | one canonical lifecycle owner |
-| practice state | controller-instance lifetime | session-scoped ownership |
-| plugin data writes | multiple read/merge/write paths | one serialized writer |
-| `SessionStore` | exposes mutable stored objects | encapsulated/immutable updates |
-| failure model | transport + application failures mixed | typed product/application failure union |
-| `types.ts` | cross-domain type drawer | types colocated with owning modules |
-| `ChatView` | presentation + workflow coordinator | Obsidian view + presentation composition |
+| `VaultLearningStore` | persistence-only, pure learning transitions in domain | keep |
+| `SessionController` | session persistence and proposal ownership, runtime separate | keep |
+| `LearningController` | broad orchestration + state/effect ownership | extract use cases incrementally |
+| proposal state | persisted in canonical session transcript | keep |
+| practice state | session-scoped, unanswered questions restored from transcript | keep + verify real restart UX |
+| plugin data writes | one serialized `PluginDataRepository` writer | keep |
+| `SessionStore` | defensive read snapshots and explicit updates | keep |
+| failure model | persistence failures distinguished from protocol errors | refine as real needs arise |
+| `types.ts` | shared transport/session types, with feature-owned learning types | split only when useful |
+| `ChatView` | UI orchestration + presentation | extract focused renderers when behavior warrants |
 
-### 2.2 Concrete boundary drift
+### 2.2 Historical boundary drift (pre-October remediation)
+
+The following is retained as the rationale for earlier migration decisions,
+not an inventory of current defects. See the implementation checkpoint above.
+
+### Historical details
 
 #### LearningController
 
