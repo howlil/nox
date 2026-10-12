@@ -17,12 +17,13 @@
     "build": "node esbuild.config.mjs production",
     "deploy": "pnpm run build && node scripts/deploy.mjs",
     "lint": "eslint src",
+    "check:boundaries": "node scripts/check-boundaries.mjs",
     "typecheck": "tsc --noEmit",
     "test": "pnpm test:unit",
     "test:unit": "node scripts/test.mjs unit",
     "test:integration": "node scripts/test.mjs integration",
     "test:all": "node scripts/test.mjs all",
-    "verify": "pnpm typecheck && pnpm lint && pnpm test:unit && pnpm test:integration && pnpm build && pnpm test:artifacts",
+    "verify": "pnpm check:boundaries && pnpm typecheck && pnpm lint && pnpm test:unit && pnpm test:integration && pnpm build && pnpm test:artifacts",
     "test:artifacts": "node scripts/verify-artifacts.mjs"
   },
   "keywords": [
