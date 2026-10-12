@@ -22,9 +22,11 @@ survive session restore; evidence is idempotent per practice question; session
 reads return defensive copies; persistence failures have a distinct failure
 category; streaming text no longer unconditionally forces scroll.
 
-**Still intentional:** `LearningController` owns broad turn orchestration and
-`ChatView` owns multiple UI responsibilities. Extract by behavior, not file
-size. No separate practice/review persistence stores should be created.
+**Current remaining boundary:** `RunLearningTurn` now owns turn orchestration,
+timeouts, and practice/review event persistence behind a stable
+`LearningController` facade. `ChatView` still owns multiple UI responsibilities:
+extract by behavior, not line count. No separate practice/review persistence
+stores should be created.
 
 **Verification boundary:** GitHub CI covers typecheck, unit/integration
 tests, build, and artifacts. Real Obsidian UI verification (including
@@ -119,7 +121,8 @@ fully separated responsibilities
 | UI primitives/composer/menu | useful mechanical extraction | keep |
 | `VaultLearningStore` | persistence-only, pure learning transitions in domain | keep |
 | `SessionController` | session persistence and proposal ownership, runtime separate | keep |
-| `LearningController` | broad orchestration + state/effect ownership | extract use cases incrementally |
+| `LearningController` | stable UI-facing façade delegating runtime turns | keep |
+| `RunLearningTurn` | owns execution, cancellation, practice and stream effects | keep cohesive, extract only on concrete change |
 | proposal state | persisted in canonical session transcript | keep |
 | practice state | session-scoped, unanswered questions restored from transcript | keep + verify real restart UX |
 | plugin data writes | one serialized `PluginDataRepository` writer | keep |

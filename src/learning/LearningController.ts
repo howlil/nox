@@ -1,48 +1,14 @@
-import {
-  AgentContext,
-  AgentFailure,
-  AgentHealth,
-  ApplyResult,
-  AgentModel,
-  ChatSession,
-} from "../types";
+import type { AgentHealth, AgentModel, ApplyResult, ChatSession } from "../types";
 import type { ContextResolver } from "../context/ContextResolver";
-import {
-  ExplicitContextRef,
-  LearningContext,
-  TurnContextSnapshot,
-} from "../context/context-types";
+import type { ExplicitContextRef, LearningContext } from "../context/context-types";
 import type { PolicyLoader } from "../context/PolicyLoader";
 import type { MutationService } from "../mutation/MutationService";
 import type { VaultLearningStore } from "../persistence/VaultLearningStore";
-import { PersistenceError } from "../persistence/PersistenceError";
-import {
-  recordPracticeEvaluation,
-  recordReviewFindings,
-} from "../domain/learning-state/transitions";
 import type { SessionController } from "../session/SessionController";
 import type { AgentRuntimePort } from "../agent/AgentRuntime";
-import {
-  buildActionInstruction,
-  buildPracticeEvaluationInstruction,
-  buildPracticeQuestionInstruction,
-} from "./action-builders";
-import { toPromptLearningState } from "./learning-state-projection";
-import {
-  LearningEvent,
-  LearningRequest,
-  ProposedEdit,
-} from "./learning-types";
-import { PracticeQuestion, PracticeOrigin } from "./practice-types";
-import {
-  PracticeEvaluationAttempt,
-  PracticeStateMachine,
-} from "./PracticeStateMachine";
-import { PracticeSessionRegistry } from "./PracticeSessionRegistry";
-import {
-  StructuredStreamEvent,
-  StructuredStreamParser,
-} from "./StructuredStreamParser";
+import type { LearningEvent, LearningRequest } from "./learning-types";
+import type { PracticeOrigin } from "./practice-types";
+import { RunLearningTurn } from "../application/RunLearningTurn";
 
 type SessionPort = Pick<
   SessionController,
@@ -80,7 +46,7 @@ export interface LearningControllerOptions {
  * context -> policy -> learning state -> action -> agent session -> normalized
  * UI events. Provider transport stays behind the AgentRuntime boundary.
  */
-import { RunLearningTurn } from "./RunLearningTurn";
+import { RunLearningTurn } from "../application/RunLearningTurn";
 
 /**
  * Stable UI-facing facade. Runtime turn orchestration lives in RunLearningTurn.

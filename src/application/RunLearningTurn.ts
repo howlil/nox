@@ -1,9 +1,6 @@
 import {
   AgentContext,
   AgentFailure,
-  AgentHealth,
-  ApplyResult,
-  AgentModel,
   ChatSession,
 } from "../types";
 import type { ContextResolver } from "../context/ContextResolver";
@@ -13,7 +10,6 @@ import {
   TurnContextSnapshot,
 } from "../context/context-types";
 import type { PolicyLoader } from "../context/PolicyLoader";
-import type { MutationService } from "../mutation/MutationService";
 import type { VaultLearningStore } from "../persistence/VaultLearningStore";
 import { PersistenceError } from "../persistence/PersistenceError";
 import {
@@ -26,23 +22,23 @@ import {
   buildActionInstruction,
   buildPracticeEvaluationInstruction,
   buildPracticeQuestionInstruction,
-} from "./action-builders";
-import { toPromptLearningState } from "./learning-state-projection";
+} from "../learning/action-builders";
+import { toPromptLearningState } from "../learning/learning-state-projection";
 import {
   LearningEvent,
   LearningRequest,
   ProposedEdit,
-} from "./learning-types";
-import { PracticeQuestion, PracticeOrigin } from "./practice-types";
+} from "../learning/learning-types";
+import { PracticeQuestion, PracticeOrigin } from "../learning/practice-types";
 import {
   PracticeEvaluationAttempt,
   PracticeStateMachine,
-} from "./PracticeStateMachine";
-import { PracticeSessionRegistry } from "./PracticeSessionRegistry";
+} from "../learning/PracticeStateMachine";
+import { PracticeSessionRegistry } from "../learning/PracticeSessionRegistry";
 import {
   StructuredStreamEvent,
   StructuredStreamParser,
-} from "./StructuredStreamParser";
+} from "../learning/StructuredStreamParser";
 
 type SessionPort = Pick<
   SessionController,
@@ -66,7 +62,6 @@ type ContextPort = Pick<
 >;
 
 type PolicyPort = Pick<PolicyLoader, "load">;
-type MutationPort = Pick<MutationService, "apply">;
 type LearningStatePort = Pick<VaultLearningStore, "load" | "save">;
 
 /**

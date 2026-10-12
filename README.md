@@ -97,16 +97,12 @@ Current implementation:
 ```text
 ChatView
   ↓
-LearningController
-  ├── ContextResolver
-  ├── PolicyLoader
-  ├── VaultLearningStore
-  ├── MutationService
-  └── SessionController
-          ↓
-      AgentAdapter
-          ↓
-      AgyAdapter → AGY CLI
+LearningController (stable UI facade)
+  ├── RunLearningTurn
+  │     ├── ContextResolver / PolicyLoader
+  │     ├── VaultLearningStore / SessionController
+  │     └── AgentRuntime → AgyAdapter → AGY CLI
+  └── MutationService (user-approved edits)
 ```
 
 The canonical target boundaries and incremental migration path live in
@@ -123,6 +119,7 @@ origin remains pinned even when the active Obsidian note changes.
 ```text
 src/
 ├── agent/       runtime contract and AGY adapter
+├── application/ one-turn orchestration and execution lifecycle
 ├── chat/        Obsidian view and interaction surface
 ├── context/     selection, note, and policy context
 ├── learning/    actions, practice, and learning state
