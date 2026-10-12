@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { planReplacement } from "../../src/mutation/replacement";
+import { planReplacement } from "../../../src/domain/mutation/replacement";
 
 test("plans one exact replacement", () => {
   const result = planReplacement(

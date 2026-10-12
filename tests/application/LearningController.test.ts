@@ -7,8 +7,8 @@ import {
   ChatSession,
   EditProposal,
 } from "../../src/types";
-import { LearningController } from "../../src/learning/LearningController";
-import { LearningState } from "../../src/learning/learning-state";
+import { LearningController } from "../../src/application/LearningController";
+import { LearningState } from "../../src/domain/learning-state/types";
 import { collectEvents } from "../support/collect-events";
 
 function baseState(): LearningState {

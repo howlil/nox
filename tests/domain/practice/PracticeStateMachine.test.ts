@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { PracticeStateMachine } from "../../src/learning/PracticeStateMachine";
+import { PracticeStateMachine } from "../../../src/domain/practice/PracticeStateMachine";
 
 function ids() {
   let value = 0;
