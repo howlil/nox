@@ -1,0 +1,22 @@
+import { readdirSync, readFileSync } from "node:fs";
+import { join } from "node:path";
+import { validateArchitecture } from "./boundaries.mjs";
+
+function walk(directory) {
+  return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
+    const pathname = join(directory, entry.name);
+    return entry.isDirectory() ? walk(pathname) : [pathname.replaceAll("\\", "/")];
+  });
+}
+const files = walk("src").filter((pathname) => pathname.endsWith(".ts"))
+  .map((pathname) => ({ path: pathname, source: readFileSync(pathname, "utf8") }));
+const legacy = walk("tests").filter((pathname) => pathname.includes("/learning/") &&
+  !pathname.includes("/integration/learning/"));
+const issues = [...validateArchitecture(files),
+  ...legacy.map((pathname) => `${pathname}: tests must live with their application/domain owner`)];
+if (issues.length > 0) {
+  console.error("Architecture boundary violations:\n" + issues.map((issue) => " - " + issue).join("\n"));
+  process.exitCode = 1;
+} else {
+  console.log(`Architecture boundaries OK (${files.length} source files checked)`);
+}
