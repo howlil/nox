@@ -22,6 +22,7 @@ type SessionPort = Pick<
   | "recordAssistantMessage"
   | "recordStructuredPart"
   | "recordPracticeOutcome"
+  | "recordReviewOutcome"
   | "recordProposal"
   | "getProposal"
   | "updateProposalState"

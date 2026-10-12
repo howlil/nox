@@ -146,3 +146,23 @@ test("existing caller state is not mutated", () => {
   assert.deepEqual(current.gaps[0]?.evidenceIds, ["old"]);
   assert.equal(next.gaps[0]?.status, "improving");
 });
+
+test("review evidence is idempotent per logical review and preserves separate reviews", () => {
+  const finding = {
+    kind: "missing-relation" as const, concept: "SQL",
+    title: "Isolation", detail: "Explain concurrent visibility",
+  };
+  const initial = { version: 2 as const, target: null, gaps: [], evidence: [] };
+  const first = recordReviewFindings(initial, {
+    reviewId: "review:s:t1", findings: [finding], source: "notes.md",
+  }, { now: () => 123, uuid: () => "random" });
+  const duplicate = recordReviewFindings(first, {
+    reviewId: "review:s:t1", findings: [finding], source: "notes.md",
+  });
+  assert.equal(duplicate.evidence.length, 1);
+  assert.equal(duplicate.evidence[0]?.id, "review:s:t1:0");
+  const second = recordReviewFindings(duplicate, {
+    reviewId: "review:s:t2", findings: [finding], source: "notes.md",
+  });
+  assert.equal(second.evidence.length, 2);
+});

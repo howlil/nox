@@ -25,6 +25,8 @@ export interface LearningRequest {
   sourcePath?: string;
   /** A retry is another attempt at the same logical user turn. */
   retry?: boolean;
+  /** Stable identity across Retry. New user submissions receive new IDs. */
+  turnId?: string;
 }
 
 export interface ProposedEdit {

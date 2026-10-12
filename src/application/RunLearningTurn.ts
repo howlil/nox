@@ -17,7 +17,8 @@ import {
   recordReviewFindings,
 } from "../domain/learning-state/transitions";
 import type { SessionController } from "../session/SessionController";
-import { findCommittedPracticeOutcome } from "../session/transcript-types";
+import { findCommittedPracticeOutcome, findCommittedReview } from "../session/transcript-types";
+import type { ReviewFinding } from "../learning/review-types";
 import type { TranscriptPart } from "../session/transcript-types";
 import type { AgentRuntimePort } from "../agent/AgentRuntime";
 import {
@@ -54,6 +55,7 @@ type SessionPort = Pick<
   | "recordAssistantMessage"
   | "recordStructuredPart"
   | "recordPracticeOutcome"
+  | "recordReviewOutcome"
   | "recordProposal"
   | "getProposal"
   | "updateProposalState"
@@ -192,7 +194,7 @@ export class RunLearningTurn {
         this.policies.load(),
         this.learningState.load(),
       ]);
-      state = await this.reconcilePracticeEvidence(sessionAtStart, state);
+      state = await this.reconcileTranscriptEvidence(sessionAtStart, state);
     } catch (error) {
       if (this.activeTurn === activeTurn) this.activeTurn = null;
       yield {
@@ -375,6 +377,9 @@ export class RunLearningTurn {
     }, this.turnTimeoutMs);
 
     let visibleText = "";
+    const reviewBuffer: { observed: boolean; findings: ReviewFinding[] } = {
+      observed: false, findings: [],
+    };
 
     const rollbackPractice = () => {
       if (practiceAttempt) {
@@ -387,6 +392,16 @@ export class RunLearningTurn {
     try {
       if (!request.retry) {
         await this.sessions.recordUserMessage(request.prompt, turnSessionId, request.action);
+      }
+
+      if (request.action === "review" && request.turnId) {
+        const reviewId = `review:${turnSessionId}:${request.turnId}`;
+        const committed = findCommittedReview(this.sessions.getSession(), reviewId);
+        if (committed) {
+          yield { type: "review-findings", findings: committed.findings };
+          yield { type: "completed" };
+          return;
+        }
       }
 
       // A previous attempt can commit the outcome but fail while projecting
@@ -431,6 +446,7 @@ export class RunLearningTurn {
             snapshot,
             turnSessionId,
             practice,
+            reviewBuffer,
             practiceAttempt,
           )) {
             if (mapped.type === "response-delta") {
@@ -468,6 +484,7 @@ export class RunLearningTurn {
             snapshot,
             turnSessionId,
             practice,
+            reviewBuffer,
             practiceAttempt,
           )) {
             if (mapped.type === "response-delta") {
@@ -502,6 +519,25 @@ export class RunLearningTurn {
             );
           }
 
+          if (reviewBuffer.observed && request.action === "review") {
+            const source = snapshot.resolved.selection?.file ??
+              snapshot.resolved.activeNote?.path ?? "learning-session";
+            const reviewId = `review:${turnSessionId}:${request.turnId ?? crypto.randomUUID()}`;
+            const committed = await this.sessions.recordReviewOutcome(
+              { type: "review-findings", reviewId, findings: reviewBuffer.findings, sourcePath: source },
+              source,
+              turnSessionId,
+            );
+            const before = await this.learningState.load();
+            const after = recordReviewFindings(before, {
+              findings: committed.findings, source: committed.sourcePath ?? source, reviewId,
+            });
+            if (after.evidence.length !== before.evidence.length) {
+              await this.learningState.save(after);
+              yield { type: "learning-state-updated", state: after };
+            }
+            yield { type: "review-findings", findings: committed.findings };
+          }
           await this.sessions.recordAssistantMessage(
             visibleText,
             snapshot.mutableFile,
@@ -568,7 +604,7 @@ export class RunLearningTurn {
   }
 
   /** Replays committed transcript outcomes missing from progress.json. */
-  private async reconcilePracticeEvidence(
+  private async reconcileTranscriptEvidence(
     session: ChatSession,
     initial: Awaited<ReturnType<LearningStatePort["load"]>>,
   ): Promise<Awaited<ReturnType<LearningStatePort["load"]>>> {
@@ -576,16 +612,28 @@ export class RunLearningTurn {
     let changed = false;
     for (const message of session.messages) {
       for (const part of message.parts ?? []) {
-        if (part.type !== "practice-evaluation" || !part.questionId) continue;
-        const operationId = part.operationId ?? `practice:${session.id}:${part.questionId}`;
-        const next = recordPracticeEvaluation(state, {
-          evaluation: part.evaluation,
-          source: part.sourcePath ?? message.sourcePath ?? "learning-session",
-          evidenceId: operationId,
-        });
-        if (next.evidence.length !== state.evidence.length) {
-          changed = true;
-          state = next;
+        if (part.type === "practice-evaluation" && part.questionId) {
+          const operationId = part.operationId ?? `practice:${session.id}:${part.questionId}`;
+          const next = recordPracticeEvaluation(state, {
+            evaluation: part.evaluation,
+            source: part.sourcePath ?? message.sourcePath ?? "learning-session",
+            evidenceId: operationId,
+          });
+          if (next.evidence.length !== state.evidence.length) {
+            changed = true;
+            state = next;
+          }
+        }
+        if (part.type === "review-findings" && part.reviewId) {
+          const next = recordReviewFindings(state, {
+            findings: part.findings,
+            source: part.sourcePath ?? message.sourcePath ?? "learning-session",
+            reviewId: part.reviewId,
+          });
+          if (next.evidence.length !== state.evidence.length) {
+            changed = true;
+            state = next;
+          }
         }
       }
     }
@@ -612,6 +660,7 @@ export class RunLearningTurn {
     context: TurnContextSnapshot,
     sessionId: string,
     practice: PracticeStateMachine,
+    reviewBuffer: { observed: boolean; findings: ReviewFinding[] },
     practiceAttempt?: PracticeEvaluationAttempt,
   ): AsyncIterable<LearningEvent> {
     for (const event of events) {
@@ -666,38 +715,10 @@ export class RunLearningTurn {
       }
 
       if (event.type === "review-findings") {
-        const source =
-          context.resolved.selection?.file ??
-          context.resolved.activeNote?.path ??
-          "learning-session";
-
-        await this.sessions.recordStructuredPart(
-          { type: "review-findings", findings: event.findings, sourcePath: source },
-          source,
-          sessionId,
-        );
-
-        yield {
-          type: "review-findings",
-          findings: event.findings,
-        };
-
-        if (event.findings.length > 0) {
-          const currentState = await this.learningState.load();
-          const nextState = recordReviewFindings(
-            currentState,
-            {
-              findings: event.findings,
-              source,
-            },
-          );
-          await this.learningState.save(nextState);
-
-          yield {
-            type: "learning-state-updated",
-            state: nextState,
-          };
-        }
+        // A complete provider turn is required before committing Review.
+        // Do not persist partial findings if the stream later fails.
+        reviewBuffer.observed = true;
+        reviewBuffer.findings.push(...event.findings);
         continue;
       }
 

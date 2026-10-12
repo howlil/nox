@@ -1194,6 +1194,7 @@ export class ChatView extends ItemView {
 
     this.closeModelMenu();
     const request: LearningRequest = {
+      turnId: crypto.randomUUID(),
       prompt,
       action: this.selectedAction,
       explicitContext: [...this.extraCtx],

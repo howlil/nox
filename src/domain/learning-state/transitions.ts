@@ -109,6 +109,7 @@ export function recordReviewFindings(
   input: {
     findings: ReviewFinding[];
     source: string;
+    reviewId?: string;
   },
   deps: LearningTransitionDeps = {},
 ): LearningState {
@@ -117,9 +118,11 @@ export function recordReviewFindings(
   const next = cloneState(state);
   const resolved = resolveDeps(deps);
 
-  for (const finding of input.findings) {
+  for (const [index, finding] of input.findings.entries()) {
+    const id = input.reviewId ? `${input.reviewId}:${index}` : resolved.uuid();
+    if (next.evidence.some((item) => item.id === id)) continue;
     const evidence: LearningEvidence = {
-      id: resolved.uuid(),
+      id,
       type: "review",
       scope: "material",
       concept: finding.concept,
