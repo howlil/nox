@@ -120,7 +120,7 @@ origin remains pinned even when the active Obsidian note changes.
 src/
 ├── agent/       runtime contract and AGY adapter
 ├── application/ one-turn orchestration and execution lifecycle
-├── chat/        Obsidian view and interaction surface
+├── chat/        Obsidian view, interaction surface, and learning-card rendering
 ├── context/     selection, note, and policy context
 ├── learning/    actions, practice, and learning state
 ├── mutation/    safe Markdown proposal application

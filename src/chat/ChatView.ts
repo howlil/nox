@@ -19,6 +19,11 @@ import {
   PracticeQuestion,
 } from "../learning/practice-types";
 import { ReviewFinding } from "../learning/review-types";
+import {
+  renderPracticeQuestionCard,
+  renderPracticeEvaluationCard,
+  renderReviewFindingCards,
+} from "./learning-card-renderers";
 import { ChatMessage, EditProposal, type AgentModel, type ChatSession } from "../types";
 import { ProposedEdit } from "../learning/learning-types";
 import {
@@ -1960,24 +1965,7 @@ export class ChatView extends ItemView {
     parent: HTMLElement | null = this.agentCursorEl,
   ): void {
     if (!parent) return;
-
-    const card = createNoxSurface(parent, "nox-practice-card");
-    card.createDiv({
-      cls: "nox-practice-label",
-      text: `Practice · ${question.concept}`,
-    });
-    card.createDiv({
-      cls: "nox-practice-question",
-      text: question.question,
-    });
-
-    if (question.hint) {
-      card.createDiv({
-        cls: "nox-practice-hint",
-        text: `Hint: ${question.hint}`,
-      });
-    }
-
+    renderPracticeQuestionCard(parent, question);
     this.scrollThread();
   }
 
@@ -1986,45 +1974,7 @@ export class ChatView extends ItemView {
     parent: HTMLElement | null = this.agentCursorEl,
   ): void {
     if (!parent) return;
-
-    const card = createNoxSurface(
-      parent,
-      `nox-practice-evaluation nox-outcome--${evaluation.outcome}`,
-    );
-
-    const outcomeLabel =
-      evaluation.outcome === "correct"
-        ? "Correct"
-        : evaluation.outcome === "partial"
-          ? "Partial"
-          : "Needs work";
-
-    card.createDiv({
-      cls: "nox-practice-label",
-      text: `${outcomeLabel} · ${evaluation.concept}`,
-    });
-    card.createDiv({
-      cls: "nox-practice-feedback",
-      text: evaluation.feedback,
-    });
-
-    if (evaluation.misconceptions.length > 0) {
-      const gaps = card.createDiv({
-        cls: "nox-practice-gaps",
-      });
-      gaps.createDiv({
-        cls: "nox-practice-gaps-label",
-        text: "Gap",
-      });
-
-      for (const misconception of evaluation.misconceptions) {
-        gaps.createDiv({
-          cls: "nox-practice-gap",
-          text: misconception,
-        });
-      }
-    }
-
+    renderPracticeEvaluationCard(parent, evaluation);
     this.scrollThread();
   }
 
@@ -2034,44 +1984,15 @@ export class ChatView extends ItemView {
     parent: HTMLElement | null = this.agentCursorEl,
   ): void {
     if (!parent) return;
-
-    const wrap = parent.createDiv({ cls: "nox-review" });
-    wrap.createDiv({
-      cls: "nox-review-summary",
-      text: findings.length === 0
-        ? "No material learning gaps found."
-        : `${findings.length} important ${findings.length === 1 ? "gap" : "gaps"}`,
-    });
-
-    for (const finding of findings) {
-      const card = createNoxSurface(
-        wrap,
-        `nox-review-card nox-review-card--${finding.kind}`,
-      );
-      card.createDiv({ cls: "nox-review-kind", text: finding.kind.replace("-", " ") });
-      card.createDiv({ cls: "nox-review-title", text: finding.title });
-      card.createDiv({ cls: "nox-review-detail", text: finding.detail });
-
-      const actions = card.createDiv({ cls: "nox-review-actions" });
-      const practice = createNoxButton(actions, {
-        cls: "nox-review-action",
-        variant: "quiet",
-        text: "Practice",
-      });
-      practice.addEventListener("click", () => {
+    renderReviewFindingCards(parent, findings, {
+      onPractice: (finding) => {
         this.setAction("practice");
         this.pinFindingSource(sourcePath);
         this.input.value = `Practice this gap: ${finding.concept} — ${finding.detail}`;
         this.onInput();
         this.input.focus();
-      });
-
-      const fix = createNoxButton(actions, {
-        cls: "nox-review-action",
-        variant: "quiet",
-        text: "Fix",
-      });
-      fix.addEventListener("click", () => {
+      },
+      onFix: (finding) => {
         this.setAction("edit");
         this.pinFindingSource(sourcePath);
         this.input.value = `Fix this learning gap: ${finding.detail}`;
@@ -2084,9 +2005,8 @@ export class ChatView extends ItemView {
               this.appendInlineStatus(this.thread, "failed", `Open ${sourcePath} to edit this finding.`);
             });
         }
-      });
-    }
-
+      },
+    });
     this.scrollThread();
   }
 
