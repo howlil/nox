@@ -21,7 +21,7 @@ const IMPORTS = /\b(?:from\s*|import\s*\(\s*|require\s*\(\s*|import\s*)(["'])([^
 
 function isApprovedEdge(from, to) {
   const owner = from.split("/")[1];
-  const target = to.split("/")[1];
+  const target = to === "src/types.ts" ? "types" : to.split("/")[1];
   if (from === "src/types.ts") return to === "src/session/transcript-types.ts";
   if (from === "src/main.ts") return true;
   if (!ALLOWED_OWNERS[owner]?.includes(target)) return false;
