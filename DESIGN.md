@@ -45,7 +45,11 @@ Nox
 
 Session history remains session-owned. `SessionController` exposes persisted
 sessions and performs the current-session switch; `ChatView` only renders the
-compact history menu and rehydrates the selected transcript. History labels are
+compact history menu and rehydrates the selected transcript.
+Practice questions, evaluations, and Review findings persist as typed
+session parts and use the same card renderers after reload. An unanswered
+practice restores the practice composer intent and displays its pinned origin
+note instead of silently following a newly active note. History labels are
 derived from the first user prompt, latest visible message, and update time;
 there is no second transcript store.
 

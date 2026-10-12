@@ -16,7 +16,8 @@ normalized agent contract rather than provider-specific stream events.
 - Shows proposed Markdown changes before applying them.
 - Applies approved edits through Obsidian APIs so editor state and undo remain
   available.
-- Persists sessions and model preferences locally in the plugin data.
+- Persists sessions, model preferences, and structured learning cards in the plugin data.
+- Restores an unanswered practice question with its original note context after reopening the sidebar or switching sessions.
 
 ## Requirements
 
@@ -113,6 +114,9 @@ The canonical target boundaries and incremental migration path live in
 
 Provider protocol parsing stays behind the agent adapter boundary. The UI
 consumes normalized learning events and never renders raw provider JSON.
+Structured Practice/Review events are also saved into the canonical session
+transcript; restoring history reuses the existing card renderers. Practice
+origin remains pinned even when the active Obsidian note changes.
 
 ## Repository map
 

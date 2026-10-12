@@ -29,6 +29,8 @@ function createHarness(
     mutationResult?: ApplyResult;
     contextOverride?: { activeNote: { path: string; content: string }; explicit: Array<{ type: "note"; path: string; content: string; source: "explicit" }> };
     agentContexts?: AgentContext[];
+    learningSaveFailures?: number;
+    evaluationTranscriptFailures?: number;
   } = {},
 ) {
   let session: ChatSession = {
@@ -55,6 +57,8 @@ function createHarness(
   let mutationCalls = 0;
   let mutationTarget: string | undefined;
   let recordedUserMessages = 0;
+  const structuredParts: Array<{ type: string; questionId?: string }> = [];
+  let transcriptFailures = options.evaluationTranscriptFailures ?? 0;
 
   const sessions = {
     getSession: () => session,
@@ -83,6 +87,16 @@ function createHarness(
     recordUserMessage: async (_content: string) => { recordedUserMessages += 1; },
     setConversationId: async (_id?: string) => {},
     recordAssistantMessage: async (_content: string) => {},
+    recordStructuredPart: async (part: { type: string; questionId?: string }) => {
+      if (part.type === "practice-evaluation" && transcriptFailures-- > 0) {
+        throw new Error("Simulated session persistence failure");
+      }
+      if (!part.questionId ||
+        !structuredParts.some((previous) =>
+          previous.type === part.type && previous.questionId === part.questionId)) {
+        structuredParts.push(part);
+      }
+    },
     recordProposal: async (
       id: string,
       proposal: EditProposal,
@@ -160,10 +174,14 @@ function createHarness(
     },
   };
 
-  const state = baseState();
+  let state = baseState();
+  let saveFailures = options.learningSaveFailures ?? 0;
   const learningState = {
     load: async () => state,
-    save: async (_next: LearningState) => {},
+    save: async (next: LearningState) => {
+      if (saveFailures-- > 0) throw new Error("Simulated vault persistence failure");
+      state = next;
+    },
   };
 
   const controller = new LearningController(
@@ -184,6 +202,8 @@ function createHarness(
     getUserWrites: () => recordedUserMessages,
     getMutationTarget: () => mutationTarget,
     getProposalState: (id: string) => proposalRecords.get(id)?.state,
+    getStructuredParts: () => structuredParts,
+    getEvidence: () => state.evidence,
   };
 }
 
@@ -744,4 +764,111 @@ test("review practice follow-up uses the pinned source instead of newly active n
   const context = harness.getSentContexts()[0] ?? [];
   assert.equal(context[0]?.file, "source.md");
   assert.equal(context.some((item) => item.file === "other.md"), false);
+});
+
+test("practice evidence remains consistent when vault persistence fails then user retries", async () => {
+  const fence = "```";
+  let calls = 0;
+  const harness = createHarness(async function* () {
+    calls++;
+    const payload = calls === 1
+      ? { kind: "question", concept: "atomicity", question: "Define atomicity." }
+      : { kind: "evaluation", concept: "atomicity", outcome: "correct",
+          feedback: "Correct", misconceptions: [] };
+    yield { type: "text", content: fence + "learning-practice\n" +
+      JSON.stringify(payload) + "\n" + fence };
+    yield { type: "completed" };
+  }, { learningSaveFailures: 1 });
+
+  await collectEvents(harness.controller.run({
+    prompt: "Practice", action: "practice", explicitContext: [],
+  }));
+  const failed = await collectEvents(harness.controller.run({
+    prompt: "All or nothing", action: "practice", explicitContext: [],
+  }));
+  assert.ok(failed.some((event) => event.type === "failed"));
+  assert.equal(harness.controller.hasActivePracticeQuestion(), true);
+  assert.equal(harness.getEvidence().length, 0);
+  assert.equal(harness.getStructuredParts().filter((part) => part.type === "practice-evaluation").length, 0);
+
+  const recovered = await collectEvents(harness.controller.run({
+    prompt: "All or nothing", action: "practice", explicitContext: [],
+  }));
+  assert.ok(recovered.some((event) => event.type === "practice-evaluation"));
+  assert.equal(harness.getEvidence().length, 1);
+});
+
+test("transcript persistence failure after evidence save does not duplicate evidence on retry", async () => {
+  const fence = "```";
+  let calls = 0;
+  const harness = createHarness(async function* () {
+    calls++;
+    const payload = calls === 1
+      ? { kind: "question", concept: "isolation", question: "What is isolation?" }
+      : { kind: "evaluation", concept: "isolation", outcome: "partial",
+          feedback: "Incomplete", misconceptions: ["concurrency"] };
+    yield { type: "text", content: fence + "learning-practice\n" +
+      JSON.stringify(payload) + "\n" + fence };
+    yield { type: "completed" };
+  }, { evaluationTranscriptFailures: 1 });
+  await collectEvents(harness.controller.run({
+    prompt: "Practice", action: "practice", explicitContext: [],
+  }));
+  const failed = await collectEvents(harness.controller.run({
+    prompt: "first answer", action: "practice", explicitContext: [],
+  }));
+  assert.ok(failed.some((event) => event.type === "failed"));
+  assert.equal(harness.controller.hasActivePracticeQuestion(), true);
+  assert.equal(harness.getEvidence().length, 1);
+
+  const recovered = await collectEvents(harness.controller.run({
+    prompt: "first answer", action: "practice", explicitContext: [],
+  }));
+  assert.ok(recovered.some((event) => event.type === "practice-evaluation"));
+  assert.equal(harness.getEvidence().length, 1);
+  assert.equal(harness.getStructuredParts().filter((part) => part.type === "practice-evaluation").length, 1);
+});
+
+test("practice evaluation stays grounded in the question origin after navigating to another note", async () => {
+  const fence = "```";
+  let turn = 0;
+  const context = {
+    activeNote: { path: "note-a.md", content: "Atomic transaction notes" },
+    explicit: [] as Array<{ type: "note"; path: string; content: string; source: "explicit" }>,
+  };
+  const options = {
+    contextOverride: context,
+    agentContexts: [{ type: "note" as const, file: "note-a.md", content: "Atomic transaction notes" }],
+  };
+  const harness = createHarness(async function* () {
+    turn++;
+    const payload = turn === 1
+      ? { kind: "question", concept: "transactions", question: "What is atomicity?" }
+      : { kind: "evaluation", concept: "transactions", outcome: "correct",
+          feedback: "Correct", misconceptions: [] };
+    yield { type: "text", content: fence + "learning-practice\n" +
+      JSON.stringify(payload) + "\n" + fence };
+    yield { type: "completed" };
+  }, options);
+
+  await collectEvents(harness.controller.run({
+    prompt: "Practice atomicity", action: "practice", explicitContext: [],
+  }));
+  context.activeNote.path = "note-b.md";
+  context.activeNote.content = "Unrelated content";
+  context.explicit.push({
+    type: "note", path: "note-a.md",
+    content: "Atomic transaction notes", source: "explicit",
+  });
+  options.agentContexts = [
+    { type: "note", file: "note-b.md", content: "Unrelated content" },
+    { type: "note", file: "note-a.md", content: "Atomic transaction notes" },
+  ];
+  await collectEvents(harness.controller.run({
+    prompt: "All or nothing", action: "practice", explicitContext: [],
+  }));
+  const sent = harness.getSentContexts()[1] ?? [];
+  assert.equal(sent[0]?.file, "note-a.md");
+  assert.equal(sent.some((part) => part.file === "note-b.md"), false);
+  assert.equal(harness.getEvidence()[0]?.source, "note-a.md");
 });

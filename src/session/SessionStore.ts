@@ -1,4 +1,5 @@
 import { ChatSession } from "../types";
+import { isTranscriptPart } from "./transcript-schema";
 
 const STORE_KEY = "nox-sessions";
 const LEGACY_STORE_KEY = "agy-sessions";
@@ -61,7 +62,7 @@ export class SessionStore {
 
   /** Serialize to plugin data object. */
   serialize(): Record<string, unknown> {
-    return { [STORE_KEY]: this.data };
+    return { [STORE_KEY]: structuredClone(this.data) };
   }
 
   // ── Session CRUD ─────────────────────────────────────────────────────────
@@ -77,11 +78,12 @@ export class SessionStore {
     };
     this.data.sessions[session.id] = session;
     this.data.currentSessionId = session.id;
-    return session;
+    return structuredClone(session);
   }
 
   getSession(id: string): ChatSession | null {
-    return this.data.sessions[id] ?? null;
+    const session = this.data.sessions[id];
+    return session ? structuredClone(session) : null;
   }
 
   getCurrentSession(): ChatSession | null {
@@ -90,8 +92,7 @@ export class SessionStore {
   }
 
   updateSession(session: ChatSession): void {
-    session.updatedAt = this.now();
-    this.data.sessions[session.id] = session;
+    this.data.sessions[session.id] = { ...structuredClone(session), updatedAt: this.now() };
   }
 
   setCurrentSession(id: string): void {
@@ -112,9 +113,9 @@ export class SessionStore {
 
   /** All sessions, newest first. */
   listSessions(): ChatSession[] {
-    return Object.values(this.data.sessions).sort(
-      (a, b) => b.updatedAt - a.updatedAt
-    );
+    return Object.values(this.data.sessions)
+      .sort((a, b) => b.updatedAt - a.updatedAt)
+      .map((session) => structuredClone(session));
   }
 
   private decodeSession(value: unknown): ChatSession | null {
@@ -147,6 +148,11 @@ export class SessionStore {
         })
         .map((message) => ({
           ...message,
+          action: ["ask", "explain", "practice", "review", "edit"]
+            .includes(String(message.action)) ? message.action : undefined,
+          parts: Array.isArray(message.parts)
+            ? message.parts.filter(isTranscriptPart)
+            : undefined,
           proposalState:
             message.proposalState === "pending"
               ? "stale"

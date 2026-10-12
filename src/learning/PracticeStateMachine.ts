@@ -2,11 +2,14 @@ import {
   PracticeEvaluation,
   PracticeQuestion,
   PracticeSession,
+  PracticeOrigin,
 } from "./practice-types";
 
 export interface PracticeEvaluationAttempt {
   id: string;
   sessionId: string;
+  questionId: string;
+  origin?: PracticeOrigin;
   question: string;
   concept?: string;
   answer: string;
@@ -24,9 +27,10 @@ export class PracticeStateMachine {
     this.session = null;
   }
 
-  start(): PracticeSession {
+  start(origin?: PracticeOrigin): PracticeSession {
     this.session = {
       id: this.makeId(),
+      origin,
       state: "generating",
       turns: [],
     };
@@ -44,7 +48,7 @@ export class PracticeStateMachine {
     );
   }
 
-  acceptQuestion(question: PracticeQuestion): void {
+  acceptQuestion(question: PracticeQuestion, questionId?: string): void {
     if (!this.session) {
       this.start();
     }
@@ -64,7 +68,7 @@ export class PracticeStateMachine {
     }
 
     session.turns.push({
-      id: this.makeId(),
+      id: questionId ?? this.makeId(),
       concept: question.concept,
       question: question.question,
     });
@@ -86,6 +90,8 @@ export class PracticeStateMachine {
     const attempt: PracticeEvaluationAttempt = {
       id: this.makeId(),
       sessionId: session.id,
+      questionId: session.turns[session.turns.length - 1]!.id,
+      origin: session.origin,
       question: session.currentQuestion,
       concept: session.concept,
       answer,
@@ -98,6 +104,7 @@ export class PracticeStateMachine {
   commitEvaluation(
     attempt: PracticeEvaluationAttempt,
     evaluation: PracticeEvaluation,
+    nextQuestionId?: string,
   ): PracticeQuestion | undefined {
     const session = this.session;
 
@@ -140,7 +147,7 @@ export class PracticeStateMachine {
     session.state = "waiting-answer";
     session.currentQuestion = nextQuestion;
     session.turns.push({
-      id: this.makeId(),
+      id: nextQuestionId ?? this.makeId(),
       concept: next.concept,
       question: next.question,
     });
