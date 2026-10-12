@@ -35,8 +35,12 @@ handler framework.
 **Verification boundary:** GitHub CI covers typecheck, lint, unit/integration
 tests, build, and artifacts. Real Obsidian UI verification (including selection
 restore, panel lifecycles and native Undo) still requires manual smoke tests.
-Automated two-store recovery tests cover deterministic failures, but do not
-prove filesystem power-loss atomicity or native Obsidian behavior.
+Automated multi-module recovery tests exercise real session and learning
+repositories against controlled Obsidian adapters, including simulated restart,
+failed vault writes, incomplete Practice/Review streams, cancellation, pinned
+Practice origin, selection preservation and editor-only Apply with mock undo.
+These tests do not prove filesystem power-loss atomicity, native editor Undo or
+GUI lifecycle behavior, which still require manual Obsidian verification.
 
 ---
 
