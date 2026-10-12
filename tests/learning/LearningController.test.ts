@@ -934,3 +934,39 @@ test("different second model verdict cannot replace a committed practice evaluat
   assert.equal(h.getEvidence()[0]?.outcome, "correct");
   assert.equal(restored.find((event) => event.type === "practice-evaluation")?.type, "practice-evaluation");
 });
+
+test("partial Review output is not committed and a retried Review is idempotent", async () => {
+  const fence = "```";
+  let calls = 0;
+  const h = createHarness(async function* () {
+    calls++;
+    yield { type: "text", content: fence + "learning-review\n" + JSON.stringify({
+      kind: "review",
+      findings: [{ kind: "missing-relation", concept: "SQL",
+        title: "Isolation", detail: "Explain visibility" }],
+    }) + "\n" + fence };
+    if (calls === 1) {
+      yield { type: "failed", failure: { code: "process-failed", message: "agent crashed" } };
+    } else {
+      yield { type: "completed" };
+    }
+  });
+  const request = {
+    prompt: "Review note", action: "review" as const,
+    turnId: "stable-review", explicitContext: [],
+  };
+  const failed = await collectEvents(h.controller.run(request));
+  assert.ok(failed.some((e) => e.type === "failed"));
+  assert.equal(failed.some((e) => e.type === "review-findings"), false);
+  assert.equal(h.getEvidence().length, 0);
+
+  const completed = await collectEvents(h.controller.run({ ...request, retry: true }));
+  assert.ok(completed.some((e) => e.type === "review-findings"));
+  assert.equal(h.getEvidence().length, 1);
+  assert.equal(h.getEvidence()[0]?.id, "review:session-1:stable-review:0");
+
+  const repeated = await collectEvents(h.controller.run({ ...request, retry: true }));
+  assert.ok(repeated.some((e) => e.type === "completed"));
+  assert.equal(calls, 2, "committed Review must not invoke the agent again");
+  assert.equal(h.getEvidence().length, 1);
+});
