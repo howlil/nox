@@ -4,34 +4,39 @@ Status: **Canonical target architecture with incremental migration**
 Depends on: `PRODUCT_DESIGN.md`, `../DESIGN.md`
 Scope: Obsidian plugin runtime, learning orchestration, context, agent adapter,
 persistence, mutation, testing, and delivery
-Last updated: 2026-10-12
+Last updated: 2026-10-13
 
 ---
 
-## Implementation checkpoint — 2026-10-12
+## Implementation checkpoint — 2026-10-13
 
 The migration discussions in sections 2 and 22 include historical September
 baseline observations. Always inspect current code before treating them as
 unresolved issues.
 
-**Implemented:** learning policies are pure domain transitions; plugin-data
-writes use a serialized repository; runtime and conversation lifecycles are
-separate; proposal state is session-owned; practice is session-scoped with
-transcript-based unanswered-question restoration; structured learning cards
-survive session restore; evidence is idempotent per practice question; session
-reads return defensive copies; persistence failures have a distinct failure
-category; streaming text no longer unconditionally forces scroll.
+**Implemented:** domain learning transitions are pure; plugin-data writes
+share a serialized repository; runtime and conversation lifecycles are separate;
+proposal state is session-owned; practice is session-scoped with transcript-based
+unanswered-question restoration. Completed Practice and Review outcomes are
+canonical transcript decisions and replay missing progress with stable evidence
+IDs; incomplete Review streams cannot commit material evidence. Session restores
+sanitize nested proposals and structured parts; session reads return defensive
+copies. Presentation restores pinned practice origin across startup/session
+navigation, and Practice/Review card DOM renderers are feature-owned. The
+streaming text path does not unconditionally force scroll.
 
-**Current remaining boundary:** `RunLearningTurn` now owns turn orchestration,
-timeouts, and practice/review event persistence behind a stable
-`LearningController` facade. `ChatView` still owns multiple UI responsibilities:
-extract by behavior, not line count. No separate practice/review persistence
-stores should be created.
+**Current remaining boundary:** `RunLearningTurn` owns orchestration,
+timeouts, structured event effects and reconciliation behind the stable
+`LearningController` facade. This is intentional; only extract a narrower
+use case on proven change pressure. `ChatView` still coordinates several UI
+responsibilities. Do not create parallel Practice/Review stores or a generic
+handler framework.
 
 **Verification boundary:** GitHub CI covers typecheck, lint, unit/integration
-tests, build, and artifacts. Real Obsidian UI verification (including
-selection restore, panel lifecycles and native Undo) still requires a manual
-smoke test; do not represent CI as equivalent to that testing.
+tests, build, and artifacts. Real Obsidian UI verification (including selection
+restore, panel lifecycles and native Undo) still requires manual smoke tests.
+Automated two-store recovery tests cover deterministic failures, but do not
+prove filesystem power-loss atomicity or native Obsidian behavior.
 
 ---
 
@@ -1271,6 +1276,10 @@ editor/history behavior:
 5. add a supporting note; Nox may read it but refuses to mutate it;
 6. restart Obsidian; pending proposals restore safely as stale/expired;
 7. exercise unavailable runtime, cancel, and malformed response; composer returns usable.
+8. switch between sessions with different unfinished Practice questions; the pinned
+   source chip must match the restored question, not the currently active note.
+9. force a storage failure after a completed Practice/Review outcome, then retry;
+   history and learning progress must converge without re-grading or duplicates.
 
 Do not claim these behaviors are verified from typecheck/build alone.
 

@@ -381,6 +381,23 @@ export class RunLearningTurn {
       observed: false, findings: [],
     };
 
+    // Both parser.push() and parser.finish() use the same effect path.
+    // Otherwise proposal/text persistence can drift across chunk boundaries.
+    const persistMappedEvent = async (mapped: LearningEvent): Promise<void> => {
+      if (mapped.type === "response-delta") {
+        visibleText += mapped.text;
+      }
+      if (mapped.type === "mutation-proposed") {
+        await this.sessions.recordAssistantMessage(
+          visibleText, snapshot.mutableFile, turnSessionId,
+        );
+        visibleText = "";
+        await this.sessions.recordProposal(
+          mapped.edit.id, mapped.edit.proposal, snapshot.mutableFile, turnSessionId,
+        );
+      }
+    };
+
     const rollbackPractice = () => {
       if (practiceAttempt) {
         practice.rollbackEvaluation(
@@ -450,25 +467,7 @@ export class RunLearningTurn {
             reviewBuffer,
             practiceAttempt,
           )) {
-            if (mapped.type === "response-delta") {
-              visibleText += mapped.text;
-            }
-
-            if (mapped.type === "mutation-proposed") {
-              await this.sessions.recordAssistantMessage(
-                visibleText,
-                snapshot.mutableFile,
-                turnSessionId,
-              );
-              visibleText = "";
-              await this.sessions.recordProposal(
-                mapped.edit.id,
-                mapped.edit.proposal,
-                snapshot.mutableFile,
-                turnSessionId,
-              );
-            }
-
+            await persistMappedEvent(mapped);
             yield mapped;
           }
           executionPhase = "agent";
@@ -490,25 +489,7 @@ export class RunLearningTurn {
             reviewBuffer,
             practiceAttempt,
           )) {
-            if (mapped.type === "response-delta") {
-              visibleText += mapped.text;
-            }
-
-            if (mapped.type === "mutation-proposed") {
-              await this.sessions.recordAssistantMessage(
-                visibleText,
-                snapshot.mutableFile,
-                turnSessionId,
-              );
-              visibleText = "";
-              await this.sessions.recordProposal(
-                mapped.edit.id,
-                mapped.edit.proposal,
-                snapshot.mutableFile,
-                turnSessionId,
-              );
-            }
-
+            await persistMappedEvent(mapped);
             yield mapped;
           }
 
