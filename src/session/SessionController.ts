@@ -120,6 +120,9 @@ export class SessionController {
     sessionId?: string,
   ): Promise<void> {
     const session = this.sessionForWrite(sessionId);
+    if (part.type !== "review-findings" && part.questionId &&
+      session.messages.some((message) => message.parts?.some((existing) =>
+        existing.type === part.type && existing.questionId === part.questionId))) return;
     session.messages.push({ role: "assistant", content: "", parts: [part], sourcePath });
     this.store.updateSession(session);
     await this.save();

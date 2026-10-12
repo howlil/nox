@@ -147,7 +147,7 @@ export class LearningController {
         if (part.type === "practice-evaluation") return practice;
         if (part.type === "practice-question") {
           practice.start(part.origin);
-          practice.acceptQuestion(part.question);
+          practice.acceptQuestion(part.question, part.questionId);
           return practice;
         }
       }
@@ -671,12 +671,14 @@ export class LearningController {
       }
 
       if (event.type === "practice-question") {
+        const questionId = crypto.randomUUID();
         await this.sessions.recordStructuredPart(
-          { type: "practice-question", question: event.question, origin: practice.snapshot()?.origin },
+          { type: "practice-question", question: event.question,
+            questionId, origin: practice.snapshot()?.origin },
           context.mutableFile,
           sessionId,
         );
-        practice.acceptQuestion(event.question);
+        practice.acceptQuestion(event.question, questionId);
 
         yield {
           type: "practice-question",
@@ -740,32 +742,37 @@ export class LearningController {
           {
             evaluation: event.evaluation,
             source,
+            evidenceId: `practice:${sessionId}:${practiceAttempt.questionId}`,
           },
         );
         await this.learningState.save(nextState);
+
+        const nextText = event.evaluation.nextQuestion?.trim();
+        const nextQuestion: PracticeQuestion | undefined = nextText
+          ? { kind: "question", concept: event.evaluation.concept, question: nextText }
+          : undefined;
+        const nextId = nextQuestion ? crypto.randomUUID() : undefined;
+
         await this.sessions.recordStructuredPart(
-          { type: "practice-evaluation", evaluation: event.evaluation },
+          { type: "practice-evaluation", evaluation: event.evaluation,
+            questionId: practiceAttempt.questionId },
           source,
           sessionId,
         );
-        const nextQuestion = practice.commitEvaluation(practiceAttempt, event.evaluation);
-
-        yield { type: "practice-evaluation", evaluation: event.evaluation };
-        yield {
-          type: "learning-state-updated",
-          state: nextState,
-        };
-
         if (nextQuestion) {
           await this.sessions.recordStructuredPart(
-            { type: "practice-question", question: nextQuestion, origin: practice.snapshot()?.origin },
+            { type: "practice-question", question: nextQuestion,
+              questionId: nextId, origin: practice.snapshot()?.origin },
             source,
             sessionId,
           );
-          yield {
-            type: "practice-question",
-            question: nextQuestion,
-          };
+        }
+
+        practice.commitEvaluation(practiceAttempt, event.evaluation, nextId);
+        yield { type: "practice-evaluation", evaluation: event.evaluation };
+        yield { type: "learning-state-updated", state: nextState };
+        if (nextQuestion) {
+          yield { type: "practice-question", question: nextQuestion };
         }
 
         continue;

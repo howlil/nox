@@ -37,14 +37,18 @@ export function recordPracticeEvaluation(
   input: {
     evaluation: PracticeEvaluation;
     source: string;
+    evidenceId?: string;
   },
   deps: LearningTransitionDeps = {},
 ): LearningState {
   const next = cloneState(state);
+  if (input.evidenceId && next.evidence.some((evidence) => evidence.id === input.evidenceId)) {
+    return next;
+  }
   const resolved = resolveDeps(deps);
 
   const evidence: LearningEvidence = {
-    id: resolved.uuid(),
+    id: input.evidenceId ?? resolved.uuid(),
     type: "practice",
     scope: "learner",
     concept: input.evaluation.concept,

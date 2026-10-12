@@ -9,6 +9,7 @@ export function isTranscriptPart(value: unknown): value is TranscriptPart {
     const origin = part.origin as Record<string, unknown> | undefined;
     return Boolean(q && q.kind === "question" && typeof q.concept === "string" &&
       typeof q.question === "string" && (q.hint === undefined || typeof q.hint === "string") &&
+      (part.questionId === undefined || typeof part.questionId === "string") &&
       (origin === undefined || (typeof origin.file === "string" &&
         (origin.selectedText === undefined || typeof origin.selectedText === "string"))));
   }
@@ -18,7 +19,8 @@ export function isTranscriptPart(value: unknown): value is TranscriptPart {
       ["correct", "partial", "incorrect"].includes(String(e.outcome)) &&
       typeof e.feedback === "string" && Array.isArray(e.misconceptions) &&
       e.misconceptions.every((value: unknown) => typeof value === "string") &&
-      (e.nextQuestion === undefined || typeof e.nextQuestion === "string"));
+      (e.nextQuestion === undefined || typeof e.nextQuestion === "string") &&
+      (part.questionId === undefined || typeof part.questionId === "string"));
   }
   if (part.type === "review-findings") {
     return Array.isArray(part.findings) &&
