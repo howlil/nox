@@ -1,7 +1,6 @@
 import { SessionStore } from "./SessionStore";
 import { PersistenceError } from "../persistence/PersistenceError";
-import type { TranscriptPart } from "./transcript-types";
-import { findCommittedPracticeOutcome, findCommittedReview } from "./transcript-types";
+import { findCommittedPracticeOutcome, findCommittedReview, type TranscriptPart } from "./transcript-types";
 import { PluginDataRepository } from "../persistence/PluginDataRepository";
 import {
   ChatSession,

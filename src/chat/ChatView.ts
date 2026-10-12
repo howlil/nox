@@ -9,6 +9,7 @@ import {
   LearningActionKind,
   LearningEvent,
   LearningRequest,
+  ProposedEdit,
 } from "../learning/learning-types";
 import {
   ExplicitContextRef,
@@ -25,7 +26,6 @@ import {
   renderReviewFindingCards,
 } from "./learning-card-renderers";
 import { ChatMessage, EditProposal, type AgentModel, type ChatSession } from "../types";
-import { ProposedEdit } from "../learning/learning-types";
 import {
   parsePromptToken,
   PromptMenuKind,

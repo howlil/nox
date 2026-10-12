@@ -16,13 +16,13 @@
     "dev": "node esbuild.config.mjs",
     "build": "node esbuild.config.mjs production",
     "deploy": "pnpm run build && node scripts/deploy.mjs",
-    "lint": "eslint src --ext .ts",
+    "lint": "eslint src",
     "typecheck": "tsc --noEmit",
     "test": "pnpm test:unit",
     "test:unit": "node scripts/test.mjs unit",
     "test:integration": "node scripts/test.mjs integration",
     "test:all": "node scripts/test.mjs all",
-    "verify": "pnpm typecheck && pnpm test:unit && pnpm test:integration && pnpm build && pnpm test:artifacts",
+    "verify": "pnpm typecheck && pnpm lint && pnpm test:unit && pnpm test:integration && pnpm build && pnpm test:artifacts",
     "test:artifacts": "node scripts/verify-artifacts.mjs"
   },
   "keywords": [
@@ -38,6 +38,7 @@
     "@typescript-eslint/parser": "^8.0.0",
     "builtin-modules": "^4.0.0",
     "esbuild": "^0.25.0",
+    "eslint": "^10.11.0",
     "obsidian": "latest",
     "tailwindcss": "^4.3.3",
     "tslib": "^2.6.0",
