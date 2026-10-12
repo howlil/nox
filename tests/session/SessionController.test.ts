@@ -219,3 +219,43 @@ test("retrying a staged structured part after save failure persists exactly once
   assert.equal(reloaded.getCurrentSession()?.messages.length, 1);
   assert.equal(reloaded.getCurrentSession()?.messages[0]?.parts?.[0]?.type, "practice-evaluation");
 });
+
+test("practice outcome is atomic in plugin data and is not staged on write failure", async () => {
+  let durable: Record<string, unknown> | null = null;
+  let shouldFail = true;
+  const plugin = {
+    loadData: async () => durable,
+    saveData: async (value: Record<string, unknown>) => {
+      if (shouldFail) throw new Error("disk failure");
+      durable = structuredClone(value);
+    },
+  };
+  const controller = new SessionController(
+    new PluginDataRepository(plugin as never),
+    new SessionStore({ now: () => 10, uuid: () => "s-1" }),
+  );
+  await controller.init();
+  const parts = [
+    { type: "practice-evaluation" as const,
+      operationId: "practice:s-1:q-1", questionId: "q-1", nextQuestionId: "q-2",
+      evaluation: { kind: "evaluation" as const, concept: "SQL",
+        outcome: "partial" as const, feedback: "Explain isolation",
+        misconceptions: [], nextQuestion: "Next?" },
+      sourcePath: "note.md" },
+    { type: "practice-question" as const, questionId: "q-2",
+      question: { kind: "question" as const, concept: "SQL", question: "Next?" },
+      origin: { file: "note.md" } },
+  ];
+  await assert.rejects(controller.recordPracticeOutcome(parts, "practice:s-1:q-1", "note.md", "s-1"));
+  assert.equal(controller.getSession().messages.length, 0);
+  shouldFail = false;
+  const committed = await controller.recordPracticeOutcome(parts, "practice:s-1:q-1", "note.md", "s-1");
+  assert.equal(committed.length, 2);
+  assert.equal(controller.getSession().messages.length, 1);
+  assert.equal(controller.getSession().messages[0]?.parts?.length, 2);
+  const restored = new SessionStore();
+  await restored.load(durable);
+  assert.equal(restored.getCurrentSession()?.messages[0]?.parts?.length, 2);
+  await controller.recordPracticeOutcome(parts, "practice:s-1:q-1", "note.md", "s-1");
+  assert.equal(controller.getSession().messages.length, 1);
+});
