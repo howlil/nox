@@ -124,6 +124,60 @@ function makeRig() {
   };
 }
 
+
+for (const terminal of ["failed", "cancelled"] as const) {
+  test(`Practice question is not committed when the agent ends ${terminal}`, async () => {
+    const rig = makeRig();
+    const { learning, sessions } = await rig.createLearning();
+    const question = { kind: "question", concept: "ACID", question: "Explain atomicity." };
+    rig.queue([
+      { type: "text", content: "```learning-practice\\n" + JSON.stringify(question) + "\\n```" },
+      terminal === "failed"
+        ? { type: "failed", failure: { code: "process-failed", message: "stream interrupted" } }
+        : { type: "cancelled" },
+    ]);
+    const incomplete = await collectEvents(learning.run({
+      prompt: "Quiz me", action: "practice", explicitContext: [],
+    }));
+    assert.ok(incomplete.some((event) => event.type === terminal));
+    assert.equal(incomplete.some((event) => event.type === "practice-question"), false);
+    assert.equal(learning.hasActivePracticeQuestion(), false);
+    assert.equal(sessions.getSession().messages.flatMap((message) => message.parts ?? [])
+      .filter((part) => part.type === "practice-question").length, 0);
+
+    learning.dispose();
+    const restored = await rig.createLearning();
+    assert.equal(restored.learning.hasActivePracticeQuestion(), false);
+    rig.queue(practice(question));
+    const success = await collectEvents(restored.learning.run({
+      prompt: "Quiz me", action: "practice", explicitContext: [], retry: true,
+    }));
+    assert.ok(success.some((event) => event.type === "practice-question"));
+    assert.equal(restored.learning.hasActivePracticeQuestion(), true);
+    assert.equal(restored.sessions.getSession().messages.flatMap((message) => message.parts ?? [])
+      .filter((part) => part.type === "practice-question").length, 1);
+  });
+}
+
+test("a completed Practice turn cannot commit two competing questions", async () => {
+  const rig = makeRig();
+  const { learning, sessions } = await rig.createLearning();
+  const first = { kind: "question", concept: "ACID", question: "What is atomicity?" };
+  const second = { kind: "question", concept: "ACID", question: "What is isolation?" };
+  rig.queue([
+    { type: "text", content: "```learning-practice\\n" + JSON.stringify(first) + "\\n```" },
+    { type: "text", content: "```learning-practice\\n" + JSON.stringify(second) + "\\n```" },
+    { type: "completed" },
+  ]);
+  const outcome = await collectEvents(learning.run({
+    prompt: "Practice", action: "practice", explicitContext: [],
+  }));
+  assert.ok(outcome.some((event) => event.type === "failed"));
+  assert.equal(learning.hasActivePracticeQuestion(), false);
+  assert.equal(sessions.getSession().messages.flatMap((message) => message.parts ?? [])
+    .filter((part) => part.type === "practice-question").length, 0);
+});
+
 test("Practice never commits a partially streamed evaluation after runtime failure", async () => {
   const rig = makeRig();
   const { learning, sessions, learningState } = await rig.createLearning();
