@@ -416,3 +416,37 @@ test("an ordinary message arriving during an outcome write survives restart", as
   assert.equal(messages?.[1]?.content, "Queued user message");
   assert.deepEqual(controller.getSession().messages, messages);
 });
+
+
+test("failed proposal-state persistence leaves in-memory state unchanged until retry", async () => {
+  let durable: Record<string, unknown> | null = null;
+  let failNext = false;
+  const plugin = {
+    loadData: async () => durable ? structuredClone(durable) : null,
+    saveData: async (data: Record<string, unknown>) => {
+      if (failNext) {
+        failNext = false;
+        throw new Error("storage unavailable");
+      }
+      durable = structuredClone(data);
+    },
+  };
+  const controller = new SessionController(
+    new PluginDataRepository(plugin as never),
+    new SessionStore({ now: () => 1, uuid: () => "session-1" }),
+  );
+  await controller.init();
+  await controller.recordEditOutcome("edit:session-1:t-1", {
+    file: "note.md", original: "before", replacement: "after",
+  }, "Explanation", "note.md", "session-1");
+
+  failNext = true;
+  await assert.rejects(controller.updateProposalState("edit:session-1:t-1", "applied"),
+    /Unable to persist/);
+  assert.equal(controller.getProposal("edit:session-1:t-1")?.state, "pending");
+  const restoredBeforeRetry = new SessionStore();
+  await restoredBeforeRetry.load(durable);
+  assert.equal(restoredBeforeRetry.getCurrentSession()?.messages.find((m) => m.proposalId)?.proposalState, "pending");
+  await controller.updateProposalState("edit:session-1:t-1", "applied");
+  assert.equal(controller.getProposal("edit:session-1:t-1")?.state, "applied");
+});

@@ -26,6 +26,8 @@ function makeRig() {
   let pluginData: Record<string, unknown> | null = null;
   let failProgressWrites = 0;
   let failProposalWrites = 0;
+  let failAppliedStatusWrites = 0;
+  let editorMutationCount = 0;
   const files = new Map<string, { file: TFile; content: string }>();
   const folders = new Set<string>();
   const addNote = (path: string, content: string) => {
@@ -43,6 +45,7 @@ function makeRig() {
     getValue: () => editorBuffer,
     offsetToPos: (offset: number) => offset,
     replaceRange: (replacement: string, start: number, end: number) => {
+      editorMutationCount++;
       undoBuffer = editorBuffer;
       editorBuffer = editorBuffer.slice(0, start) + replacement + editorBuffer.slice(end);
     },
@@ -89,6 +92,13 @@ function makeRig() {
         failProposalWrites--;
         throw new Error("simulated proposal storage failure");
       }
+      const hasApplied = Object.values(sessions?.sessions ?? {}).some((session) =>
+        session.messages?.some((message) =>
+          (message as { proposalState?: string }).proposalState === "applied"));
+      if (hasApplied && failAppliedStatusWrites > 0) {
+        failAppliedStatusWrites--;
+        throw new Error("simulated applied-status persistence failure");
+      }
       pluginData = structuredClone(data);
     },
   };
@@ -126,6 +136,8 @@ function makeRig() {
     queue: (events: AgentStreamEvent[]) => pending.push(events),
     progressWriteFails: (count: number) => { failProgressWrites = count; },
     proposalWriteFails: (count: number) => { failProposalWrites = count; },
+    appliedStatusWriteFails: (count: number) => { failAppliedStatusWrites = count; },
+    editorMutationCount: () => editorMutationCount,
     focusNox: () => { isNoteFocused = false; },
     setSelection: (text: string) => { selection = text; },
     getEditedNote: () => editorBuffer,
@@ -513,4 +525,79 @@ test("non-edit actions reject streamed edit proposals", async () => {
   assert.equal(events.some((event) => event.type === "failed"), true);
   assert.equal(events.some((event) => event.type === "mutation-proposed"), false);
   assert.equal(sessions.getSession().messages.filter((m) => m.proposal).length, 0);
+});
+
+
+test("successful editor Apply with failed status write never suggests editing again", async () => {
+  const rig = makeRig();
+  const { learning, sessions } = await rig.createLearning();
+  rig.queue([streamedEdit(), { type: "completed" }]);
+  const events = await collectEvents(learning.run(editRequest));
+  const event = events.find((item) => item.type === "mutation-proposed");
+  assert.ok(event && event.type === "mutation-proposed");
+
+  rig.appliedStatusWriteFails(1);
+  const first = await learning.applyProposal(event.edit.id);
+  assert.deepEqual(first, {
+    ok: true,
+    statusSync: "failed",
+    message: "Edit was applied to the note, but its status was not saved. Retry status sync; do not apply the edit again.",
+  });
+  assert.equal(rig.editorMutationCount(), 1);
+  assert.ok(rig.getEditedNote().includes("atomic execution"));
+  assert.equal(sessions.getProposal(event.edit.id)?.state, "pending");
+
+  const accidentallyRepeated = await learning.applyProposal(event.edit.id);
+  assert.equal(accidentallyRepeated.ok, false);
+  assert.equal(rig.editorMutationCount(), 1);
+
+  const saved = await learning.retryAppliedStatus(event.edit.id);
+  assert.deepEqual(saved, { ok: true });
+  assert.equal(sessions.getProposal(event.edit.id)?.state, "applied");
+  assert.equal(rig.editorMutationCount(), 1);
+
+  learning.dispose();
+  const restored = await rig.createLearning();
+  assert.equal(restored.sessions.getProposal(event.edit.id)?.state, "applied");
+  assert.equal(rig.editorMutationCount(), 1);
+});
+
+test("retrying failed status sync does not run editor mutation a second time", async () => {
+  const rig = makeRig();
+  const { learning, sessions } = await rig.createLearning();
+  rig.queue([streamedEdit(), { type: "completed" }]);
+  const events = await collectEvents(learning.run(editRequest));
+  const event = events.find((item) => item.type === "mutation-proposed");
+  assert.ok(event && event.type === "mutation-proposed");
+
+  rig.appliedStatusWriteFails(2);
+  await learning.applyProposal(event.edit.id);
+  const retryFailed = await learning.retryAppliedStatus(event.edit.id);
+  assert.equal(retryFailed.ok, true);
+  if (retryFailed.ok) assert.equal(retryFailed.statusSync, "failed");
+  assert.equal(rig.editorMutationCount(), 1);
+  assert.equal(sessions.getProposal(event.edit.id)?.state, "pending");
+
+  const retried = await learning.retryAppliedStatus(event.edit.id);
+  assert.equal(retried.ok, true);
+  assert.equal(rig.editorMutationCount(), 1);
+  assert.equal(sessions.getProposal(event.edit.id)?.state, "applied");
+});
+
+test("restart after unsaved Apply status never silently reactivates proposal", async () => {
+  const rig = makeRig();
+  const { learning } = await rig.createLearning();
+  rig.queue([streamedEdit(), { type: "completed" }]);
+  const events = await collectEvents(learning.run(editRequest));
+  const event = events.find((item) => item.type === "mutation-proposed");
+  assert.ok(event && event.type === "mutation-proposed");
+
+  rig.appliedStatusWriteFails(1);
+  await learning.applyProposal(event.edit.id);
+  learning.dispose();
+  const restored = await rig.createLearning();
+  assert.equal(restored.sessions.getProposal(event.edit.id)?.state, "stale");
+  const result = await restored.learning.applyProposal(event.edit.id);
+  assert.equal(result.ok, false);
+  assert.equal(rig.editorMutationCount(), 1);
 });
