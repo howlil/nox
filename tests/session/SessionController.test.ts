@@ -370,3 +370,49 @@ test("overlapping outcomes in the same session preserve both committed transcrip
   assert.deepEqual(parts?.map((part) => part.type), ["practice-evaluation", "review-findings"]);
   assert.equal(controller.getSession().messages.length, 2);
 });
+
+test("an ordinary message arriving during an outcome write survives restart", async () => {
+  let durable: Record<string, unknown> | null = null;
+  let block = true;
+  let entered!: () => void;
+  let release!: () => void;
+  const started = new Promise<void>((resolve) => { entered = resolve; });
+  const gate = new Promise<void>((resolve) => { release = resolve; });
+  const plugin = {
+    loadData: async () => durable === null ? null : structuredClone(durable),
+    saveData: async (next: Record<string, unknown>) => {
+      if (block) {
+        block = false;
+        entered();
+        await gate;
+      }
+      durable = structuredClone(next);
+    },
+  };
+  const controller = new SessionController(
+    new PluginDataRepository(plugin as never),
+    new SessionStore({ now: () => 1, uuid: () => "session-1" }),
+  );
+  await controller.init();
+  const evaluation = {
+    type: "practice-evaluation" as const,
+    operationId: "practice:session-1:q-1", questionId: "q-1",
+    evaluation: { kind: "evaluation" as const, concept: "Isolation",
+      outcome: "correct" as const, feedback: "Good", misconceptions: [] },
+  };
+  const first = controller.recordPracticeOutcome(
+    [evaluation], evaluation.operationId, "note.md", "session-1",
+  );
+  await started;
+  const second = controller.recordUserMessage("Queued user message", "session-1", "ask");
+  release();
+  await Promise.all([first, second]);
+
+  const restored = new SessionStore();
+  await restored.load(durable);
+  const messages = restored.getSession("session-1")?.messages;
+  assert.deepEqual(messages?.map((message) => message.role), ["assistant", "user"]);
+  assert.equal(messages?.[0]?.parts?.[0]?.type, "practice-evaluation");
+  assert.equal(messages?.[1]?.content, "Queued user message");
+  assert.deepEqual(controller.getSession().messages, messages);
+});
