@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { NoxMenuState } from "../../src/ui/menu";
+import { NoxMenuState } from "../../src/chat/menu";
 
 function createRow(id: string) {
   const classes = new Set<string>();

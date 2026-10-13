@@ -337,8 +337,7 @@ src/
 ├── session/{SessionController,SessionStore,transcript-types,transcript-schema}.ts
 ├── persistence/{PluginDataRepository,VaultLearningStore,PersistenceError,learning-state-schema}.ts
 ├── mutation/MutationService.ts
-├── chat/                         # Obsidian view, chat mechanics and cards
-├── ui/                           # reused interaction primitives
+├── chat/                         # Obsidian view, cards, composer and UI primitives
 ├── settings/
 ├── types.ts                      # legacy shared transport/session contracts
 └── main.ts                       # wiring only
@@ -348,6 +347,13 @@ src/
 `tests/integration/`. Do not create generic `utils/services/managers` buckets.
 New behavior goes into its authoritative owner first, even when it is only
 one file. Do not move `ChatView` or create new layers based on file length alone.
+
+Presentation consolidation checkpoint — 2026-10-13: `src/ui/` had five
+chat-only components and no external feature consumers. All five now live
+beside `ChatView` in `src/chat/`; the matching menu/popover tests live under
+`tests/chat/`. No runtime, domain, persistence, or editor ownership moved.
+Do not recreate a top-level `ui/` just to group files by technical type.
+
 
 The rules are executable in `scripts/boundaries.mjs`, exercised by
 `tests/architecture/boundaries.test.ts`, and enforced via
@@ -1626,7 +1632,7 @@ rewritten without a concrete task:
 - replacement planning / mutation validation;
 - `PracticeStateMachine` transition logic;
 - `main.ts` composition root;
-- recently extracted generic UI primitives.
+- chat-owned UI primitives (previously under `src/ui/`).
 
 Large size alone does not change this rule.
 

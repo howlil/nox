@@ -1,6 +1,6 @@
 import type { PracticeQuestion, PracticeEvaluation } from "../domain/practice/types";
 import type { ReviewFinding } from "../domain/review/types";
-import { createNoxButton, createNoxSurface } from "../ui/primitives";
+import { createNoxButton, createNoxSurface } from "./primitives";
 
 /** Feature rendering only: learning and navigation effects belong to ChatView. */
 export function renderPracticeQuestionCard(parent: HTMLElement, question: PracticeQuestion): void {

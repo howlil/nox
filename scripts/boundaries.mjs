@@ -7,14 +7,13 @@ import path from "node:path";
 const ALLOWED_OWNERS = {
   application: ["application", "domain", "agent", "context", "session", "types", "persistence"],
   agent: ["agent", "domain", "types"],
-  chat: ["chat", "ui", "application", "domain", "context", "types"],
+  chat: ["chat", "application", "domain", "context", "types"],
   context: ["context", "types"],
   domain: ["domain"],
   mutation: ["mutation", "domain", "types"],
   persistence: ["persistence", "domain", "types"],
   session: ["session", "persistence", "domain", "types"],
   settings: ["settings"],
-  ui: ["ui"],
 };
 const ROOT_FILES = new Set(["src/main.ts", "src/types.ts"]);
 const IMPORTS = /\b(?:from\s*|import\s*\(\s*|require\s*\(\s*|import\s*)(["'])([^"']+)\1/g;
