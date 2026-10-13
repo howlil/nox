@@ -354,7 +354,7 @@ export class RunLearningTurn {
     const reviewBuffer: { observed: boolean; findings: ReviewFinding[] } = {
       observed: false, findings: [],
     };
-    const practiceBuffer: { evaluation?: PracticeEvaluation } = {};
+    const practiceBuffer: { evaluation?: PracticeEvaluation; question?: PracticeQuestion } = {};
 
     // Both parser.push() and parser.finish() use the same effect path.
     // Otherwise proposal/text persistence can drift across chunk boundaries.
@@ -437,8 +437,6 @@ export class RunLearningTurn {
             parser.push(event.content),
             request,
             snapshot,
-            turnSessionId,
-            practice,
             reviewBuffer,
             practiceBuffer,
             practiceAttempt,
@@ -460,14 +458,26 @@ export class RunLearningTurn {
             parser.finish(),
             request,
             snapshot,
-            turnSessionId,
-            practice,
             reviewBuffer,
             practiceBuffer,
             practiceAttempt,
           )) {
             await persistMappedEvent(mapped);
             yield mapped;
+          }
+
+          // A parsed question is only a candidate until the agent completes.
+          // Never leave a durable or visible unanswered question after failure.
+          if (practiceBuffer.question) {
+            const questionId = crypto.randomUUID();
+            await this.sessions.recordStructuredPart(
+              { type: "practice-question", question: practiceBuffer.question,
+                questionId, origin: practice.snapshot()?.origin },
+              snapshot.mutableFile,
+              turnSessionId,
+            );
+            practice.acceptQuestion(practiceBuffer.question, questionId);
+            yield { type: "practice-question", question: practiceBuffer.question };
           }
 
           if (practiceAttempt && practiceBuffer.evaluation) {
@@ -696,10 +706,8 @@ export class RunLearningTurn {
     events: StructuredStreamEvent[],
     request: LearningRequest,
     context: TurnContextSnapshot,
-    sessionId: string,
-    practice: PracticeStateMachine,
     reviewBuffer: { observed: boolean; findings: ReviewFinding[] },
-    practiceBuffer: { evaluation?: PracticeEvaluation },
+    practiceBuffer: { evaluation?: PracticeEvaluation; question?: PracticeQuestion },
     practiceAttempt?: PracticeEvaluationAttempt,
   ): AsyncIterable<LearningEvent> {
     for (const event of events) {
@@ -740,19 +748,11 @@ export class RunLearningTurn {
         if (practiceAttempt) {
           throw new Error("Agent returned a new practice question before finishing evaluation.");
         }
-        const questionId = crypto.randomUUID();
-        await this.sessions.recordStructuredPart(
-          { type: "practice-question", question: event.question,
-            questionId, origin: practice.snapshot()?.origin },
-          context.mutableFile,
-          sessionId,
-        );
-        practice.acceptQuestion(event.question, questionId);
-
-        yield {
-          type: "practice-question",
-          question: event.question,
-        };
+        if (practiceBuffer.question) {
+          throw new Error("Agent returned multiple questions for one Practice turn.");
+        }
+        // Parser output is not durable or actionable before terminal success.
+        practiceBuffer.question = event.question;
         continue;
       }
 

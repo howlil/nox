@@ -446,6 +446,11 @@ question
 The plugin owns practice lifecycle state. The model supplies question and
 evaluation content, not lifecycle authority.
 
+Both new Practice questions and evaluations are **candidates until a terminal
+agent `completed` event**. A failed, cancelled, timed-out, malformed, or
+duplicate-question stream must not create a durable/answerable question. Commit
+the question to the transcript before exposing it as active.
+
 ## Context
 
 - Selection has priority over the current note for automatic turn context.
