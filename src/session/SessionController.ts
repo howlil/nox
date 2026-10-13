@@ -15,9 +15,9 @@ import {
  */
 export class SessionController {
   private currentSession: ChatSession | null = null;
-  // Serializes outcome staging + durable write + publication as one operation.
-  // PluginDataRepository serializes disk I/O only, not session snapshot staging.
-  private outcomeTail: Promise<void> = Promise.resolve();
+  // All session mutations—including snapshot staging and disk writes—have
+  // one legal ordering. PluginDataRepository only serializes the I/O itself.
+  private writeTail: Promise<void> = Promise.resolve();
 
   constructor(
     private readonly pluginData: PluginDataRepository,
@@ -40,11 +40,13 @@ export class SessionController {
   }
 
   async newSession(): Promise<ChatSession> {
-    this.stalePendingProposals(this.currentSession);
-    const model = this.currentSession?.model ?? this.store.getDefaultModel();
-    this.currentSession = this.store.createSession(model);
-    await this.save();
-    return this.getSession();
+    return this.serializeWrite(async () => {
+      this.stalePendingProposals(this.currentSession);
+      const model = this.currentSession?.model ?? this.store.getDefaultModel();
+      this.currentSession = this.store.createSession(model);
+      await this.save();
+      return this.getSession();
+    });
   }
 
   listSessions(): ChatSession[] {
@@ -52,26 +54,30 @@ export class SessionController {
   }
 
   async selectSession(id: string): Promise<ChatSession | null> {
-    const session = this.store.getSession(id);
-    if (!session) return null;
+    return this.serializeWrite(async () => {
+      const session = this.store.getSession(id);
+      if (!session) return null;
 
-    this.stalePendingProposals(this.currentSession);
-    this.currentSession = session;
-    this.store.setCurrentSession(id);
-    await this.save();
-    return this.getSession();
+      this.stalePendingProposals(this.currentSession);
+      this.currentSession = session;
+      this.store.setCurrentSession(id);
+      await this.save();
+      return this.getSession();
+    });
   }
 
   async setModel(modelId?: string): Promise<void> {
-    const normalized = modelId || undefined;
-    this.store.setDefaultModel(normalized);
+    return this.serializeWrite(async () => {
+      const normalized = modelId || undefined;
+      this.store.setDefaultModel(normalized);
 
-    if (this.currentSession) {
-      this.currentSession.model = normalized;
-      this.commitSession(this.currentSession);
-    }
+      if (this.currentSession) {
+        this.currentSession.model = normalized;
+        this.commitSession(this.currentSession);
+      }
 
-    await this.save();
+      await this.save();
+    });
   }
 
   /** The only path for applying session mutations to the store. */
@@ -93,21 +99,25 @@ export class SessionController {
     sessionId?: string,
     action?: "ask" | "explain" | "practice" | "review" | "edit",
   ): Promise<void> {
-    const session = this.sessionForWrite(sessionId);
-    session.messages.push({
-      role: "user",
-      content,
-      action,
+    return this.serializeWrite(async () => {
+      const session = this.sessionForWrite(sessionId);
+      session.messages.push({
+        role: "user",
+        content,
+        action,
+      });
+      this.commitSession(session);
+      await this.save();
     });
-    this.commitSession(session);
-    await this.save();
   }
 
   async setConversationId(conversationId?: string, sessionId?: string): Promise<void> {
-    const session = this.sessionForWrite(sessionId);
-    session.conversationId = conversationId;
-    this.commitSession(session);
-    await this.save();
+    return this.serializeWrite(async () => {
+      const session = this.sessionForWrite(sessionId);
+      session.conversationId = conversationId;
+      this.commitSession(session);
+      await this.save();
+    });
   }
 
   async recordAssistantMessage(
@@ -115,15 +125,17 @@ export class SessionController {
     sourcePath?: string,
     sessionId?: string,
   ): Promise<void> {
-    if (!content.trim()) return;
-    const session = this.sessionForWrite(sessionId);
-    session.messages.push({
-      role: "assistant",
-      content,
-      sourcePath,
+    return this.serializeWrite(async () => {
+      if (!content.trim()) return;
+      const session = this.sessionForWrite(sessionId);
+      session.messages.push({
+        role: "assistant",
+        content,
+        sourcePath,
+      });
+      this.commitSession(session);
+      await this.save();
     });
-    this.commitSession(session);
-    await this.save();
   }
 
   async recordStructuredPart(
@@ -131,17 +143,19 @@ export class SessionController {
     sourcePath?: string,
     sessionId?: string,
   ): Promise<void> {
-    const session = this.sessionForWrite(sessionId);
-    if (part.type !== "review-findings" && part.questionId &&
-      session.messages.some((message) => message.parts?.some((existing) =>
-        existing.type === part.type && existing.questionId === part.questionId))) {
-      // A previous write may have failed after staging this item in memory.
+    return this.serializeWrite(async () => {
+      const session = this.sessionForWrite(sessionId);
+      if (part.type !== "review-findings" && part.questionId &&
+        session.messages.some((message) => message.parts?.some((existing) =>
+          existing.type === part.type && existing.questionId === part.questionId))) {
+        // A previous write may have failed after staging this item in memory.
+        await this.save();
+        return;
+      }
+      session.messages.push({ role: "assistant", content: "", parts: [part], sourcePath });
+      this.commitSession(session);
       await this.save();
-      return;
-    }
-    session.messages.push({ role: "assistant", content: "", parts: [part], sourcePath });
-    this.commitSession(session);
-    await this.save();
+    });
   }
 
   /**
@@ -154,22 +168,22 @@ export class SessionController {
     sourcePath: string,
     sessionId: string,
   ): Promise<TranscriptPart[]> {
-    return this.serializeOutcomeWrite(async () => {
-    const session = this.sessionForWrite(sessionId);
-    const evaluation = parts.find((part) => part.type === "practice-evaluation");
-    if (!evaluation || evaluation.type !== "practice-evaluation" ||
-      evaluation.operationId !== operationId || !evaluation.questionId) {
-      throw new Error("Invalid practice outcome");
-    }
+    return this.serializeWrite(async () => {
+      const session = this.sessionForWrite(sessionId);
+      const evaluation = parts.find((part) => part.type === "practice-evaluation");
+      if (!evaluation || evaluation.type !== "practice-evaluation" ||
+        evaluation.operationId !== operationId || !evaluation.questionId) {
+        throw new Error("Invalid practice outcome");
+      }
 
-    const existing = findCommittedPracticeOutcome(session, evaluation.questionId);
-    if (existing) {
-      const message = session.messages.find((item) => item.parts?.includes(existing));
-      return structuredClone(message?.parts ?? [existing]);
-    }
+      const existing = findCommittedPracticeOutcome(session, evaluation.questionId);
+      if (existing) {
+        const message = session.messages.find((item) => item.parts?.includes(existing));
+        return structuredClone(message?.parts ?? [existing]);
+      }
 
-    await this.persistOutcome(session, parts, sourcePath);
-    return structuredClone(parts);
+      await this.persistOutcome(session, parts, sourcePath);
+      return structuredClone(parts);
     });
   }
 
@@ -178,20 +192,22 @@ export class SessionController {
     sourcePath: string,
     sessionId: string,
   ): Promise<Extract<TranscriptPart, { type: "review-findings" }>> {
-    return this.serializeOutcomeWrite(async () => {
-    if (!part.reviewId) throw new Error("Review outcome requires stable reviewId");
-    const session = this.sessionForWrite(sessionId);
-    const existing = findCommittedReview(session, part.reviewId);
-    if (existing) return structuredClone(existing);
-    await this.persistOutcome(session, [part], sourcePath);
-    return structuredClone(part);
+    return this.serializeWrite(async () => {
+      if (!part.reviewId) throw new Error("Review outcome requires stable reviewId");
+      const session = this.sessionForWrite(sessionId);
+      const existing = findCommittedReview(session, part.reviewId);
+      if (existing) return structuredClone(existing);
+      await this.persistOutcome(session, [part], sourcePath);
+      return structuredClone(part);
     });
   }
 
-  /** Recheck idempotency against the latest session after earlier writes finish. */
-  private serializeOutcomeWrite<T>(operation: () => Promise<T>): Promise<T> {
-    const result = this.outcomeTail.then(operation);
-    this.outcomeTail = result.then(() => undefined, () => undefined);
+  /** Keep in-memory session transitions and durable snapshots in the same order.
+   * Idempotency checks run only after the previous session write has finished.
+   */
+  private serializeWrite<T>(operation: () => Promise<T>): Promise<T> {
+    const result = this.writeTail.then(operation);
+    this.writeTail = result.then(() => undefined, () => undefined);
     return result;
   }
 
@@ -230,17 +246,19 @@ export class SessionController {
     mutableFile?: string,
     sessionId?: string,
   ): Promise<void> {
-    const session = this.sessionForWrite(sessionId);
-    session.messages.push({
-      role: "assistant",
-      content: "",
-      proposalId,
-      proposal,
-      proposalMutableFile: mutableFile,
-      proposalState: "pending",
+    return this.serializeWrite(async () => {
+      const session = this.sessionForWrite(sessionId);
+      session.messages.push({
+        role: "assistant",
+        content: "",
+        proposalId,
+        proposal,
+        proposalMutableFile: mutableFile,
+        proposalState: "pending",
+      });
+      this.commitSession(session);
+      await this.save();
     });
-    this.commitSession(session);
-    await this.save();
   }
 
   getProposal(proposalId: string): {
@@ -265,13 +283,15 @@ export class SessionController {
     proposalId: string,
     state: "applied" | "rejected" | "stale",
   ): Promise<void> {
-    const session = this.sessionForWrite();
-    const message = session.messages.find((item) => item.proposalId === proposalId);
-    if (!message || message.proposalState !== "pending") return;
+    return this.serializeWrite(async () => {
+      const session = this.sessionForWrite();
+      const message = session.messages.find((item) => item.proposalId === proposalId);
+      if (!message || message.proposalState !== "pending") return;
 
-    message.proposalState = state;
-    this.commitSession(session);
-    await this.save();
+      message.proposalState = state;
+      this.commitSession(session);
+      await this.save();
+    });
   }
 
   private stalePendingProposals(session: ChatSession | null): void {
