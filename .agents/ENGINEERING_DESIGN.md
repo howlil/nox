@@ -19,7 +19,10 @@ share a serialized repository; runtime and conversation lifecycles are separate;
 proposal state is session-owned; practice is session-scoped with transcript-based
 unanswered-question restoration. Completed Practice and Review outcomes are
 canonical transcript decisions and replay missing progress with stable evidence
-IDs; incomplete Review streams cannot commit material evidence. Session restores
+IDs; incomplete Review streams cannot commit material evidence.
+New Practice questions likewise wait for terminal agent completion, with
+failure/cancellation/duplicate-question recovery tests proving no phantom
+question is persisted or made answerable. Session restores
 sanitize nested proposals and structured parts; session reads return defensive
 copies. Presentation restores pinned practice origin across startup/session
 navigation, and Practice/Review card DOM renderers are feature-owned. The
