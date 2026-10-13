@@ -259,3 +259,160 @@ test("practice outcome is atomic in plugin data and is not staged on write failu
   await controller.recordPracticeOutcome(parts, "practice:s-1:q-1", "note.md", "s-1");
   assert.equal(controller.getSession().messages.length, 1);
 });
+
+test("overlapping outcomes in different sessions never overwrite one another", async () => {
+  let durable: Record<string, unknown> | null = null;
+  let blockNextSave = false;
+  let beginBlockedSave!: () => void;
+  let releaseBlockedSave!: () => void;
+  const saveBegan = new Promise<void>((resolve) => { beginBlockedSave = resolve; });
+  const permitSave = new Promise<void>((resolve) => { releaseBlockedSave = resolve; });
+
+  const plugin = {
+    loadData: async () => durable === null ? null : structuredClone(durable),
+    saveData: async (next: Record<string, unknown>) => {
+      if (blockNextSave) {
+        blockNextSave = false;
+        beginBlockedSave();
+        await permitSave;
+      }
+      durable = structuredClone(next);
+    },
+  };
+  let nextId = 0;
+  const controller = new SessionController(
+    new PluginDataRepository(plugin as never),
+    new SessionStore({ now: () => 10, uuid: () => `session-${++nextId}` }),
+  );
+  await controller.init();
+  const firstId = controller.getSession().id;
+  const secondId = (await controller.newSession()).id;
+
+  const practicePart = {
+    type: "practice-evaluation" as const,
+    operationId: `practice:${firstId}:q-1`,
+    questionId: "q-1",
+    evaluation: { kind: "evaluation" as const, concept: "ACID",
+      outcome: "correct" as const, feedback: "Good", misconceptions: [] },
+  };
+  const reviewPart = {
+    type: "review-findings" as const,
+    reviewId: `review:${secondId}:turn-1`,
+    findings: [{ kind: "missing-relation" as const,
+      concept: "Isolation", title: "Isolation", detail: "Describe concurrency" }],
+  };
+
+  blockNextSave = true;
+  const first = controller.recordPracticeOutcome(
+    [practicePart], practicePart.operationId, "first.md", firstId,
+  );
+  await saveBegan;
+  const second = controller.recordReviewOutcome(reviewPart, "second.md", secondId);
+  releaseBlockedSave();
+  await Promise.all([first, second]);
+
+  const restored = new SessionStore();
+  await restored.load(durable);
+  assert.equal(restored.getSession(firstId)?.messages[0]?.parts?.[0]?.type, "practice-evaluation");
+  assert.equal(restored.getSession(secondId)?.messages[0]?.parts?.[0]?.type, "review-findings");
+  assert.equal(controller.listSessions().length, 2);
+});
+
+test("overlapping outcomes in the same session preserve both committed transcript parts", async () => {
+  let durable: Record<string, unknown> | null = null;
+  let blockNextSave = false;
+  let signalSave!: () => void;
+  let releaseSave!: () => void;
+  const entered = new Promise<void>((resolve) => { signalSave = resolve; });
+  const gate = new Promise<void>((resolve) => { releaseSave = resolve; });
+  const plugin = {
+    loadData: async () => durable === null ? null : structuredClone(durable),
+    saveData: async (next: Record<string, unknown>) => {
+      if (blockNextSave) {
+        blockNextSave = false;
+        signalSave();
+        await gate;
+      }
+      durable = structuredClone(next);
+    },
+  };
+  const controller = new SessionController(
+    new PluginDataRepository(plugin as never),
+    new SessionStore({ now: () => 1, uuid: () => "session-1" }),
+  );
+  await controller.init();
+  const sessionId = controller.getSession().id;
+  const practicePart = {
+    type: "practice-evaluation" as const,
+    operationId: "practice:session-1:q-1", questionId: "q-1",
+    evaluation: { kind: "evaluation" as const, concept: "Atomicity",
+      outcome: "correct" as const, feedback: "Good", misconceptions: [] },
+  };
+  const reviewPart = {
+    type: "review-findings" as const,
+    reviewId: "review:session-1:turn-1",
+    findings: [{ kind: "weak-explanation" as const,
+      concept: "Atomicity", title: "Missing context", detail: "Add explanation" }],
+  };
+
+  blockNextSave = true;
+  const practice = controller.recordPracticeOutcome(
+    [practicePart], practicePart.operationId, "note.md", sessionId,
+  );
+  await entered;
+  const review = controller.recordReviewOutcome(reviewPart, "note.md", sessionId);
+  releaseSave();
+  await Promise.all([practice, review]);
+
+  const reloaded = new SessionStore();
+  await reloaded.load(durable);
+  const parts = reloaded.getSession(sessionId)?.messages.flatMap((message) => message.parts ?? []);
+  assert.deepEqual(parts?.map((part) => part.type), ["practice-evaluation", "review-findings"]);
+  assert.equal(controller.getSession().messages.length, 2);
+});
+
+test("an ordinary message arriving during an outcome write survives restart", async () => {
+  let durable: Record<string, unknown> | null = null;
+  let block = true;
+  let entered!: () => void;
+  let release!: () => void;
+  const started = new Promise<void>((resolve) => { entered = resolve; });
+  const gate = new Promise<void>((resolve) => { release = resolve; });
+  const plugin = {
+    loadData: async () => durable === null ? null : structuredClone(durable),
+    saveData: async (next: Record<string, unknown>) => {
+      if (block) {
+        block = false;
+        entered();
+        await gate;
+      }
+      durable = structuredClone(next);
+    },
+  };
+  const controller = new SessionController(
+    new PluginDataRepository(plugin as never),
+    new SessionStore({ now: () => 1, uuid: () => "session-1" }),
+  );
+  await controller.init();
+  const evaluation = {
+    type: "practice-evaluation" as const,
+    operationId: "practice:session-1:q-1", questionId: "q-1",
+    evaluation: { kind: "evaluation" as const, concept: "Isolation",
+      outcome: "correct" as const, feedback: "Good", misconceptions: [] },
+  };
+  const first = controller.recordPracticeOutcome(
+    [evaluation], evaluation.operationId, "note.md", "session-1",
+  );
+  await started;
+  const second = controller.recordUserMessage("Queued user message", "session-1", "ask");
+  release();
+  await Promise.all([first, second]);
+
+  const restored = new SessionStore();
+  await restored.load(durable);
+  const messages = restored.getSession("session-1")?.messages;
+  assert.deepEqual(messages?.map((message) => message.role), ["assistant", "user"]);
+  assert.equal(messages?.[0]?.parts?.[0]?.type, "practice-evaluation");
+  assert.equal(messages?.[1]?.content, "Queued user message");
+  assert.deepEqual(controller.getSession().messages, messages);
+});

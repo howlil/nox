@@ -25,6 +25,15 @@ copies. Presentation restores pinned practice origin across startup/session
 navigation, and Practice/Review card DOM renderers are feature-owned. The
 streaming text path does not unconditionally force scroll.
 
+**Session/persistence/mutation audit (2026-10-13):** These are separate
+failure and ownership boundaries, not gratuitous technical layers. Concurrent
+session writes previously staged stale snapshots despite serialized plugin-data
+I/O. `SessionController` now serializes complete session mutations (including
+Practice/Review outcomes and ordinary messages); regression tests reproduce
+both same-session and cross-session lost updates. Keep vault progress and editor
+mutations in their existing owners. Do not collapse all three into an Obsidian
+folder to meet a folder-count target.
+
 **Current remaining boundary:** `RunLearningTurn` owns orchestration,
 timeouts, structured event effects and reconciliation behind the stable
 `LearningController` facade. This is intentional; only extract a narrower

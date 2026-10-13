@@ -202,6 +202,11 @@ Ownership test for **every new module**:
 - Session history and serialization → `session/`.
 - Raw plugin/vault storage → `persistence/`.
 - Native note edits → `mutation/`.
+- Do not merge `session/`, `persistence/`, and `mutation/` only to reduce
+  folder count: they own transcript state, durable I/O, and editor Undo
+  respectively. Every session mutation must be serialized together with its
+  durable snapshot by `SessionController`; the plugin-data writer alone does
+  not serialize snapshot staging.
 - Chat rendering, interactions, composer, and Nox-specific UI primitives → `chat/`.
   Avoid a separate `ui/` layer until a second feature genuinely owns/reuses it.
 - Settings only → `settings/`; wiring only → `main.ts`.
