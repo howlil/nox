@@ -2146,7 +2146,7 @@ export class ChatView extends ItemView {
     message?: string,
   ): void {
     const recovery = wrap.createDiv({ cls: "nox-proposal-status-recovery" });
-    const status = createNoxStatus(recovery, {
+    let status = createNoxStatus(recovery, {
       cls: "nox-proposal-retry-status",
       kind: "warning",
       text: message ?? "Edit applied, but status could not be saved.",
@@ -2172,14 +2172,14 @@ export class ChatView extends ItemView {
           return;
         }
         status.remove();
-        createNoxStatus(recovery, {
+        status = createNoxStatus(recovery, {
           cls: "nox-proposal-retry-status",
           kind: "warning",
           text: result.message ?? "Status was not saved. Do not apply the edit again.",
         });
       } catch {
         status.remove();
-        createNoxStatus(recovery, {
+        status = createNoxStatus(recovery, {
           cls: "nox-proposal-retry-status",
           kind: "warning",
           text: "Status sync failed. The note was already edited; do not apply again.",

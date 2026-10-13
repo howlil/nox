@@ -446,7 +446,8 @@ test("failed proposal-state persistence leaves in-memory state unchanged until r
   assert.equal(controller.getProposal("edit:session-1:t-1")?.state, "pending");
   const restoredBeforeRetry = new SessionStore();
   await restoredBeforeRetry.load(durable);
-  assert.equal(restoredBeforeRetry.getCurrentSession()?.messages.find((m) => m.proposalId)?.proposalState, "pending");
+  // SessionStore intentionally marks pending approvals stale on restart.
+  assert.equal(restoredBeforeRetry.getCurrentSession()?.messages.find((m) => m.proposalId)?.proposalState, "stale");
   await controller.updateProposalState("edit:session-1:t-1", "applied");
   assert.equal(controller.getProposal("edit:session-1:t-1")?.state, "applied");
 });
