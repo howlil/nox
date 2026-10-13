@@ -136,6 +136,27 @@ function createHarness(
         state: "pending",
       });
     },
+    recordEditOutcome: async (
+      id: string,
+      proposal: EditProposal,
+      narrative: string,
+      mutableFile: string,
+    ) => {
+      const existing = proposalRecords.get(id);
+      if (existing) {
+        return { proposal: existing.proposal, state: existing.state };
+      }
+      if (narrative.trim()) {
+        session.messages.push({ role: "assistant", content: narrative, sourcePath: mutableFile });
+      }
+      const record = { proposal, mutableFile, state: "pending" as const };
+      proposalRecords.set(id, record);
+      session.messages.push({
+        role: "assistant", content: "", proposalId: id, proposal,
+        proposalMutableFile: mutableFile, proposalState: "pending",
+      });
+      return { proposal, state: "pending" as const };
+    },
     getProposal: (id: string) => {
       const record = proposalRecords.get(id);
       return record

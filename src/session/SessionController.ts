@@ -261,6 +261,57 @@ export class SessionController {
     });
   }
 
+  /** An entire completed edit outcome is one durable transcript decision. */
+  async recordEditOutcome(
+    proposalId: string,
+    proposal: EditProposal,
+    narrative: string,
+    mutableFile: string,
+    sessionId: string,
+  ): Promise<{ proposal: EditProposal; state: "pending" | "applied" | "rejected" | "stale" }> {
+    return this.serializeWrite(async () => {
+      if (proposal.file !== mutableFile) {
+        throw new Error("Edit target must match the authorized mutable note.");
+      }
+      const session = this.sessionForWrite(sessionId);
+      const existing = session.messages.find((message) => message.proposalId === proposalId);
+      if (existing?.proposal) {
+        return {
+          proposal: structuredClone(existing.proposal),
+          state: existing.proposalState ?? "stale",
+        };
+      }
+      const next: ChatSession = {
+        ...session,
+        messages: [
+          ...session.messages,
+          ...(narrative.trim() ? [{
+            role: "assistant" as const, content: narrative, sourcePath: mutableFile,
+          }] : []),
+          {
+            role: "assistant", content: "", proposalId,
+            proposal: structuredClone(proposal), proposalMutableFile: mutableFile,
+            proposalState: "pending",
+          },
+        ],
+      };
+      const staged = this.store.stageSessionUpdate(next);
+      try {
+        await this.pluginData.update((current) => ({
+          ...current,
+          ...staged.serialized,
+        }));
+      } catch (error) {
+        throw new PersistenceError("Unable to persist edit proposal", error);
+      }
+      this.store.acceptPersistedSession(staged.committed);
+      if (this.currentSession?.id === session.id) {
+        this.currentSession = this.store.getSession(session.id);
+      }
+      return { proposal: structuredClone(proposal), state: "pending" as const };
+    });
+  }
+
   getProposal(proposalId: string): {
     proposal: EditProposal;
     mutableFile?: string;

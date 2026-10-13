@@ -2,6 +2,7 @@ import {
   AgentContext,
   AgentFailure,
   ChatSession,
+  EditProposal,
 } from "../types";
 import {
   ExplicitContextRef,
@@ -26,7 +27,6 @@ import { toPromptLearningState } from "./learning-state-projection";
 import {
   LearningEvent,
   LearningRequest,
-  ProposedEdit,
 } from "./learning-types";
 import { PracticeQuestion, PracticeOrigin, PracticeEvaluation } from "../domain/practice/types";
 import {
@@ -139,6 +139,9 @@ export class RunLearningTurn {
     this.activeTurn = activeTurn;
 
     const sessionAtStart = this.sessions.getSession();
+    const editProposalId = request.action === "edit"
+      ? `edit:${sessionAtStart.id}:${request.turnId ?? crypto.randomUUID()}`
+      : undefined;
     const existingPractice = request.action === "practice"
       ? this.practiceForSession(sessionAtStart)
       : undefined;
@@ -355,22 +358,12 @@ export class RunLearningTurn {
       observed: false, findings: [],
     };
     const practiceBuffer: { evaluation?: PracticeEvaluation; question?: PracticeQuestion } = {};
+    const proposalBuffer: { proposal?: EditProposal } = {};
 
-    // Both parser.push() and parser.finish() use the same effect path.
-    // Otherwise proposal/text persistence can drift across chunk boundaries.
-    const persistMappedEvent = async (mapped: LearningEvent): Promise<void> => {
-      if (mapped.type === "response-delta") {
-        visibleText += mapped.text;
-      }
-      if (mapped.type === "mutation-proposed") {
-        await this.sessions.recordAssistantMessage(
-          visibleText, snapshot.mutableFile, turnSessionId,
-        );
-        visibleText = "";
-        await this.sessions.recordProposal(
-          mapped.edit.id, mapped.edit.proposal, snapshot.mutableFile, turnSessionId,
-        );
-      }
+    // Streamed text remains visible; a proposal cannot be actionable before
+    // a successful terminal event and a durable transcript commit.
+    const persistMappedEvent = (mapped: LearningEvent): void => {
+      if (mapped.type === "response-delta") visibleText += mapped.text;
     };
 
     const rollbackPractice = () => {
@@ -384,6 +377,20 @@ export class RunLearningTurn {
     try {
       if (!request.retry) {
         await this.sessions.recordUserMessage(request.prompt, turnSessionId, request.action);
+      }
+
+      // A retry replays a durable edit decision instead of invoking the model.
+      // Settled proposals must never be reopened as pending.
+      if (editProposalId) {
+        const existing = this.sessions.getProposal(editProposalId);
+        if (existing) {
+          if (existing.state === "pending") {
+            yield { type: "mutation-proposed",
+              edit: { id: editProposalId, proposal: existing.proposal } };
+          }
+          yield { type: "completed" };
+          return;
+        }
       }
 
       if (request.action === "review" && request.turnId) {
@@ -439,9 +446,10 @@ export class RunLearningTurn {
             snapshot,
             reviewBuffer,
             practiceBuffer,
+            proposalBuffer,
             practiceAttempt,
           )) {
-            await persistMappedEvent(mapped);
+            persistMappedEvent(mapped);
             yield mapped;
           }
           executionPhase = "agent";
@@ -460,10 +468,25 @@ export class RunLearningTurn {
             snapshot,
             reviewBuffer,
             practiceBuffer,
+            proposalBuffer,
             practiceAttempt,
           )) {
-            await persistMappedEvent(mapped);
+            persistMappedEvent(mapped);
             yield mapped;
+          }
+
+          // Cancel may race with a terminal event. Do not commit an aborted turn.
+          if (controller.signal.aborted) {
+            rollbackPractice();
+            if (activeTurn.cancelReason === "timeout") {
+              yield { type: "failed", failure: {
+                code: "timeout",
+                message: "Nox turn timed out before its result could be committed.",
+              } };
+            } else {
+              yield { type: "cancelled" };
+            }
+            return;
           }
 
           // A parsed question is only a candidate until the agent completes.
@@ -488,7 +511,7 @@ export class RunLearningTurn {
               practice,
               practiceAttempt,
             )) {
-              await persistMappedEvent(mapped);
+              persistMappedEvent(mapped);
               yield mapped;
             }
           }
@@ -521,6 +544,21 @@ export class RunLearningTurn {
               yield { type: "learning-state-updated", state: after };
             }
             yield { type: "review-findings", findings: committed.findings };
+          }
+          // Save the narrative and proposal atomically before UI gets Apply.
+          if (proposalBuffer.proposal) {
+            if (!editProposalId || !snapshot.mutableFile) {
+              throw new Error("Edit outcome requires an authorized source and turn ID.");
+            }
+            const committed = await this.sessions.recordEditOutcome(
+              editProposalId, proposalBuffer.proposal, visibleText,
+              snapshot.mutableFile, turnSessionId,
+            );
+            visibleText = "";
+            if (committed.state === "pending") {
+              yield { type: "mutation-proposed",
+                edit: { id: editProposalId, proposal: committed.proposal } };
+            }
           }
           await this.sessions.recordAssistantMessage(
             visibleText,
@@ -708,6 +746,7 @@ export class RunLearningTurn {
     context: TurnContextSnapshot,
     reviewBuffer: { observed: boolean; findings: ReviewFinding[] },
     practiceBuffer: { evaluation?: PracticeEvaluation; question?: PracticeQuestion },
+    proposalBuffer: { proposal?: EditProposal },
     practiceAttempt?: PracticeEvaluationAttempt,
   ): AsyncIterable<LearningEvent> {
     for (const event of events) {
@@ -722,25 +761,16 @@ export class RunLearningTurn {
       }
 
       if (event.type === "proposal") {
-        if (
-          !context.mutableFile ||
-          event.proposal.file !==
-            context.mutableFile
-        ) {
-          throw new Error(
-            `Edit target is not the active mutable note: ${event.proposal.file}`,
-          );
+        if (request.action !== "edit") {
+          throw new Error("Edit proposal is not valid for this action.");
         }
-
-        const edit: ProposedEdit = {
-          id: crypto.randomUUID(),
-          proposal: event.proposal,
-        };
-
-        yield {
-          type: "mutation-proposed",
-          edit,
-        };
+        if (!context.mutableFile || event.proposal.file !== context.mutableFile) {
+          throw new Error(`Edit target is not the active mutable note: ${event.proposal.file}`);
+        }
+        if (proposalBuffer.proposal) {
+          throw new Error("Agent returned multiple edit proposals for one turn.");
+        }
+        proposalBuffer.proposal = event.proposal;
         continue;
       }
 

@@ -16,7 +16,9 @@ export interface SessionPort {
   recordStructuredPart(part: TranscriptPart, sourcePath?: string, sessionId?: string): Promise<void>;
   recordPracticeOutcome(parts: TranscriptPart[], operationId: string, sourcePath: string, sessionId: string): Promise<TranscriptPart[]>;
   recordReviewOutcome(part: Extract<TranscriptPart, { type: "review-findings" }>, sourcePath: string, sessionId: string): Promise<Extract<TranscriptPart, { type: "review-findings" }>>;
-  recordProposal(proposalId: string, proposal: EditProposal, mutableFile?: string, sessionId?: string): Promise<void>;
+  recordEditOutcome(proposalId: string, proposal: EditProposal, narrative: string,
+    mutableFile: string, sessionId: string): Promise<{ proposal: EditProposal;
+      state: "pending" | "applied" | "rejected" | "stale" }>;
   getProposal(proposalId: string): { proposal: EditProposal; mutableFile?: string; state: "pending" | "applied" | "rejected" | "stale" } | null;
   updateProposalState(proposalId: string, state: "applied" | "rejected" | "stale"): Promise<void>;
 }
