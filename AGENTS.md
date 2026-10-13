@@ -187,8 +187,7 @@ src/
 ├── session/      # durable transcript, session, proposal persistence
 ├── persistence/  # plugin data and vault progress adapters
 ├── mutation/     # Obsidian editor mutation adapter
-├── chat/         # Nox panel/view and feature renderers
-├── ui/           # shared visual primitives
+├── chat/         # Nox panel, renderers, composer, and UI primitives
 ├── settings/     # settings model and Obsidian settings tab
 ├── types.ts      # existing shared contracts only; prefer owner-local types
 └── main.ts       # composition only
@@ -203,10 +202,11 @@ Ownership test for **every new module**:
 - Session history and serialization → `session/`.
 - Raw plugin/vault storage → `persistence/`.
 - Native note edits → `mutation/`.
-- Rendering and interaction → `chat/`; reusable UI only → `ui/`.
+- Chat rendering, interactions, composer, and Nox-specific UI primitives → `chat/`.
+  Avoid a separate `ui/` layer until a second feature genuinely owns/reuses it.
 - Settings only → `settings/`; wiring only → `main.ts`.
 
-Do **not** recreate `src/learning/`, `src/helpers/`, `src/common/`,
+Do **not** recreate `src/learning/`, `src/ui/`, `src/helpers/`, `src/common/`,
 `src/managers/`, `src/services/`, or broad `utils.ts` buckets.
 Do not create a new top-level owner without changing this contract, the
 architecture guard, and its regression tests in the **same PR**.
@@ -225,7 +225,7 @@ main.ts → all concrete implementations (composition root only)
 - `application/` consumes structural contracts in `application/ports.ts`,
   domain types/rules, normalized agent events, and narrow transcript contracts.
   It must not import concrete session, context, mutation, or vault adapters.
-- `chat/` and `ui/` never read/write persistence directly.
+- `chat/` never reads/writes persistence directly.
 - `src/types.ts` is existing shared transport/session compatibility only;
   new feature contracts live with their owner.
 - Co-locate tests in matching `tests/<owner>/`; complete workflows live under

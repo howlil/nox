@@ -47,3 +47,15 @@ test("application-owned port and normalized parser stay usable", () => {
       'import { StructuredStreamParser } from "../agent/StructuredStreamParser";' }];
   assert.deepEqual(validateArchitecture(files), []);
 });
+
+test("chat owns presentation helpers without another ui layer", () => {
+  const files = [
+    { path: "src/chat/ChatView.ts",
+      source: 'import { render } from "./primitives";' },
+    { path: "src/chat/primitives.ts", source: "export const render = () => {};" },
+  ];
+  assert.deepEqual(validateArchitecture(files), []);
+  assert.ok(validateArchitecture([
+    ...files, { path: "src/ui/another-popover.ts", source: "" },
+  ]).some((message) => message.includes("unrecognized module owner")));
+});

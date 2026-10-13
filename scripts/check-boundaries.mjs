@@ -10,8 +10,10 @@ function walk(directory) {
 }
 const files = walk("src").filter((pathname) => pathname.endsWith(".ts"))
   .map((pathname) => ({ path: pathname, source: readFileSync(pathname, "utf8") }));
-const legacy = walk("tests").filter((pathname) => pathname.includes("/learning/") &&
-  !pathname.includes("/integration/learning/"));
+const legacy = walk("tests").filter((pathname) =>
+  (pathname.startsWith("tests/ui/") ||
+    (pathname.startsWith("tests/learning/") &&
+      !pathname.startsWith("tests/integration/learning/"))));
 const issues = [...validateArchitecture(files),
   ...legacy.map((pathname) => `${pathname}: tests must live with their application/domain owner`)];
 if (issues.length > 0) {
