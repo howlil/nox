@@ -25,6 +25,7 @@ const review = (payload: object): AgentStreamEvent[] => [
 function makeRig() {
   let pluginData: Record<string, unknown> | null = null;
   let failProgressWrites = 0;
+  let failProposalWrites = 0;
   const files = new Map<string, { file: TFile; content: string }>();
   const folders = new Set<string>();
   const addNote = (path: string, content: string) => {
@@ -79,6 +80,15 @@ function makeRig() {
     registerEvent: () => {},
     loadData: async () => pluginData ? structuredClone(pluginData) : null,
     saveData: async (data: Record<string, unknown>) => {
+      const sessions = data["nox-sessions"] as {
+        sessions?: Record<string, { messages?: Array<{ proposalId?: string }> }>
+      } | undefined;
+      const hasProposal = Object.values(sessions?.sessions ?? {})
+        .some((session) => session.messages?.some((message) => message.proposalId));
+      if (hasProposal && failProposalWrites > 0) {
+        failProposalWrites--;
+        throw new Error("simulated proposal storage failure");
+      }
       pluginData = structuredClone(data);
     },
   };
@@ -115,6 +125,7 @@ function makeRig() {
     createLearning,
     queue: (events: AgentStreamEvent[]) => pending.push(events),
     progressWriteFails: (count: number) => { failProgressWrites = count; },
+    proposalWriteFails: (count: number) => { failProposalWrites = count; },
     focusNox: () => { isNoteFocused = false; },
     setSelection: (text: string) => { selection = text; },
     getEditedNote: () => editorBuffer,
@@ -346,4 +357,103 @@ test("next Practice question and its source survive plugin recreation", async ()
   assert.equal(restored.learning.getActivePracticeOrigin()?.file, "notes/acid.md");
   assert.equal(restored.sessions.getSession().messages.flatMap((message) => message.parts ?? [])
     .filter((part) => part.type === "practice-question").length, 2);
+});
+
+
+const editFence = String.fromCharCode(96).repeat(3);
+const editPayload: EditProposal = {
+  file: "notes/acid.md",
+  original: "atomicity",
+  replacement: "atomic execution",
+  reason: "Use an operational definition.",
+};
+const streamedEdit = (proposal: EditProposal = editPayload): AgentStreamEvent => ({
+  type: "text",
+  content: "Before the edit.\n" + editFence + "edit-proposal\n" + JSON.stringify(proposal) +
+    "\n" + editFence + "\nAfter the edit.",
+});
+const editRequest = { prompt: "Fix this definition", action: "edit" as const,
+  turnId: "edit-turn-1", explicitContext: [] };
+
+for (const terminal of ["failed", "cancelled"] as const) {
+  test("Edit Proposal is never actionable if the agent ends " + terminal, async () => {
+    const rig = makeRig();
+    const { sessions, learning } = await rig.createLearning();
+    rig.queue([streamedEdit(), terminal === "failed"
+      ? { type: "failed", failure: { code: "process-failed", message: "crashed" } }
+      : { type: "cancelled" }]);
+    const events = await collectEvents(learning.run(editRequest));
+    assert.ok(events.some((event) => event.type === terminal));
+    assert.equal(events.some((event) => event.type === "mutation-proposed"), false);
+    assert.equal(sessions.getSession().messages.filter((m) => m.proposal).length, 0);
+    assert.equal(rig.getEditedNote().includes("atomic execution"), false);
+    learning.dispose();
+    const restored = await rig.createLearning();
+    assert.equal(restored.sessions.getSession().messages.filter((m) => m.proposal).length, 0);
+  });
+}
+
+for (const malformed of [
+  ["bad-json", editFence + "edit-proposal\n{invalid}\n" + editFence],
+  ["incomplete", editFence + "edit-proposal\n" + JSON.stringify(editPayload)],
+  ["duplicate", editFence + "edit-proposal\n" + JSON.stringify(editPayload) + "\n" + editFence +
+    editFence + "edit-proposal\n" + JSON.stringify(editPayload) + "\n" + editFence],
+  ["unauthorized", editFence + "edit-proposal\n" +
+    JSON.stringify({ ...editPayload, file: "notes/support.md" }) + "\n" + editFence],
+] as const) {
+  test("Edit Proposal " + malformed[0] + " does not create partial pending state", async () => {
+    const rig = makeRig();
+    const { sessions, learning } = await rig.createLearning();
+    rig.queue([{ type: "text", content: malformed[1] }, { type: "completed" }]);
+    const events = await collectEvents(learning.run(editRequest));
+    assert.ok(events.some((event) => event.type === "failed"));
+    assert.equal(events.some((event) => event.type === "mutation-proposed"), false);
+    assert.equal(sessions.getSession().messages.filter((m) => m.proposal).length, 0);
+  });
+}
+
+test("Edit Proposal commits once on completion and replays after restart without model invocation", async () => {
+  const rig = makeRig();
+  const first = await rig.createLearning();
+  rig.queue([streamedEdit(), { type: "completed" }]);
+  const events = await collectEvents(first.learning.run(editRequest));
+  const proposal = events.find((event) => event.type === "mutation-proposed");
+  assert.ok(proposal && proposal.type === "mutation-proposed");
+  assert.equal(events.at(-1)?.type, "completed");
+  assert.equal(first.sessions.getSession().messages.filter((m) => m.proposal).length, 1);
+  assert.equal(first.sessions.getSession().messages.filter((m) => m.role === "assistant" &&
+    m.content.includes("Before the edit.") && m.content.includes("After the edit.")).length, 1);
+  const id = proposal.edit.id;
+  first.learning.dispose();
+  const restored = await rig.createLearning();
+  assert.equal(restored.sessions.getProposal(id)?.state, "pending");
+  const replay = await collectEvents(restored.learning.run({ ...editRequest, retry: true }));
+  assert.equal(replay.some((event) => event.type === "mutation-proposed"), true);
+  assert.equal(rig.currentAgentCalls(), 1);
+  assert.equal(restored.sessions.getSession().messages.filter((m) => m.proposal).length, 1);
+  const applied = await restored.learning.applyProposal(id);
+  assert.equal(applied.ok, true);
+  assert.ok(rig.getEditedNote().includes("atomic execution"));
+  const settled = await collectEvents(restored.learning.run({ ...editRequest, retry: true }));
+  assert.equal(settled.some((event) => event.type === "mutation-proposed"), false);
+  assert.equal(rig.currentAgentCalls(), 1);
+  assert.equal(restored.sessions.getProposal(id)?.state, "applied");
+});
+
+test("Edit Proposal persistence failure keeps session clean and retry restores one candidate", async () => {
+  const rig = makeRig();
+  const { learning, sessions } = await rig.createLearning();
+  rig.proposalWriteFails(1);
+  rig.queue([streamedEdit(), { type: "completed" }]);
+  const failed = await collectEvents(learning.run(editRequest));
+  assert.equal(failed.some((event) => event.type === "mutation-proposed"), false);
+  assert.equal(failed.some((event) => event.type === "failed"), true);
+  assert.equal(sessions.getSession().messages.filter((m) => m.proposal).length, 0);
+  learning.dispose();
+  const restored = await rig.createLearning();
+  assert.equal(restored.sessions.getSession().messages.filter((m) => m.proposal).length, 0);
+  rig.queue([streamedEdit(), { type: "completed" }]);
+  const success = await collectEvents(restored.learning.run({ ...editRequest, retry: true }));
+  assert.equal(success.filter((event) => event.type === "mutation-proposed").length, 1);
+  assert.equal(restored.sessions.getSession().messages.filter((m) => m.proposal).length, 1);
 });
