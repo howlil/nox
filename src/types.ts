@@ -54,7 +54,7 @@ export interface EditProposal {
 }
 
 export type ApplyResult =
-  | { ok: true }
+  | { ok: true; statusSync?: "failed"; message?: string }
   | {
       ok: false;
       reason:
@@ -63,6 +63,7 @@ export type ApplyResult =
         | "unauthorized"
         | "missing-file"
         | "no-editor"
+        | "status-unsaved"
         | "error";
       message: string;
     };

@@ -2097,12 +2097,20 @@ export class ChatView extends ItemView {
         wrap.querySelector(".nox-proposal-retry-status")?.remove();
         if (result.ok) {
           actions.remove();
-          createNoxStatus(wrap, {
-            cls: "nox-result-badge nox-badge--applied",
-            kind: "success",
-            text: "✓ Applied to " + proposal.file,
-          });
-          this.setUIState("APPLIED");
+          if (result.statusSync === "failed") {
+            this.appendAppliedStatusRecovery(wrap, edit.id, proposal.file, result.message);
+            this.setUIState("ANSWER");
+          } else {
+            createNoxStatus(wrap, {
+              cls: "nox-result-badge nox-badge--applied",
+              kind: "success",
+              text: "✓ Applied to " + proposal.file,
+            });
+            this.setUIState("APPLIED");
+          }
+        } else if (result.reason === "status-unsaved") {
+          actions.remove();
+          this.appendAppliedStatusRecovery(wrap, edit.id, proposal.file, result.message);
         } else if (result.reason === "no-editor" || result.reason === "error") {
           // Source remains valid: keep Apply available after the user fixes the blocker.
           applyBtn.disabled = false;
@@ -2128,6 +2136,57 @@ export class ChatView extends ItemView {
         applyBtn.textContent = "Retry Apply";
         this.appendInlineStatus(wrap, "failed", "Could not save the result. Check the note before retrying.");
       }
+    });
+  }
+
+  private appendAppliedStatusRecovery(
+    wrap: HTMLElement,
+    proposalId: string,
+    file: string,
+    message?: string,
+  ): void {
+    const recovery = wrap.createDiv({ cls: "nox-proposal-status-recovery" });
+    const status = createNoxStatus(recovery, {
+      cls: "nox-proposal-retry-status",
+      kind: "warning",
+      text: message ?? "Edit applied, but status could not be saved.",
+    });
+    const retryBtn = createNoxButton(recovery, {
+      cls: "nox-btn-sync-status",
+      variant: "secondary",
+      text: "Retry status sync",
+    });
+    retryBtn.addEventListener("click", async () => {
+      retryBtn.disabled = true;
+      retryBtn.textContent = "Saving status…";
+      try {
+        const result = await this.learning.retryAppliedStatus(proposalId);
+        if (result.ok && result.statusSync !== "failed") {
+          recovery.remove();
+          createNoxStatus(wrap, {
+            cls: "nox-result-badge nox-badge--applied",
+            kind: "success",
+            text: "✓ Applied to " + file,
+          });
+          this.setUIState("APPLIED");
+          return;
+        }
+        status.remove();
+        createNoxStatus(recovery, {
+          cls: "nox-proposal-retry-status",
+          kind: "warning",
+          text: result.message ?? "Status was not saved. Do not apply the edit again.",
+        });
+      } catch {
+        status.remove();
+        createNoxStatus(recovery, {
+          cls: "nox-proposal-retry-status",
+          kind: "warning",
+          text: "Status sync failed. The note was already edited; do not apply again.",
+        });
+      }
+      retryBtn.disabled = false;
+      retryBtn.textContent = "Retry status sync";
     });
   }
 

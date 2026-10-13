@@ -339,9 +339,27 @@ export class SessionController {
       const message = session.messages.find((item) => item.proposalId === proposalId);
       if (!message || message.proposalState !== "pending") return;
 
-      message.proposalState = state;
-      this.commitSession(session);
-      await this.save();
+      // Do not publish a settled proposal in memory until disk confirms it.
+      // Apply may have already mutated the editor; failed status writes must
+      // remain retryable, without losing the canonical pending record.
+      const next: ChatSession = {
+        ...session,
+        messages: session.messages.map((item) =>
+          item.proposalId === proposalId ? { ...item, proposalState: state } : item),
+      };
+      const staged = this.store.stageSessionUpdate(next);
+      try {
+        await this.pluginData.update((current) => ({
+          ...current,
+          ...staged.serialized,
+        }));
+      } catch (error) {
+        throw new PersistenceError("Unable to persist proposal status", error);
+      }
+      this.store.acceptPersistedSession(staged.committed);
+      if (this.currentSession?.id === session.id) {
+        this.currentSession = this.store.getSession(session.id);
+      }
     });
   }
 
