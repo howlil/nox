@@ -396,6 +396,9 @@ for (const terminal of ["failed", "cancelled"] as const) {
 for (const malformed of [
   ["bad-json", editFence + "edit-proposal\n{invalid}\n" + editFence],
   ["incomplete", editFence + "edit-proposal\n" + JSON.stringify(editPayload)],
+  ["valid-then-invalid", editFence + "edit-proposal\n" +
+    JSON.stringify(editPayload) + "\n" + editFence +
+    editFence + "edit-proposal\n{bad json}\n" + editFence],
   ["duplicate", editFence + "edit-proposal\n" + JSON.stringify(editPayload) + "\n" + editFence +
     editFence + "edit-proposal\n" + JSON.stringify(editPayload) + "\n" + editFence],
   ["unauthorized", editFence + "edit-proposal\n" +
@@ -473,4 +476,41 @@ test("a pending Edit Proposal becomes stale after restart and retry never resurr
   assert.equal(retried.some((event) => event.type === "mutation-proposed"), false);
   assert.equal(rig.currentAgentCalls(), 1);
   assert.equal(restored.sessions.getSession().messages.filter((m) => m.proposal).length, 1);
+});
+
+
+test("rejected Edit Proposal never reopens on retry", async () => {
+  const rig = makeRig();
+  const { learning, sessions } = await rig.createLearning();
+  rig.queue([streamedEdit(), { type: "completed" }]);
+  const events = await collectEvents(learning.run(editRequest));
+  const proposal = events.find((event) => event.type === "mutation-proposed");
+  assert.ok(proposal && proposal.type === "mutation-proposed");
+  await learning.rejectProposal(proposal.edit.id);
+  assert.equal(sessions.getProposal(proposal.edit.id)?.state, "rejected");
+  const retried = await collectEvents(learning.run({ ...editRequest, retry: true }));
+  assert.equal(retried.some((event) => event.type === "mutation-proposed"), false);
+  assert.equal(rig.currentAgentCalls(), 1);
+  assert.equal(sessions.getSession().messages.filter((m) => m.proposal).length, 1);
+});
+
+test("Edit without a proposal completes as ordinary narrative", async () => {
+  const rig = makeRig();
+  const { learning, sessions } = await rig.createLearning();
+  rig.queue([{ type: "text", content: "No exact replacement is needed." }, { type: "completed" }]);
+  const events = await collectEvents(learning.run(editRequest));
+  assert.equal(events.at(-1)?.type, "completed");
+  assert.equal(events.some((event) => event.type === "mutation-proposed"), false);
+  assert.equal(sessions.getSession().messages.some((m) =>
+    m.content.includes("No exact replacement is needed.")), true);
+});
+
+test("non-edit actions reject streamed edit proposals", async () => {
+  const rig = makeRig();
+  const { learning, sessions } = await rig.createLearning();
+  rig.queue([streamedEdit(), { type: "completed" }]);
+  const events = await collectEvents(learning.run({ ...editRequest, action: "ask" }));
+  assert.equal(events.some((event) => event.type === "failed"), true);
+  assert.equal(events.some((event) => event.type === "mutation-proposed"), false);
+  assert.equal(sessions.getSession().messages.filter((m) => m.proposal).length, 0);
 });

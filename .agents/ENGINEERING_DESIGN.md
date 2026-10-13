@@ -37,6 +37,15 @@ both same-session and cross-session lost updates. Keep vault progress and editor
 mutations in their existing owners. Do not collapse all three into an Obsidian
 folder to meet a folder-count target.
 
+**Edit Proposal hardening (2026-10-13):** `RunLearningTurn` buffers
+validated proposals until successful terminal completion. It rejects
+malformed, unexpected, unauthorized, or multiple proposals with no edit
+commit. `SessionController.recordEditOutcome` atomically persists the visible
+narrative and proposal before the UI receives an actionable event. Stable
+session/turn IDs make retries idempotent while applied, rejected, and
+restart-stale proposals never return to pending. Parser and UI responsibilities
+remain unchanged; no new service or folder was created.
+
 **Current remaining boundary:** `RunLearningTurn` owns orchestration,
 timeouts, structured event effects and reconciliation behind the stable
 `LearningController` facade. This is intentional; only extract a narrower

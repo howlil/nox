@@ -462,7 +462,8 @@ the question to the transcript before exposing it as active.
 ## Editing
 
 ```text
-proposal
+agent complete + valid single proposal
+→ atomic durable transcript commit
 → user review
 → re-read current document
 → exact unique match
@@ -471,6 +472,15 @@ proposal
 ```
 
 Never silently rebase stale or ambiguous edits.
+
+- Parser output is only a turn-local candidate. Failed/cancelled/timeout/
+  malformed/multiple proposals never become actionable.
+- Commit Edit narrative and its one proposal atomically through
+  `SessionController.recordEditOutcome`, then emit `mutation-proposed`.
+- Retry with the same `turnId` must replay canonical persisted state rather
+  than generate another edit; applied/rejected/stale outcomes do not reopen.
+- Pending proposals become stale on restart until explicitly regenerated
+  by a new logical turn. Do not bypass editor authorization or native Undo.
 
 Use Obsidian editor APIs so native Undo remains available.
 

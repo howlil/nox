@@ -419,10 +419,17 @@ The product flow is:
 
 ```text
 Edit intent
-→ structured proposal
+→ validated single proposal candidate
+→ successful agent completion
+→ durable narrative + proposal commit
 → ProposalCard
 → Reject / Apply
 ```
+
+During streaming, only narrative is shown; Apply and Reject are not actionable
+until the complete proposal is durably recorded. Failed/cancelled/invalid
+streams never display a ProposalCard. A retry of the same logical turn must
+not duplicate a committed edit or reopen a settled one.
 
 Apply must revalidate against the current document.
 
