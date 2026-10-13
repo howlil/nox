@@ -25,6 +25,15 @@ export interface LearningControllerOptions {
 export class LearningController {
   private readonly turns: RunLearningTurn;
   private readonly applyingProposals = new Set<string>();
+  // Short-lived receipt: editor mutation succeeded, but the durable applied
+  // status has not been confirmed. Never use this as a session state authority.
+  private readonly appliedButUnsynced = new Set<string>();
+
+  private readonly statusSyncFailure = {
+    ok: true as const,
+    statusSync: "failed" as const,
+    message: "Edit was applied to the note, but its status was not saved. Retry status sync; do not apply the edit again.",
+  };
 
   constructor(
     private readonly sessions: SessionPort,
@@ -60,11 +69,13 @@ export class LearningController {
 
   async newSession(): Promise<ChatSession> {
     if (this.turns.isRunning()) throw new Error("Finish or stop the active turn before creating a session.");
+    if (this.appliedButUnsynced.size > 0) throw new Error("Retry saving applied edit status before changing sessions.");
     return this.sessions.newSession();
   }
 
   async selectSession(id: string): Promise<ChatSession | null> {
     if (this.turns.isRunning()) throw new Error("Finish or stop the active turn before switching sessions.");
+    if (this.appliedButUnsynced.size > 0) throw new Error("Retry saving applied edit status before changing sessions.");
     return this.sessions.selectSession(id);
   }
 
@@ -92,6 +103,13 @@ export class LearningController {
   async applyProposal(
     proposalId: string,
   ): Promise<ApplyResult> {
+    if (this.appliedButUnsynced.has(proposalId)) {
+      return {
+        ok: false,
+        reason: "status-unsaved",
+        message: this.statusSyncFailure.message,
+      };
+    }
     const record = this.sessions.getProposal(proposalId);
 
     if (this.applyingProposals.has(proposalId) || !record || record.state !== "pending") {
@@ -111,7 +129,15 @@ export class LearningController {
       );
 
       if (result.ok) {
-        await this.sessions.updateProposalState(proposalId, "applied");
+        this.appliedButUnsynced.add(proposalId);
+        try {
+          await this.sessions.updateProposalState(proposalId, "applied");
+          this.appliedButUnsynced.delete(proposalId);
+        } catch {
+          // Do not report a failed editor mutation: the note already changed.
+          // Keep the local receipt to prevent invoking replaceRange again.
+          return { ...this.statusSyncFailure };
+        }
       } else if (
         result.reason === "stale" ||
         result.reason === "ambiguous" ||
@@ -127,9 +153,42 @@ export class LearningController {
     }
   }
 
+  /**
+   * Recover a successful editor mutation by persisting its status only.
+   * Never call MutationService.apply again for this proposal.
+   */
+  async retryAppliedStatus(proposalId: string): Promise<ApplyResult> {
+    if (!this.appliedButUnsynced.has(proposalId)) {
+      return {
+        ok: false, reason: "stale",
+        message: "No unapplied status sync is pending for this proposal.",
+      };
+    }
+    if (this.applyingProposals.has(proposalId)) {
+      return {
+        ok: false, reason: "status-unsaved",
+        message: "Status sync is already in progress.",
+      };
+    }
+
+    this.applyingProposals.add(proposalId);
+    try {
+      await this.sessions.updateProposalState(proposalId, "applied");
+      this.appliedButUnsynced.delete(proposalId);
+      return { ok: true };
+    } catch {
+      return { ...this.statusSyncFailure };
+    } finally {
+      this.applyingProposals.delete(proposalId);
+    }
+  }
+
   async rejectProposal(
     proposalId: string,
   ): Promise<void> {
+    if (this.appliedButUnsynced.has(proposalId)) {
+      throw new Error("Edit is already applied. Retry saving its status instead.");
+    }
     const record = this.sessions.getProposal(proposalId);
     if (!record || record.state !== "pending") return;
 

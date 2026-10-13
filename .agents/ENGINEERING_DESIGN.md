@@ -46,6 +46,18 @@ session/turn IDs make retries idempotent while applied, rejected, and
 restart-stale proposals never return to pending. Parser and UI responsibilities
 remain unchanged; no new service or folder was created.
 
+**Apply status recovery (2026-10-13):** Editor replacement and session
+persistence are distinct operations, not one ACID transaction. A successful
+editor replacement followed by a failed session status write is surfaced as
+`ok: true, statusSync: "failed"`: the note was changed. `LearningController`
+holds a short-lived unsynced-apply receipt to prevent applying the same edit
+again and exposes `retryAppliedStatus()`, which only writes `applied` state.
+`SessionController.updateProposalState()` stages the next snapshot and
+publishes it only after the serialized plugin-data write succeeds. Session
+switching is blocked while a local applied-status receipt is unsynced; on
+restart the existing stale-on-restore guard remains in force. Do not add a
+distributed-transaction layer or assume native filesystem crash atomicity.
+
 **Current remaining boundary:** `RunLearningTurn` owns orchestration,
 timeouts, structured event effects and reconciliation behind the stable
 `LearningController` facade. This is intentional; only extract a narrower
