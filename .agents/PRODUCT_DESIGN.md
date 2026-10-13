@@ -445,7 +445,11 @@ Supporting context cannot become a mutation target merely because the model
 mentions it.
 
 Native Undo must remain available after Apply. Missing open editor and
-transient write failures keep the proposal pending for a safe retry. A changed,
+pre-mutation failures keep Apply available for a safe retry. When editor Apply
+succeeds but saving its applied status fails, remove Apply/Reject and show
+"Edit was applied; status not saved" with a separate Retry status sync action.
+That action must never execute the editor mutation again. Do not silently
+navigate sessions while that receipt is unresolved. A changed,
 missing, or ambiguous source makes the proposal stale and requires regeneration.
 
 ---

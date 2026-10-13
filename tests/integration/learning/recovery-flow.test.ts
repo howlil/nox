@@ -550,6 +550,7 @@ test("successful editor Apply with failed status write never suggests editing ag
   const accidentallyRepeated = await learning.applyProposal(event.edit.id);
   assert.equal(accidentallyRepeated.ok, false);
   assert.equal(rig.editorMutationCount(), 1);
+  await assert.rejects(learning.newSession(), /Retry saving applied edit status/);
 
   const saved = await learning.retryAppliedStatus(event.edit.id);
   assert.deepEqual(saved, { ok: true });

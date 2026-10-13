@@ -484,6 +484,16 @@ Never silently rebase stale or ambiguous edits.
 
 Use Obsidian editor APIs so native Undo remains available.
 
+When native editor Apply succeeds but persisting `proposalState=applied` fails,
+never offer Retry Apply: the document has already changed. Retain only a
+turn-local recovery receipt, show an explicit warning and **Retry status sync**
+action (which writes session status only, never calls editor replacement).
+SessionController must stage proposal-state updates and publish them to memory
+only after durable persistence succeeds. Until status sync completes, block
+session transitions that would abandon recovery. After restart, an unresolved
+pending proposal is stale—not silently actionable. Native Undo still requires
+manual Obsidian verification.
+
 ## Agent runtime
 
 - Nox is runtime-agnostic above the `AgentAdapter` boundary.
