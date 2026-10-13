@@ -424,20 +424,20 @@ test("Edit Proposal commits once on completion and replays after restart without
   assert.equal(first.sessions.getSession().messages.filter((m) => m.role === "assistant" &&
     m.content.includes("Before the edit.") && m.content.includes("After the edit.")).length, 1);
   const id = proposal.edit.id;
-  first.learning.dispose();
-  const restored = await rig.createLearning();
-  assert.equal(restored.sessions.getProposal(id)?.state, "pending");
-  const replay = await collectEvents(restored.learning.run({ ...editRequest, retry: true }));
-  assert.equal(replay.some((event) => event.type === "mutation-proposed"), true);
+  const replay = await collectEvents(first.learning.run({ ...editRequest, retry: true }));
+  assert.equal(replay.filter((event) => event.type === "mutation-proposed").length, 1);
   assert.equal(rig.currentAgentCalls(), 1);
-  assert.equal(restored.sessions.getSession().messages.filter((m) => m.proposal).length, 1);
-  const applied = await restored.learning.applyProposal(id);
+  assert.equal(first.sessions.getSession().messages.filter((m) => m.proposal).length, 1);
+  const applied = await first.learning.applyProposal(id);
   assert.equal(applied.ok, true);
   assert.ok(rig.getEditedNote().includes("atomic execution"));
+  first.learning.dispose();
+  const restored = await rig.createLearning();
+  assert.equal(restored.sessions.getProposal(id)?.state, "applied");
   const settled = await collectEvents(restored.learning.run({ ...editRequest, retry: true }));
   assert.equal(settled.some((event) => event.type === "mutation-proposed"), false);
   assert.equal(rig.currentAgentCalls(), 1);
-  assert.equal(restored.sessions.getProposal(id)?.state, "applied");
+  assert.equal(restored.sessions.getSession().messages.filter((m) => m.proposal).length, 1);
 });
 
 test("Edit Proposal persistence failure keeps session clean and retry restores one candidate", async () => {
@@ -455,5 +455,22 @@ test("Edit Proposal persistence failure keeps session clean and retry restores o
   rig.queue([streamedEdit(), { type: "completed" }]);
   const success = await collectEvents(restored.learning.run({ ...editRequest, retry: true }));
   assert.equal(success.filter((event) => event.type === "mutation-proposed").length, 1);
+  assert.equal(restored.sessions.getSession().messages.filter((m) => m.proposal).length, 1);
+});
+
+
+test("a pending Edit Proposal becomes stale after restart and retry never resurrects it", async () => {
+  const rig = makeRig();
+  const first = await rig.createLearning();
+  rig.queue([streamedEdit(), { type: "completed" }]);
+  const firstEvents = await collectEvents(first.learning.run(editRequest));
+  const pending = firstEvents.find((event) => event.type === "mutation-proposed");
+  assert.ok(pending && pending.type === "mutation-proposed");
+  first.learning.dispose();
+  const restored = await rig.createLearning();
+  assert.equal(restored.sessions.getProposal(pending.edit.id)?.state, "stale");
+  const retried = await collectEvents(restored.learning.run({ ...editRequest, retry: true }));
+  assert.equal(retried.some((event) => event.type === "mutation-proposed"), false);
+  assert.equal(rig.currentAgentCalls(), 1);
   assert.equal(restored.sessions.getSession().messages.filter((m) => m.proposal).length, 1);
 });
