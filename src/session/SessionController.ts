@@ -15,6 +15,9 @@ import {
  */
 export class SessionController {
   private currentSession: ChatSession | null = null;
+  // Serializes outcome staging + durable write + publication as one operation.
+  // PluginDataRepository serializes disk I/O only, not session snapshot staging.
+  private outcomeTail: Promise<void> = Promise.resolve();
 
   constructor(
     private readonly pluginData: PluginDataRepository,
@@ -151,6 +154,7 @@ export class SessionController {
     sourcePath: string,
     sessionId: string,
   ): Promise<TranscriptPart[]> {
+    return this.serializeOutcomeWrite(async () => {
     const session = this.sessionForWrite(sessionId);
     const evaluation = parts.find((part) => part.type === "practice-evaluation");
     if (!evaluation || evaluation.type !== "practice-evaluation" ||
@@ -166,6 +170,7 @@ export class SessionController {
 
     await this.persistOutcome(session, parts, sourcePath);
     return structuredClone(parts);
+    });
   }
 
   async recordReviewOutcome(
@@ -173,12 +178,21 @@ export class SessionController {
     sourcePath: string,
     sessionId: string,
   ): Promise<Extract<TranscriptPart, { type: "review-findings" }>> {
+    return this.serializeOutcomeWrite(async () => {
     if (!part.reviewId) throw new Error("Review outcome requires stable reviewId");
     const session = this.sessionForWrite(sessionId);
     const existing = findCommittedReview(session, part.reviewId);
     if (existing) return structuredClone(existing);
     await this.persistOutcome(session, [part], sourcePath);
     return structuredClone(part);
+    });
+  }
+
+  /** Recheck idempotency against the latest session after earlier writes finish. */
+  private serializeOutcomeWrite<T>(operation: () => Promise<T>): Promise<T> {
+    const result = this.outcomeTail.then(operation);
+    this.outcomeTail = result.then(() => undefined, () => undefined);
+    return result;
   }
 
   private async persistOutcome(
