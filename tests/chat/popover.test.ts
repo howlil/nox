@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { NoxPopoverState } from "../../src/ui/popover";
+import { NoxPopoverState } from "../../src/chat/popover";
 
 function createElement() {
   const classes = new Set<string>();

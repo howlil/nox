@@ -46,14 +46,14 @@ import {
   createNoxSurface,
   createNoxStatus,
   setNoxIcon,
-} from "../ui/primitives";
-import { NoxMenuState } from "../ui/menu";
-import { createNoxPopover, NoxPopoverState } from "../ui/popover";
-import { NoxComposer, type NoxComposerContext } from "../ui/composer";
+} from "./primitives";
+import { NoxMenuState } from "./menu";
+import { createNoxPopover, NoxPopoverState } from "./popover";
+import { NoxComposer, type NoxComposerContext } from "./composer";
 import {
   NoxSelectionActions,
   type NoxSelectionAction,
-} from "../ui/selection-actions";
+} from "./selection-actions";
 
 export const NOX_VIEW_TYPE = "nox-sidebar";
 
