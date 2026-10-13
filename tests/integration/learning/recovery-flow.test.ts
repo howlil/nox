@@ -131,7 +131,7 @@ for (const terminal of ["failed", "cancelled"] as const) {
     const { learning, sessions } = await rig.createLearning();
     const question = { kind: "question", concept: "ACID", question: "Explain atomicity." };
     rig.queue([
-      { type: "text", content: "```learning-practice\\n" + JSON.stringify(question) + "\\n```" },
+      { type: "text", content: "```learning-practice\n" + JSON.stringify(question) + "\n```" },
       terminal === "failed"
         ? { type: "failed", failure: { code: "process-failed", message: "stream interrupted" } }
         : { type: "cancelled" },
@@ -165,8 +165,8 @@ test("a completed Practice turn cannot commit two competing questions", async ()
   const first = { kind: "question", concept: "ACID", question: "What is atomicity?" };
   const second = { kind: "question", concept: "ACID", question: "What is isolation?" };
   rig.queue([
-    { type: "text", content: "```learning-practice\\n" + JSON.stringify(first) + "\\n```" },
-    { type: "text", content: "```learning-practice\\n" + JSON.stringify(second) + "\\n```" },
+    { type: "text", content: "```learning-practice\n" + JSON.stringify(first) + "\n```" },
+    { type: "text", content: "```learning-practice\n" + JSON.stringify(second) + "\n```" },
     { type: "completed" },
   ]);
   const outcome = await collectEvents(learning.run({
