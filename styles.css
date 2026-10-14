@@ -742,6 +742,23 @@
   white-space: nowrap;
 }
 
+.nox-thinking-phase-time {
+  margin-left: auto;
+  color: var(--nox-ink-3);
+  font-family: var(--font-monospace);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.nox-thinking-row.is-interrupted .nox-thinking-marker {
+  color: var(--nox-red);
+}
+
+.nox-thinking-marker .nox-icon {
+  color: currentColor;
+}
+
 .nox-thinking-secondary {
   flex: 0 0 auto;
   max-width: 45%;
