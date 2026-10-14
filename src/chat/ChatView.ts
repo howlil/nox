@@ -2266,6 +2266,9 @@ export class ChatView extends ItemView {
     // The 0fr/1fr grid must have exactly one direct child. The previous
     // list + inspector siblings caused the inspector to escape disclosure.
     const panel = trace.createDiv({ cls: "nox-thinking-panel is-expanded" });
+    panel.id = "nox-activity-" + crypto.randomUUID();
+    toggle.setAttribute("aria-controls", panel.id);
+    this.thinkingLabelEl.setAttribute("aria-live", "polite");
     this.thinkingPanelEl = panel;
     const inner = panel.createDiv({ cls: "nox-thinking-panel-inner" });
     const viewport = inner.createDiv({ cls: "nox-thinking-viewport" });
@@ -2330,6 +2333,8 @@ export class ChatView extends ItemView {
     setNoxIcon(chevron, "chevron-down");
 
     const panel = trace.createDiv({ cls: "nox-thinking-panel" });
+    panel.id = "nox-activity-" + crypto.randomUUID();
+    toggle.setAttribute("aria-controls", panel.id);
     const inner = panel.createDiv({ cls: "nox-thinking-panel-inner" });
     const list = inner.createDiv({ cls: "nox-thinking-trace nox-thinking-trace--facts" });
 
