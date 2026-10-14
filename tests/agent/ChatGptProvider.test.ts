@@ -36,6 +36,7 @@ test("OAuth loopback PKCE authenticates a dynamically issued client and persists
   const dir = mkdtempSync(join(tmpdir(), "nox-siwc-"));
   const file = join(dir, "nox", "chatgpt-auth.json");
   let responseCount = 0;
+  let clock = now;
   const http = async (input: unknown, init?: RequestInit): Promise<Response> => {
     const url = String(input);
     if (url.endsWith("jwks.json")) return jwks(url);
@@ -77,7 +78,7 @@ test("OAuth loopback PKCE authenticates a dynamically issued client and persists
       }
       return jwks(input);
     };
-    const running = new ChatGptAuth({ storageFile: file, fetch: dynamicFetch as typeof fetch, now: () => now });
+    const running = new ChatGptAuth({ storageFile: file, fetch: dynamicFetch as typeof fetch, now: () => clock });
     const status = await running.signIn(async (url) => {
       requestUrl = url;
       const params = new URL(url).searchParams;
@@ -95,6 +96,9 @@ test("OAuth loopback PKCE authenticates a dynamically issued client and persists
     assert.equal(status.sharing, true);
     assert.equal(status.email, "user@example.com");
     assert.equal((await running.accessToken()), "access-1");
+    clock += 3601 * 1000;
+    assert.equal((await running.accessToken()), "access-2"); // Rotating refresh token is persisted atomically.
+    assert.equal(responseCount, 2);
     const savedFileText = readFileSync(file, "utf8");
     if (process.platform === "win32") assert.equal(savedFileText.startsWith("{"), false);
     else {
@@ -103,7 +107,7 @@ test("OAuth loopback PKCE authenticates a dynamically issued client and persists
       assert.match(saved.hostId, /^urn:uuid:/);
       assert.ok(saved.credentials.refreshToken);
     }
-    const reopened = new ChatGptAuth({ storageFile: file, fetch: dynamicFetch as typeof fetch, now: () => now });
+    const reopened = new ChatGptAuth({ storageFile: file, fetch: dynamicFetch as typeof fetch, now: () => clock });
     assert.equal(reopened.status().sharing, true);
     running.signOut();
     assert.equal(running.status().connected, false);
