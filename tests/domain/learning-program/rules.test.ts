@@ -78,7 +78,9 @@ test("deadline feasibility reports tradeoffs, not fictional completion", () => {
 
 test("incorrect response triggers targeted remediation, not progress", () => {
   const events = [event("symbols", "incorrect", now - 2000)];
-  assert.equal(chooseNextActivity(program(), events, now).kind, "remediate");
+  assert.equal(chooseNextActivity(program(), events, now).kind, "teach");
+  const taught = program({ instructionEvents: [{ objectiveId: "symbols", afterEvidenceAt: now - 2000, taughtAt: now - 1000 }] });
+  assert.equal(chooseNextActivity(taught, events, now).kind, "guided-practice");
   assert.equal(chooseNextActivity(program(), events, now).objective?.id, "symbols");
 });
 
@@ -90,7 +92,7 @@ test("independent delayed recall is required for mastery; material reviews do no
   assert.equal(objectiveProgress(program(), "symbols", [material], now).status, "unseen");
   const second = event("symbols", "correct", now);
   assert.equal(objectiveProgress(program(), "symbols", [first, second], now).status, "mastered");
-  assert.equal(chooseNextActivity(program(), [first, second], now).objective?.id, "equations");
+  assert.equal(chooseNextActivity(program(), [first, second], now).kind, "transfer");
 });
 
 test("hint-assisted answers never qualify as independent mastery", () => {
@@ -103,4 +105,25 @@ test("timebox expiry blocks new activity without erasing progress", () => {
   const p = program({ session: { startedAt: now - 50 * 60_000, timeBudgetMinutes: 45 } });
   assert.equal(chooseNextActivity(p, [], now).kind, "timebox-ended");
   assert.equal(chooseNextActivity(p, [], now).minutesRemaining, 0);
+});
+
+test("completed transfer task clears transfer gate for next eligible objective", () => {
+  const first = event("symbols", "correct", now - 2 * 86_400_000);
+  const second = event("symbols", "correct", now - 1000);
+  const transfer = { ...event("symbols", "correct", now), taskKind: "transfer" as const };
+  const next = chooseNextActivity(program(), [first, second, transfer], now);
+  assert.equal(next.objective?.id, "equations");
+  assert.equal(next.kind, "diagnostic");
+});
+
+test("deadline blocks unapproved new activities", () => {
+  const expired = program({ constraints: { ...constraints, deadline: "2026-10-13" } });
+  assert.equal(chooseNextActivity(expired, [], now).kind, "wait");
+  assert.match(chooseNextActivity(expired, [], now).reason, /deadline/i);
+});
+
+test("duplicated rubric criteria are rejected", () => {
+  const draft = structuredClone(goal) as unknown as { objectives: Array<{ rubric: string[] }> };
+  draft.objectives[0].rubric = ["same", "same"];
+  assert.throws(() => validateCurriculum(draft, constraints), /Invalid objective/);
 });
