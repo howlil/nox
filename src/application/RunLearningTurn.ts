@@ -377,6 +377,11 @@ export class RunLearningTurn {
     const conversation = this.sessions.getSession();
     const turnSessionId = conversation.id;
     const practice = this.practiceForSession(conversation);
+    if (program && request.action === "practice" && !practice.isWaitingForAnswer() && !program.session) {
+      if (this.activeTurn === activeTurn) this.activeTurn = null;
+      yield { type: "failed", failure: { code: "busy", message: "Start a timeboxed session with /start-session before practicing your program." } };
+      return;
+    }
     const decision = program && request.action === "practice" && !practice.isWaitingForAnswer()
       ? chooseNextActivity(program, state.evidence)
       : undefined;
