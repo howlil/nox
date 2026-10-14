@@ -18,6 +18,7 @@ No additional mutable source of truth. The sparse lexical index is an in-memory 
 - Preflight overlaps independent context resolution, policy loading, and learning-state loading.
 - Recovery checks existing evidence operation IDs before invoking transitions. Partially committed Review outcomes retain their stable indexed IDs.
 - Context preparation reuses its encoder, stopword set and serialized cost estimates.
+- Bounded top-K file selection avoids full-vault sorting when the candidate count exceeds 600, preserving stable modification-time ties.
 - LocalResearch stores postings per term and chunk, so warm query work depends on matching postings, not the entire vault's token count. Edits/deletions/renames invalidate indexed versions. Buffer fingerprint still protects unsaved editors.
 - CLI event queues use an amortized O(1) head-index dequeue and bounded periodic compaction. AGY uses StringDecoder to preserve split UTF-8 sequences.
 - Session restoration yields periodically while retaining every transcript message, actions, and native Markdown render.
