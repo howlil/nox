@@ -134,3 +134,22 @@ test("fork never inherits an actionable pending note edit", async () => {
   await restored.init();
   assert.equal(restored.getSession().messages.at(-1)?.proposalState, "stale");
 });
+
+test("forking a quoted user follow-up remaps its reference into the child session", async () => {
+  const db = harness();
+  const sessions = db.makeController();
+  await sessions.init();
+  const parentId = sessions.getSession().id;
+  await sessions.recordUserMessage("topic", parentId, "ask", "u1");
+  await sessions.recordAssistantMessage("source explanation", undefined, parentId);
+  const assistantId = sessions.getSession().messages.at(-1)!.id!;
+  const ref = { sourceSessionId: parentId, sourceMessageId: assistantId,
+    sourceRole: "assistant" as const, quote: "source explanation" };
+  await sessions.recordUserMessage("please elaborate", parentId, "ask", "u2", ref);
+  const { session: child, draftReplyTo, draftUserPrompt } = await sessions.forkSession(parentId, "u2");
+  assert.equal(draftUserPrompt, "please elaborate");
+  assert.deepEqual(draftReplyTo, { ...ref, sourceSessionId: child.id });
+  assert.equal(child.messages.length, 2);
+  await sessions.recordUserMessage("new question", child.id, "ask", "child-u", draftReplyTo);
+  assert.equal(sessions.getSession().messages.at(-1)?.replyTo?.sourceSessionId, child.id);
+});
