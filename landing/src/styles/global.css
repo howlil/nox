@@ -60,12 +60,19 @@ a:focus-visible, button:focus-visible, input:focus-visible { outline: 2px solid 
 .brand-dot { color: #a77aff; }
 .floating-nav-shell.is-scrolled .brand-dot { color: #8653d5; }
 .capsule-actions { display: flex; align-items: center; margin-left: auto; min-width: 0; }
-/* The real Arc UI ActionButton supplies letter-morphing, trailing arrow and press animation. */
-.floating-capsule .download-action { min-height: 40px; padding: 0 18px; border-radius: 9999px; border-color: #7541c4; background: #8653d5; color: #fff; font-size: 13px; font-weight: 650; letter-spacing: -.01em; line-height: 1.2; }
-.floating-nav-shell.is-scrolled .download-action { min-height: 36px; }
+/* Navbar: just Star and Sponsor. Download uses the real Arc ActionButton in the hero only. */
+.capsule-actions { gap: 8px; }
+.capsule-github, .capsule-sponsor { display: inline-flex; align-items: center; justify-content: center; gap: 7px; white-space: nowrap; min-height: 39px; padding: 9px 15px; border-radius: 9999px; font-size: 13px; font-weight: 650; line-height: 1; }
+.capsule-github { border: 1px solid rgba(255,255,255,.23); color: #f9f5ff; background: rgba(255,255,255,.1); }
+.capsule-sponsor { border: 1px solid #7541c4; background: #8653d5; color: #fff; }
+.github-label-short { display: none; }
+.floating-nav-shell.is-scrolled .capsule-github { border-color: rgba(80,52,123,.13); color: #302148; background: #f7f5fc; }
+.floating-nav-shell.is-scrolled .capsule-github, .floating-nav-shell.is-scrolled .capsule-sponsor { min-height: 36px; padding-top: 7px; padding-bottom: 7px; }
 .hero .download-action { min-height: 50px; padding: 0 24px; border-radius: 9999px; border-color: #ddcaff; background: #ede5ff; color: #362065; font-size: 14px; font-weight: 650; letter-spacing: -.01em; }
 @media (hover: hover) and (pointer: fine) {
-  .floating-capsule .download-action:hover:not(:disabled) { background: #7541c4; border-color: #7541c4; }
+  .capsule-github:hover { background: rgba(255,255,255,.18); }
+  .floating-nav-shell.is-scrolled .capsule-github:hover { background: #ebe5f8; }
+  .capsule-sponsor:hover { background: #7541c4; }
   .hero .download-action:hover:not(:disabled) { background: #f9f6ff; border-color: #eee1ff; }
 }
 
@@ -178,7 +185,9 @@ a:focus-visible, button:focus-visible, input:focus-visible { outline: 2px solid 
   .hero-title { font-size: clamp(52px, 14vw, 76px) !important; line-height: 1.01 !important; max-width: 12ch !important; margin-top: 18px !important; }
   .hero-description { margin-top: 19px; font-size: 15px; line-height: 1.58; max-width: 420px; }
   .hero-actions { margin-top: 22px; gap: 8px; }
-  .floating-capsule .download-action { min-height: 38px; padding: 0 13px; font-size: 12px; }
+  .capsule-actions { gap: 5px; }
+  .capsule-github, .capsule-sponsor { min-height: 34px; padding: 8px 10px; font-size: 12px; gap: 5px; }
+  .github-external { display: none; }
   .hero .download-action { min-height: 46px; font-size: 13px; padding: 0 20px; }
   .mascot-position { width: 470px; min-width: 0; bottom: -155px; }
   .waves { height: 54%; }
@@ -200,6 +209,9 @@ a:focus-visible, button:focus-visible, input:focus-visible { outline: 2px solid 
   .footer-inner { flex-wrap: wrap; }
 }
 @media (max-width: 430px) {
+  .github-label { display: none; }
+  .github-label-short { display: inline; }
+  .capsule-github, .capsule-sponsor { padding-inline: 9px; }
   .hero-title { font-size: clamp(49px,13.6vw,60px) !important; }
   .hero-foot span:last-child { display: none; }
   .hero-foot { justify-content: space-between; }
