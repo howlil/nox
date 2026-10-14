@@ -2154,6 +2154,11 @@ export class ChatView extends ItemView {
     try {
       for (const [messageIndex, message] of messages.entries()) {
         if (epoch !== this.transcriptRenderEpoch) return;
+        // Keep fork/switch cancellation valid across cooperative yields.
+        if (messageIndex > 0 && messageIndex % 8 === 0) {
+          await new Promise<void>(resolve => window.requestAnimationFrame(() => resolve()));
+          if (epoch !== this.transcriptRenderEpoch) return;
+        }
         if (message.role === "user") {
           this.appendUserBubble(message.content, message.id, message.replyTo);
           continue;

@@ -24,6 +24,7 @@
     "test:unit": "node scripts/test.mjs unit",
     "test:integration": "node scripts/test.mjs integration",
     "test:all": "node scripts/test.mjs all",
+    "bench:research": "node scripts/bench-research.mjs",
     "verify": "pnpm check:boundaries && pnpm typecheck && pnpm lint && pnpm test:unit && pnpm test:integration && pnpm build && pnpm test:artifacts",
     "test:artifacts": "node scripts/verify-artifacts.mjs"
   },

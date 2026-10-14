@@ -5,7 +5,7 @@ import {
   Plugin,
   TFile,
 } from "obsidian";
-import { ObsidianContext } from "../../src/context/ObsidianContext";
+import { ObsidianContext, selectRecentMarkdownFiles } from "../../src/context/ObsidianContext";
 
 function editor(value: string, selection = "") {
   return {
@@ -141,4 +141,14 @@ test("searchNotes prioritizes basename prefixes and respects limit", () => {
     { path: "Data.md", name: "Data" },
     { path: "Database Index.md", name: "Database Index" },
   ]);
+});
+
+test("bounded newest-file selection matches stable full-sort semantics", () => {
+  const files = Array.from({ length: 1200 }, (_, i) =>
+    new TFile("f" + i + ".md", { mtime: i % 19 }));
+  const expected = files.slice().sort((a, b) => b.stat.mtime - a.stat.mtime).slice(0, 600);
+  assert.deepEqual(selectRecentMarkdownFiles(files, 600), expected);
+  assert.deepEqual(selectRecentMarkdownFiles(files, 0), []);
+  assert.deepEqual(selectRecentMarkdownFiles(files.slice(0, 2), 600),
+    files.slice(0, 2).sort((a, b) => b.stat.mtime - a.stat.mtime));
 });

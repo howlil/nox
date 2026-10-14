@@ -51,3 +51,38 @@ test("long research chunks point to their actual source line", () => {
   const sourceLine = content.split("\n")[chunks[1].line - 1];
   assert.ok(sourceLine);
 });
+
+test("sparse index gives stable scores across repeated queries without changing revisions", () => {
+  const index = new LocalResearchIndex();
+  index.upsert({ path: "systems/tcp.md", content: "# TCP\nTCP throughput relies on windows and latency.",
+    links: ["systems/network.md"], revision: "v1" });
+  index.upsert({ path: "systems/network.md", content: "# Network\nLatency and throughput are different metrics.",
+    links: [], revision: "v1" });
+  const before = index.search("latency throughput", { limit: 8 });
+  const after = index.search("latency throughput", { limit: 8 });
+  assert.deepEqual(after, before);
+  assert.ok(after.hits.length >= 1);
+  assert.ok(after.hits.every(hit => hit.score > 0 && hit.revision === "v1"));
+});
+
+test("posting updates remove stale terms and revised graph links", () => {
+  const index = new LocalResearchIndex();
+  index.upsert({ path: "a.md", content: "# Notes\nconsistency only", links: ["b.md"], revision: "1" });
+  index.upsert({ path: "b.md", content: "# Notes\nconsistency and durability", links: [], revision: "1" });
+  assert.ok(index.search("consistency").edges.some(edge => edge.to === "b.md"));
+  index.upsert({ path: "a.md", content: "# Notes\nlatency only", links: [], revision: "2" });
+  assert.ok(index.search("latency").hits.some(hit => hit.path === "a.md"));
+  assert.ok(!index.search("consistency").hits.some(hit => hit.path === "a.md"));
+  assert.deepEqual(index.search("consistency").edges, []);
+  index.remove("a.md");
+  assert.ok(!index.search("latency").hits.some(hit => hit.path === "a.md"));
+});
+
+test("multiple matching terms never duplicate a chunk", () => {
+  const index = new LocalResearchIndex();
+  index.upsert({ path: "queries.md", content: "Latency throughput throughput latency",
+    links: [], revision: "1" });
+  const results = index.search("latency throughput");
+  assert.equal(results.hits.length, 1);
+  assert.ok(results.hits[0].score > 0);
+});

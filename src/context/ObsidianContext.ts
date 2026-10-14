@@ -7,6 +7,53 @@ import {
 import { LocalResearchIndex, type ResearchResult } from "./LocalResearch";
 
 /**
+ * Select the newest k files without sorting an entire large vault.
+ * Stable mtime ties preserve the original enumeration order.
+ * Time: O(V log k); extra space: O(k).
+ */
+export function selectRecentMarkdownFiles(files: TFile[], limit: number): TFile[] {
+  if (limit <= 0) return [];
+  if (files.length <= limit) return files.slice().sort((a, b) => b.stat.mtime - a.stat.mtime);
+  type Entry = { file: TFile; order: number };
+  const heap: Entry[] = [];
+  // A smaller timestamp is older; tied files appearing later are older.
+  const older = (a: Entry, b: Entry): boolean =>
+    a.file.stat.mtime < b.file.stat.mtime ||
+    (a.file.stat.mtime === b.file.stat.mtime && a.order > b.order);
+  const swap = (a: number, b: number): void => {
+    const tmp = heap[a];
+    heap[a] = heap[b];
+    heap[b] = tmp;
+  };
+  for (let order = 0; order < files.length; order++) {
+    const entry = { file: files[order], order };
+    if (heap.length < limit) {
+      heap.push(entry);
+      for (let i = heap.length - 1; i > 0;) {
+        const parent = Math.floor((i - 1) / 2);
+        if (!older(heap[i], heap[parent])) break;
+        swap(i, parent);
+        i = parent;
+      }
+    } else if (older(heap[0], entry)) {
+      heap[0] = entry;
+      for (let i = 0; i < heap.length;) {
+        const left = 2 * i + 1;
+        const right = left + 1;
+        let smallest = i;
+        if (left < heap.length && older(heap[left], heap[smallest])) smallest = left;
+        if (right < heap.length && older(heap[right], heap[smallest])) smallest = right;
+        if (smallest === i) break;
+        swap(i, smallest);
+        i = smallest;
+      }
+    }
+  }
+  return heap.sort((a, b) => b.file.stat.mtime - a.file.stat.mtime || a.order - b.order)
+    .map(entry => entry.file);
+}
+
+/**
  * Resolves learning context from the most recent Markdown editor rather than
  * blindly trusting workspace.activeLeaf. The Nox sidebar can own focus
  * without losing the learner's note/selection.
@@ -35,6 +82,19 @@ export class ObsidianContext {
         this.captureCurrentMarkdownView();
       }),
     );
+    // Keep the index derived; editor-buffer freshness is separately checked
+    // on each query because unsaved changes do not emit vault modifications.
+    if (typeof this.app.vault.on === "function") {
+      plugin.registerEvent(this.app.vault.on("modify", file => this.invalidateResearch(file.path)));
+      plugin.registerEvent(this.app.vault.on("delete", file => this.invalidateResearch(file.path)));
+      plugin.registerEvent(this.app.vault.on("rename", (file, oldPath) => {
+        this.invalidateResearch(oldPath);
+        this.invalidateResearch(file.path);
+      }));
+    }
+    if (typeof this.app.metadataCache?.on === "function") {
+      plugin.registerEvent(this.app.metadataCache.on("changed", file => this.invalidateResearch(file.path)));
+    }
   }
 
   getSelection(): { file: string; content: string } | null {
@@ -109,10 +169,13 @@ export class ObsidianContext {
     allowedPaths?: string[];
     limit?: number;
   } = {}): Promise<ResearchResult> {
-    const files = this.app.vault.getMarkdownFiles()
-      .filter(file => !options.allowedPaths || options.allowedPaths.includes(file.path))
-      .sort((a, b) => b.stat.mtime - a.stat.mtime)
-      .slice(0, 600);
+    const allowed = options.allowedPaths ? new Set(options.allowedPaths) : null;
+    const openViews = new Map<string, MarkdownView>();
+    for (const leaf of this.app.workspace.getLeavesOfType("markdown")) {
+      if (leaf.view instanceof MarkdownView && leaf.view.file) openViews.set(leaf.view.file.path, leaf.view);
+    }
+    const files = selectRecentMarkdownFiles(this.app.vault.getMarkdownFiles()
+      .filter(file => !allowed || allowed.has(file.path)), 600);
     const paths = new Set(files.map(file => file.path));
     if (!options.allowedPaths) {
       for (const path of this.researchIndex.paths()) {
@@ -125,13 +188,10 @@ export class ObsidianContext {
     for (let i = 0; i < files.length; i += 8) {
       await Promise.all(files.slice(i, i + 8).map(async file => {
         const links = Object.keys(this.app.metadataCache.resolvedLinks?.[file.path] ?? {})
-          .filter(path => !options.allowedPaths || options.allowedPaths.includes(path));
+          .filter(path => !allowed || allowed.has(path));
         // Obsidian editors may hold unsaved buffers while file mtime remains
         // unchanged. Include the active editor text fingerprint in the revision.
-        const openView = this.app.workspace.getLeavesOfType("markdown")
-          .map(leaf => leaf.view)
-          .find(view => view instanceof MarkdownView && view.file?.path === file.path);
-        const editorText = openView instanceof MarkdownView ? openView.editor.getValue() : undefined;
+        const editorText = openViews.get(file.path)?.editor.getValue();
         let fingerprint = 2166136261;
         if (editorText !== undefined) {
           for (let j = 0; j < editorText.length; j++) {
@@ -155,6 +215,11 @@ export class ObsidianContext {
       }));
     }
     return this.researchIndex.search(query, { limit: options.limit, allowedPaths: options.allowedPaths });
+  }
+
+  private invalidateResearch(path: string): void {
+    this.researchIndex.remove(path);
+    this.indexedRevisions.delete(path);
   }
 
   async loadNote(

@@ -1,4 +1,5 @@
 import { ChildProcess, spawn } from "child_process";
+import { StringDecoder } from "string_decoder";
 import { existsSync } from "fs";
 import { homedir } from "os";
 import { join } from "path";
@@ -253,6 +254,7 @@ export class AgyAdapter implements AgentAdapter {
     signal: AbortSignal,
   ): AsyncIterable<AgentStreamEvent> {
     let buffer = "";
+    const decoder = new StringDecoder("utf8");
     let stderr = "";
     let exitCode: number | null = null;
     const processState: {
@@ -266,6 +268,7 @@ export class AgyAdapter implements AgentAdapter {
     };
 
     const queue: string[] = [];
+    let head = 0;
     let notify: (() => void) | null = null;
 
     const wake = () => {
@@ -279,7 +282,7 @@ export class AgyAdapter implements AgentAdapter {
     };
 
     proc.stdout?.on("data", (chunk: Buffer) => {
-      buffer += chunk.toString();
+      buffer += decoder.write(chunk);
       const parts = buffer.split(/\r?\n/);
       buffer = parts.pop() ?? "";
 
@@ -310,6 +313,7 @@ export class AgyAdapter implements AgentAdapter {
 
     proc.on("close", (code) => {
       exitCode = code;
+      buffer += decoder.end();
       const finalLine = buffer.trim();
       buffer = "";
       if (finalLine) queue.push(finalLine);
@@ -323,8 +327,13 @@ export class AgyAdapter implements AgentAdapter {
         break;
       }
 
-      if (queue.length > 0) {
-        const line = queue.shift()!;
+      if (head < queue.length) {
+        const line = queue[head++]!;
+        // Array.shift() repeatedly moves queued events under large bursts.
+        if (head >= 512 && head * 2 >= queue.length) {
+          queue.splice(0, head);
+          head = 0;
+        }
         const parsed = parseAgyLine(line, protocolState);
         protocolState = parsed.state;
 

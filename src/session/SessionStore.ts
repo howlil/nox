@@ -78,6 +78,8 @@ export class SessionStore {
     return {
       serialized: draft.serialize(),
       result,
+      // Keep this clone: mutate() may return the draft as its generic result,
+      // so publishing draft.data directly would leak a mutable store alias.
       publish: () => { this.data = structuredClone(draft.data); },
     };
   }
@@ -270,6 +272,8 @@ export class SessionStore {
           compacted: item.compacted,
         };
         if (finite("firstTokenMs")) metrics.firstTokenMs = item.firstTokenMs as number;
+        if (finite("providerFirstTextMs")) metrics.providerFirstTextMs = item.providerFirstTextMs as number;
+        if (finite("providerDurationMs")) metrics.providerDurationMs = item.providerDurationMs as number;
         if (finite("contextMs")) metrics.contextMs = item.contextMs as number;
         if (finite("preparationMs")) metrics.preparationMs = item.preparationMs as number;
         if (finite("firstVisibleMs")) metrics.firstVisibleMs = item.firstVisibleMs as number;

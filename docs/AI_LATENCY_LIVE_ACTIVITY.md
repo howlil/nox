@@ -37,9 +37,11 @@ Existing `context-ready` drives the transition out of context resolution. Every 
 - `preparationMs`: elapsed from turn start through prompt preflight, just before runtime invocation.
 - `firstVisibleMs`: elapsed to first visible `response-delta`, if any.
 - `firstTokenMs`: legacy time from the model-turn deadline clock to first raw provider text; do not conflate with first visible output.
-- `elapsedMs`: wall-clock turn time through validated terminal processing, before the transcript save completes.
+- `elapsedMs`: elapsed turn time through validated terminal processing, before the transcript save completes.
+- `providerFirstTextMs`: monotonic elapsed time from runtime invocation to its first text event, inclusive of CLI startup and auth.
+- `providerDurationMs`: monotonic elapsed time from runtime invocation to its completed event.
 
-All durations use millisecond wall-clock deltas; they can drift with system clock adjustments. They are diagnostics, not model usage, quota, or verified E2E first paint. A future benchmark should add monotonic timer samples without changing the transcript source of truth.
+New turn timings use monotonic `performance.now()` deltas; timeline event timestamps continue to use `Date.now()`. They are diagnostics, not model usage, quota, or verified E2E first paint. A future benchmark should add monotonic timer samples without changing the transcript source of truth.
 
 Provider usage is still recorded separately by `AgentRuntime`. Do not claim actual token usage when only `ContextBudget` estimates are available.
 
