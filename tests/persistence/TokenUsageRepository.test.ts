@@ -61,3 +61,21 @@ test("failed plugin writes never publish token increments", async () => {
   await assert.rejects(repo.record("codex", "a", { inputTokens: 10, outputTokens: 10, totalTokens: 20 }));
   assert.equal((await repo.snapshot()).entries[0].totalTokens, 20);
 });
+
+test("a newly created AGY conversation counts its first request even with multiple internal turns", async () => {
+  let state: Record<string, unknown> = {};
+  const repo = new TokenUsageRepository(new PluginDataRepository({
+    loadData: async () => state,
+    saveData: async (value: Record<string, unknown>) => { state = value; },
+  } as never));
+  const id = "b1234567-1234-1234-1234-123456789012";
+  await repo.record("agy", "gemini", {
+    inputTokens: 110, outputTokens: 50, totalTokens: 160,
+  }, { conversationId: id, cumulative: true, turnCount: 3, freshConversation: true });
+  await repo.record("agy", "gemini", {
+    inputTokens: 190, outputTokens: 80, totalTokens: 270,
+  }, { conversationId: id, cumulative: true, turnCount: 3 });
+  const snapshot = await repo.snapshot();
+  assert.equal(snapshot.entries[0].totalTokens, 270);
+  assert.equal(snapshot.entries[0].requests, 2);
+});
