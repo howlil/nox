@@ -37,6 +37,7 @@ function rig(payload: unknown = draft(), success = true) {
     { load: async () => structuredClone(stored),
       save: async (next: ProgramCollection) => { stored = structuredClone(next); writes++; } } as never,
     () => undefined,
+    () => "chatgpt",
   );
   return { orchestrator, stored: () => structuredClone(stored), writes: () => writes };
 }
