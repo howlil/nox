@@ -73,6 +73,9 @@ export type LearningEvent =
       type: "learning-state-updated";
       state: LearningState;
     }
+  | { type: "tool-started"; toolCallId: string; name: string }
+  | { type: "tool-completed"; toolCallId: string; outcome: "completed" | "failed" }
+  | { type: "usage"; inputTokens: number; outputTokens: number; cachedInputTokens?: number }
   | {
       type: "completed";
     }
