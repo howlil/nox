@@ -281,7 +281,7 @@ export class LearningController {
       // A failed write must not publish an assisted attempt or half a hint.
       const sessionId = this.sessions.getSession().id;
       try {
-        await this.sessions.recordPracticeHint(hint, sessionId);
+        await this.sessions.recordPracticeHint(hint, sessionId, request.turnId);
         this.turns.getPracticeHint();
       } catch (error) {
         yield { type: "failed", failure: { code: "persistence-failed",
@@ -413,7 +413,7 @@ export class LearningController {
             }
           }
         }
-        if (!request.retry) await this.sessions.recordUserMessage(request.prompt, this.sessions.getSession().id, "ask");
+        if (!request.retry) await this.sessions.recordUserMessage(request.prompt, this.sessions.getSession().id, "ask", request.turnId);
         await this.sessions.recordAssistantMessage(response, undefined, this.sessions.getSession().id);
         yield { type: "response-delta", text: response };
         yield { type: "completed" }; return;
