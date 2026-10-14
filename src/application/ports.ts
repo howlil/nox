@@ -16,7 +16,11 @@ export interface ProgramStorePort {
 export interface SessionPort {
   configureRuntime(provider: string, preferredModel?: string, options?: RuntimeSettingsWrite): Promise<void>;
   getSession(): ChatSession;
-  listSessions(): ChatSession[];
+  listSessions(includeArchived?: boolean): ChatSession[];
+  mutateHistory(ids: string[], action: "archive" | "restore" | "delete"): Promise<{
+    affected: number;
+    activeSessionChanged: boolean;
+  }>;
   selectSession(id: string): Promise<ChatSession | null>;
   setModel(modelId?: string): Promise<void>;
   newSession(): Promise<ChatSession>;
