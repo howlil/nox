@@ -242,10 +242,10 @@ swipe open state are presentation-only; no second history store is permitted.
 - UIArc Swipe Actions interaction semantics are adapted to Obsidian native DOM,
   not installed as a React runtime dependency.
 
-Appearance is a persisted system/light/dark preference for NOX only. System
-follows Obsidian theme. Explicit choices override NOX's root and Settings
-token scope without changing Obsidian globally. All three themes use flat
-colors, existing NOX semantic tokens and reduced-motion support.
+NOX uses one fixed flat light palette for the sidebar, Settings and owned
+modal/menu portals. It provides no appearance selector or dark overrides.
+Obsidian's global theme remains unchanged.
+
 
 ## Visual system
 
@@ -266,37 +266,13 @@ semantic AI identity. Light palette:
 | `--nox-accent-soft` | `#F4EDFF` | selected surface |
 | `--nox-accent-border` | `#C9B0ED` | selection and focus |
 
-### Scoped NOX appearance — 2026-10-15
+### Light-only NOX surfaces — 2026-10-15
 
-The appearance setting has four effective combinations: Obsidian Light/System →
-NOX Light; Obsidian Dark/System → NOX Dark; Obsidian Dark/forced Light →
-NOX Light; Obsidian Light/forced Dark → NOX Dark. The host app's theme must
-never be mutated.
-
-One light/dark palette is declared at the top of `styles.css` on
-`.nox-root`, `.nox-settings`, and temporary `.nox-theme-portal` surfaces.
-Dark selectors exclude `.nox-force-light`; explicit `.nox-force-dark` takes
-precedence independently of the host theme. The same scope sets
-`color-scheme`, scrollbar/accent colors, and a narrow bridge for Obsidian's
-rendered text, form, link and code variables. Component rules should read
-`--nox-*`, never host-specific color variables.
-
-The history native DOM action menu mounts into a temporary NOX-owned theme
-portal outside clipped scrolling lists. Archive/delete confirmation dialogs
-receive the same NOX appearance class. Portals are disposed on close; neither
-portal nor theme token scope applies to the global Obsidian body.
-
-The interactive HTML iframe remains intentionally isolated and light by
-default: its untrusted document owns its presentation, not the NOX theme.
-Other native NOX components do not get an implicit white background.
-
-Metadata and semantic badges must meet readable text contrast in both
-palettes. The base palette is neutral and flat; state color is semantic.
-
-In dark mode, `styles.css` owns a corresponding flat ramp (`#080808`
-page, `#121212` surface, `#1B1B1B` inset), adjusted purple foreground
-contrast and semantic success/warning/error colors. Do not use transparent
-white washes that disappear against dark surfaces.
+One palette is declared in `styles.css`, scoped to `.nox-root`,
+`.nox-settings` and temporary `.nox-theme-portal` surfaces. It sets
+`color-scheme: light` and a narrow bridge for native Obsidian controls.
+No dark-mode toggle, dark palette or global body overrides exist. The host
+Obsidian theme remains untouched.
 
 Nox owns these semantic tokens instead of inheriting arbitrary Obsidian
 theme colors. Purple means active AI intent, focus, selection, or a primary AI
@@ -651,7 +627,7 @@ Root UI tokens (styles.css)
   `src/settings/TokenUsageSection.ts`. No shadow/ring overrides appended
   to the end to fight legacy declarations.
 - Regression gates: lint/typecheck/unit/integration/build, source design
-  assertions, and manual Obsidian light/dark at 320px, 420px and wide panels.
+  assertions, and manual NOX light-only at 320px, 420px and wide panels, including a dark Obsidian host.
 
 ## Native Obsidian capsule composer — 2026-10-15
 
@@ -666,7 +642,7 @@ Root UI tokens (styles.css)
   command and model state; `styles.css` owns geometry.
 - Verify: test the collapsed and multiline composition, narrow panels,
   keyboard navigation, actual text attachments, model disclosure, file cancel,
-  dark mode, focus and selection restoration.
+  light-only focus and selection restoration.
 
 ```text
 Composer
@@ -694,3 +670,28 @@ Regenerate is distinct from retry. Only the latest Ask/Explain answer can be
 regenerated; alternatives are durable (maximum eight). A failed generation
 leaves canonical transcript state unchanged; selections go through the existing
 serialized SessionController writer and invalidate provider cursor state.
+
+## Token Usage Compact + Remaining Credits — 2026-10-15
+
+Design thinking: observe the existing six-number wall and unavailable account
+credit support; define quick answers to usage, traffic, and remaining balance;
+prioritize flat, compact, accessible light-only surfaces and truthful provenance.
+
+```text
+Usage record → daily buckets → filter → Total hero + input/output split
+                         └── compact metrics + model ranking
+Manual quota input → serialized plugin data → model pool / provider shared pool
+                                      └── Remaining Credits progress row
+```
+
+- NOX token totals come from its existing ledger. Cached/reasoning are
+  auxiliary reported fields, not extra tokens to add.
+- NOX does not infer dollars, credits, allowances, or reset times from tokens.
+- Manual quota records must show Manual provenance and last-updated time.
+- Specific model quotas override shared provider pools, which have exactly
+  one editable/deletable canonical row and may be echoed beneath each model.
+  Never sum these displayed echoes as separate balances.
+- Reject malformed, negative, nonfinite, and over-limit amounts. Support
+  credits, USD and request units; request counts must be whole numbers.
+- Never imply that a manual snapshot is live or provider-verified.
+- No Appearance toggle. NOX stays light-only; host Obsidian theme untouched.

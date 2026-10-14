@@ -10,7 +10,6 @@ export interface NoxSettings {
   executablePath: string;
   codexExecutablePath: string;
   preferredModel: string;
-  appearance: "system" | "light" | "dark";
 }
 
 export const DEFAULT_NOX_SETTINGS: NoxSettings = {
@@ -18,7 +17,6 @@ export const DEFAULT_NOX_SETTINGS: NoxSettings = {
   executablePath: "",
   codexExecutablePath: "",
   preferredModel: "",
-  appearance: "system",
 };
 
 export function decodeNoxSettings(
@@ -38,8 +36,6 @@ export function decodeNoxSettings(
       typeof candidate.preferredModel === "string"
         ? candidate.preferredModel
         : "",
-    appearance: candidate.appearance === "light" || candidate.appearance === "dark"
-      ? candidate.appearance : "system",
   };
 }
 
