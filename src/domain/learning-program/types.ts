@@ -7,7 +7,7 @@ export interface ProgramConstraints {
   sourceBound: boolean;
   excludedTopics: string[];
 }
-export type SessionPauseReason = "manual" | "ai-running" | "app-inactive" | "recovery";
+export type SessionPauseReason = "manual" | "ai-running" | "app-inactive" | "recovery" | "idle";
 
 export interface SessionTiming {
   version: 2;

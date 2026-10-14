@@ -1,3 +1,4 @@
+import { renderLearningActivity } from "./activity-heatmap";
 import { OnboardingFlow } from "./onboarding-flow";
 import {
   ItemView,
@@ -175,6 +176,7 @@ export class ChatView extends ItemView {
   private streamingTextNode: Text | null = null;
   private runInspector: NoxRunInspector | null = null;
   private learningGraphEl: HTMLElement | null = null;
+  private learningActivityEl: HTMLElement | null = null;
   private thinkingManualExpanded: boolean | null = null;
   private streamedThoughtText = "";
   private streamedResponseText = "";
@@ -352,6 +354,11 @@ export class ChatView extends ItemView {
     const right = top.createDiv({ cls: "nox-header-right" });
     const mapBtn = createNoxIconButton(right, { cls: "nox-map-btn", icon: "git-branch", label: "Open learning map", title: "Learning map" });
     mapBtn.addEventListener("click", () => void this.toggleLearningMap());
+    const activityBtn = createNoxIconButton(right, {
+      cls: "nox-activity-btn", icon: "chart-no-axes-column",
+      label: "Open learning activity", title: "Learning activity",
+    });
+    activityBtn.addEventListener("click", () => void this.toggleLearningActivity());
 
     this.historyBtn = createNoxIconButton(right, {
       cls: "nox-history-btn",
@@ -505,6 +512,34 @@ export class ChatView extends ItemView {
       // A transient vault read must not block the chat interface.
     } finally {
       this.refreshingSessionClock = false;
+    }
+  }
+
+  private async toggleLearningActivity(scope: "active" | "all" = "active"): Promise<void> {
+    if (this.learningActivityEl?.isConnected && scope === "active") {
+      this.learningActivityEl.remove();
+      this.learningActivityEl = null;
+      return;
+    }
+    try {
+      const state = await this.learning.getProgramMenuState();
+      const id = scope === "active" ? state.activeProgramId : undefined;
+      const summary = await this.learning.getActivitySummary(id);
+      this.learningActivityEl?.remove();
+      this.learningActivityEl = renderLearningActivity(this.thread, summary, {
+        scope,
+        onClose: () => { this.learningActivityEl?.remove(); this.learningActivityEl = null; },
+        onScopeChange: next => {
+          // Do not treat scope switching as a toggle-close operation.
+          this.learningActivityEl?.remove();
+          this.learningActivityEl = null;
+          void this.toggleLearningActivity(next);
+        },
+      });
+      this.thread.prepend(this.learningActivityEl);
+      this.learningActivityEl.scrollIntoView({ block: "start", behavior: "smooth" });
+    } catch (error) {
+      new Notice(error instanceof Error ? error.message : "Learning activity unavailable.");
     }
   }
 
