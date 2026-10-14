@@ -13,7 +13,41 @@ const navigation = [
 export default function FloatingNav({ sponsorUrl }: { sponsorUrl?: string }) {
   const [active, setActive] = useState<string>("home");
   const [menuOpen, setMenuOpen] = useState(false);
+  const [scrolled, setScrolled] = useState(false);
   const reducedMotion = useReducedMotion();
+
+  // Match Modu's header: transparent until the first 72px of page scroll.
+  useEffect(() => {
+    const update = () => setScrolled(window.scrollY > 72);
+    update();
+    window.addEventListener("scroll", update, { passive: true });
+    return () => window.removeEventListener("scroll", update);
+  }, []);
+
+  // Keep the mobile menu dismissible by keyboard and by tapping elsewhere.
+  useEffect(() => {
+    if (!menuOpen) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setMenuOpen(false);
+        document.querySelector<HTMLButtonElement>(".capsule-menu-toggle")?.focus();
+      }
+    };
+    const onPointerDown = (event: PointerEvent) => {
+      if (event.target instanceof Node && !document.querySelector(".floating-nav-shell")?.contains(event.target)) {
+        setMenuOpen(false);
+      }
+    };
+    const onResize = () => { if (window.innerWidth > 970) setMenuOpen(false); };
+    window.addEventListener("keydown", onKeyDown);
+    window.addEventListener("pointerdown", onPointerDown);
+    window.addEventListener("resize", onResize);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener("pointerdown", onPointerDown);
+      window.removeEventListener("resize", onResize);
+    };
+  }, [menuOpen]);
 
   useEffect(() => {
     const observer = new IntersectionObserver(
@@ -45,7 +79,7 @@ export default function FloatingNav({ sponsorUrl }: { sponsorUrl?: string }) {
   ));
 
   return <>
-    <div className="floating-nav-shell">
+    <div className={`floating-nav-shell${scrolled ? " is-scrolled" : ""}`}>
       <nav className="floating-capsule" aria-label="Primary navigation">
         <a className="brand" href="#home" aria-label="NOX, home" onClick={() => setActive("home")}>
           <img src="/nox-96.webp" width={31} height={31} alt="" />
