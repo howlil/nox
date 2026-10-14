@@ -197,7 +197,6 @@ export class ChatView extends ItemView {
     private readonly learning: LearningController,
     private readonly openSettings: () => void,
     private readonly getLogoUrl: () => string,
-    private readonly getAppearance: () => "system" | "light" | "dark",
   ) {
     super(leaf);
   }
@@ -218,7 +217,6 @@ export class ChatView extends ItemView {
     const root = this.contentEl;
     root.empty();
     root.addClass("nox-root");
-    this.applyAppearance(this.getAppearance());
 
     this.buildHeader(root);
     this.thread = root.createDiv({ cls: "nox-thread" });
@@ -233,11 +231,6 @@ export class ChatView extends ItemView {
     await this.ensureRuntimeReady();
     void this.refreshSessionClock();
     this.sessionClockTimer = window.setInterval(() => { void this.refreshSessionClock(); }, 2000);
-  }
-
-  applyAppearance(appearance: "system" | "light" | "dark"): void {
-    this.contentEl.toggleClass("nox-force-dark", appearance === "dark");
-    this.contentEl.toggleClass("nox-force-light", appearance === "light");
   }
 
   async onClose(): Promise<void> {
@@ -451,7 +444,6 @@ export class ChatView extends ItemView {
         );
       },
       confirmDelete: count => this.confirmHistoryDeletion(count),
-      appearance: () => this.getAppearance(),
     });
     this.historyMenuEl.addEventListener("keydown", event => {
       if (event.key === "Escape") {
@@ -551,9 +543,6 @@ export class ChatView extends ItemView {
     return new Promise(resolve => {
       const modal = new Modal(this.app);
       modal.modalEl.addClass("nox-theme-portal");
-      const appearance = this.getAppearance();
-      modal.modalEl.toggleClass("nox-force-dark", appearance === "dark");
-      modal.modalEl.toggleClass("nox-force-light", appearance === "light");
       let settled = false;
       const finish = (confirmed: boolean) => {
         if (settled) return;
