@@ -60,8 +60,8 @@ export class NoxSettingsTab extends PluginSettingTab {
         const next = event.key === "ArrowRight" ? index + 1 :
           event.key === "ArrowLeft" ? index - 1 :
           event.key === "Home" ? 0 :
-          event.key === "End" ? SETTING_PAGES.length - 1 : -1;
-        if (next < 0) return;
+          event.key === "End" ? SETTING_PAGES.length - 1 : null;
+        if (next === null) return;
         event.preventDefault();
         this.openPage(SETTING_PAGES[(next + SETTING_PAGES.length) % SETTING_PAGES.length].value, true);
       });
