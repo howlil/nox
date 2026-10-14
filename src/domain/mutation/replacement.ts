@@ -20,7 +20,8 @@ function findOccurrences(content: string, needle: string): number[] {
     if (index === -1) break;
 
     matches.push(index);
-    cursor = index + needle.length;
+    // Count overlapping occurrences too; any second match makes an edit ambiguous.
+    cursor = index + 1;
   }
 
   return matches;
