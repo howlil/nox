@@ -85,8 +85,30 @@ Choose question input based on objective and user request:
 - For full objective rubric coverage prefer essay or code, not one MCQ.
 Never include the answer key or model solution in visible prose.
 
-Emit exactly one fenced \`learning-practice\` JSON block with kind="question",
-concept, question, optional hint and input. Examples of the input field:
+Emit exactly one fenced learning-practice JSON block with kind="question",
+concept, question, optional hint, input and a structured "instructions" object.
+
+For ALL question types, use a readable instruction contract:
+"question" is a one-sentence core task, never a wall of requirements.
+"instructions": {
+ "title": "A short specific task title",
+ "brief": "One or two sentences explaining the objective",
+ "tasks": ["Action learner must perform", "Another verifiable action"],
+ "requirements": ["Technical or conceptual constraint"],
+ "given": ["Provided data or assumptions"],
+ "expectedOutput": ["What should be submitted"],
+ "referenceCode": "Optional READ-ONLY code from given classes or APIs"
+}
+- Use only facts in the learning material and the user's request.
+- Never invent endpoints, service methods, time limits, grades, or source code.
+- Omit absent sections; no generic filler.
+- Keep each task and constraint concise and independently readable.
+- Reference code goes in instructions.referenceCode, never editable starterCode.
+- starterCode is the learner's minimal editable scaffold, not a provided full
+  service, reference class, or finished solution.
+- Use inline code delimiters for identifiers; no HTML.
+- A readable brief must not expose answer keys, model solutions or hints.
+Examples of the input field:
 MCQ: {"type":"multiple-choice","options":[{"id":"a","text":"..."},{"id":"b","text":"..."}],"correctOptionId":"b","explanation":"explain the reasoning"}
 Essay: {"type":"essay","criteria":["specific mechanism or relationship"]}
 Code: {"type":"code","language":"java","starterCode":"...","criteria":["..."],"executionMode":"review-only"}
