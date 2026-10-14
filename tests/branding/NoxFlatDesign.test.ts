@@ -63,12 +63,12 @@ test("Learning surfaces and actions keep their canonical selectors", () => {
 });
 
 test("compact visual grammar uses in-surface focus rather than outer rings", () => {
-  assert.doesNotMatch(css, /outline:\\s*2px solid/i);
-  assert.match(css, /\\.nox-composer-controls\\s*\\{[^}]*grid-template-rows:\\s*minmax\\(24px, auto\\) 30px;/s);
-  assert.match(css, /\\.nox-input-line\\s*\\{[^}]*grid-column:\\s*1 \\/ -1;/s);
-  assert.match(css, /textarea\\.nox-input:is\\(:hover, :focus, :focus-visible, :active\\)/);
-  assert.match(css, /\\.nox-composer-box:focus-within\\s*\\{[^}]*border-color:\\s*var\\(--nox-accent-border\\);/s);
-  assert.match(css, /\\.nox-usage-header\\s*\\{/);
-  assert.match(css, /\\.nox-capability-card\\s*\\{[^}]*min-height:\\s*90px;/s);
-  assert.match(css, /\\.nox-capability-meta\\s*\\{[^}]*background:\\s*transparent;/s);
+  assert.doesNotMatch(css, /outline:\s*2px solid/i);
+  assert.match(css, /\.nox-composer-controls\s*\{[^}]*grid-template-rows:\s*minmax\(24px, auto\) 30px;/s);
+  assert.match(css, /\.nox-input-line\s*\{[^}]*grid-column:\s*1 \/ -1;/s);
+  assert.ok(css.includes("textarea.nox-input:is(:hover, :focus, :focus-visible, :active)"));
+  assert.match(css, /\.nox-composer-box:focus-within\s*\{[^}]*border-color:\s*var\(--nox-accent-border\);/s);
+  assert.ok(css.includes(".nox-usage-header {"));
+  assert.match(css, /\.nox-capability-card\s*\{[^}]*min-height:\s*90px;/s);
+  assert.match(css, /\.nox-capability-meta\s*\{[^}]*background:\s*transparent;/s);
 });
