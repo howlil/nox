@@ -263,6 +263,9 @@
   margin-left: auto;
 }
 
+.nox-root .svg-icon,
+.nox-settings .svg-icon { stroke-width: 1.8; }
+
 .nox-new-btn,
 .nox-more-btn,
 .nox-send-btn,
@@ -1879,8 +1882,8 @@
 }
 
 .nox-capability-icon svg {
-  width: 14px;
-  height: 14px;
+  width: 16px;
+  height: 16px;
 }
 
 .nox-capability-title {
@@ -2148,11 +2151,11 @@
 .nox-root .nox-cancel-btn > .svg-icon,
 .nox-root .nox-icon {
   display: block !important;
-  width: 15px !important;
-  height: 15px !important;
-  min-width: 15px !important;
-  min-height: 15px !important;
-  flex: 0 0 15px !important;
+  width: 16px !important;
+  height: 16px !important;
+  min-width: 16px !important;
+  min-height: 16px !important;
+  flex: 0 0 16px !important;
   overflow: visible !important;
   opacity: 1 !important;
 }
