@@ -123,6 +123,31 @@ Restart Obsidian after changing environment variables. On Windows, a native
 `codex.exe` is required; common npm shims are resolved to their bundled native
 binary, or you can configure that absolute path directly.
 
+## Actions menu and welcome screen
+
+The slash menu is deliberately small. Open **Actions** without a query to see
+one contextual learning action, four note tools, and the program picker when
+plans exist. With a query, search matches command/title prefixes and explicit
+keywords. A single letter is **prefix-only** (`/s` should not show every action
+whose description happens to contain an `s`). Duplicate program-ID commands
+and legacy backend modes are not promoted into search results.
+
+Legacy `/mode assessment`, `/mode focused`, `/pause`, and `/resume`
+continue to work when typed explicitly in compatible learning modes. These
+commands are retained for existing sessions, not recommended to new learners.
+
+On an empty conversation, the welcome view shows the **same contextual primary
+learning action** as the menu and four neutral, compact note-tool shortcuts.
+Clicking a note shortcut selects its intent without sending an AI request.
+Creating a learning plan leaves the `/plan` prefix in the composer so the goal
+can be entered. A complete session-action CTA can execute with one click.
+
+Manual Obsidian acceptance checks: `/s` yields at most prefix matches; `/pro`
+only matches intentional program/progress entries; `/legacy` and `/mode` do
+not offer legacy modes; new/saved/active/answered states select an appropriate
+primary CTA; initial shortcuts fit a normal sidebar without gradients or large
+cards. Check the loaded build in Settings → Nox when the UI still shows old copy.
+
 ## Live development in Obsidian
 
 NOX uses an incremental esbuild watcher, a separate Tailwind v4 watcher, and
