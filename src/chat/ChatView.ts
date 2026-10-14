@@ -54,6 +54,8 @@ import { NoxMenuState } from "./menu";
 import { modelMenuItems } from "./model-menu";
 import { createNoxPopover, NoxPopoverState } from "./popover";
 import { NoxComposer, type NoxComposerContext } from "./composer";
+import { NoxRunInspector } from "./run-inspector";
+import { renderLearningGraph } from "./learning-graph";
 import {
   NoxSelectionActions,
   type NoxSelectionAction,
@@ -149,6 +151,8 @@ export class ChatView extends ItemView {
   private thinkingPanelEl: HTMLElement | null = null;
   private thinkingThoughtEl: HTMLElement | null = null;
   private thinkingRows: HTMLElement[] = [];
+  private runInspector: NoxRunInspector | null = null;
+  private learningGraphEl: HTMLElement | null = null;
   private thinkingManualExpanded: boolean | null = null;
   private streamedThoughtText = "";
   private streamedResponseText = "";
@@ -305,6 +309,8 @@ export class ChatView extends ItemView {
     copy.createSpan({ cls: "nox-header-title", text: "Nox" });
 
     const right = top.createDiv({ cls: "nox-header-right" });
+    const mapBtn = createNoxIconButton(right, { cls: "nox-map-btn", icon: "git-branch", label: "Open learning map", title: "Learning map" });
+    mapBtn.addEventListener("click", () => void this.toggleLearningMap());
 
     this.historyBtn = createNoxIconButton(right, {
       cls: "nox-history-btn",
@@ -374,6 +380,27 @@ export class ChatView extends ItemView {
     });
     this.historyPopover = new NoxPopoverState(this.historyMenuEl);
     this.syncHistoryTrigger();
+  }
+
+  private async toggleLearningMap(): Promise<void> {
+    if (this.learningGraphEl?.isConnected) {
+      this.learningGraphEl.remove(); this.learningGraphEl = null; return;
+    }
+    try {
+      const overview = await this.learning.getProgramOverview();
+      this.learningGraphEl = renderLearningGraph(this.thread, overview,
+        () => { this.learningGraphEl?.remove(); this.learningGraphEl = null; },
+        () => {
+          if (this.uiState === "RUNNING") return;
+          this.learningGraphEl?.remove(); this.learningGraphEl = null;
+          this.input.value = overview?.active ? "/next" : overview ? "/start-session" : "/plan ";
+          this.onInput();
+          if (overview) void this.doSend(); else this.focusComposer();
+        });
+      this.thread.scrollTo({ top: 0, behavior: "smooth" });
+    } catch (error) {
+      new Notice(error instanceof Error ? error.message : "Learning map unavailable.");
+    }
   }
 
   private toggleHistoryMenu(): void {
@@ -1413,6 +1440,7 @@ export class ChatView extends ItemView {
     this.streamedResponseText = "";
     this.streamingPendingText = "";
     this.stopLoadingTimer();
+    this.runInspector = null;
     this.turnTerminal = false;
 
     this.runningAction = request.action;
@@ -1439,7 +1467,20 @@ export class ChatView extends ItemView {
   }
 
   private handleLearningEvent(event: LearningEvent): void {
+    if (event.type === "tool-started") {
+      this.runInspector?.toolStarted(event.toolCallId, event.name);
+      return;
+    }
+    if (event.type === "tool-completed") {
+      this.runInspector?.toolCompleted(event.toolCallId, event.outcome);
+      return;
+    }
+    if (event.type === "usage") {
+      this.runInspector?.setUsage(event);
+      return;
+    }
     if (event.type === "context-ready") {
+      this.runInspector?.setContext(event.context);
       this.currentContext = event.context.resolved;
       this.turnContextSource =
         event.context.mutableFile ??
@@ -1523,6 +1564,7 @@ export class ChatView extends ItemView {
   ): void {
     if (this.turnTerminal) return;
     this.turnTerminal = true;
+    this.runInspector?.settle(outcome);
 
     const action = this.runningAction;
     if (this.uiState === "RUNNING") this.setUIState("ANSWER");
@@ -1577,6 +1619,7 @@ export class ChatView extends ItemView {
     this.thinkingThoughtEl = null;
     this.thinkingRows = [];
     this.thinkingManualExpanded = null;
+    this.runInspector = null;
   }
 
   private settleThinking(doneLabel: string): void {
@@ -2055,6 +2098,7 @@ export class ChatView extends ItemView {
     const panel = trace.createDiv({ cls: "nox-thinking-panel" });
     this.thinkingPanelEl = panel;
     const list = panel.createDiv({ cls: "nox-thinking-trace nox-thinking-trace--facts" });
+    this.runInspector = new NoxRunInspector(panel);
 
     const source = this.currentContext?.selection?.file ?? this.currentContext?.activeNote?.path;
     const facts: Array<{ primary: string; secondary?: string }> = [
