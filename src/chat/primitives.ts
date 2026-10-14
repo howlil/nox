@@ -55,6 +55,7 @@ export type NoxMenuRowOptions = {
   name: string;
   description?: string;
   command?: string;
+  stacked?: boolean;
   disabled?: boolean;
 };
 
@@ -206,12 +207,13 @@ export function createNoxMenuRow(
     });
     setNoxIcon(icon, options.icon);
   }
-  row.createSpan({
+  const body = options.stacked ? row.createDiv({ cls: "nox-prompt-menu-body" }) : row;
+  body.createSpan({
     cls: `nox-menu-row-name${options.nameClass ? ` ${options.nameClass}` : ""}`,
     text: options.name,
   });
   if (options.description) {
-    row.createSpan({
+    body.createSpan({
       cls: `nox-menu-row-description${options.descriptionClass ? ` ${options.descriptionClass}` : ""}`,
       text: options.description,
     });
