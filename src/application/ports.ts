@@ -1,5 +1,5 @@
 import type { AgentContext, ApplyResult, ChatMessage, ChatSession, EditProposal } from "../types";
-import type { AgentUsageRecord } from "../agent/token-usage";
+import type { AgentUsageRecord } from "../domain/telemetry/token-usage";
 import type { ExplicitContextRef, LearningContext, LearningPolicy } from "../context/context-types";
 import type { LearningState } from "../domain/learning-state/types";
 import type { TranscriptPart } from "../session/transcript-types";
