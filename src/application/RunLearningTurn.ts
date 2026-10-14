@@ -172,6 +172,28 @@ export class RunLearningTurn {
     this.activeTurn = activeTurn;
 
     const sessionAtStart = this.sessions.getSession();
+    // Regenerate is NOT retry: validate the latest plain Ask/Explain pair
+    // before I/O and never append a duplicate user transcript message.
+    if (request.regenerate) {
+      const index = request.regenerate.messageIndex;
+      const message = sessionAtStart.messages[index];
+      const user = sessionAtStart.messages[index - 1];
+      const valid = Number.isInteger(index) && index === sessionAtStart.messages.length - 1 &&
+        message?.role === "assistant" &&
+        message.content === request.regenerate.expectedContent &&
+        !message.proposal && !message.parts?.length &&
+        user?.role === "user" && user.content === request.prompt &&
+        user.action === request.action &&
+        (request.action === "ask" || request.action === "explain") &&
+        !this.practiceForSession(sessionAtStart).isWaitingForAnswer();
+      if (!valid) {
+        this.activeTurn = null;
+        yield { type: "failed", failure: {
+          code: "unknown", message: "This answer can no longer be regenerated safely.",
+        } };
+        return;
+      }
+    }
     const scopeCommand = parseScopeCommand(request.prompt);
     if (scopeCommand) {
       try {
@@ -624,7 +646,7 @@ export class RunLearningTurn {
     };
 
     try {
-      if (!request.retry) {
+      if (!request.retry && !request.regenerate) {
         await this.sessions.recordUserMessage(request.prompt, turnSessionId, request.action);
       }
 
@@ -699,7 +721,12 @@ export class RunLearningTurn {
       }
 
       // M0-M2: one bounded context envelope for every provider. Transcript is preserved.
-      const priorHistory = lockedMode || program ? [] : conversation.messages.map(message => ({
+      // Exclude the old answer AND its user prompt: the regeneration prompt
+      // itself represents that user turn and must not be duplicated in history.
+      const historyMessages = request.regenerate
+        ? conversation.messages.slice(0, request.regenerate.messageIndex - 1)
+        : conversation.messages;
+      const priorHistory = lockedMode || program ? [] : historyMessages.map(message => ({
         role: message.role, content: message.content,
       }));
       const envelope = prepareContextEnvelope({
@@ -712,7 +739,8 @@ export class RunLearningTurn {
       });
       const rotateCursor = conversation.messages.length > 0 &&
         conversation.messages.length % 24 < 2 && conversation.messages.length >= 24;
-      const conversationId = lockedMode || program || rotateCursor ? undefined : conversation.conversationId;
+      const conversationId = lockedMode || program || rotateCursor || request.regenerate
+        ? undefined : conversation.conversationId;
       // CLI adapters own opaque provider history. On rotation, explicitly carry a
       // bounded digest rather than depending on unbounded hidden state.
       const isCli = conversation.runtimeProvider === "agy" || conversation.runtimeProvider === "codex";
@@ -736,6 +764,7 @@ export class RunLearningTurn {
       // the model has received the request until output is observed.
       yield { type: "activity-phase", phase: "waiting-model", at: Date.now() };
       let receivedModelOutput = false;
+      let regeneratedConversationId: string | undefined;
       for await (const event of this.runtime.send(
         { prompt: effectivePrompt, context: envelope.context },
         { model: conversation.model, conversationId, history: envelope.history },
@@ -781,7 +810,8 @@ export class RunLearningTurn {
             metrics.providerOutputTokens = event.usage.outputTokens;
           }
           if (event.conversationId && !lockedMode && !program) {
-            await this.sessions.setConversationId(event.conversationId, turnSessionId);
+            if (request.regenerate) regeneratedConversationId = event.conversationId;
+            else await this.sessions.setConversationId(event.conversationId, turnSessionId);
           }
 
           let completedEvents = parser.finish();
@@ -957,14 +987,24 @@ export class RunLearningTurn {
           const elapsedMs = Date.now() - runStartedAt;
           metrics.elapsedMs = elapsedMs;
           if (firstVisibleMs !== undefined) metrics.firstVisibleMs = firstVisibleMs;
-          await this.sessions.recordAssistantMessage(
-            visibleText,
-            snapshot.mutableFile,
-            turnSessionId,
-            thoughtText.trim() || undefined,
-            elapsedMs,
-            metrics,
-          );
+          if (request.regenerate) {
+            await this.sessions.recordRegeneratedResponse(
+              request.regenerate.messageIndex,
+              request.regenerate.expectedContent,
+              { content: visibleText, sourcePath: snapshot.mutableFile },
+              turnSessionId,
+              regeneratedConversationId,
+            );
+          } else {
+            await this.sessions.recordAssistantMessage(
+              visibleText,
+              snapshot.mutableFile,
+              turnSessionId,
+              thoughtText.trim() || undefined,
+              elapsedMs,
+              metrics,
+            );
+          }
           yield { type: "completed" };
           return;
         }
