@@ -2,9 +2,13 @@ import {
   createNoxPreviewDocument,
   MAX_VISUAL_SOURCE_CHARS,
   parseNoxChart,
+  parseNoxCard,
+  parseNoxFlow,
   visualKindFromClasses,
   type NoxChartSpec,
 } from "./response-spec";
+
+import { enhanceNoxMarkdownTables, renderNoxCard, renderNoxFlow, renderNoxHorizontalChart } from "./response-rich";
 
 const SVG_NS = "http://www.w3.org/2000/svg";
 
@@ -184,6 +188,7 @@ function renderPreview(
  */
 export function enhanceNoxResponseVisuals(content: HTMLElement): number {
   let enhanced = 0;
+  enhanceNoxMarkdownTables(content);
   for (const code of Array.from(content.querySelectorAll<HTMLElement>("pre > code"))) {
     const pre = code.parentElement;
     if (!(pre instanceof HTMLPreElement)) continue;
@@ -204,7 +209,27 @@ export function enhanceNoxResponseVisuals(content: HTMLElement): number {
         pre.before(warning);
         continue;
       }
-      pre.replaceWith(renderChart(chart));
+      pre.replaceWith(chart.type === "horizontal-bar" ? renderNoxHorizontalChart(chart) : renderChart(chart));
+      enhanced++;
+    } else if (kind === "nox-flow") {
+      const flow = parseNoxFlow(source);
+      if (!flow) {
+        const warning = element("p", "nox-visual-warning");
+        warning.textContent = "Invalid flow data; displaying the original JSON.";
+        pre.before(warning);
+        continue;
+      }
+      pre.replaceWith(renderNoxFlow(flow));
+      enhanced++;
+    } else if (kind === "nox-card") {
+      const card = parseNoxCard(source);
+      if (!card) {
+        const warning = element("p", "nox-visual-warning");
+        warning.textContent = "Invalid card data; displaying the original JSON.";
+        pre.before(warning);
+        continue;
+      }
+      pre.replaceWith(renderNoxCard(card));
       enhanced++;
     } else {
       const visual = renderPreview(kind, source, pre);
