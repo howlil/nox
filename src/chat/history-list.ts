@@ -90,8 +90,8 @@ export class NoxHistoryList {
     for (const session of visible) this.renderItem(list, session);
     list.scrollTop = scrollTop;
     // Swipe drawers are transient; scrolling must never leave an action layer visible.
-    list.addEventListener("scroll", () => this.closeSwipe(), { passive: true });
-    list.addEventListener("wheel", () => this.closeSwipe(), { passive: true });
+    list.addEventListener("scroll", () => this.closeSwipe(undefined, true), { passive: true });
+    list.addEventListener("wheel", () => this.closeSwipe(undefined, true), { passive: true });
   }
 
   private renderSelectionBar(visible: ChatSession[]): void {
@@ -285,13 +285,13 @@ export class NoxHistoryList {
   /** Only one swipe row can remain revealed. Scroll collapses it immediately. */
   /** Hide action drawers whenever the history popover is dismissed. */
   resetSwipe(): void {
-    this.closeSwipe();
+    this.closeSwipe(undefined, true);
   }
 
-  private closeSwipe(exceptId?: string): void {
+  private closeSwipe(exceptId?: string, immediate = false): void {
     // O(1) on scroll: do not repaint every history row for each wheel event.
     const id = this.revealedId ?? this.expanded?.id;
-    if (id && id !== exceptId) this.positionRow(id, null);
+    if (id && id !== exceptId) this.positionRow(id, null, immediate);
     if (this.expanded?.id !== exceptId) this.expanded = null;
   }
 
@@ -308,12 +308,12 @@ export class NoxHistoryList {
     }
   }
 
-  private positionRow(id: string, side: "leading" | "trailing" | null): void {
+  private positionRow(id: string, side: "leading" | "trailing" | null, immediate = false): void {
     const row = this.rowRefs.get(id);
     if (!row) return;
     const offset = side === "leading" ? HISTORY_SWIPE_LEADING :
       side === "trailing" ? -HISTORY_SWIPE_TRAILING : 0;
-    row.front.style.transition = "";
+    row.front.style.transition = immediate ? "none" : "";
     row.front.style.transform = `translate3d(${offset}px, 0, 0)`;
     this.revealDirection(row.item, side, true);
     if (side) this.revealedId = id;
