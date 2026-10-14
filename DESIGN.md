@@ -479,3 +479,22 @@ degrade to textual hierarchy. Geometry is derived from program state; graphs
 cannot change curriculum or mastery.
 
 See docs/RESPONSE_VISUALS.md for schema, safety and manual acceptance gates.
+
+
+## Live AI activity (2026-10-14)
+
+The activity row is an existing inline `StatusTrace`, not a new card, overlay,
+dashboard, or separate reasoning surface. A compact status + elapsed duration
+is always visible during a turn; chronological details and the existing
+`NoxRunInspector` are user-expandable. Stages represent application-observed
+events only: context resolved, request prepared, runtime invoked, raw output
+received, terminal result committed. Never present synthetic thoughts, bogus
+tool actions, percentages, or unsupported completion estimates.
+
+Keep current `--nox-*` theme variables, `--nox-radius-*` tokens, NOX logo,
+Obsidian icon primitives (`setNoxIcon`), existing easing, and native type scale.
+No preview-only cobalt tokens, emoji glyph icon substitutes, new icon packages,
+or decorative panels belong in the shipped UI. Unreached stages stay hidden;
+failure/cancel stops on the observed stage. Render output progressively without
+per-word DOM creation. Reduced motion and compact sidebar behavior remain
+governing constraints. Details: `docs/AI_LATENCY_LIVE_ACTIVITY.md`.
