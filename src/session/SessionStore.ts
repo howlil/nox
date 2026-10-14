@@ -203,6 +203,9 @@ export class SessionStore {
           compacted: item.compacted,
         };
         if (finite("firstTokenMs")) metrics.firstTokenMs = item.firstTokenMs as number;
+        if (finite("contextMs")) metrics.contextMs = item.contextMs as number;
+        if (finite("preparationMs")) metrics.preparationMs = item.preparationMs as number;
+        if (finite("firstVisibleMs")) metrics.firstVisibleMs = item.firstVisibleMs as number;
         if (finite("providerInputTokens")) metrics.providerInputTokens = item.providerInputTokens as number;
         if (finite("providerOutputTokens")) metrics.providerOutputTokens = item.providerOutputTokens as number;
         message.metrics = metrics;
