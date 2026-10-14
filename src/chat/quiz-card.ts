@@ -113,9 +113,8 @@ export function renderQuizCard(parent: HTMLElement, question: PracticeQuestion,
       if (committed) {
         status.setText("Answer recorded.");
         submit.setText("Answered");
-        for (const control of card.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>("input,textarea")) {
-          control.disabled = true;
-        }
+        card.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>("input,textarea")
+          .forEach(control => { control.disabled = true; });
       } else {
         status.setText("The answer was not evaluated. You can retry.");
       }
