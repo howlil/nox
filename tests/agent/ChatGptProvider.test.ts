@@ -231,8 +231,27 @@ test("browser callback never displays success when OAuth token exchange fails", 
     assert.equal(browser.status, 500);
     const html = await browser.text();
     assert.match(html, /ChatGPT connection failed/);
-    assert.doesNotMatch(html, /invalid_grant|one-time-code/);
+    assert.match(html, /Exchanging the authorization code for tokens failed/);
+    assert.doesNotMatch(html, /one-time-code|refresh_token|access_token/);
     assert.equal(auth.status().connected, false);
+    assert.equal(auth.status().lastFailure?.stage, "token-exchange");
+    assert.equal(auth.status().lastFailure?.code, "invalid_grant");
+    assert.doesNotMatch(auth.status().lastFailure!.message, /one-time-code/);
+
+    // A later reauthorization is allowed to omit client_id in its callback:
+    // the issued ID from the first attempt must be reused.
+    let retryPage: Promise<Response> | undefined;
+    await assert.rejects(auth.signIn(async (url) => {
+      const requested = new URL(url);
+      assert.equal(requested.searchParams.get("client_id"), "oaiapp-test");
+      const callback = new URL(requested.searchParams.get("redirect_uri")!);
+      callback.searchParams.set("state", requested.searchParams.get("state")!);
+      callback.searchParams.set("code", "new-code");
+      retryPage = fetch(callback); // Intentionally omit client_id.
+    }), /invalid_grant/);
+    assert.ok(retryPage);
+    assert.equal((await retryPage).status, 500);
+    assert.equal(auth.status().lastFailure?.stage, "token-exchange");
     auth.dispose();
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });
