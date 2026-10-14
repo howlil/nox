@@ -424,8 +424,9 @@ export class RunLearningTurn {
             concept: attempt.concept,
           });
       } else {
-        const originFile = pinnedPracticeSource ??
-          context.selection?.file ?? context.activeNote?.path;
+        const originFile = program?.constraints.sourceBound
+          ? program.constraints.sourcePaths[0]
+          : pinnedPracticeSource ?? context.selection?.file ?? context.activeNote?.path;
         const origin: PracticeOrigin | undefined = originFile
           ? { file: originFile,
               selectedText: context.selection?.file === originFile
@@ -696,7 +697,8 @@ export class RunLearningTurn {
               ? { ...practiceBuffer.evaluation, programId: practiceAttempt.programId,
                   objectiveId: practiceAttempt.objectiveId, nextQuestion: undefined,
                   assisted: Boolean(practiceAttempt.assisted) }
-              : practiceBuffer.evaluation;
+              : { ...practiceBuffer.evaluation,
+                  programId: undefined, objectiveId: undefined, assisted: Boolean(practiceAttempt.assisted) };
             for await (const mapped of this.commitPracticeOutcome(
               evaluation,
               snapshot,
