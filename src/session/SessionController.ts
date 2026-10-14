@@ -177,10 +177,11 @@ export class SessionController {
 
   /** Fork is an independent snapshot committed with the selected child session. */
   async forkSession(parentId: string, anchorMessageId: string): Promise<{
-    session: ChatSession; draftUserPrompt?: string;
+    session: ChatSession; draftUserPrompt?: string; draftReplyTo?: ChatReplyReference;
   }> {
     return this.serializeWrite(async () => {
       let draftUserPrompt: string | undefined;
+      let draftReplyTo: ChatReplyReference | undefined;
       await this.commitStoreTransaction(draft => {
         const parent = draft.getSession(parentId);
         if (!parent || parent.archivedAt || this.currentSession?.id !== parentId) {
@@ -203,6 +204,11 @@ export class SessionController {
         }
         draft.updateSession(parent);
         const child = draft.createSession(parent.model);
+        if (anchor.role === "user" && anchor.replyTo &&
+            inherited.some(message => message.id === anchor.replyTo?.sourceMessageId &&
+              message.role === "assistant")) {
+          draftReplyTo = { ...structuredClone(anchor.replyTo), sourceSessionId: child.id };
+        }
         draft.updateSession({ ...child, runtimeProvider: parent.runtimeProvider,
           model: parent.model, conversationId: undefined, learningScope: undefined,
           practiceDrafts: {}, messages: inherited,
@@ -211,7 +217,7 @@ export class SessionController {
             createdAt: Date.now() },
         });
       });
-      return { session: this.getSession(), draftUserPrompt };
+      return { session: this.getSession(), draftUserPrompt, draftReplyTo };
     });
   }
 
