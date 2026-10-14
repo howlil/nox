@@ -45,7 +45,7 @@ export const NOX_CAPABILITIES: readonly NoxCapability[] = [
     command: "/edit",
     description: "Propose a safe change to the active note.",
     meta: "Safe edit",
-    icon: "pencil",
+    icon: "pencil-line",
     tone: "green",
   },
 ];
