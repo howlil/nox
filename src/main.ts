@@ -18,6 +18,7 @@ import { VaultProgramStore } from "./persistence/VaultProgramStore";
 import { LearningProgramOrchestrator } from "./application/LearningProgramOrchestrator";
 import { PluginDataRepository } from "./persistence/PluginDataRepository";
 import { TokenUsageRepository } from "./persistence/TokenUsageRepository";
+import { CreditBalanceRepository, type CreditBalanceInput, type CreditProvider } from "./persistence/CreditBalanceRepository";
 import { SessionController } from "./session/SessionController";
 import { SessionStore } from "./session/SessionStore";
 import {
@@ -46,6 +47,7 @@ export default class NoxPlugin extends Plugin {
   private noxSettings!: NoxSettings;
   private pluginData!: PluginDataRepository;
   private tokenUsage!: TokenUsageRepository;
+  private creditBalances!: CreditBalanceRepository;
   private vaultPath?: string;
   private runtime?: AgentRuntime;
   // Use the Obsidian HTTP stack for OAuth instead of renderer/Node global fetch.
@@ -60,6 +62,7 @@ export default class NoxPlugin extends Plugin {
 
     this.pluginData = new PluginDataRepository(this);
     this.tokenUsage = new TokenUsageRepository(this.pluginData);
+    this.creditBalances = new CreditBalanceRepository(this.pluginData);
     this.noxSettings = decodeNoxSettings(await this.pluginData.read());
     const adapter = this.createAdapter(this.noxSettings);
     const runtime = new AgentRuntime(adapter,
@@ -124,7 +127,6 @@ export default class NoxPlugin extends Plugin {
         this.learning,
         () => this.openSettings(),
         () => this.getLogoUrl(),
-        () => this.noxSettings.appearance,
       ),
     );
 
@@ -223,14 +225,6 @@ export default class NoxPlugin extends Plugin {
 
   async updateSettings(update: Partial<NoxSettings>): Promise<void> {
     const next = { ...this.noxSettings, ...update };
-    if (Object.keys(update).every(key => key === "appearance")) {
-      await this.pluginData.update(current => ({ ...current, [NOX_SETTINGS_KEY]: next }));
-      this.noxSettings = next;
-      for (const leaf of this.app.workspace.getLeavesOfType(NOX_VIEW_TYPE)) {
-        (leaf.view as ChatView).applyAppearance(next.appearance);
-      }
-      return;
-    }
     const runtimeChanged = next.provider !== this.noxSettings.provider ||
       next.executablePath !== this.noxSettings.executablePath ||
       next.codexExecutablePath !== this.noxSettings.codexExecutablePath;
@@ -241,15 +235,20 @@ export default class NoxPlugin extends Plugin {
         updateData: (data) => ({ ...data, [NOX_SETTINGS_KEY]: next }),
       });
     this.noxSettings = next;
-    for (const leaf of this.app.workspace.getLeavesOfType(NOX_VIEW_TYPE)) {
-      (leaf.view as ChatView).applyAppearance(next.appearance);
-    }
     await Promise.all(this.app.workspace.getLeavesOfType(NOX_VIEW_TYPE)
       .map((leaf) => (leaf.view as ChatView).refreshRuntime(runtimeChanged)));
   }
 
   getTokenUsageSnapshot(): ReturnType<TokenUsageRepository["snapshot"]> {
     return this.tokenUsage.snapshot();
+  }
+
+  getCreditBalances() { return this.creditBalances.list(); }
+
+  saveCreditBalance(input: CreditBalanceInput): Promise<void> { return this.creditBalances.upsert(input); }
+
+  removeCreditBalance(provider: CreditProvider, model: string | null): Promise<void> {
+    return this.creditBalances.remove(provider, model);
   }
 
   getTokenUsageError(): string | undefined {
