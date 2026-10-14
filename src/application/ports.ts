@@ -7,6 +7,9 @@ import type { LearningScopeState } from "../domain/practice/learning-scope";
 import type { PracticeAnswer } from "../domain/practice/types";
 import type { ProgramCollection } from "../domain/learning-program/types";
 
+export interface WorkspaceWriterPort {
+  ensure(program: import("../domain/learning-program/types").LearningProgram): Promise<void>;
+}
 export interface ProgramStorePort {
   load(): Promise<ProgramCollection>;
   save(next: ProgramCollection): Promise<void>;

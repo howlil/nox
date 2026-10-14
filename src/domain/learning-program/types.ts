@@ -53,6 +53,7 @@ export interface LearningProgram {
   createdAt: number;
   planVersion: number;
   creationOperationId?: string;
+  workspaceApproved?: boolean;
   session?: LearningSession;
   sessionHistory?: Array<{ startedAt: number; endedAt: number; minutesSpent: number; activeMinutes?: number; aiWaitingMinutes?: number; objectiveActiveMinutes?: Record<string, number> }>;
   instructionEvents?: Array<{ objectiveId: string; afterEvidenceAt: number; taughtAt: number }>;

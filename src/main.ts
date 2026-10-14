@@ -15,6 +15,7 @@ import { LearningController } from "./application/LearningController";
 import { MutationService } from "./mutation/MutationService";
 import { VaultLearningStore } from "./persistence/VaultLearningStore";
 import { VaultProgramStore } from "./persistence/VaultProgramStore";
+import { VaultWorkspaceWriter } from "./persistence/VaultWorkspaceWriter";
 import { LearningProgramOrchestrator } from "./application/LearningProgramOrchestrator";
 import { PluginDataRepository } from "./persistence/PluginDataRepository";
 import { TokenUsageRepository } from "./persistence/TokenUsageRepository";
@@ -89,6 +90,7 @@ export default class NoxPlugin extends Plugin {
     const mutations = new MutationService(this.app);
     const learningState = new VaultLearningStore(this.app);
     const programStore = new VaultProgramStore(this.app);
+    const workspaceWriter = new VaultWorkspaceWriter(this.app);
     const programs = new LearningProgramOrchestrator(
       runtime, contexts, learningState, programStore,
       () => sessions.getSession().model,
@@ -110,9 +112,15 @@ export default class NoxPlugin extends Plugin {
       policies,
       mutations,
       learningState,
-      { programStore },
+      { programStore, workspaceWriter },
       programs,
     );
+
+    // Recover only user-approved workspaces. Legacy /plan programs never scaffold files.
+    this.app.workspace.onLayoutReady(() => {
+      void this.learning.recoverLearningWorkspaces().catch(error =>
+        console.warn("[Nox] Approved workspace recovery requires attention", error));
+    });
 
     const logoUrl = this.getLogoUrl().replace(/&/g, "&amp;");
     addIcon(
