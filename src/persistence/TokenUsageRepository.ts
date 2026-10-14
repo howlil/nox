@@ -19,6 +19,8 @@ export interface UsageBucket {
 export interface UsageSnapshot {
   trackingSince?: string;
   entries: UsageBucket[];
+  /** AGY terminal counters are cumulative across resumed conversations. */
+  agyCheckpoints?: Record<string, { usage: TokenUsage; turnCount: number }>;
 }
 
 function validCount(value: unknown): value is number {
@@ -41,6 +43,9 @@ function decode(value: unknown): UsageSnapshot {
   return {
     trackingSince: typeof data.trackingSince === "string" ? data.trackingSince : undefined,
     entries,
+    agyCheckpoints: typeof data.agyCheckpoints === "object" && data.agyCheckpoints !== null &&
+      !Array.isArray(data.agyCheckpoints)
+      ? data.agyCheckpoints as UsageSnapshot["agyCheckpoints"] : {},
   };
 }
 
@@ -57,7 +62,9 @@ export class TokenUsageRepository {
     return decode(stored[KEY]);
   }
 
-  async record(provider: string, model: string | undefined, usage: TokenUsage): Promise<void> {
+  async record(provider: string, model: string | undefined, usage: TokenUsage, options: {
+    conversationId?: string; cumulative?: boolean; turnCount?: number;
+  } = {}): Promise<void> {
     if (!["agy", "codex", "chatgpt"].includes(provider)) throw new Error("Invalid usage provider.");
     if (![usage.inputTokens, usage.outputTokens, usage.totalTokens].every(validCount) ||
       usage.totalTokens === 0) throw new Error("Invalid token usage.");
@@ -66,6 +73,37 @@ export class TokenUsageRepository {
     const modelId = model?.trim().slice(0, 128) || "(runtime default)";
     await this.data.update(current => {
       const snapshot = decode(current[KEY]);
+      let increment = usage;
+      const checkpoints = { ...snapshot.agyCheckpoints };
+      if (provider === "agy" && options.cumulative) {
+        // Don't attribute previously unobserved historical turns to Nox usage.
+        if (!options.conversationId) return current;
+        const previous = checkpoints[options.conversationId];
+        const turnCount = Number.isSafeInteger(options.turnCount) && (options.turnCount ?? 0) > 0
+          ? options.turnCount! : 0;
+        checkpoints[options.conversationId] = { usage, turnCount };
+        if (!previous && turnCount !== 1) {
+          return { ...current, [KEY]: { ...snapshot, agyCheckpoints: checkpoints } };
+        }
+        if (previous) {
+          // A repeated terminal report or a reset is not a new billable turn.
+          if (turnCount <= previous.turnCount ||
+            usage.totalTokens < previous.usage.totalTokens) return current;
+          const subtract = (next: number | undefined, old: number | undefined) =>
+            Math.max(0, (next ?? 0) - (old ?? 0));
+          increment = {
+            inputTokens: subtract(usage.inputTokens, previous.usage.inputTokens),
+            outputTokens: subtract(usage.outputTokens, previous.usage.outputTokens),
+            totalTokens: subtract(usage.totalTokens, previous.usage.totalTokens),
+            cachedInputTokens: subtract(usage.cachedInputTokens, previous.usage.cachedInputTokens),
+            reasoningTokens: subtract(usage.reasoningTokens, previous.usage.reasoningTokens),
+            cacheWriteTokens: subtract(usage.cacheWriteTokens, previous.usage.cacheWriteTokens),
+          };
+        }
+      }
+      if (!increment.totalTokens) {
+        return { ...current, [KEY]: { ...snapshot, agyCheckpoints: checkpoints } };
+      }
       const existing = snapshot.entries.find(item => item.date === date &&
         item.provider === provider && item.model === modelId);
       const next = existing ?? {
@@ -81,17 +119,18 @@ export class TokenUsageRepository {
       const updated: UsageBucket = {
         ...next,
         requests: add(next.requests, 1),
-        inputTokens: add(next.inputTokens, usage.inputTokens),
-        outputTokens: add(next.outputTokens, usage.outputTokens),
-        totalTokens: add(next.totalTokens, usage.totalTokens),
-        cachedInputTokens: add(next.cachedInputTokens, usage.cachedInputTokens),
-        reasoningTokens: add(next.reasoningTokens, usage.reasoningTokens),
-        cacheWriteTokens: add(next.cacheWriteTokens, usage.cacheWriteTokens),
+        inputTokens: add(next.inputTokens, increment.inputTokens),
+        outputTokens: add(next.outputTokens, increment.outputTokens),
+        totalTokens: add(next.totalTokens, increment.totalTokens),
+        cachedInputTokens: add(next.cachedInputTokens, increment.cachedInputTokens),
+        reasoningTokens: add(next.reasoningTokens, increment.reasoningTokens),
+        cacheWriteTokens: add(next.cacheWriteTokens, increment.cacheWriteTokens),
       };
       const entries = existing ? snapshot.entries.map(item => item === existing ? updated : item)
         : [...snapshot.entries, updated];
       return { ...current, [KEY]: {
         trackingSince: snapshot.trackingSince ?? timestamp.toISOString(), entries,
+        agyCheckpoints: checkpoints,
       } satisfies UsageSnapshot };
     });
   }
