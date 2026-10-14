@@ -1,6 +1,5 @@
 import { App, Notice, PluginSettingTab, Setting } from "obsidian";
 import type { NoxSettings } from "./NoxSettings";
-import { summarizeUsage, type AgentUsageRecord } from "../domain/telemetry/token-usage";
 
 export interface NoxSettingsHost {
   getSettings(): NoxSettings;
