@@ -4150,3 +4150,143 @@
 .nox-root .nox-response-table-scroll:focus-visible {
   border-radius: var(--nox-radius-chip);
 }
+
+
+/* Transcript actions — compact in both NOX appearance modes. */
+.nox-root { position: relative; }
+.nox-user-message {
+  display: flex;
+  align-self: flex-end;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 3px;
+  max-width: 84%;
+  min-width: 0;
+}
+.nox-user-message .nox-bubble--user {
+  align-self: flex-end;
+  max-width: 100%;
+  user-select: text;
+  -webkit-user-select: text;
+}
+.nox-message-content {
+  user-select: text;
+  -webkit-user-select: text;
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+.nox-message-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 3px;
+  padding: 0 2px;
+}
+.nox-root .nox-message-action {
+  display: inline-flex;
+  width: 27px;
+  height: 27px;
+  min-height: 27px;
+  align-items: center;
+  justify-content: center;
+  border: 0 !important;
+  border-radius: 999px;
+  padding: 0;
+  background: transparent;
+  color: var(--nox-ink-2);
+  box-shadow: none !important;
+  cursor: pointer;
+}
+.nox-root .nox-message-action:hover,
+.nox-root .nox-message-action:focus-visible {
+  color: var(--nox-ink);
+  background: var(--nox-hover);
+}
+.nox-user-message-quote {
+  max-width: 100%;
+  color: var(--nox-ink-3);
+  font-size: 11px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.nox-bubble--agent .nox-stream-actions {
+  border-top: 0;
+  margin-top: 5px;
+  padding-top: 0;
+}
+.nox-transcript-selection-toolbar {
+  position: absolute;
+  z-index: 45;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  transform: translateX(-50%);
+  padding: 4px 7px;
+  border: 1px solid var(--nox-line);
+  border-radius: 999px;
+  background: var(--nox-surface);
+  color: var(--nox-ink);
+  box-shadow: none;
+}
+.nox-root .nox-transcript-selection-toolbar.nox-hidden { display: none; }
+.nox-root .nox-selection-ask {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  padding: 3px 4px;
+  min-height: 26px;
+  background: transparent;
+  color: inherit;
+}
+.nox-selection-ask-label { font-size: 11px; font-weight: 500; }
+.nox-composer-reply {
+  display: flex;
+  min-width: 0;
+  align-items: flex-start;
+  gap: 5px;
+  margin: 1px 0 7px;
+  padding: 3px 0 7px;
+  border-bottom: 1px solid var(--nox-line-soft);
+}
+.nox-composer-reply.nox-hidden { display: none; }
+.nox-composer-reply-text {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+  order: -1;
+}
+.nox-composer-reply-title {
+  color: var(--nox-ink-2);
+  font-size: 11px;
+  font-weight: 600;
+}
+.nox-composer-reply-quote {
+  color: var(--nox-ink-3);
+  font-size: 11px;
+  line-height: 1.35;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+.nox-root .nox-composer-reply-remove {
+  border: 0;
+  padding: 3px;
+  background: transparent;
+  color: var(--nox-ink-3);
+}
+.nox-history-entry-fork {
+  color: var(--nox-ink-3);
+  font-size: 10px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+@media (prefers-reduced-motion: reduce) {
+  .nox-transcript-selection-toolbar { transition: none; }
+}
