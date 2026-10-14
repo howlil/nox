@@ -1,5 +1,6 @@
 import type { AgentAdapter, AgentHealth, AgentInput, AgentModel, AgentStreamEvent, SendOptions } from "../types";
 import { ChatGptAuth } from "./ChatGptAuth";
+import { parseChatGptUsage } from "./token-usage";
 
 type SseMessage = { event?: string; data: string };
 /** HTTP chunk boundaries never imply SSE event boundaries. */
@@ -143,6 +144,14 @@ export class ChatGptAdapter implements AgentAdapter {
             if (type === "response.output_text.delta" && typeof value.delta === "string") {
               yield { type: "text", content: value.delta };
             } else if (type === "response.completed") {
+              const responseData = value.response;
+              const usage = parseChatGptUsage(responseData);
+              if (usage) {
+                const details = responseData && typeof responseData === "object"
+                  ? responseData as Record<string, unknown> : {};
+                yield { type: "usage", usage,
+                  model: typeof details.model === "string" ? details.model : model };
+              }
               completed = true; terminal = true; break;
             } else if (type === "response.failed" || type === "response.incomplete" || type === "error") {
               const detail = diagnostic(value.response || value);
