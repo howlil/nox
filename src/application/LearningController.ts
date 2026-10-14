@@ -107,6 +107,16 @@ export class LearningController {
     };
   }
 
+  getSessionTime(): ReturnType<LearningProgramOrchestrator["getSessionTime"]> {
+    return this.programs?.getSessionTime() ?? Promise.resolve(null);
+  }
+
+  async setSessionPaused(paused: boolean): Promise<void> {
+    if (!this.programs) throw new Error("Learning programs are not configured.");
+    if (paused) await this.programs.pauseSession();
+    else await this.programs.resumeSession();
+  }
+
   getModelDiscoveryError(): string | undefined {
     return this.runtime.getModelDiscoveryError?.();
   }
