@@ -3,6 +3,8 @@ import { PersistenceError } from "../persistence/PersistenceError";
 import { findCommittedPracticeOutcome, findCommittedReview, type TranscriptPart } from "./transcript-types";
 import { PluginDataRepository } from "../persistence/PluginDataRepository";
 import type { LearningScopeState } from "../domain/practice/learning-scope";
+import type { PracticeAnswer } from "../domain/practice/types";
+import { isPracticeAnswer } from "../domain/practice/question-schema";
 import {
   ChatSession,
   EditProposal,
@@ -177,6 +179,24 @@ export class SessionController {
     });
   }
 
+  /** Draft changes use the existing serialized session writer, not a separate store. */
+  async savePracticeDraft(questionId: string, answer: PracticeAnswer, sessionId?: string): Promise<void> {
+    if (!questionId || !isPracticeAnswer(answer)) throw new Error("Invalid practice draft.");
+    return this.serializeWrite(async () => {
+      await this.commitStoreTransaction(draft => {
+        const session = sessionId ? draft.getSession(sessionId) : draft.getCurrentSession();
+        if (!session) throw new Error("Practice session no longer exists.");
+        const question = session.messages.some(m => m.parts?.some(p =>
+          p.type === "practice-question" && p.questionId === questionId));
+        const graded = session.messages.some(m => m.parts?.some(p =>
+          p.type === "practice-evaluation" && p.questionId === questionId));
+        if (!question || graded) throw new Error("Practice question is no longer answerable.");
+        session.practiceDrafts = { ...session.practiceDrafts, [questionId]: structuredClone(answer) };
+        draft.updateSession(session);
+      });
+    });
+  }
+
   /** Publish the lock and its acknowledgement only after one durable write. */
   async recordScopeChange(
     state: LearningScopeState, command: string, reply: string, sessionId: string,
@@ -280,7 +300,10 @@ export class SessionController {
         return structuredClone(message?.parts ?? [existing]);
       }
 
-      await this.persistOutcome(session, parts, sourcePath);
+      // The evaluation and draft deletion belong to the same durable snapshot.
+      const next = { ...session, practiceDrafts: { ...session.practiceDrafts } };
+      delete next.practiceDrafts[evaluation.questionId];
+      await this.persistOutcome(next, parts, sourcePath);
       return structuredClone(parts);
     });
   }
