@@ -2,6 +2,7 @@ import type { PracticeQuestion, PracticeEvaluation, PracticeOrigin } from "../do
 import type { ReviewFinding } from "../domain/review/types";
 import type { LearningScopeState } from "../domain/practice/learning-scope";
 import type { ChatMessage } from "../types";
+import type { PracticeAnswer } from "../domain/practice/types";
 
 export interface ChatSession {
   id: string;
@@ -11,6 +12,8 @@ export interface ChatSession {
   runtimeProvider?: string;
   model?: string;
   messages: ChatMessage[];
+  /** Session-local unfinished inputs; only evaluated submissions become evidence. */
+  practiceDrafts?: Record<string, PracticeAnswer>;
   createdAt: number;
   updatedAt: number;
 }
