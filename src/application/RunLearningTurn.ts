@@ -103,9 +103,11 @@ export class RunLearningTurn {
     if (practice.snapshot()) return practice;
     for (let i = session.messages.length - 1; i >= 0; i--) {
       const message = session.messages[i];
-      // Informational commands and ordinary Ask/Explain turns do not consume an
-      // unanswered structured Practice question. An evaluation does.
-
+      // Only whitelisted informational commands preserve an unanswered question.
+      // Ordinary Ask/Explain and explicit mode changes end free-Practice recovery.
+      if (!scoped && message.role === "user" && message.action && message.action !== "practice" &&
+          !["/progress", "/review-due", "/programs", "/extend-session"].some(command =>
+            message.content.trim().toLowerCase().startsWith(command))) break;
       const parts = message.parts ?? [];
       for (let j = parts.length - 1; j >= 0; j--) {
         const part = parts[j];
