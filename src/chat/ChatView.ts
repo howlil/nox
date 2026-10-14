@@ -2195,7 +2195,7 @@ export class ChatView extends ItemView {
         void this.runTurn(request, true);
       },
       onSubmit: async answer => {
-        if (!active || this.uiState === "RUNNING") return;
+        if (!active || this.uiState === "RUNNING") return false;
         if (this.quizDraftTimer !== null) window.clearTimeout(this.quizDraftTimer);
         this.quizDraftTimer = null;
         // Persist before provider call: retry/cancel must not lose the answer.
