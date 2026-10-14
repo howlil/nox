@@ -104,9 +104,9 @@ test("Settings use three flat tabs, and usage/token views are separate", () => {
   assert.ok(settings.includes("this.disposeSection?.()"));
   assert.match(css, /\.nox-settings-tabs\s*\{[^}]*display:flex;/s);
   assert.match(css, /\.nox-settings \.nox-settings-tab\[aria-selected="true"\]/);
-  assert.ok(token.includes('cls: "nox-usage-overview"'));
-  assert.ok(token.includes('cls: "nox-usage-split-input"'));
-  assert.ok(usage.includes('cls:"nox-quota-progress"'));
+  assert.match(token, /cls:\s*"nox-usage-overview"/);
+  assert.match(token, /cls:\s*"nox-usage-split-input"/);
+  assert.match(usage, /cls:\s*"nox-quota-progress"/);
   assert.ok(usage.includes("getProviderQuotas(force)"));
   for (const source of [settings,token,usage]) {
     assert.doesNotMatch(source, /[Cc]redit[Bb]alance|Manual [Bb]alances|Add balance|Set balance/);
