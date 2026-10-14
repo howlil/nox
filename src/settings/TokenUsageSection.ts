@@ -244,8 +244,9 @@ export function mountTokenUsageSection(container: HTMLElement, host: UsageViewHo
       if (filters.provider !== "all" && filters.provider !== record.provider) continue;
       if (record.model !== null && (filters.model === "all" || filters.model === record.model)) {
         known.set(JSON.stringify([record.provider, record.model]), { provider: record.provider, model: record.model });
-      } else if (record.model === null && ![...known.values()].some(k => k.provider === record.provider)
-        && filters.model === "all") {
+      } else if (record.model === null && filters.model === "all") {
+        // Always render one canonical provider-pool row so shared balances can
+        // be removed even when usage records contain several models.
         known.set(JSON.stringify([record.provider, ""]), { provider: record.provider, model: "" });
       }
     }
@@ -261,6 +262,8 @@ export function mountTokenUsageSection(container: HTMLElement, host: UsageViewHo
       const names = title.createDiv({ cls: "nox-credit-names" });
       names.createEl("strong", { text: row.model || providerLabel(row.provider) + " shared pool" });
       const scope = creditForModel(balances, row.provider, row.model);
+      // Pool rows own edits/deletes; model rows may display the same shared
+      // value but cannot alter the pool independently.
       names.createSpan({ cls: "nox-usage-subtitle",
         text: providerLabel(row.provider) + (scope ? scope.shared ? " · Shared provider pool · Manual" : " · Model-specific · Manual" : " · Unavailable") });
       const buttons = title.createDiv({ cls: "nox-credit-actions" });
