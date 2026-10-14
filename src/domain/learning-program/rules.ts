@@ -5,6 +5,7 @@ const DAY = 86_400_000;
 const isText = (v: unknown): v is string => typeof v === "string" && v.trim().length > 0;
 const isStringList = (v: unknown): v is string[] => Array.isArray(v) && v.every(isText);
 const MAX_OBJECTIVES = 60;
+// Constraints and evaluation criteria remain application-enforced.
 
 export function validateConstraints(constraints: ProgramConstraints, today = new Date()): void {
   if (!Number.isInteger(constraints.minutesPerSession) || constraints.minutesPerSession < 10 || constraints.minutesPerSession > 240) {
