@@ -3,6 +3,7 @@ import type { ExplicitContextRef, LearningContext, LearningPolicy } from "../con
 import type { LearningState } from "../domain/learning-state/types";
 import type { TranscriptPart } from "../session/transcript-types";
 import type { LearningScopeState } from "../domain/practice/learning-scope";
+import type { PracticeAnswer } from "../domain/practice/types";
 import type { ProgramCollection } from "../domain/learning-program/types";
 
 export interface ProgramStorePort {
@@ -20,6 +21,7 @@ export interface SessionPort {
   newSession(): Promise<ChatSession>;
   recordScopeChange(state: LearningScopeState, command: string, reply: string, sessionId: string): Promise<void>;
   recordUserMessage(content: string, sessionId?: string, action?: ChatMessage["action"]): Promise<void>;
+  savePracticeDraft(questionId: string, answer: PracticeAnswer, sessionId?: string): Promise<void>;
   setConversationId(conversationId?: string, sessionId?: string): Promise<void>;
   recordAssistantMessage(content: string, sourcePath?: string, sessionId?: string, thought?: string, elapsedMs?: number): Promise<void>;
   recordStructuredPart(part: TranscriptPart, sourcePath?: string, sessionId?: string): Promise<void>;
