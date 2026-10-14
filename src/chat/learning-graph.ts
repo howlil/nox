@@ -16,7 +16,7 @@ function appendDependencyDiagram(parent: HTMLElement, layout: LearningMapLayout)
   const scroller = parent.createDiv({ cls: "nox-learning-map-scroll" });
   scroller.setAttribute("tabindex", "0");
   scroller.setAttribute("role", "region");
-  scroller.setAttribute("aria-label", "Prerequisite graph; scroll horizontally to explore");
+  scroller.setAttribute("aria-label", "Prerequisite graph; scroll vertically to explore");
   const svg = document.createElementNS(SVG_NS, "svg");
   svg.classList.add("nox-learning-map-svg");
   svg.setAttribute("viewBox", "0 0 " + layout.width + " " + layout.height);
@@ -24,10 +24,27 @@ function appendDependencyDiagram(parent: HTMLElement, layout: LearningMapLayout)
   svg.setAttribute("height", String(layout.height));
   svg.setAttribute("role", "img");
   svg.setAttribute("aria-label", layout.nodes.length + " objectives and " + layout.edges.length + " prerequisite connections");
-  for (const edge of layout.edges) {
+  const arrowId = "nox-learning-arrow-" + crypto.randomUUID();
+  const defs = document.createElementNS(SVG_NS, "defs");
+  const marker = document.createElementNS(SVG_NS, "marker");
+  for (const [key, value] of Object.entries({ id: arrowId, viewBox: "0 0 10 10", refX: "9", refY: "5",
+    markerWidth: "5", markerHeight: "5", orient: "auto" })) marker.setAttribute(key, value);
+  const arrow = document.createElementNS(SVG_NS, "path");
+  arrow.setAttribute("d", "M 0 0 L 10 5 L 0 10 z");
+  arrow.classList.add("nox-learning-map-arrow");
+  marker.appendChild(arrow);
+  defs.appendChild(marker);
+  svg.appendChild(defs);
+  for (const [index, edge] of layout.edges.entries()) {
     const path = document.createElementNS(SVG_NS, "path");
-    const bend = Math.max(12, (edge.x2 - edge.x1) / 2);
-    path.setAttribute("d", "M" + edge.x1 + " " + edge.y1 + " C" + (edge.x1 + bend) + " " + edge.y1 + "," + (edge.x2 - bend) + " " + edge.y2 + "," + edge.x2 + " " + edge.y2);
+    const direct = edge.y2 - edge.y1 < 42;
+    if (direct) {
+      path.setAttribute("d", `M ${edge.x1} ${edge.y1} L ${edge.x2} ${edge.y2 - 6}`);
+    } else {
+      const rail = index % 2 === 0 ? 10 : layout.width - 10;
+      path.setAttribute("d", `M ${edge.x1} ${edge.y1} L ${edge.x1} ${edge.y1 + 7} Q ${edge.x1} ${edge.y1 + 12} ${rail} ${edge.y1 + 12} L ${rail} ${edge.y2 - 12} Q ${rail} ${edge.y2 - 6} ${edge.x2} ${edge.y2 - 6}`);
+    }
+    path.setAttribute("marker-end", `url(#${arrowId})`);
     path.classList.add("nox-learning-map-edge");
     svg.appendChild(path);
   }
