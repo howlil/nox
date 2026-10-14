@@ -1,4 +1,5 @@
 import { SessionStore } from "./SessionStore";
+import { isAgentUsageRecord, type AgentUsageRecord } from "../agent/token-usage";
 import { PersistenceError } from "../persistence/PersistenceError";
 import { findCommittedPracticeOutcome, findCommittedReview, type TranscriptPart } from "./transcript-types";
 import { PluginDataRepository } from "../persistence/PluginDataRepository";
@@ -174,6 +175,20 @@ export class SessionController {
         const session = sessionId ? draft.getSession(sessionId) : draft.getCurrentSession();
         if (!session) throw new Error(`Session ${sessionId} no longer exists`);
         session.messages.push({ role: "user", content, action });
+        draft.updateSession(session);
+      });
+    });
+  }
+
+  /** Usage shares the existing serialized session writer. Duplicate turn receipts are ignored. */
+  async recordUsage(record: AgentUsageRecord, sessionId?: string): Promise<void> {
+    if (!isAgentUsageRecord(record)) throw new Error("Invalid token usage receipt.");
+    return this.serializeWrite(async () => {
+      await this.commitStoreTransaction(draft => {
+        const session = sessionId ? draft.getSession(sessionId) : draft.getCurrentSession();
+        if (!session) throw new Error("Usage session no longer exists.");
+        if (session.usageRecords?.some(item => item.id === record.id)) return;
+        session.usageRecords = [...(session.usageRecords ?? []), structuredClone(record)].slice(-5000);
         draft.updateSession(session);
       });
     });
