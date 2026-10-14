@@ -229,3 +229,28 @@ Verification: test native Mermaid at 2, 10, 24 nodes; preview quiz expand and
 reset; repeated history load; 320/390/768/1440 pane widths; keyboard fit/zoom
 controls; and bounds-check malicious iframe resize messages. Native Obsidian
 visual smoke test is still required after CI.
+
+
+## Thinking alignment regression (2026-10-15)
+
+Reproduced from the live wide-pane screenshot: assistant content starts at the
+left of the reading column, while the running thinking activity starts much
+farther right. Root cause was two competing CSS owners: the earlier 768px
+thinking rule and the later, more-specific .nox-root .nox-thinking rule that
+constrained the OUTER activity to 430px and applied align-self:flex-start.
+In a column flex container, auto horizontal margins consumed spare space,
+centering the narrow activity wrapper.
+
+Ownership invariant:
+- .nox-thread declares --nox-reading-width: 768px.
+- Every non-user direct child, including working/restored .nox-thinking and
+  .nox-bubble--agent, uses the same maximum reading width.
+- The INNER activity panel, not the outer flex child, has max-width 430px.
+- Do not reintroduce a more specific selector narrowing the outer thinking
+  element; never use JS offsets or !important to fix alignment.
+
+Regression test: tests/chat/thinking-layout.test.ts checks CSS column
+ownership and both activity variants being direct thread children.
+Manual smoke check: test 320/390px sidebar and >1200px wide Obsidian pane.
+Trigger Ask; inspect the left edges of live Waiting, settled Completed,
+assistant content and restored history. They must align.
