@@ -344,12 +344,12 @@ test("ChatGPT response.completed carries provider-reported usage into the runtim
         output_tokens_details: { reasoning_tokens: 20 } },
     },
   }) + '\n\ndata: [DONE]\n\n';
-  const adapter = new ChatGptAdapter(auth, { fetch: async (url: unknown) => {
+  const adapter = new ChatGptAdapter(auth, { fetch: (async (url: unknown) => {
     if (String(url).endsWith("/models")) return new Response(JSON.stringify({
       models: [{ slug: "gpt-6", display_name: "GPT-6", visibility: "list" }],
     }));
     return new Response(body, { status: 200, headers: { "Content-Type": "text/event-stream" } });
-  } as typeof fetch });
+  }) as typeof fetch });
   const events = [];
   for await (const event of adapter.send({ prompt: "test", context: [] }, { model: "gpt-6" },
     new AbortController().signal)) events.push(event);
