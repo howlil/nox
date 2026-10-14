@@ -141,9 +141,6 @@ export function chooseNextActivity(program: LearningProgram, evidence: LearningE
   if (program.session?.timing?.pauseReasons.some(reason => reason === "manual" || reason === "recovery" || reason === "app-inactive")) {
     return { kind: "wait", reason: "Learning session is paused. Use /resume-session to continue.", minutesRemaining: remaining };
   }
-  if (program.session && !program.session.timing) {
-    return { kind: "wait", reason: "Legacy session recovered safely. Use /resume-session to continue.", minutesRemaining: remaining };
-  }
   const states = new Map(program.objectives.map(item =>
     [item.id, objectiveProgress(program, item.id, evidence, now)] as const));
   const candidates = program.objectives.filter(item => item.prerequisiteIds.every(id =>
