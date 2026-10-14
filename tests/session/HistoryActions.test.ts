@@ -10,7 +10,9 @@ test("archive is durable, filters active history, and restore recovers the trans
   const first = store.createSession();
   const second = store.createSession();
   first.messages.push({ role: "user", content: "Keep my work" });
-  first.messages.push({ role: "assistant", content: "Draft edit", proposalState: "pending" });
+  first.messages.push({ role: "assistant", content: "Draft edit", proposalId: "p-1",
+    proposal: { file: "notes.md", original: "before", replacement: "after" },
+    proposalState: "pending" });
   store.updateSession(first);
 
   assert.equal(store.archiveSessions([first.id, first.id], true), 1);
