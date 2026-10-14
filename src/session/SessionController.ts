@@ -8,6 +8,7 @@ import { isPracticeAnswer } from "../domain/practice/question-schema";
 import {
   ChatSession,
   EditProposal,
+  type ChatReplyReference,
 } from "../types";
 
 /**
@@ -174,6 +175,46 @@ export class SessionController {
   }
 
 
+  /** Fork is an independent snapshot committed with the selected child session. */
+  async forkSession(parentId: string, anchorMessageId: string): Promise<{
+    session: ChatSession; draftUserPrompt?: string;
+  }> {
+    return this.serializeWrite(async () => {
+      let draftUserPrompt: string | undefined;
+      await this.commitStoreTransaction(draft => {
+        const parent = draft.getSession(parentId);
+        if (!parent || parent.archivedAt || this.currentSession?.id !== parentId) {
+          throw new Error("Fork source is not the active conversation.");
+        }
+        const index = parent.messages.findIndex(message => message.id === anchorMessageId);
+        if (index < 0) throw new Error("Fork message not found.");
+        const anchor = parent.messages[index];
+        const end = anchor.role === "assistant" ? index + 1 : index;
+        if (anchor.role === "user") draftUserPrompt = anchor.content;
+        const inherited = parent.messages.slice(0, end).map(original => {
+          const message = structuredClone(original);
+          if (message.proposalState === "pending") message.proposalState = "stale";
+          delete message.responseVersions;
+          delete message.responseVersionIndex;
+          return message;
+        });
+        for (const message of parent.messages) {
+          if (message.proposalState === "pending") message.proposalState = "stale";
+        }
+        draft.updateSession(parent);
+        const child = draft.createSession(parent.model);
+        draft.updateSession({ ...child, runtimeProvider: parent.runtimeProvider,
+          model: parent.model, conversationId: undefined, learningScope: undefined,
+          practiceDrafts: {}, messages: inherited,
+          fork: { parentSessionId: parentId, parentMessageId: anchorMessageId,
+            parentMessageIndex: index, inheritedMessageCount: inherited.length,
+            createdAt: Date.now() },
+        });
+      });
+      return { session: this.getSession(), draftUserPrompt };
+    });
+  }
+
   async setModel(modelId?: string): Promise<void> {
     return this.serializeWrite(async () => {
       await this.commitStoreTransaction((draft) => {
@@ -212,12 +253,24 @@ export class SessionController {
     content: string,
     sessionId?: string,
     action?: "ask" | "explain" | "practice" | "review" | "edit",
+    messageId?: string,
+    replyTo?: ChatReplyReference,
   ): Promise<void> {
     return this.serializeWrite(async () => {
       await this.commitStoreTransaction((draft) => {
         const session = sessionId ? draft.getSession(sessionId) : draft.getCurrentSession();
         if (!session) throw new Error(`Session ${sessionId} no longer exists`);
-        session.messages.push({ role: "user", content, action });
+        if (replyTo) {
+          const source = session.messages.find(message => message.id === replyTo.sourceMessageId);
+          if (replyTo.sourceRole !== "assistant" || replyTo.sourceSessionId !== session.id ||
+              source?.role !== "assistant" || !replyTo.quote.trim() || replyTo.quote.length > 4000) {
+            throw new Error("Referenced assistant message is unavailable.");
+          }
+        }
+        session.messages.push({ role: "user", content, action,
+          ...(messageId ? { id: messageId } : {}),
+          ...(replyTo ? { replyTo: structuredClone(replyTo) } : {}),
+        });
         draft.updateSession(session);
       });
     });
