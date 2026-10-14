@@ -91,6 +91,9 @@ export default class NoxPlugin extends Plugin {
       () => sessions.getSession().model,
       () => sessions.getSession().runtimeProvider,
     );
+    // Do not charge inactive wall-clock time after Obsidian restart or hot reload.
+    try { await programs.recoverSessions(); }
+    catch (error) { console.warn("[Nox] Learning session recovery failed", error); }
 
     this.learning = new LearningController(
       sessions,
