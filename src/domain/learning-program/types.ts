@@ -6,6 +6,8 @@ export interface ProgramConstraints {
   sourcePaths: string[];
   sourceBound: boolean;
   excludedTopics: string[];
+  /** Self-reported entry level; never evidence of mastery. */
+  startingLevel?: "beginner" | "intermediate" | "advanced";
 }
 export type SessionPauseReason = "manual" | "ai-running" | "app-inactive" | "recovery" | "idle";
 

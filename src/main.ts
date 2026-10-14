@@ -108,6 +108,7 @@ export default class NoxPlugin extends Plugin {
     };
     this.registerDomEvent(document, "keydown", observeInteraction);
     this.registerDomEvent(document, "pointerdown", observeInteraction);
+    this.registerDomEvent(document, "scroll", observeInteraction, true);
     this.registerInterval(window.setInterval(() => {
       if (!idle && Date.now() - lastInteraction >= 180_000) {
         idle = true;

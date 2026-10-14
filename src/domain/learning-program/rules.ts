@@ -9,6 +9,10 @@ const MAX_OBJECTIVES = 60;
 // Constraints and evaluation criteria remain application-enforced.
 
 export function validateConstraints(constraints: ProgramConstraints, today = new Date()): void {
+  if (constraints.startingLevel !== undefined &&
+    !["beginner", "intermediate", "advanced"].includes(constraints.startingLevel)) {
+    throw new Error("Invalid self-reported starting level.");
+  }
   if (!Number.isInteger(constraints.minutesPerSession) || constraints.minutesPerSession < 10 || constraints.minutesPerSession > 240) {
     throw new Error("Minutes per session must be 10–240.");
   }

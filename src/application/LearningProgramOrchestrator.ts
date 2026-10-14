@@ -118,7 +118,7 @@ export class LearningProgramOrchestrator {
 
   async focusMaterial(path: string): Promise<void> {
     const program = await this.getActiveProgram();
-    if (!program?.session || !path || path.startsWith("00-learning-os/")) return;
+    if (!program?.session || !path || !path.toLowerCase().endsWith(".md")) return;
     if (program.session.timing?.focusMaterialPath === path) return;
     await this.updateActive(current => {
       if (!current.session?.timing) return current;

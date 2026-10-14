@@ -117,6 +117,7 @@ export class OnboardingFlow {
     try {
       const constraints = {
         minutesPerSession: this.draft.minutesPerSession, sessionsPerWeek: this.draft.sessionsPerWeek,
+        startingLevel: this.draft.level,
         sourceBound: this.draft.sourceBound,
         sourcePaths: this.draft.sourcePath ? [this.draft.sourcePath] : [], excludedTopics: [],
       };
