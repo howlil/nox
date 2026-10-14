@@ -503,6 +503,21 @@ missing, or ambiguous source makes the proposal stale and requires regeneration.
 
 ---
 
+### Chat history management
+
+History is persisted by the existing SessionController/SessionStore boundary.
+Sessions can be selected in bulk, all visible chats in the current folder can
+be selected, and chats can be archived, restored or deleted. Archive preserves
+the transcript; deletion is permanent and requires confirmation. Current-session
+removal automatically selects an available unarchived session or creates one.
+These are blocked while agent turns, plans, note edits or unsynchronized Apply
+status are active. Swipe gestures never bypass the same guarded actions.
+
+### Appearance preference
+
+NOX provides System (follow Obsidian), Light and Dark choices in plugin settings.
+This preference affects NOX surfaces only and survives plugin restart.
+
 ## 11. Session and model behavior
 
 Nox Settings selects AGY or local Codex CLI as the runtime provider. Existing
