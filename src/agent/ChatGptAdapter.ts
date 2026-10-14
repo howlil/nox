@@ -1,5 +1,5 @@
 import type { AgentAdapter, AgentHealth, AgentInput, AgentModel, AgentStreamEvent, SendOptions } from "../types";
-import { decodeTokenUsage } from "./token-usage";
+import { decodeTokenUsage } from "../domain/telemetry/token-usage";
 import { ChatGptAuth } from "./ChatGptAuth";
 
 type SseMessage = { event?: string; data: string };
