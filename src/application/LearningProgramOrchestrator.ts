@@ -10,7 +10,8 @@ export class LearningProgramOrchestrator {
   private currentAbort?: AbortController;
   constructor(private readonly runtime: AgentRuntimePort, private readonly contexts: ContextPort,
     private readonly learningState: LearningStatePort, private readonly store: ProgramStorePort,
-    private readonly currentModel: () => string | undefined) {}
+    private readonly currentModel: () => string | undefined,
+    private readonly currentProvider: () => string | undefined = () => undefined) {}
 
   isPlanning() { return this.planning || this.writing; }
   cancel() { this.currentAbort?.abort(); }
@@ -152,6 +153,9 @@ export class LearningProgramOrchestrator {
         constraints.sourcePaths = [source.file];
       }
       validateConstraints(constraints);
+      if (constraints.sourceBound && this.currentProvider() !== "chatgpt") {
+        throw new Error("A source-limited curriculum requires a provider without local vault-file access.");
+      }
       const instruction = [
         "You create domain-agnostic learning programs by backward design.",
         "Convert the given goal into testable competencies, not a generic list of topics.",
