@@ -61,3 +61,11 @@ test("paused legacy mode offers resume, while active lock offers pause", () => {
 test("full search never displays more than eight options", () => {
   assert.ok(buildActionMenu({ ...saved, hasActiveSession: true }, "e").length <= 8);
 });
+
+test("legacy backend lock does not offer actions forcibly rewritten as Practice", () => {
+  const locked: ActionMenuContext = { ...saved, legacyMode: "locked" };
+  assert.deepEqual(buildActionMenu(locked).map(i => i.key), ["pause", "practice"]);
+  assert.deepEqual(buildActionMenu(locked, "explain"), []);
+  assert.equal(buildActionMenu({ ...locked, hasPracticeQuestion: true })[0].key, "hint");
+  assert.equal(buildActionMenu({ ...saved, legacyMode: "paused" })[0].key, "resume");
+});
