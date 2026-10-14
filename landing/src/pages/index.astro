@@ -1,13 +1,13 @@
 ---
 import FloatingNav from "../components/FloatingNav";
+import DownloadPluginButton from "../components/DownloadPluginButton";
 import MascotMotion from "../components/MascotMotion";
 import LearningDemo from "../components/LearningDemo";
 import TextReveal from "../components/arc/text-reveal/text-reveal";
-import { ArrowDown, ArrowUpRight, BookOpenText, BrainCircuit, Github, Heart, LockKeyhole, RotateCcw, Sparkles } from "lucide-react";
+import { ArrowDown, ArrowUpRight, BookOpenText, BrainCircuit, LockKeyhole, RotateCcw, Sparkles } from "lucide-react";
 import "../styles/global.css";
 
 const github = "https://github.com/howlil/nox";
-const sponsorUrl = import.meta.env.PUBLIC_SPONSOR_URL || undefined;
 const title = "NOX — AI Learning Companion for Obsidian";
 const description = "Understand, practice, and review what you learn. NOX turns your Obsidian notes into active learning with contextual AI and evidence-based practice.";
 ---
@@ -32,7 +32,7 @@ const description = "Understand, practice, and review what you learn. NOX turns 
   </head>
   <body>
     <a class="skip-link" href="#main">Skip to content</a>
-    <FloatingNav client:load sponsorUrl={sponsorUrl} />
+    <FloatingNav client:load />
     <main id="main">
       <section id="home" class="hero relative isolate overflow-hidden">
         <div class="hero-grain" aria-hidden="true"></div>
@@ -53,8 +53,7 @@ const description = "Understand, practice, and review what you learn. NOX turns 
           <TextReveal text={"Learn deeper\nwith Nox."} as="h1" className="hero-title" />
           <p class="hero-description">AI explanations, interactive practice, and evidence-based review. Built around your Obsidian notes.</p>
           <div class="hero-actions">
-            <a class="hero-button-primary" href={github} target="_blank" rel="noopener noreferrer"><Github size={18} aria-hidden="true" /> Star on GitHub <ArrowUpRight size={16} aria-hidden="true" /></a>
-            {sponsorUrl ? <a class="hero-button-secondary" href={sponsorUrl} target="_blank" rel="noopener noreferrer"><Heart size={18} aria-hidden="true" /> Sponsor</a> : <button type="button" id="hero-sponsor-trigger" class="hero-button-secondary"><Heart size={18} aria-hidden="true" /> Sponsor</button>}
+            <DownloadPluginButton client:load className="hero-download" />
           </div>
         </div>
         <div class="mascot-position">
@@ -82,12 +81,6 @@ const description = "Understand, practice, and review what you learn. NOX turns 
         </div>
       </section>
     </main>
-    <script>
-      document.getElementById("hero-sponsor-trigger")?.addEventListener("click", () => {
-        const sponsor = document.querySelector<HTMLButtonElement>(".floating-capsule button.capsule-sponsor");
-        sponsor?.click();
-      });
-    </script>
     <footer class="footer"><div class="footer-inner"><div class="footer-brand"><img src="/nox-96.webp" alt="" width="28" height="28" /> <strong>nox.</strong> <span>Learn actively.</span></div><a href={github} target="_blank" rel="noopener noreferrer">GitHub <ArrowUpRight size={15}/></a><span>NOX · Obsidian Learning Companion</span></div></footer>
   </body>
 </html>
