@@ -57,7 +57,9 @@ export type AgentStreamEvent =
       cumulative?: boolean; turnCount?: number }
   | { type: "completed"; conversationId?: string }
   | { type: "failed"; failure: AgentFailure }
-  | { type: "cancelled" };
+  | { type: "cancelled" }
+  | { type: "tool-started"; toolCallId: string; name: string }
+  | { type: "tool-completed"; toolCallId: string; outcome: "completed" | "failed" };
 
 // ── Mutation proposal ───────────────────────────────────────────────────────
 
