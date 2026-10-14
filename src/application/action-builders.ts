@@ -76,7 +76,7 @@ ${BASE_INSTRUCTION}
 
 Learning mode: practice
 
-Generate exactly ONE active-recall question from learning context.
+Generate exactly one active-recall question from learning context.
 Choose question input based on objective and user request:
 - "multiple-choice"/"ABCD"/"MCQ": 2–6 options and exactly one correctOptionId.
 - "essay": evaluate against specific understanding criteria.
