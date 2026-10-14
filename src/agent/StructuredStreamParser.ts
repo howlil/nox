@@ -1,4 +1,5 @@
 import { EditProposal } from "../types";
+import { isPracticeQuestion } from "../domain/practice/question-schema";
 import {
   PracticeEvaluation,
   PracticePayload,
@@ -55,13 +56,7 @@ function isPracticePayload(value: unknown): value is PracticePayload {
   if (!value || typeof value !== "object") return false;
   const obj = value as Record<string, unknown>;
 
-  if (obj.kind === "question") {
-    return (
-      typeof obj.concept === "string" &&
-      typeof obj.question === "string" &&
-      (obj.hint === undefined || typeof obj.hint === "string")
-    );
-  }
+  if (obj.kind === "question") return isPracticeQuestion(obj);
 
   if (obj.kind === "evaluation") {
     return (
