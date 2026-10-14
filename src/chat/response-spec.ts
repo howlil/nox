@@ -215,7 +215,7 @@ export function createNoxPreviewDocument(
     '<meta name="viewport" content="width=device-width, initial-scale=1">' +
     '<meta http-equiv="Content-Security-Policy" content="' + csp + '">' +
     '<meta name="referrer" content="no-referrer">' +
-    '<style>*,*::before,*::after{box-sizing:border-box}body{margin:12px;' +
+    '<style>*,*::before,*::after{box-sizing:border-box}body{margin:0;' +
     'font:14px/1.5 system-ui;overflow-wrap:anywhere;padding:12px}img,svg{max-width:100%;height:auto}' +
     '</style>' + autoHeight + '</head><body>' + (kind === "js-preview" ? jsBody : source) +
     '</body></html>';
