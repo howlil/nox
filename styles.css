@@ -16,9 +16,9 @@
   --color-nox-accent: var(--nox-accent);
   --color-nox-accent-tint: var(--nox-accent-tint);
   --radius-nox-chip: 6px;
-  --radius-nox-control: 10px;
-  --radius-nox-card: 10px;
-  --radius-nox-window: 14px;
+  --radius-nox-control: 8px;
+  --radius-nox-card: 8px;
+  --radius-nox-window: 10px;
 }
 
 .nox-root,
@@ -36,11 +36,11 @@
   --nox-inset: #F7F7F7;
   --nox-hover: #F5F5F5;
   --nox-hover-2: #ECECEC;
-  --nox-ink: #121212;
+  --nox-ink: #161616;
   --nox-ink-2: #626262;
   --nox-ink-3: #949494;
   --nox-line: #EAEAEA;
-  --nox-line-strong: #D6D6D6;
+  --nox-line-strong: #DCDCDC;
   --nox-line-soft: #F0F0F0;
   --nox-field: #F7F7F7;
   --nox-accent: #8653D5;
@@ -62,9 +62,9 @@
   --nox-space-6: 24px;
   --nox-space-8: 32px;
   --nox-radius-chip: 6px;
-  --nox-radius-control: 10px;
-  --nox-radius-card: 10px;
-  --nox-radius-window: 14px;
+  --nox-radius-control: 8px;
+  --nox-radius-card: 8px;
+  --nox-radius-window: 10px;
   --nox-radius-pill: 9999px;
   --nox-motion-fast: 160ms;
   --nox-motion-standard: 240ms;
@@ -119,13 +119,29 @@
 
 }
 
-.nox-root :focus-visible {
-  outline: 2px solid var(--nox-accent);
-  outline-offset: 2px;
+.nox-root :focus-visible,
+.nox-settings :focus-visible {
+  outline: none;
+  box-shadow: none;
 }
 
-.nox-root .nox-input:focus-visible {
-  outline: none;
+/* No outer ring: accessible keyboard focus is indicated by a solid fill and
+   border/text contrast change on the focused interactive surface. */
+.nox-root :is(button, [role="option"], summary):focus-visible,
+.nox-settings :is(button, select, input):focus-visible {
+  border-color: var(--nox-accent-border);
+  background-color: var(--nox-accent-soft);
+  color: var(--nox-accent-ink);
+}
+.nox-root a:focus-visible { text-decoration: underline; text-underline-offset: 3px; }
+.nox-root .nox-input:focus-visible { outline: none; }
+
+/* Obsidian themes may inject button and field shadows/background images.
+   Normalize these only inside Nox-owned surfaces. */
+.nox-root :is(button, textarea, input, select),
+.nox-settings :is(button, input, select) {
+  box-shadow: none !important;
+  background-image: none !important;
 }
 
 .nox-header {
@@ -135,9 +151,9 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 10px;
-  min-height: 52px;
-  padding: 8px 12px;
+  gap: 4px;
+  min-height: 44px;
+  padding: 7px 12px 6px;
   border-bottom: 1px solid var(--nox-line);
   background: var(--nox-surface);
   flex-shrink: 0;
@@ -166,13 +182,15 @@
 }
 .nox-session-clock-button {
   flex: 0 0 auto;
-  color: var(--nox-accent-ink);
-  background: transparent;
-  border: 0;
+  min-height: 26px;
+  padding: 3px 8px;
+  color: var(--nox-ink-2);
+  background: var(--nox-inset);
+  border: 1px solid transparent;
   border-radius: var(--nox-radius-chip);
-  padding: 2px 5px;
+  box-shadow: none;
   font: inherit;
-  font-weight: 600;
+  font-weight: 500;
   cursor: pointer;
 }
 .nox-session-clock-button:hover { background: var(--nox-hover); }
@@ -256,13 +274,21 @@
   cursor: pointer;
 }
 
-.nox-new-btn {
-  width: 28px;
-  height: 28px;
-  border: 0;
+.nox-new-btn,
+.nox-more-btn {
+  display: inline-flex;
+  width: 30px;
+  height: 30px;
+  min-width: 30px;
+  min-height: 30px;
+  padding: 0;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid transparent;
   border-radius: var(--nox-radius-control);
   background: transparent;
   color: var(--nox-ink-2);
+  box-shadow: none;
   font-size: 16px;
   line-height: 1;
 }
@@ -283,7 +309,7 @@
   flex-direction: column;
   gap: 8px;
   overflow-y: auto;
-  padding: 16px 14px 22px;
+  padding: 12px 12px 16px;
   background: var(--nox-canvas);
   scroll-behavior: smooth;
   scrollbar-gutter: stable;
@@ -309,7 +335,7 @@
   align-items: stretch;
   justify-content: flex-start;
   gap: 12px;
-  margin: 18px auto 0;
+  margin: 12px auto 0;
   padding: 0;
   text-align: left;
 }
@@ -329,9 +355,9 @@
   align-items: center;
   justify-content: center;
   gap: 6px;
-  padding: 5px 10px;
+  padding: 5px 9px;
   border: 1px solid transparent;
-  border-radius: var(--nox-radius-pill);
+  border-radius: var(--nox-radius-control);
   background: var(--nox-inset);
   color: var(--nox-ink);
   cursor: pointer;
@@ -348,7 +374,7 @@
   background: var(--nox-hover);
 }
 
-.nox-button:active:not(:disabled) { transform: scale(0.97); }
+.nox-button:active:not(:disabled) { background-color: var(--nox-hover-2); }
 .nox-button:disabled { cursor: not-allowed; opacity: 0.55; }
 .nox-button--primary {
   border-color: transparent;
@@ -1010,9 +1036,9 @@
   @apply relative shrink-0;
   position: relative;
   flex-shrink: 0;
-  padding: 10px 12px 12px;
+  padding: 8px 12px 10px;
   border-top: 1px solid var(--nox-line);
-  background: var(--nox-canvas);
+  background: var(--nox-page);
 }
 
 .nox-context-row {
@@ -1272,12 +1298,15 @@
 
 .nox-composer-box {
   display: block;
-  padding: 8px 9px;
+  padding: 8px 10px;
   border: 1px solid var(--nox-line);
   border-radius: var(--nox-radius-window);
-  background: var(--nox-inset);
+  background: var(--nox-surface);
   box-shadow: none;
   cursor: text;
+}
+.nox-composer-box:focus-within {
+  border-color: var(--nox-accent-border);
 }
 
 .nox-attachments {
@@ -1327,31 +1356,32 @@
 
 .nox-composer-controls {
   display: grid;
-  grid-template-columns: 28px minmax(0, 1fr) auto auto;
-  align-items: end;
+  grid-template-columns: 30px minmax(0, 1fr) auto auto;
+  grid-template-rows: minmax(24px, auto) 30px;
+  align-items: center;
   width: 100%;
   min-width: 0;
-  gap: 6px;
+  gap: 5px 6px;
 }
 
 .nox-prompt-plus {
   display: inline-flex;
   grid-column: 1;
-  grid-row: 1;
+  grid-row: 2;
   align-items: center;
   justify-content: center;
-  width: 28px;
-  height: 28px;
+  width: 30px;
+  height: 30px;
   flex: 0 0 auto;
   padding: 0;
-  border: 0 !important;
+  border: 1px solid transparent !important;
   border-radius: var(--nox-radius-control);
-  background: transparent;
+  background: var(--nox-inset);
   color: var(--nox-ink-2);
   cursor: pointer;
   appearance: none;
   box-shadow: none !important;
-  font-size: 19px;
+  font-size: 16px;
   line-height: 1;
 }
 
@@ -1366,25 +1396,22 @@
   color: var(--nox-accent-ink);
 }
 
-.nox-input {
+.nox-root textarea.nox-input,
+.nox-root textarea.nox-input:is(:hover, :focus, :focus-visible, :active) {
   min-height: 20px;
   max-height: 92px;
   flex: 1;
   padding: 0;
   resize: none;
-  border: 0;
+  border: 0 !important;
   border-radius: 0;
-  outline: none;
-  background: transparent;
+  outline: none !important;
+  background: transparent !important;
   color: var(--nox-ink);
+  box-shadow: none !important;
   font-family: var(--font-interface);
-  font-size: var(--font-ui-small, 13px);
+  font-size: 13px;
   line-height: 1.45;
-}
-
-.nox-input:focus {
-  border: 0;
-  box-shadow: none;
 }
 
 .nox-input::placeholder {
@@ -1402,7 +1429,7 @@
 
 .nox-btn-group {
   grid-column: 4;
-  grid-row: 1;
+  grid-row: 2;
   align-items: center;
   gap: 5px;
 }
@@ -1411,7 +1438,7 @@
   @apply flex items-center gap-1;
   display: flex;
   grid-column: 3;
-  grid-row: 1;
+  grid-row: 2;
   align-items: center;
   min-width: 0;
   gap: 4px;
@@ -1419,15 +1446,15 @@
 
 .nox-send-btn,
 .nox-cancel-btn {
-  width: 28px;
-  height: 28px;
-  border-radius: var(--nox-radius-pill);
+  width: 30px;
+  height: 30px;
+  border-radius: var(--nox-radius-control);
   font-size: 16px;
   line-height: 1;
 }
 
 .nox-send-btn {
-  background: var(--nox-hover-2);
+  background: var(--nox-inset);
   color: var(--nox-ink-3);
 }
 
@@ -1928,12 +1955,12 @@
 
 .nox-action-menu-btn {
   display: inline-flex;
-  height: 28px;
+  height: 30px;
   align-items: center;
   gap: 5px;
-  padding: 0 7px;
-  border: 0 !important;
-  border-radius: var(--nox-radius-pill);
+  padding: 0 8px;
+  border: 1px solid transparent !important;
+  border-radius: var(--nox-radius-control);
   background: var(--nox-inset);
   color: var(--nox-ink-2);
   cursor: pointer;
@@ -1958,16 +1985,16 @@
 
 .nox-model-trigger {
   display: inline-flex;
-  width: 150px;
-  max-width: 150px;
-  height: 28px;
+  width: 130px;
+  max-width: 130px;
+  height: 30px;
   min-width: 0;
   align-items: center;
   gap: 5px;
   padding: 0 7px;
   overflow: hidden;
-  border: 0 !important;
-  border-radius: var(--nox-radius-pill);
+  border: 1px solid transparent !important;
+  border-radius: var(--nox-radius-control);
   background: var(--nox-inset);
   color: var(--nox-ink-2);
   cursor: pointer;
@@ -2250,7 +2277,7 @@
 /* ── Inline-context composer v1 ─────────────────────────────────────────── */
 .nox-input-line {
   display: flex;
-  grid-column: 2;
+  grid-column: 1 / -1;
   grid-row: 1;
   min-width: 0;
   align-items: center;
@@ -2280,7 +2307,7 @@
   min-height: 24px;
   padding: 3px 7px;
   border: 1px solid var(--nox-line);
-  border-radius: var(--nox-radius-control);
+  border-radius: var(--nox-radius-chip);
   background: var(--nox-inset);
   color: var(--nox-ink-2);
   font-size: 12px;
@@ -2339,7 +2366,7 @@
 
 .nox-action-menu-btn,
 .nox-model-trigger {
-  height: 28px;
+  height: 30px;
 }
 
 .nox-model-trigger {
