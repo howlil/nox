@@ -121,14 +121,27 @@ export class SessionController {
     });
   }
 
-  listSessions(): ChatSession[] {
-    return this.store.listSessions();
+  listSessions(includeArchived = false): ChatSession[] {
+    return this.store.listSessions(includeArchived);
+  }
+
+  async mutateHistory(ids: string[], action: "archive" | "restore" | "delete"): Promise<{
+    affected: number;
+    activeSessionChanged: boolean;
+  }> {
+    return this.serializeWrite(async () => {
+      const before = this.currentSession?.id;
+      const affected = await this.commitStoreTransaction(draft =>
+        action === "delete" ? draft.deleteSessions(ids)
+          : draft.archiveSessions(ids, action === "archive"));
+      return { affected, activeSessionChanged: before !== this.currentSession?.id };
+    });
   }
 
 
   async selectSession(id: string): Promise<ChatSession | null> {
     return this.serializeWrite(async () => {
-      if (!this.store.getSession(id)) return null;
+      if (!this.store.getSession(id) || this.store.getSession(id)?.archivedAt) return null;
       await this.commitStoreTransaction((draft) => {
         const previous = this.currentSession && draft.getSession(this.currentSession.id);
         if (previous) {
