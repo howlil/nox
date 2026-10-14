@@ -48,7 +48,7 @@ export function validateCurriculum(value: unknown, constraints: ProgramConstrain
     seen.add(o.id);
     if (!isText(o.title) || !isText(o.outcome) || !Number.isInteger(o.estimatedMinutes) ||
         (o.estimatedMinutes as number) < 5 || (o.estimatedMinutes as number) > 1200 ||
-        !isStringList(o.prerequisiteIds) || !isStringList(o.rubric) || o.rubric.length < 1 ||
+        !isStringList(o.prerequisiteIds) || !isStringList(o.rubric) || o.rubric.length < 1 || new Set(o.rubric).size !== o.rubric.length ||
         !isStringList(o.sourceRefs) ||
         !["core", "supporting", "optional"].includes(String(o.priority))) {
       throw new Error(`Invalid objective contract: ${o.id}`);
@@ -121,6 +121,10 @@ export function objectiveProgress(program: LearningProgram, objectiveId: string,
 /** Deterministic priority: timebox > overdue recall > remediation > next eligible concept. */
 export function chooseNextActivity(program: LearningProgram, evidence: LearningEvidence[],
   now = Date.now()): LearningDecision {
+  if (program.constraints.deadline &&
+      new Date(now).toLocaleDateString("en-CA") > program.constraints.deadline) {
+    return { kind: "wait", reason: "The program deadline has passed. Replan or create a new program before continuing." };
+  }
   const remaining = program.session ?
     Math.max(0, program.session.timeBudgetMinutes - Math.floor((now - program.session.startedAt) / 60_000)) :
     program.constraints.minutesPerSession;
@@ -139,8 +143,22 @@ export function chooseNextActivity(program: LearningProgram, evidence: LearningE
   if (overdue[0]) return { kind: "recall", objective: overdue[0], reason: "Scheduled delayed retrieval is due.",
     dueAt: states.get(overdue[0].id)?.dueAt ?? undefined, minutesRemaining: remaining };
   const remediation = candidates.find(item => states.get(item.id)?.status === "remediate");
-  if (remediation) return { kind: "remediate", objective: remediation,
-    reason: "The last answer exposed a gap; practice the failed rubric first.", minutesRemaining: remaining };
+  if (remediation) {
+    const attempts = objectiveEvidence(program, remediation.id, evidence);
+    const last = attempts[attempts.length - 1];
+    const taught = program.instructionEvents?.some(item =>
+      item.objectiveId === remediation.id && item.afterEvidenceAt === last.createdAt);
+    const kind = last.outcome === "correct" && last.assisted ? "guided-practice" :
+      taught ? "guided-practice" : "teach";
+    return { kind, objective: remediation,
+      reason: kind === "teach" ? "Teach the missed concept before retrying." :
+        "Guided practice should target the most recent failed criterion.",
+      minutesRemaining: remaining };
+  }
+  const transfer = candidates.find(item => states.get(item.id)?.status === "mastered" &&
+    !objectiveEvidence(program, item.id, evidence).some(attempt => attempt.taskKind === "transfer"));
+  if (transfer) return { kind: "transfer", objective: transfer,
+    reason: "Check whether knowledge transfers to a new situation.", minutesRemaining: remaining };
   const eligible = candidates.find(item => states.get(item.id)?.status === "unseen" && item.priority !== "optional") ??
     candidates.find(item => states.get(item.id)?.status === "unseen");
   if (eligible) return { kind: "diagnostic", objective: eligible,
