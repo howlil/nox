@@ -2848,3 +2848,114 @@
 }
 .nox-quiz-code-meta { margin-bottom: 0; }
 .nox-quiz-actions { flex-wrap: wrap; }
+
+/* Agentic inspector (Beautiful UI information density × Arc motion discipline).
+   New component ownership only; existing header/thread/composer rules stay canonical. */
+.nox-run-inspector {
+  margin-top: 10px;
+  padding: 8px 0 0;
+  border-top: 1px solid var(--nox-line-soft);
+  font-size: 12px;
+  color: var(--nox-ink-2);
+}
+.nox-run-inspector > summary {
+  display: flex;
+  cursor: pointer;
+  align-items: center;
+  min-height: 28px;
+  color: var(--nox-ink-2);
+  font-weight: 550;
+  user-select: none;
+  list-style-position: inside;
+}
+.nox-run-inspector > summary:hover { color: var(--nox-ink); }
+.nox-run-inspector[open] > summary { margin-bottom: 10px; }
+.nox-inspector-heading {
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.02em;
+  color: var(--nox-ink-2);
+}
+.nox-inspector-muted, .nox-inspector-placeholder { font-size: 11px; color: var(--nox-ink-3); }
+.nox-inspector-placeholder { padding: 6px 0; }
+.nox-inspector-row {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 5px 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.nox-inspector-row > :first-child { min-width: 0; }
+.nox-inspector-row > :last-child { flex-shrink: 0; }
+.nox-inspector-count { color: var(--nox-ink); font-variant-numeric: tabular-nums; }
+.nox-run-context, .nox-run-activities, .nox-run-usage { padding-bottom: 12px; }
+.nox-run-tool {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border-radius: 6px;
+  padding: 6px 8px;
+  margin-top: 4px;
+  background: var(--nox-inset);
+}
+.nox-run-tool[data-status="failed"] > :last-child { color: var(--nox-red); }
+.nox-run-tool[data-status="completed"] > :last-child { color: var(--nox-green); }
+.nox-run-tool[data-status="interrupted"] > :last-child { color: var(--nox-orange); }
+.nox-settings-usage-filters { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 8px; }
+.nox-settings-usage-filters select {
+  flex: 1 1 145px;
+  min-width: 100px;
+  min-height: 32px;
+  padding-inline: 8px;
+  border-radius: var(--nox-radius-control);
+  border: 1px solid var(--background-modifier-border);
+  background: var(--background-primary);
+  color: var(--text-normal);
+}
+.nox-settings-usage-summary { max-width: 440px; font-size: 13px; }
+.nox-learning-graph {
+  flex: 0 0 auto;
+  padding: 12px;
+  background: var(--nox-surface);
+  border-bottom: 1px solid var(--nox-line);
+  animation: nox-agentic-reveal 180ms var(--nox-ease-out-strong) both;
+}
+.nox-learning-graph-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.nox-learning-graph-goal { margin-top: 8px; font-size: 14px; font-weight: 650; overflow-wrap: anywhere; }
+.nox-learning-graph-track { overflow: hidden; height: 4px; margin: 10px 0; border-radius: 999px; background: var(--nox-inset); }
+.nox-learning-graph-track > div { height: 100%; background: var(--nox-accent); border-radius: inherit; transition: width 240ms var(--nox-ease-out-strong); }
+.nox-graph-node {
+  margin-top: 5px;
+  background: var(--nox-inset);
+  border-radius: var(--nox-radius-control);
+  min-width: 0;
+}
+.nox-graph-node > summary {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  min-height: 36px;
+  padding: 6px 9px;
+  cursor: pointer;
+  list-style: none;
+  color: var(--nox-ink);
+}
+.nox-graph-node > summary::-webkit-details-marker { display: none; }
+.nox-graph-node-name { flex: 1; min-width: 0; overflow-wrap: anywhere; font-size: 12px; }
+.nox-graph-node-icon { color: var(--nox-ink-3); }
+.nox-graph-node[data-status="mastered"] .nox-graph-node-icon { color: var(--nox-green); }
+.nox-graph-node[data-status="remediate"] .nox-graph-node-icon { color: var(--nox-orange); }
+.nox-graph-node-body { padding: 0 9px 10px 31px; display: grid; gap: 5px; font-size: 12px; overflow-wrap: anywhere; }
+.nox-graph-next { display: grid; justify-items: start; gap: 7px; margin-top: 12px; font-size: 12px; }
+.nox-graph-next .nox-button { font-size: 12px; }
+@keyframes nox-agentic-reveal {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .nox-learning-graph { animation: none; }
+  .nox-learning-graph-track > div { transition: none; }
+}
