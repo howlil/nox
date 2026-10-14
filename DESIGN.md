@@ -695,3 +695,23 @@ Manual quota input → serialized plugin data → model pool / provider shared p
   credits, USD and request units; request counts must be whole numbers.
 - Never imply that a manual snapshot is live or provider-verified.
 - No Appearance toggle. NOX stays light-only; host Obsidian theme untouched.
+
+## Live provider quota states — 2026-10-15
+
+```text
+NOX settings → Provider quotas → QuotaSync cache
+              ├→ AGY read-only /usage and /credits (no AI turn)
+              └→ Codex account/rateLimits/read (no AI thread)
+              → grouped window bars / reset / provenance
+Manual balances → separate user-authored snapshots
+```
+
+- Provider quota bars are flat, compact and light-only. Show `Provider-reported`,
+  `Stale` or `Unavailable` independently for each provider.
+- A **shared pool** is never presented as independent per-model balance.
+  Window percentages and reset times are distinct from currency/credits.
+- Full-screen dialogs, developer terminal, and API keys are not surfaced by
+  the UI; there is no model turn to retrieve a quota.
+- Refresh credits reads providers; Refresh usage reloads NOX-local token usage.
+- Unknown provider models, unsupported fields, auth failure and older AGY
+  versions fail closed with no fabricated percentage.
