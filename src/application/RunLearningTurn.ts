@@ -234,9 +234,13 @@ export class RunLearningTurn {
 
     try {
       const refs = [...request.explicitContext];
-      if (this.programStore && request.action === "practice" && !lockedMode) {
+      if (this.programStore && (request.action === "practice" || request.programActivity) && !lockedMode) {
         const collection = await this.programStore.load();
         program = collection.programs.find(item => item.id === collection.activeProgramId);
+        if (request.programActivity && (request.programActivity.programId !== program?.id ||
+            !program.objectives.some(o => o.id === request.programActivity?.objectiveId))) {
+          throw new Error("Teaching task does not match the active program.");
+        }
         if (activePracticeTurn?.programId && activePracticeTurn.programId !== program?.id) {
           throw new Error("The active question belongs to another learning program. Switch back to that program before answering.");
         }
@@ -456,6 +460,13 @@ export class RunLearningTurn {
         `${instruction}\n\nUser request:\n${request.prompt}`;
     }
 
+    if (program && !lockedMode && request.programActivity) {
+      const topic = program.objectives.find(item => item.id === request.programActivity?.objectiveId);
+      if (!topic) throw new Error("The teaching objective no longer exists.");
+      preparedPrompt += "\n\nTeach this objective: " + topic.outcome +
+        ". Rubric: " + JSON.stringify(topic.rubric) +
+        ". Give a mental model, one worked example, and a guided check. Do not grade or claim mastery.";
+    }
     if (program && !lockedMode && request.action === "practice") {
       const activeObjective = practiceAttempt?.objectiveId
         ? program.objectives.find(item => item.id === practiceAttempt.objectiveId)
