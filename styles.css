@@ -2635,3 +2635,127 @@
 .nox-quiz-submit:disabled { opacity: .5; cursor: default; }
 .nox-quiz-status { min-height: 0; font-size: 11px; color: var(--nox-ink-2); }
 .nox-quiz-status:empty { display: none; }
+
+/* Practice reading order v2 — title → brief → tasks → rules → given → solution.
+   Component-specific tokens inherit Nox/Obsidian themes; no new card chrome. */
+.nox-quiz-card {
+  gap: 14px;
+  padding: 16px;
+}
+.nox-quiz-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  column-gap: 12px;
+  row-gap: 4px;
+}
+.nox-quiz-kind {
+  color: var(--nox-ink-3);
+  font-size: 11px;
+  font-weight: 500;
+}
+.nox-quiz-instruction-title {
+  margin: 0;
+  color: var(--nox-ink);
+  font-size: 17px;
+  font-weight: 650;
+  line-height: 1.35;
+  letter-spacing: -0.015em;
+  overflow-wrap: anywhere;
+}
+.nox-quiz-instruction-brief {
+  margin: -4px 0 0;
+  color: var(--nox-ink-2);
+  font-size: 13px;
+  line-height: 1.65;
+  overflow-wrap: anywhere;
+}
+.nox-quiz-instruction-section,
+.nox-quiz-instruction-legacy {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  min-width: 0;
+}
+.nox-quiz-section-heading {
+  color: var(--nox-ink-2);
+  font-size: 11px;
+  font-weight: 650;
+  line-height: 1.4;
+  letter-spacing: 0.025em;
+}
+.nox-quiz-instruction-list {
+  margin: 0;
+  padding-left: 18px;
+  color: var(--nox-ink);
+  font-size: 13px;
+  line-height: 1.65;
+}
+.nox-quiz-instruction-list li {
+  padding-left: 2px;
+  margin: 0 0 4px;
+  overflow-wrap: anywhere;
+}
+.nox-quiz-instruction-list li:last-child { margin-bottom: 0; }
+.nox-quiz-instruction-tasks li::marker {
+  color: var(--nox-accent);
+  font-weight: 650;
+}
+.nox-quiz-instruction-paragraph.nox-practice-question {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.7;
+  overflow-wrap: anywhere;
+}
+.nox-quiz-instruction-brief code,
+.nox-quiz-instruction-title code,
+.nox-quiz-instruction-paragraph code,
+.nox-quiz-instruction-list code {
+  background: var(--nox-inset);
+  border-radius: 4px;
+  padding: 1px 3px;
+  color: var(--nox-ink);
+  font-size: 0.91em;
+}
+.nox-quiz-context {
+  border-radius: var(--nox-radius-chip);
+  background: var(--nox-inset);
+  min-width: 0;
+}
+.nox-quiz-context summary {
+  padding: 9px 11px;
+  cursor: pointer;
+  color: var(--nox-ink-2);
+  font-size: 12px;
+  font-weight: 550;
+  list-style-position: inside;
+}
+.nox-quiz-context summary:focus-visible {
+  outline: 2px solid var(--nox-accent);
+  outline-offset: 2px;
+}
+.nox-quiz-context[open] summary { color: var(--nox-ink); }
+.nox-quiz-reference-code {
+  margin: 0;
+  padding: 0 11px 11px;
+  max-height: 260px;
+  overflow: auto;
+  white-space: pre;
+  tab-size: 2;
+  font-size: 11.5px;
+  line-height: 1.6;
+  color: var(--nox-ink);
+}
+.nox-quiz-answer {
+  border-top: 1px solid var(--nox-line);
+  padding-top: 13px;
+  gap: 8px;
+}
+.nox-quiz-editor-label {
+  color: var(--nox-ink);
+  font-size: 12px;
+  font-weight: 650;
+}
+.nox-quiz-code-meta { margin-bottom: 0; }
+.nox-quiz-actions { flex-wrap: wrap; }
