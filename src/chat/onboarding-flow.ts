@@ -20,6 +20,8 @@ export class OnboardingFlow {
   private error = "";
   private applying = false;
   private operationId?: string;
+  private requestEpoch = 0;
+  private cancelTo: OnboardingDraft["stage"] = "form";
 
   constructor(private readonly parent: HTMLElement, private readonly learning: LearningController,
     private readonly callbacks: Callbacks, initial?: OnboardingDraft) {
@@ -87,18 +89,25 @@ export class OnboardingFlow {
     return input;
   }
   private async discover(): Promise<void> {
+    const epoch = ++this.requestEpoch;
+    this.cancelTo = "discovery";
     this.stage = "generating";
     this.render();
     try {
-      this.directions = await this.learning.discoverLearningDirections(this.draft.interests, this.draft.purpose);
+      const directions = await this.learning.discoverLearningDirections(this.draft.interests, this.draft.purpose);
+      if (epoch !== this.requestEpoch) return;
+      this.directions = directions;
       this.go("suggestions");
     } catch (error) {
+      if (epoch !== this.requestEpoch) return;
       this.error = error instanceof Error ? error.message : String(error);
       this.stage = "discovery";
       this.render();
     }
   }
   private async prepare(): Promise<void> {
+    const epoch = ++this.requestEpoch;
+    this.cancelTo = "form";
     if (this.draft.goal.trim().length < 5) {
       this.error = "Enter a specific goal of at least five characters.";
       this.render(); return;
@@ -108,12 +117,16 @@ export class OnboardingFlow {
     try {
       const constraints = {
         minutesPerSession: this.draft.minutesPerSession, sessionsPerWeek: this.draft.sessionsPerWeek,
-        sourceBound: this.draft.sourceBound, sourcePaths: [], excludedTopics: [],
+        sourceBound: this.draft.sourceBound,
+        sourcePaths: this.draft.sourcePath ? [this.draft.sourcePath] : [], excludedTopics: [],
       };
-      this.preview = await this.learning.previewLearningProgram(this.draft.goal.trim(), constraints);
+      const prepared = await this.learning.previewLearningProgram(this.draft.goal.trim(), constraints);
+      if (epoch !== this.requestEpoch) return;
+      this.preview = prepared;
       this.operationId = crypto.randomUUID();
       this.go("preview");
     } catch (error) {
+      if (epoch !== this.requestEpoch) return;
       this.error = error instanceof Error ? error.message : String(error);
       this.stage = "form";
       this.render();
@@ -142,7 +155,7 @@ export class OnboardingFlow {
         "Build a learning path or try Nox without setting up a program.");
       this.choices(panel, [
         { icon: "target", title: "I have a goal", detail: "Create a learning plan", click: () => {
-          this.draft.sourceBound = false; this.go("form");
+          this.draft.sourceBound = false; this.draft.sourcePath = undefined; this.go("form");
         } },
         { icon: "compass", title: "Help me decide", detail: "Explore learning directions",
           click: () => this.go("discovery") },
@@ -182,7 +195,7 @@ export class OnboardingFlow {
       this.header(panel, "Suggested directions", "Select one to customize its learning outcome.");
       this.choices(panel, this.directions.map(x => ({
         icon: "target" as const, title: x.title, detail: x.outcome,
-        click: () => { this.draft.goal = x.title; this.draft.sourceBound = false; this.go("form"); },
+        click: () => { this.draft.goal = x.title; this.draft.sourceBound = false; this.draft.sourcePath = undefined; this.go("form"); },
       })));
       this.button(panel, "Back to interests", () => this.go("discovery"));
     } else if (this.stage === "notes") {
@@ -197,6 +210,7 @@ export class OnboardingFlow {
           if (!ctx.activeNote) throw new Error("Open a Markdown note before continuing.");
           this.draft.goal = this.draft.goal || "Understand " + ctx.activeNote.split("/").pop();
           this.draft.sourceBound = true;
+          this.draft.sourcePath = ctx.activeNote;
           this.go("form");
         } catch (error) {
           this.error = error instanceof Error ? error.message : String(error);
@@ -232,14 +246,19 @@ export class OnboardingFlow {
           this.persist();
         });
       }
-      if (this.draft.sourceBound) panel.createDiv({ cls: "nox-onboarding-help", text: "Source: active Markdown note" });
+      if (this.draft.sourceBound) panel.createDiv({ cls: "nox-onboarding-help", text: `Source: ${this.draft.sourcePath ?? "active note"}` });
       this.actions(panel, "Generate blueprint", () => void this.prepare(),
         this.draft.sourceBound ? "notes" : "welcome");
     } else if (this.stage === "generating" || this.stage === "applying") {
       this.header(panel, this.stage === "generating" ? "Preparing your learning plan…" : "Creating workspace…",
         this.stage === "generating" ? "Validating learning outcomes and dependencies." :
           "Writing the approved files to your local vault.");
-      panel.createDiv({ cls: "nox-onboarding-help", text: "Please keep NOX open during this operation." });
+      panel.createDiv({ cls: "nox-onboarding-help", text: "You can cancel without creating a learning program." });
+      if (this.stage === "generating") this.button(panel, "Cancel generation", () => {
+        this.requestEpoch++;
+        this.learning.cancel();
+        this.go(this.cancelTo);
+      });
     } else if (this.stage === "preview" && this.preview) {
       const p = this.preview;
       this.header(panel, "Review your learning blueprint", p.goal);

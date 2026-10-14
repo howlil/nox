@@ -380,6 +380,9 @@ export class LearningProgramOrchestrator {
       const constraints: ProgramConstraints = structuredClone(requested);
       if (constraints.sourceBound) {
         if (!source) throw new Error("Open or select a source note before using sources=active.");
+        if (constraints.sourcePaths.length > 0 && !constraints.sourcePaths.includes(source.file)) {
+          throw new Error("Source note changed during onboarding. Reopen the approved note and retry.");
+        }
         constraints.sourcePaths = [source.file];
       }
       validateConstraints(constraints);

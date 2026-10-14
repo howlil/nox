@@ -12,4 +12,5 @@ export interface OnboardingDraft {
   minutesPerSession: number;
   sessionsPerWeek: number;
   sourceBound: boolean;
+  sourcePath?: string;
 }

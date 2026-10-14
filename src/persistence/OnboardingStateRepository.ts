@@ -11,7 +11,16 @@ export class OnboardingStateRepository {
     const candidate = value as Stored;
     return {
       dismissed: candidate.dismissed === true,
-      ...(candidate.draft?.version === 1 && typeof candidate.draft.goal === "string" ?
+      ...(candidate.draft?.version === 1 && typeof candidate.draft.goal === "string" &&
+        candidate.draft.goal.length <= 1000 &&
+        Array.isArray(candidate.draft.interests) &&
+        candidate.draft.interests.every(item => typeof item === "string" && item.length <= 80) &&
+        ["career", "project", "curiosity"].includes(candidate.draft.purpose) &&
+        ["beginner", "intermediate", "advanced"].includes(candidate.draft.level) &&
+        Number.isInteger(candidate.draft.minutesPerSession) &&
+        candidate.draft.minutesPerSession >= 10 && candidate.draft.minutesPerSession <= 240 &&
+        Number.isInteger(candidate.draft.sessionsPerWeek) &&
+        candidate.draft.sessionsPerWeek >= 1 && candidate.draft.sessionsPerWeek <= 7 ?
         { draft: candidate.draft } : {}),
     };
   }

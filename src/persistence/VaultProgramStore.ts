@@ -40,6 +40,9 @@ export class VaultProgramStore {
         !Number.isInteger(program.planVersion) || program.planVersion < 1) {
       throw new Error("Invalid learning program.");
     }
+    if (program.workspaceApproved !== undefined && typeof program.workspaceApproved !== "boolean") {
+      throw new Error("Invalid workspace approval metadata.");
+    }
     validateConstraints(program.constraints, new Date(program.createdAt));
     validateCurriculum({ kind: "curriculum", objectives: program.objectives }, program.constraints);
     if (program.session) {
