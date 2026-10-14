@@ -45,11 +45,46 @@ export class LearningProgramOrchestrator {
     } finally { this.writing = false; }
   }
   async startSession(): Promise<LearningProgram> {
-    return this.updateActive(program => ({ ...program,
-      session: { startedAt: Date.now(), timeBudgetMinutes: program.constraints.minutesPerSession } }));
+    return this.updateActive(program => {
+      if (program.session) throw new Error("A study session is already active. Use /end-session before starting another.");
+      return { ...program,
+        session: { startedAt: Date.now(), timeBudgetMinutes: program.constraints.minutesPerSession } };
+    });
+  }
+  async extendSession(minutes: number): Promise<LearningProgram> {
+    return this.updateActive(program => {
+      if (!program.session) throw new Error("Start a session before extending its timebox.");
+      if (!Number.isInteger(minutes) || minutes < 5 ||
+          program.session.timeBudgetMinutes + minutes > 240) {
+        throw new Error("Extension must be at least 5 minutes; total timebox must not exceed 240.");
+      }
+      program.session.timeBudgetMinutes += minutes;
+      return program;
+    });
   }
   async endSession(): Promise<LearningProgram> {
-    return this.updateActive(program => ({ ...program, session: undefined }));
+    return this.updateActive(program => {
+      if (!program.session) throw new Error("No active session to end.");
+      const endedAt = Date.now();
+      const startedAt = program.session.startedAt;
+      const minutesSpent = Math.max(0, (endedAt - startedAt) / 60_000);
+      return { ...program, session: undefined, sessionHistory: [
+        ...(program.sessionHistory ?? []), { startedAt, endedAt, minutesSpent },
+      ] };
+    });
+  }
+  async markTaught(objectiveId: string, afterEvidenceAt: number): Promise<void> {
+    await this.updateActive(program => {
+      if (!program.objectives.some(item => item.id === objectiveId)) {
+        throw new Error("Cannot record teaching for an unknown learning objective.");
+      }
+      if (!program.instructionEvents?.some(item =>
+          item.objectiveId === objectiveId && item.afterEvidenceAt === afterEvidenceAt)) {
+        program.instructionEvents = [...(program.instructionEvents ?? []),
+          { objectiveId, afterEvidenceAt, taughtAt: Date.now() }];
+      }
+      return program;
+    });
   }
   async getDecision(): Promise<{ program: LearningProgram; decision: LearningDecision } | null> {
     const program = await this.getActiveProgram();
@@ -66,11 +101,14 @@ export class LearningProgramOrchestrator {
     const mastered = program.objectives.filter(o =>
       objectiveProgress(program, o.id, state.evidence).status === "mastered").length;
     const f = feasibility(program);
+    const spent = (program.sessionHistory ?? []).reduce((sum, session) => sum + session.minutesSpent, 0) +
+      (program.session ? Math.max(0, (Date.now() - program.session.startedAt) / 60_000) : 0);
     const estimate = f.feasible === null ? "No deadline set" :
       f.feasible ? "Within estimated time budget" :
       "At risk: estimated work exceeds available time. Reduce scope or adjust deadline/time budget.";
     return [
       `Program: ${program.goal}`,
+      `Study time logged: ${Math.round(spent)} minutes, ${program.sessionHistory?.length ?? 0} completed sessions.`,
       `Mastered: ${mastered}/${program.objectives.length} objectives (requires independent delayed recall)`,
       `Plan: ~${f.estimatedMinutes} minutes including estimated review; available: ${f.availableMinutes ?? "unspecified"} minutes.`,
       `Feasibility: ${estimate}`,
@@ -80,8 +118,12 @@ export class LearningProgramOrchestrator {
     ].join("\n");
   }
 
-  async createProgram(goal: string, requested: ProgramConstraints): Promise<LearningProgram> {
+  async createProgram(goal: string, requested: ProgramConstraints, operationId?: string): Promise<LearningProgram> {
     if (this.isPlanning()) throw new Error("Another learning program operation is in progress.");
+    if (operationId) {
+      const previous = (await this.store.load()).programs.find(p => p.creationOperationId === operationId);
+      if (previous) return previous;
+    }
     this.planning = true;
     const abort = this.currentAbort = new AbortController();
     const timeout = setTimeout(() => abort.abort(), 120_000);
@@ -126,6 +168,7 @@ export class LearningProgramOrchestrator {
         }
         if (event.type === "completed") { completed = true; break; }
       }
+      if (abort.signal.aborted) throw new Error("Curriculum generation cancelled or timed out.");
       if (!completed) throw new Error("The agent did not complete the curriculum.");
       const blocks = [...output.matchAll(/```learning-program\s*\n([\s\S]*?)\n```/g)];
       if (blocks.length !== 1 || output.trim() !== blocks[0][0].trim()) {
@@ -138,8 +181,12 @@ export class LearningProgramOrchestrator {
       const program: LearningProgram = {
         version: 1, id: crypto.randomUUID(), goal: goal.trim(), constraints,
         objectives: draft.objectives, createdAt: Date.now(), planVersion: 1,
+        ...(operationId ? { creationOperationId: operationId } : {}),
       };
       const collection: ProgramCollection = await this.store.load();
+      const previous = operationId && collection.programs.find(p => p.creationOperationId === operationId);
+      if (previous) return previous;
+      if (abort.signal.aborted) throw new Error("Curriculum generation cancelled before save.");
       collection.programs.push(program);
       collection.activeProgramId = program.id;
       await this.store.save(collection);
