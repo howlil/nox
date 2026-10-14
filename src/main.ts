@@ -6,6 +6,7 @@ import { ChatGptAuth, type ChatGptConnection } from "./agent/ChatGptAuth";
 import { createObsidianOAuthFetch } from "./agent/ObsidianOAuthTransport";
 import { createObsidianInferenceFetch } from "./agent/ObsidianInferenceTransport";
 import { AgentRuntime } from "./agent/AgentRuntime";
+import type { AgentUsageRecord } from "./agent/token-usage";
 import { ChatView, NOX_VIEW_TYPE } from "./chat/ChatView";
 import { ContextResolver } from "./context/ContextResolver";
 import { ObsidianContext } from "./context/ObsidianContext";
@@ -194,6 +195,11 @@ export default class NoxPlugin extends Plugin {
       active: true,
     });
     workspace.revealLeaf(leaf);
+  }
+
+  getUsageRecords(): AgentUsageRecord[] {
+    return this.learning.listSessions().flatMap(session => session.usageRecords ?? [])
+      .sort((a, b) => b.at - a.at);
   }
 
   getSettings(): NoxSettings {
