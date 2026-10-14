@@ -55,6 +55,7 @@ export type LearningEvent =
   | {
       type: "practice-question";
       question: PracticeQuestion;
+      questionId?: string;
     }
   | {
       type: "practice-evaluation";
