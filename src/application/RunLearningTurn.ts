@@ -102,7 +102,9 @@ export class RunLearningTurn {
     if (practice.snapshot()) return practice;
     for (let i = session.messages.length - 1; i >= 0; i--) {
       const message = session.messages[i];
-      if (!scoped && message.role === "user" && message.action && message.action !== "practice") break;
+      // Informational commands and ordinary Ask/Explain turns do not consume an
+      // unanswered structured Practice question. An evaluation does.
+
       const parts = message.parts ?? [];
       for (let j = parts.length - 1; j >= 0; j--) {
         const part = parts[j];
@@ -219,6 +221,7 @@ export class RunLearningTurn {
     const previousOrigin = existingPractice?.isWaitingForAnswer()
       ? existingPractice.snapshot()?.origin
       : undefined;
+    const activePracticeTurn = existingPractice?.snapshot()?.turns.at(-1);
     const pinnedPracticeSource = request.action === "practice"
       ? (previousOrigin?.file ?? request.sourcePath)
       : undefined;
@@ -233,6 +236,12 @@ export class RunLearningTurn {
       if (this.programStore && request.action === "practice" && !lockedMode) {
         const collection = await this.programStore.load();
         program = collection.programs.find(item => item.id === collection.activeProgramId);
+        if (activePracticeTurn?.programId && activePracticeTurn.programId !== program?.id) {
+          throw new Error("The active question belongs to another learning program. Switch back to that program before answering.");
+        }
+        if (program?.constraints.sourceBound && sessionAtStart.runtimeProvider !== "chatgpt") {
+          throw new Error("Strict source-bound learning requires the ChatGPT provider without vault filesystem tools. Local CLI agents can read beyond selected notes.");
+        }
         if (program?.constraints.sourceBound) {
           for (const path of program.constraints.sourcePaths) {
             if (!refs.some(ref => ref.kind === "vault-note" && ref.path === path)) {
@@ -322,7 +331,7 @@ export class RunLearningTurn {
     }
     const system: AgentContext[] = [];
 
-    if (policy.rawInstructions) {
+    if (policy.rawInstructions && !program?.constraints.sourceBound) {
       const alreadyIncluded = visible.some(
         (item) =>
           item.type === "note" &&
@@ -338,7 +347,7 @@ export class RunLearningTurn {
       }
     }
 
-    system.push({
+    if (!program?.constraints.sourceBound) system.push({
       type: "note",
       file: "00-learning-os/progress.json",
       content: JSON.stringify(
@@ -564,8 +573,10 @@ export class RunLearningTurn {
         },
         {
           model: conversation.model,
-          conversationId: lockedMode ? undefined : conversation.conversationId,
-          history: lockedMode ? [] : conversation.messages.slice(-12).map((message) => ({
+          // Program turns must not inherit the previous program's hidden provider
+          // cursor or conversation history, including when switching Chat sessions.
+          conversationId: lockedMode || program ? undefined : conversation.conversationId,
+          history: lockedMode || program ? [] : conversation.messages.slice(-12).map((message) => ({
             role: message.role, content: message.content,
           })),
         },
@@ -596,7 +607,7 @@ export class RunLearningTurn {
 
         if (event.type === "completed") {
           executionPhase = "processing";
-          if (event.conversationId && !lockedMode) {
+          if (event.conversationId && !lockedMode && !program) {
             await this.sessions.setConversationId(event.conversationId, turnSessionId);
           }
 
