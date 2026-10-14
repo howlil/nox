@@ -694,7 +694,7 @@ test("domain-neutral program practice commits objective-linked evidence and igno
   rig.queue(practice({ kind: "question", concept: "Backend terms", question: "Explain transaction atomicity.",
     hint: "Think rollback." }));
   const asked = await collectEvents(learning.run({
-    prompt: "/next", action: "practice", explicitContext: [],
+    prompt: "Quiz me on the next eligible objective", action: "practice", explicitContext: [],
   }));
   const generated = asked.find(event => event.type === "practice-question");
   assert.ok(generated && generated.type === "practice-question");
