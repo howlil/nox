@@ -3,6 +3,7 @@ import test from "node:test";
 import {
   AgentContext,
   AgentStreamEvent,
+  type AgentTurnMetrics,
   ApplyResult,
   ChatSession,
   EditProposal,
@@ -99,6 +100,7 @@ function createHarness(
       _sessionId?: string,
       thought?: string,
       elapsedMs?: number,
+      metrics?: AgentTurnMetrics,
     ) => {
       session.messages.push({
         role: "assistant",
@@ -106,6 +108,7 @@ function createHarness(
         sourcePath,
         thought,
         elapsedMs,
+        metrics,
       });
     },
     recordStructuredPart: async (part: { type: string; questionId?: string }) => {
@@ -1063,6 +1066,45 @@ test("streams thought-delta from <think> tags and persists thought on assistant 
   assert.equal(message?.content, "Here is the final answer");
   assert.equal(message?.thought, "Step 1 reasoning\nStep 2 reasoning");
   assert.ok(typeof message?.elapsedMs === "number");
+});
+
+test("run activity is based on observed output and records full turn timings", async () => {
+  const harness = createHarness(async function* () {
+    yield { type: "text", content: "first" };
+    yield { type: "text", content: " second" };
+    yield { type: "completed" };
+  });
+  const events = await collectEvents(harness.controller.run({
+    prompt: "explain a race condition", action: "ask", explicitContext: [],
+  }));
+  const phases = events.filter((event) => event.type === "activity-phase");
+  assert.deepEqual(phases.map((event) =>
+    event.type === "activity-phase" ? event.phase : undefined),
+  ["waiting-model", "receiving-output", "finalizing"]);
+  assert.ok(phases.every((event) => event.type !== "activity-phase" || Number.isFinite(event.at)));
+  const result = harness.controller.getSession().messages.find((message) =>
+    message.role === "assistant" && message.content.includes("first"));
+  assert.equal(result?.content, "first second");
+  assert.ok(result?.metrics);
+  assert.ok(result.metrics.contextMs !== undefined && result.metrics.contextMs >= 0);
+  assert.ok(result.metrics.preparationMs !== undefined &&
+    result.metrics.preparationMs >= result.metrics.contextMs);
+  assert.ok(result.metrics.firstVisibleMs !== undefined &&
+    result.metrics.firstVisibleMs >= 0);
+  assert.ok(result.metrics.elapsedMs >= result.metrics.firstVisibleMs);
+});
+
+test("failed inference never announces a finalizing phase", async () => {
+  const harness = createHarness(async function* () {
+    yield { type: "failed", failure: { code: "process-failed", message: "Offline" } };
+  });
+  const events = await collectEvents(harness.controller.run({
+    prompt: "explain a race condition", action: "ask", explicitContext: [],
+  }));
+  assert.deepEqual(events.filter((event) => event.type === "activity-phase").map(
+    (event) => event.type === "activity-phase" ? event.phase : undefined,
+  ), ["waiting-model"]);
+  assert.ok(events.some((event) => event.type === "failed"));
 });
 
 test("typed MCQ card submission uses deterministic grader and creates exactly one evidence record", async () => {
