@@ -655,6 +655,25 @@ export class RunLearningTurn {
         },
         controller.signal,
       )) {
+        if (event.type === "tool-started" || event.type === "tool-completed") {
+          if (!lockedMode) yield event;
+          continue;
+        }
+        if (event.type === "usage") {
+          if (this.sessions.recordUsage) {
+            try {
+              await this.sessions.recordUsage({
+                id: request.turnId ?? crypto.randomUUID(), at: Date.now(),
+                provider: sessionAtStart.runtimeProvider ?? "agy",
+                model: sessionAtStart.model ?? "Runtime default",
+                inputTokens: event.inputTokens, outputTokens: event.outputTokens,
+                cachedInputTokens: event.cachedInputTokens,
+              }, turnSessionId);
+            } catch { /* Telemetry write failures must not invalidate learning evidence. */ }
+          }
+          yield event;
+          continue;
+        }
         if (event.type === "text") {
           executionPhase = "processing";
           if (lockedMode) {
