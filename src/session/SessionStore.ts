@@ -1,6 +1,6 @@
 import { ChatSession, ChatMessage, EditProposal } from "../types";
 import { isTranscriptPart } from "./transcript-schema";
-import { isAgentUsageRecord } from "../agent/token-usage";
+import { isAgentUsageRecord } from "../domain/telemetry/token-usage";
 import { isPracticeAnswer } from "../domain/practice/question-schema";
 import { isLockedLearningMode } from "../domain/practice/learning-scope";
 
