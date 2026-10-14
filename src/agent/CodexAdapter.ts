@@ -2,6 +2,8 @@ import { spawn, type ChildProcess } from "child_process";
 import { existsSync } from "fs";
 import { dirname, join } from "path";
 import { StringDecoder } from "string_decoder";
+import type { QuotaReading } from "./QuotaProtocol";
+import { runCodexQuotaRead } from "./QuotaProcess";
 import type { AgentAdapter, AgentHealth, AgentInput, AgentModel, AgentRuntimeConfig, AgentStreamEvent, SendOptions } from "../types";
 import { codexFailure, encodeCodexInput, isCodexThreadId, parseCodexLine, parseCodexModelPage, type CodexProtocolState } from "./CodexProtocol";
 
@@ -25,6 +27,12 @@ export class CodexAdapter implements AgentAdapter {
     deps: Partial<CodexRuntimeDeps> = {}) {
     this.deps = { spawn, existsSync, platform: process.platform, arch: process.arch,
       env: process.env, kill: process.kill, modelDiscoveryTimeoutMs: 10000, ...deps };
+  }
+
+  /** A read-only app-server session: account/rateLimits/read, no new thread. */
+  async readQuota(signal?: AbortSignal): Promise<QuotaReading[]> {
+    const binary = await this.resolveBinary();
+    return runCodexQuotaRead(binary, this.cwd, signal, this.deps.spawn);
   }
 
   async check(): Promise<AgentHealth> {
