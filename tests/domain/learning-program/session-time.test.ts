@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { checkpointTiming, newSessionTiming, recoverTiming, sessionRemainingMs, setTimingPause } from "../../../src/domain/learning-program/session-time";
+import { checkpointTiming, focusSessionObjective, newSessionTiming, recoverTiming, sessionRemainingMs, setTimingPause } from "../../../src/domain/learning-program/session-time";
 
 const MIN = 60_000;
 function advance(timing: ReturnType<typeof newSessionTiming>, from: number, to: number) {
@@ -44,6 +44,22 @@ test("recover rejects unobserved downtime and never consumes legacy wall time", 
   const recovered = recoverTiming({ startedAt: 0, timeBudgetMinutes: 45 }, 100 * MIN);
   assert.deepEqual(recovered.pauseReasons, ["recovery"]);
   assert.equal(sessionRemainingMs({ startedAt: 0, timeBudgetMinutes: 45, timing: recovered }, 500 * MIN), 45 * MIN);
+});
+
+test("objective focus accumulates only confirmed active study", () => {
+  let t = focusSessionObjective(newSessionTiming(0), "sql", 1000);
+  t = checkpointTiming(t, 31_000);
+  t = setTimingPause(t, "ai-running", true, 31_000);
+  t = checkpointTiming(t, 61_000);
+  assert.equal(t.objectiveActiveMs?.sql, 31_000);
+  assert.equal(t.activeMs, 31_000);
+  assert.equal(t.aiWaitingMs, 30_000);
+});
+
+test("clock rollback cannot create negative or backdated checkpoints", () => {
+  const t = checkpointTiming(newSessionTiming(1000), 100);
+  assert.equal(t.activeMs, 0);
+  assert.equal(t.checkpointAt, 1000);
 });
 
 test("long unobserved intervals are not charged as learning", () => {
