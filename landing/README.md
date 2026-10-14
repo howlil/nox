@@ -17,6 +17,8 @@ pnpm preview
 
 ## Manual Cloudflare deployment (NO CI/CD)
 
+Live production: https://nox.howlil.site (Cloudflare Worker name: `nox`). GitHub commits do **not** update the live site until `pnpm build && pnpm exec wrangler deploy` runs successfully.
+
 Cloudflare **Workers Static Assets** serves Astro's pre-rendered `dist/` folder. No adapter or SSR worker is needed.
 
 ```bash
@@ -28,7 +30,7 @@ pnpm exec wrangler deploy
 ```
 
 Use `pnpm exec wrangler whoami` to confirm the target account before deploying.
-The first manual deploy creates the `nox-landing` Worker; later deploys update it. Assign a custom domain in Cloudflare Dashboard → Workers & Pages → nox-landing → Settings/Domains. Do not turn on Git integration or Workers Builds.
+The first manual deploy creates the `nox` Worker; later deploys update it. Assign a custom domain in Cloudflare Dashboard → Workers & Pages → nox → Settings/Domains. Do not turn on Git integration or Workers Builds.
 
 If sponsorship becomes available, set a verified public URL at build time and redeploy:
 
@@ -51,7 +53,7 @@ landing/
   src/styles/global.css       # Tailwind CSS v4 + NOX theme override
   public/nox.png              # original repo asset, retained for social image
   public/nox-96.webp         # 96px optimized icon for initial load
-  public/nox-mascot.svg       # optimized vector reconstruction
+  public/nox-mascot.svg       # optimized hero mascot vector; navbar embeds the same transparent paths inline
   public/noise.svg            # static SVG grain overlay
 ```
 
