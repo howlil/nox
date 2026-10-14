@@ -3,7 +3,7 @@ import { validateConstraints } from "./rules";
 
 export type ProgramCommand =
   | { kind: "plan"; goal: string; constraints: ProgramConstraints }
-  | { kind: "next" | "progress" | "start-session" | "end-session" | "review-due" | "programs" }
+  | { kind: "next" | "progress" | "start-session" | "end-session" | "review-due" | "programs" | "free-practice" }
   | { kind: "use-program"; id: string }
   | { kind: "extend-session"; minutes: number };
 
@@ -18,7 +18,7 @@ export function parseProgramCommand(input: string): ProgramCommand | null {
   if (/^\/use-program(?:\s|$)/i.test(value)) throw new Error("Use /use-program <program-id> shown by /programs.");
   const commands: Record<string, ProgramCommand["kind"]> = {
     "/next": "next", "/progress": "progress", "/start-session": "start-session",
-    "/end-session": "end-session", "/review-due": "review-due", "/programs": "programs",
+    "/end-session": "end-session", "/review-due": "review-due", "/programs": "programs", "/free-practice": "free-practice",
   };
   if (commands[value.toLowerCase()]) return { kind: commands[value.toLowerCase()] } as ProgramCommand;
   if (!/^\/plan(?:\s|$)/i.test(value)) return null;
