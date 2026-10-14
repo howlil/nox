@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import {
   mkdtempSync,
   mkdirSync,
+  existsSync,
   readFileSync,
   writeFileSync,
 } from "node:fs";
@@ -12,6 +13,11 @@ import { deployPlugin } from "../../../scripts/deploy-core.mjs";
 
 function tempRoot() {
   return mkdtempSync(join(tmpdir(), "nox-deploy-test-"));
+}
+
+function addRequiredBuildAssets(dist: string) {
+  writeFileSync(join(dist, "manifest.json"), JSON.stringify({ id: "nox-obsidian" }));
+  writeFileSync(join(dist, "styles.css"), "/* nox styles */");
 }
 
 const silent = {
@@ -27,6 +33,7 @@ test("deploy copies dist and enables Nox without removing existing plugins", () 
   mkdirSync(join(vault, ".obsidian"), { recursive: true });
 
   writeFileSync(join(dist, "main.js"), "bundle");
+  addRequiredBuildAssets(dist);
   writeFileSync(join(dist, "styles.css"), "styles");
   writeFileSync(
     join(vault, ".obsidian", "community-plugins.json"),
@@ -61,6 +68,7 @@ test("deploy does not duplicate an already-enabled plugin", () => {
   mkdirSync(dist, { recursive: true });
   mkdirSync(join(vault, ".obsidian"), { recursive: true });
   writeFileSync(join(dist, "main.js"), "bundle");
+  addRequiredBuildAssets(dist);
   writeFileSync(
     join(vault, ".obsidian", "community-plugins.json"),
     JSON.stringify(["nox-obsidian"]),
@@ -90,6 +98,7 @@ test("invalid community plugin JSON does not block file deployment", () => {
   mkdirSync(dist, { recursive: true });
   mkdirSync(join(vault, ".obsidian"), { recursive: true });
   writeFileSync(join(dist, "main.js"), "bundle");
+  addRequiredBuildAssets(dist);
   writeFileSync(
     join(vault, ".obsidian", "community-plugins.json"),
     "{bad json",
@@ -119,4 +128,36 @@ test("missing dist fails before touching the vault", () => {
       }),
     /dist\/ directory not found/,
   );
+});
+
+test("rejects a directory which is not an actual Obsidian vault", () => {
+  const root = tempRoot();
+  const dist = join(root, "dist");
+  const notVault = join(root, "wrong-vault");
+  mkdirSync(dist, { recursive: true });
+  mkdirSync(notVault, { recursive: true });
+  writeFileSync(join(dist, "main.js"), "bundle");
+  addRequiredBuildAssets(dist);
+  assert.throws(() => deployPlugin({
+    targetVault: notVault, distDir: dist, logger: silent,
+  }), /not an Obsidian vault/);
+  assert.equal(existsSync(join(notVault, ".obsidian", "plugins")), false);
+});
+
+test("rejects missing or mismatched plugin build before touching the vault", () => {
+  const root = tempRoot();
+  const dist = join(root, "dist");
+  const vault = join(root, "vault");
+  mkdirSync(dist, { recursive: true });
+  mkdirSync(join(vault, ".obsidian"), { recursive: true });
+  writeFileSync(join(dist, "main.js"), "bundle");
+  assert.throws(() => deployPlugin({
+    targetVault: vault, distDir: dist, logger: silent,
+  }), /Missing required plugin build output/);
+  addRequiredBuildAssets(dist);
+  writeFileSync(join(dist, "manifest.json"), JSON.stringify({ id: "wrong-plugin" }));
+  assert.throws(() => deployPlugin({
+    targetVault: vault, distDir: dist, logger: silent,
+  }), /manifest plugin id/);
+  assert.equal(existsSync(join(vault, ".obsidian", "plugins")), false);
 });
