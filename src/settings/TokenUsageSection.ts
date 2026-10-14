@@ -16,7 +16,9 @@ const format = (value: number): string => value.toLocaleString("en-US");
 
 export function mountTokenUsageSection(container: HTMLElement, host: UsageViewHost): void {
   const section = container.createDiv({ cls: "nox-usage" });
-  section.createEl("h3", { text: "Token usage" });
+  const header = section.createDiv({ cls: "nox-usage-header" });
+  header.createEl("h3", { text: "Token usage" });
+  const toolbar = header.createDiv({ cls: "nox-usage-toolbar" });
   section.createEl("p", { cls: "nox-usage-description",
     text: "Tokens reported by requests made through Nox. This is not your provider account's total usage." });
   const body = section.createDiv();
@@ -90,7 +92,6 @@ export function mountTokenUsageSection(container: HTMLElement, host: UsageViewHo
     limits.createEl("p", { text: "Unavailable from the current Nox transports. Token totals are not a quota percentage. For account-specific limits, use Codex /status or AGY /usage in their own CLI; ChatGPT plan limits may be shown in its official account interface." });
   };
 
-  const toolbar = section.createDiv({ cls: "nox-usage-toolbar" });
   new Setting(toolbar).addButton(button => button.setButtonText("Refresh usage").onClick(async () => {
     button.setDisabled(true);
     try {
