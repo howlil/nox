@@ -2147,6 +2147,26 @@ export class ChatView extends ItemView {
       text: "Copy",
     });
 
+    if ((this.runningAction === "ask" || this.runningAction === "explain") &&
+        !this.learning.hasActivePracticeQuestion()) {
+      const quickCheck = createNoxButton(actions, {
+        cls: "nox-stream-action",
+        variant: "quiet",
+        label: "Generate interactive practice from this explanation",
+        text: "Quiz me",
+      });
+      quickCheck.addEventListener("click", () => {
+        if (this.uiState === "RUNNING" || !this.runtimeReady) return;
+        this.setAction("practice");
+        // The generated explanation is task context, not trusted system policy.
+        this.input.value = "Generate one interactive knowledge-check question " +
+          "(MCQ, essay, or code if appropriate) about this explanation: " +
+          JSON.stringify(responseText.slice(0, 1600));
+        this.onInput();
+        void this.doSend();
+      });
+    }
+
     copyButton.addEventListener("click", async () => {
       try {
         await navigator.clipboard.writeText(responseText);
