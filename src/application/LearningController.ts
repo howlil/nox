@@ -135,6 +135,10 @@ export class LearningController {
       return;
     }
     if (request.prompt.trim().toLowerCase() === "/hint") {
+      if (this.turns.isRunning() || this.applyingProposals.size > 0) {
+        yield { type: "failed", failure: { code: "busy", message: "Finish the active operation before requesting a hint." } };
+        return;
+      }
       if (!this.turns.hasActivePracticeQuestion()) {
         yield { type: "response-delta", text: "No active question to hint." };
         yield { type: "completed" }; return;
@@ -174,6 +178,9 @@ export class LearningController {
       try {
         let response: string;
         if (command.kind === "plan") {
+          if (this.turns.hasActivePracticeQuestion()) {
+            throw new Error("Finish or exit the active Practice question before replacing the learning plan.");
+          }
           const program = await this.programs.createProgram(command.goal, command.constraints);
           const f = feasibility(program);
           response = [
