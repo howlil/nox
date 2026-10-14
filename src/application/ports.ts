@@ -3,6 +3,12 @@ import type { ExplicitContextRef, LearningContext, LearningPolicy } from "../con
 import type { LearningState } from "../domain/learning-state/types";
 import type { TranscriptPart } from "../session/transcript-types";
 import type { LearningScopeState } from "../domain/practice/learning-scope";
+import type { ProgramCollection } from "../domain/learning-program/types";
+
+export interface ProgramStorePort {
+  load(): Promise<ProgramCollection>;
+  save(next: ProgramCollection): Promise<void>;
+}
 
 /** Application-owned structural I/O contracts, not a second authority. */
 export interface SessionPort {
