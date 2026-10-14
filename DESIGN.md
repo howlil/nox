@@ -266,6 +266,33 @@ semantic AI identity. Light palette:
 | `--nox-accent-soft` | `#F4EDFF` | selected surface |
 | `--nox-accent-border` | `#C9B0ED` | selection and focus |
 
+### Scoped NOX appearance — 2026-10-15
+
+The appearance setting has four effective combinations: Obsidian Light/System →
+NOX Light; Obsidian Dark/System → NOX Dark; Obsidian Dark/forced Light →
+NOX Light; Obsidian Light/forced Dark → NOX Dark. The host app's theme must
+never be mutated.
+
+One light/dark palette is declared at the top of `styles.css` on
+`.nox-root`, `.nox-settings`, and temporary `.nox-theme-portal` surfaces.
+Dark selectors exclude `.nox-force-light`; explicit `.nox-force-dark` takes
+precedence independently of the host theme. The same scope sets
+`color-scheme`, scrollbar/accent colors, and a narrow bridge for Obsidian's
+rendered text, form, link and code variables. Component rules should read
+`--nox-*`, never host-specific color variables.
+
+The history native DOM action menu mounts into a temporary NOX-owned theme
+portal outside clipped scrolling lists. Archive/delete confirmation dialogs
+receive the same NOX appearance class. Portals are disposed on close; neither
+portal nor theme token scope applies to the global Obsidian body.
+
+The interactive HTML iframe remains intentionally isolated and light by
+default: its untrusted document owns its presentation, not the NOX theme.
+Other native NOX components do not get an implicit white background.
+
+Metadata and semantic badges must meet readable text contrast in both
+palettes. The base palette is neutral and flat; state color is semantic.
+
 In dark mode, `styles.css` owns a corresponding flat ramp (`#080808`
 page, `#121212` surface, `#1B1B1B` inset), adjusted purple foreground
 contrast and semantic success/warning/error colors. Do not use transparent
