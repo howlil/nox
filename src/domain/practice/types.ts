@@ -52,6 +52,8 @@ export interface PracticeEvaluation {
   assisted?: boolean;
   rubricResults?: RubricResult[];
   taskKind?: "diagnostic" | "guided-practice" | "recall" | "transfer";
+  /** A single MCQ cannot prove a complete learning objective. */
+  assessmentCoverage?: "single-item";
   programId?: string;
   objectiveId?: string;
 }
