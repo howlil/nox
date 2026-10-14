@@ -653,7 +653,12 @@ export class RunLearningTurn {
     };
 
     try {
-      if (!request.retry && !request.regenerate) {
+      // Retries after a failed save must not silently lose the user message.
+      // A durable turn ID also prevents appending the same message twice.
+      const missingRetryMessage = Boolean(request.retry && request.turnId &&
+        !this.sessions.getSession().messages.some(message =>
+          message.role === "user" && message.id === request.turnId));
+      if (!request.regenerate && (!request.retry || missingRetryMessage)) {
         await this.sessions.recordUserMessage(request.prompt, turnSessionId, request.action,
           request.turnId, request.replyTo);
       }
@@ -733,7 +738,9 @@ export class RunLearningTurn {
       // itself represents that user turn and must not be duplicated in history.
       const historyMessages = request.regenerate
         ? conversation.messages.slice(0, request.regenerate.messageIndex - 1)
-        : conversation.messages;
+        : request.retry && request.turnId
+          ? conversation.messages.filter(message => message.id !== request.turnId)
+          : conversation.messages;
       const priorHistory = lockedMode || program ? [] : historyMessages.map(message => ({
         role: message.role, content: message.role === "user" && message.replyTo
           ? formatReplyPrompt(message.content, message.replyTo) : message.content,
