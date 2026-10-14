@@ -4290,3 +4290,12 @@
 @media (prefers-reduced-motion: reduce) {
   .nox-transcript-selection-toolbar { transition: none; }
 }
+
+.nox-root .nox-composer-box.is-reply {
+  border-radius: 16px;
+  padding: 8px 8px 7px;
+}
+.nox-selection-ask {
+  gap: 5px;
+  white-space: nowrap;
+}
