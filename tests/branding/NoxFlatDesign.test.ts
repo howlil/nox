@@ -90,12 +90,26 @@ test("native rounded composer keeps the file picker, action menu and accessible 
   assert.ok(composer.includes("const maxHeight = 120;"));
 });
 
-test("Token usage summary and manual credit bars follow flat design", () => {
-  const usage = readFileSync("src/settings/TokenUsageSection.ts", "utf8");
-  assert.ok(usage.includes('cls: "nox-usage-overview"'));
-  assert.ok(usage.includes('cls: "nox-usage-split-input"'));
-  assert.ok(usage.includes('cls: "nox-credit-progress"'));
-  assert.ok(usage.includes("Manual snapshot"));
-  assert.ok(css.includes(".nox-credit-progress-fill.is-low"));
-  assert.ok(css.includes(".nox-credit-progress-fill.is-warning"));
+test("Settings use three flat tabs, and usage/token views are separate", () => {
+  const settings = readFileSync("src/settings/SettingsTab.ts", "utf8");
+  const token = readFileSync("src/settings/TokenUsageSection.ts", "utf8");
+  const usage = readFileSync("src/settings/ProviderUsageSection.ts", "utf8");
+  assert.match(settings, /value: "settings", label: "Settings"/);
+  assert.match(settings, /value: "usage", label: "Usage"/);
+  assert.match(settings, /value: "token", label: "Token"/);
+  assert.match(settings, /role: "tablist"/);
+  assert.match(settings, /"aria-selected": String\(this.activePage === page.value\)/);
+  assert.ok(settings.includes('this.activePage === "usage"'));
+  assert.ok(settings.includes('this.activePage === "token"'));
+  assert.ok(settings.includes("this.disposeSection?.()"));
+  assert.match(css, /\.nox-settings-tabs\s*\{[^}]*display:flex;/s);
+  assert.match(css, /\.nox-settings \.nox-settings-tab\[aria-selected="true"\]/);
+  assert.ok(token.includes('cls: "nox-usage-overview"'));
+  assert.ok(token.includes('cls: "nox-usage-split-input"'));
+  assert.ok(usage.includes('cls:"nox-quota-progress"'));
+  assert.ok(usage.includes("getProviderQuotas(force)"));
+  for (const source of [settings,token,usage]) {
+    assert.doesNotMatch(source, /[Cc]redit[Bb]alance|Manual [Bb]alances|Add balance|Set balance/);
+  }
+  assert.doesNotMatch(css, /\.nox-credit-editor|\.nox-credits|\.nox-credit-fields/);
 });
