@@ -14,7 +14,6 @@ function block(header: string): string {
   return css.slice(open + 1, close);
 }
 const light = block(".nox-root,\n.nox-settings,\n.nox-theme-portal {");
-const dark = block(".theme-dark .nox-root:not(.nox-force-light),");
 const variable = (section: string, name: string) => {
   const match = section.match(new RegExp(`(?:^|\\n)\\s*${name}:\\s*(#[a-f0-9]{6});`, "i"));
   assert.ok(match, `missing palette token ${name}`);
@@ -30,17 +29,9 @@ function contrast(a: string, b: string): number {
   return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05);
 }
 
-test("NOX has one light/dark palette owner across chat, settings and native overlays", () => {
+test("NOX has one light-only palette owner across chat, settings and overlays", () => {
   assert.match(light, /color-scheme:\s*light;/);
-  assert.match(dark, /color-scheme:\s*dark;/);
-  for (const selector of [
-    ".theme-dark .nox-root:not(.nox-force-light)",
-    ".theme-dark .nox-settings:not(.nox-force-light)",
-    ".theme-dark .nox-theme-portal:not(.nox-force-light)",
-    ".nox-root.nox-force-dark",
-    ".nox-settings.nox-force-dark",
-    ".nox-theme-portal.nox-force-dark",
-  ]) assert.ok(css.includes(selector), "missing independent theme selector " + selector);
+  assert.doesNotMatch(css, /\.theme-dark \.nox-root|\.nox-force-dark|\.nox-force-light/);
   assert.doesNotMatch(css, /(?:^|\n)\s*body\s*\{[^}]*--nox-page:/s);
 });
 
@@ -57,23 +48,21 @@ test("Obsidian-rendered controls inherit only NOX-scoped semantic colors", () =>
   assert.doesNotMatch(css, /rgba\(52,\s*199,\s*89/);
 });
 
-test("Both palettes provide readable body and secondary metadata contrast", () => {
-  for (const palette of [light, dark]) {
-    const page = variable(palette, "--nox-page");
-    const surface = variable(palette, "--nox-surface");
-    for (const key of ["--nox-ink", "--nox-ink-2", "--nox-ink-3"]) {
-      const ink = variable(palette, key);
-      assert.ok(contrast(ink, page) >= 4.5, `${key} fails page contrast on ${page}`);
-      assert.ok(contrast(ink, surface) >= 4.5, `${key} fails surface contrast on ${surface}`);
-    }
+test("Light palette keeps readable text and metadata contrast", () => {
+  const page = variable(light, "--nox-page");
+  const surface = variable(light, "--nox-surface");
+  for (const key of ["--nox-ink", "--nox-ink-2", "--nox-ink-3"]) {
+    const ink = variable(light, key);
+    assert.ok(contrast(ink, page) >= 4.5, `${key} fails page contrast`);
+    assert.ok(contrast(ink, surface) >= 4.5, `${key} fails surface contrast`);
   }
 });
 
-test("NOX dialogs and history action menus carry their local theme across portals", () => {
+test("NOX dialogs and history menus keep light palette in owned portals", () => {
   assert.match(history, /setUseNativeMenu\(false\)/);
   assert.match(history, /setParentElement\(portal\)/);
   assert.match(history, /menu\.onHide\(\(\) => portal\.remove\(\)\)/);
-  assert.match(history, /appearance\(\)/);
+  assert.doesNotMatch(history, /appearance\(\)/);
   assert.match(view, /modal\.modalEl\.addClass\("nox-theme-portal"\)/);
   assert.match(css, /\.nox-menu-portal \.menu\s*\{[^}]*background:\s*var\(--nox-surface\)/s);
 });
