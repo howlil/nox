@@ -136,6 +136,23 @@ question parts are staged and published only after persistence succeeds.
 serialization with a controlled model boundary. This proves application state
 and effect enforcement, not semantic classifier accuracy or live Obsidian UI.
 
+## 2026-10-15 — History actions and NOX appearance
+
+Archived session membership (optional `archivedAt`) lives in the canonical
+ChatSession snapshot and is decoded defensively. SessionStore owns the
+archive/delete/fallback state transitions. SessionController stages the complete
+mutation and publishes only after the plugin-data write succeeds, serialized
+with all other session writes. LearningController gates mutations during active
+turns/plans/applies and unsynced editor-apply receipts. UI-only selected IDs
+and swipe state live in chat/history-list.ts. The implementation uses native
+Obsidian DOM rather than adding React for the UIArc interaction pattern.
+
+Theme selection is a persisted NOX settings field. Appearance-only writes go
+directly through the existing serialized PluginDataRepository, avoiding
+unnecessary runtime reconfiguration. ChatView and SettingsTab apply class
+overrides to the existing flat NOX color tokens without changing the global
+Obsidian theme.
+
 ## 1. Engineering goal
 
 Implement the Nox product without allowing framework, provider, persistence, or
