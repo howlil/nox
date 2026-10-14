@@ -61,6 +61,26 @@ export class SessionStore {
     };
   }
 
+  /**
+   * Stage arbitrary session changes against an isolated in-memory draft.
+   * The caller publishes the complete snapshot only after plugin-data save
+   * succeeds; a rejected save cannot leak new sessions, messages, or defaults.
+   */
+  stageTransaction<T>(mutate: (draft: SessionStore) => T): {
+    serialized: Record<string, unknown>;
+    result: T;
+    publish: () => void;
+  } {
+    const draft = new SessionStore({ now: this.now, uuid: this.uuid });
+    draft.data = structuredClone(this.data);
+    const result = mutate(draft);
+    return {
+      serialized: draft.serialize(),
+      result,
+      publish: () => { this.data = structuredClone(draft.data); },
+    };
+  }
+
   /** Serialize to plugin data object. */
   serialize(): Record<string, unknown> {
     return { [STORE_KEY]: structuredClone(this.data) };
