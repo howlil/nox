@@ -1,22 +1,10 @@
 import { useEffect, useState } from "react";
-import { AnimatePresence, LayoutGroup, motion, useReducedMotion } from "motion/react";
-import { ArrowUpRight, Heart, Menu, Star, X, Github } from "lucide-react";
-import { Button } from "./arc/button/button";
-import { Dialog, DialogContent, DialogTrigger } from "./arc/dialog/dialog";
+import DownloadPluginButton from "./DownloadPluginButton";
 
-const navigation = [
-  { id: "home", title: "Home", href: "#home" },
-  { id: "features", title: "Features", href: "#features" },
-  { id: "how-it-works", title: "How it works", href: "#how-it-works" },
-] as const;
-
-export default function FloatingNav({ sponsorUrl }: { sponsorUrl?: string }) {
-  const [active, setActive] = useState<string>("home");
-  const [menuOpen, setMenuOpen] = useState(false);
+/** Flat transparent header at the top, floating glass capsule after 72px, as in Modu. */
+export default function FloatingNav() {
   const [scrolled, setScrolled] = useState(false);
-  const reducedMotion = useReducedMotion();
 
-  // Match Modu's header: transparent until the first 72px of page scroll.
   useEffect(() => {
     const update = () => setScrolled(window.scrollY > 72);
     update();
@@ -24,115 +12,35 @@ export default function FloatingNav({ sponsorUrl }: { sponsorUrl?: string }) {
     return () => window.removeEventListener("scroll", update);
   }, []);
 
-  // Keep the mobile menu dismissible by keyboard and by tapping elsewhere.
-  useEffect(() => {
-    if (!menuOpen) return;
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        setMenuOpen(false);
-        document.querySelector<HTMLButtonElement>(".capsule-menu-toggle")?.focus();
-      }
-    };
-    const onPointerDown = (event: PointerEvent) => {
-      if (event.target instanceof Node && !document.querySelector(".floating-nav-shell")?.contains(event.target)) {
-        setMenuOpen(false);
-      }
-    };
-    const onResize = () => { if (window.innerWidth > 970) setMenuOpen(false); };
-    window.addEventListener("keydown", onKeyDown);
-    window.addEventListener("pointerdown", onPointerDown);
-    window.addEventListener("resize", onResize);
-    return () => {
-      window.removeEventListener("keydown", onKeyDown);
-      window.removeEventListener("pointerdown", onPointerDown);
-      window.removeEventListener("resize", onResize);
-    };
-  }, [menuOpen]);
-
-  useEffect(() => {
-    const observer = new IntersectionObserver(
-      entries => {
-        const visible = entries.filter(item => item.isIntersecting).sort((a, b) => b.intersectionRatio - a.intersectionRatio);
-        if (visible[0]) setActive(visible[0].target.id);
-      },
-      { rootMargin: "-20% 0px -55% 0px", threshold: [0, 0.2, 0.5] }
-    );
-    navigation.forEach(item => {
-      const section = document.getElementById(item.id);
-      if (section) observer.observe(section);
-    });
-    return () => observer.disconnect();
-  }, []);
-
-
-  const navLinks = navigation.map(item => (
-    <a
-      key={item.id}
-      className="capsule-link"
-      href={item.href}
-      aria-current={active === item.id ? "location" : undefined}
-      onClick={() => { setActive(item.id); setMenuOpen(false); }}
-    >
-      {active === item.id && <motion.span layoutId="active-nav" className="capsule-active" transition={reducedMotion ? { duration: 0 } : { type: "spring", stiffness: 360, damping: 32 }} aria-hidden="true" />}
-      <span>{item.title}</span>
-    </a>
-  ));
-
-  return <>
+  return (
     <div className={`floating-nav-shell${scrolled ? " is-scrolled" : ""}`}>
-      <nav className="floating-capsule" aria-label="Primary navigation">
-        <a className="brand" href="#home" aria-label="NOX, home" onClick={() => setActive("home")}>
+      <nav className="floating-capsule" aria-label="NOX">
+        <a className="brand" href="#home" aria-label="NOX home">
           <svg className="brand-mark" viewBox="100 230 1160 1024" width={33} height={33} aria-hidden="true" focusable="false">
-            <defs>
-              <linearGradient id="nox-nav-hood" x1=".12" y1=".12" x2=".87" y2=".96">
-                <stop stopColor="#fff8ff" /><stop offset=".34" stopColor="#dcc1ff" />
-                <stop offset=".78" stopColor="#a979ee" /><stop offset="1" stopColor="#ccb0fc" />
-              </linearGradient>
-              <linearGradient id="nox-nav-face" x1="0" y1="0" x2="1" y2="1">
-                <stop stopColor="#1b1036" /><stop offset="1" stopColor="#321a54" />
-              </linearGradient>
-              <linearGradient id="nox-nav-eye" x1="0" y1="0" x2=".7" y2="1">
-                <stop stopColor="#fffefa" /><stop offset="1" stopColor="#efebff" />
-              </linearGradient>
-            </defs>
-            <path d="M929 261C866 253 757 284 676 343 593 402 551 471 548 549 546 624 511 662 439 713 328 789 214 890 168 1000 127 1092 140 1189 178 1254H1164C1259 1142 1279 1034 1233 904 1192 786 1104 695 999 614 897 532 839 486 842 417 844 366 877 323 935 270 941 263 937 260 929 261Z" fill="url(#nox-nav-hood)" />
-            <path d="M935 262C767 302 666 400 630 541 612 666 526 726 412 793 290 864 225 1037 287 1254H181C130 1164 129 1073 168 1000 226 883 329 791 440 715 510 665 547 625 548 549 551 470 593 402 676 343 764 286 874 258 935 262Z" fill="#fff" opacity=".38" />
-            <path d="M740 572C759 604 762 633 760 669 758 734 701 788 624 843 516 918 432 974 419 1029 406 1083 446 1142 515 1196 547 1221 576 1242 595 1254H854C928 1206 1008 1144 1041 1071 1087 964 999 805 896 695 838 633 783 589 740 572Z" fill="url(#nox-nav-face)" />
-            <ellipse cx="652" cy="1037" rx="54" ry="99" transform="rotate(-10 652 1037)" fill="url(#nox-nav-eye)" />
-            <ellipse cx="866" cy="985" rx="54" ry="100" transform="rotate(-10 866 985)" fill="url(#nox-nav-eye)" />
-          </svg>
+                      <defs>
+                        <linearGradient id="nox-nav-hood" x1=".12" y1=".12" x2=".87" y2=".96">
+                          <stop stopColor="#fff8ff" /><stop offset=".34" stopColor="#dcc1ff" />
+                          <stop offset=".78" stopColor="#a979ee" /><stop offset="1" stopColor="#ccb0fc" />
+                        </linearGradient>
+                        <linearGradient id="nox-nav-face" x1="0" y1="0" x2="1" y2="1">
+                          <stop stopColor="#1b1036" /><stop offset="1" stopColor="#321a54" />
+                        </linearGradient>
+                        <linearGradient id="nox-nav-eye" x1="0" y1="0" x2=".7" y2="1">
+                          <stop stopColor="#fffefa" /><stop offset="1" stopColor="#efebff" />
+                        </linearGradient>
+                      </defs>
+                      <path d="M929 261C866 253 757 284 676 343 593 402 551 471 548 549 546 624 511 662 439 713 328 789 214 890 168 1000 127 1092 140 1189 178 1254H1164C1259 1142 1279 1034 1233 904 1192 786 1104 695 999 614 897 532 839 486 842 417 844 366 877 323 935 270 941 263 937 260 929 261Z" fill="url(#nox-nav-hood)" />
+                      <path d="M935 262C767 302 666 400 630 541 612 666 526 726 412 793 290 864 225 1037 287 1254H181C130 1164 129 1073 168 1000 226 883 329 791 440 715 510 665 547 625 548 549 551 470 593 402 676 343 764 286 874 258 935 262Z" fill="#fff" opacity=".38" />
+                      <path d="M740 572C759 604 762 633 760 669 758 734 701 788 624 843 516 918 432 974 419 1029 406 1083 446 1142 515 1196 547 1221 576 1242 595 1254H854C928 1206 1008 1144 1041 1071 1087 964 999 805 896 695 838 633 783 589 740 572Z" fill="url(#nox-nav-face)" />
+                      <ellipse cx="652" cy="1037" rx="54" ry="99" transform="rotate(-10 652 1037)" fill="url(#nox-nav-eye)" />
+                      <ellipse cx="866" cy="985" rx="54" ry="100" transform="rotate(-10 866 985)" fill="url(#nox-nav-eye)" />
+                    </svg>
           <span>nox<span className="brand-dot">.</span></span>
         </a>
-        <div className="nav-divider" aria-hidden="true" />
-        <LayoutGroup id="site-navigation"><div className="capsule-links">{navLinks}</div></LayoutGroup>
-        <div className="nav-divider cta-divider" aria-hidden="true" />
         <div className="capsule-actions">
-          <a className="capsule-github" href="https://github.com/howlil/nox" target="_blank" rel="noopener noreferrer" aria-label="Star NOX on GitHub (opens in a new tab)">
-            <Star aria-hidden="true" size={15} />
-            <span className="github-label">Star on GitHub</span>
-            <ArrowUpRight className="github-external" aria-hidden="true" size={13} />
-          </a>
-          {sponsorUrl ? (
-            <a className="capsule-sponsor" href={sponsorUrl} target="_blank" rel="noopener noreferrer"><Heart size={15} aria-hidden="true" /> <span>Sponsor</span></a>
-          ) : (
-            <Dialog>
-              <DialogTrigger asChild><Button className="capsule-sponsor" variant="primary" size="sm"><Heart size={15} aria-hidden="true" /> <span>Sponsor</span></Button></DialogTrigger>
-              <DialogContent title="Support NOX" description="Sponsorship is not configured yet. You can support the project by starring it on GitHub.">
-                <a className="dialog-action" href="https://github.com/howlil/nox" target="_blank" rel="noopener noreferrer"><Star size={16} /> Visit GitHub <ArrowUpRight size={14} /></a>
-              </DialogContent>
-            </Dialog>
-          )}
-          <button type="button" className="capsule-menu-toggle" aria-expanded={menuOpen} aria-controls="mobile-nox-menu" aria-label={menuOpen ? "Close menu" : "Open menu"} onClick={() => setMenuOpen(!menuOpen)}>
-            {menuOpen ? <X size={18} /> : <Menu size={18} />}
-          </button>
+          <DownloadPluginButton />
         </div>
       </nav>
-      <AnimatePresence>
-        {menuOpen && <motion.div id="mobile-nox-menu" className="mobile-nav-panel" initial={reducedMotion ? false : { opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={reducedMotion ? { opacity: 0 } : { opacity: 0, y: -6 }} transition={{ duration: 0.22 }}>
-          {navigation.map(item => <a href={item.href} key={item.id} onClick={() => { setActive(item.id); setMenuOpen(false); }}>{item.title}</a>)}
-          <a href="https://github.com/howlil/nox" target="_blank" rel="noopener noreferrer"><Github size={16} /> Source code</a>
-        </motion.div>}
-      </AnimatePresence>
     </div>
-  </>;
+  );
 }
