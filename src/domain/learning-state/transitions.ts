@@ -38,6 +38,9 @@ export function recordPracticeEvaluation(
     evaluation: PracticeEvaluation;
     source: string;
     evidenceId?: string;
+    programId?: string;
+    objectiveId?: string;
+    assisted?: boolean;
   },
   deps: LearningTransitionDeps = {},
 ): LearningState {
@@ -55,6 +58,9 @@ export function recordPracticeEvaluation(
     source: input.source,
     outcome: input.evaluation.outcome,
     createdAt: resolved.now(),
+    ...(input.programId ? { programId: input.programId } : {}),
+    ...(input.objectiveId ? { objectiveId: input.objectiveId } : {}),
+    ...(input.assisted ? { assisted: true } : {}),
   };
 
   next.evidence.push(evidence);
