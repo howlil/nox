@@ -1,6 +1,6 @@
 import { createHash, createPublicKey, randomBytes, randomUUID, verify } from "crypto";
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "fs";
-import { createServer, type Server } from "http";
+import { createServer, type Server, type ServerResponse } from "http";
 import { execFileSync } from "child_process";
 import { homedir } from "os";
 import { dirname, join } from "path";
@@ -173,6 +173,33 @@ export class ChatGptAuth {
     const state = randomBase64Url(), nonce = randomBase64Url(), verifier = randomBase64Url();
     const server = createServer();
     let callbackTimeout: ReturnType<typeof setTimeout> | undefined;
+    let pendingResponse: ServerResponse | undefined;
+    // The browser may display success only once the code has been exchanged,
+    // the OIDC identity validated, and the credentials durably persisted.
+    const finishBrowser = (success: boolean) => {
+      const res = pendingResponse;
+      if (!res || res.writableEnded) return;
+      const title = success ? "ChatGPT connected to Nox" : "ChatGPT connection failed";
+      const message = success
+        ? "Authentication is complete. You can close this tab and return to Obsidian."
+        : "The callback was received, but Nox could not complete sign-in. Return to Obsidian to see the error, then try again.";
+      const html = '<!doctype html><html lang="en"><head><meta charset="utf-8">' +
+        '<meta name="viewport" content="width=device-width,initial-scale=1">' +
+        '<title>Nox — ChatGPT sign-in</title><style>' +
+        'body{font:16px system-ui,sans-serif;max-width:540px;margin:12vh auto;padding:0 24px;' +
+        'color:#252525;background:#fcfcfc;line-height:1.6}h1{font-size:24px;line-height:1.3}' +
+        'p{color:#555}small{color:#777}</style></head><body><main><h1>' +
+        title + '</h1><p>' + message +
+        '</p><small>Nox · Obsidian learning companion</small></main></body></html>';
+      res.writeHead(success ? 200 : 500, {
+        "Content-Type": "text/html; charset=utf-8",
+        "Cache-Control": "no-store",
+        "Referrer-Policy": "no-referrer",
+        "X-Content-Type-Options": "nosniff",
+        "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'",
+      });
+      res.end(html);
+    };
     this.listener = server;
     try {
       await new Promise<void>((resolve, reject) => {
@@ -204,6 +231,10 @@ export class ChatGptAuth {
         callbackTimeout = setTimeout(() => reject(new Error("ChatGPT sign-in timed out.")), 180000);
         server.on("request", (req, res) => {
           const target = new URL(req.url || "/", redirectUri);
+          if (pendingResponse) {
+            res.writeHead(409, { "Cache-Control": "no-store" }).end("Sign-in callback already received.");
+            return;
+          }
           if (req.method !== "GET" || target.pathname !== "/auth/callback" ||
               !["127.0.0.1", "127.0.0.1:" + address.port].includes(req.headers.host || "")) {
             res.writeHead(404).end(); return;
@@ -221,8 +252,7 @@ export class ChatGptAuth {
             rejectOnce("ChatGPT sign-in was declined or returned an invalid client."); return;
           }
           if (callbackTimeout) clearTimeout(callbackTimeout);
-          res.writeHead(200, { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" })
-            .end("<!doctype html><title>Nox</title><p>Authentication received. Return to Obsidian.</p>");
+          pendingResponse = res;
           resolve({ code, clientId });
         });
       });
@@ -247,7 +277,13 @@ export class ChatGptAuth {
       }
       this.record.credentials = this.credentialFrom(response, result.clientId, identity.subject, identity.email, idToken);
       this.save();
+      finishBrowser(true);
       return this.status();
+    } catch (error) {
+      // A callback is not successful until the exchange/verification/save succeeds.
+      // Never reflect OAuth tokens, codes, or server diagnostics into browser HTML.
+      finishBrowser(false);
+      throw error;
     } finally {
       if (callbackTimeout) clearTimeout(callbackTimeout);
       this.activeLogin = false;
@@ -258,7 +294,8 @@ export class ChatGptAuth {
 
   private async tokenRequest(body: URLSearchParams): Promise<Record<string, unknown>> {
     const result = await this.deps.fetch(TOKEN_URL, { method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: body.toString() });
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: body.toString(), signal: AbortSignal.timeout(30000) });
     const data = object(await result.json());
     if (!result.ok) {
       const error = typeof data.error === "string" ? data.error : "token_request_failed";
