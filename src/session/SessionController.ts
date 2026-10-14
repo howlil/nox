@@ -331,6 +331,7 @@ export class SessionController {
     replacement: import("../types").ResponseVersion,
     sessionId: string,
     conversationId?: string,
+    metrics?: import("../types").AgentTurnMetrics,
   ): Promise<void> {
     if (!replacement.content.trim()) throw new Error("Cannot save an empty regeneration.");
     return this.serializeWrite(async () => {
@@ -348,12 +349,16 @@ export class SessionController {
         }
         const previous = message.responseVersions?.length
           ? [...message.responseVersions]
-          : [{ content: message.content, sourcePath: message.sourcePath }];
+          : [{ content: message.content, sourcePath: message.sourcePath,
+              thought: message.thought, elapsedMs: message.elapsedMs }];
         const versions = [...previous, structuredClone(replacement)].slice(-8);
         session.messages[messageIndex] = {
           ...message,
           content: replacement.content,
           sourcePath: replacement.sourcePath,
+          thought: replacement.thought,
+          elapsedMs: replacement.elapsedMs,
+          metrics,
           responseVersions: versions,
           responseVersionIndex: versions.length - 1,
         };
@@ -382,6 +387,8 @@ export class SessionController {
           ...message,
           content: version.content,
           sourcePath: version.sourcePath,
+          thought: version.thought,
+          elapsedMs: version.elapsedMs,
           responseVersionIndex: versionIndex,
         };
         // Switching branch invalidates opaque provider-owned conversation state.
