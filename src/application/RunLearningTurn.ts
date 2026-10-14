@@ -663,7 +663,7 @@ export class RunLearningTurn {
           if (this.sessions.recordUsage) {
             try {
               await this.sessions.recordUsage({
-                id: request.turnId ?? crypto.randomUUID(), at: Date.now(),
+                id: crypto.randomUUID(), at: Date.now(),
                 provider: sessionAtStart.runtimeProvider ?? "agy",
                 model: sessionAtStart.model ?? "Runtime default",
                 inputTokens: event.inputTokens, outputTokens: event.outputTokens,
