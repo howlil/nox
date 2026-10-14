@@ -2102,6 +2102,11 @@ export class ChatView extends ItemView {
     this.restoringSession = true;
     try {
       for (const [messageIndex, message] of messages.entries()) {
+        // Yield the main thread periodically while rendering long archives.
+        // Preserve every message and its actions; never truncate the transcript.
+        if (messageIndex > 0 && messageIndex % 8 === 0) {
+          await new Promise<void>(resolve => window.requestAnimationFrame(() => resolve()));
+        }
         if (message.role === "user") {
           this.appendUserBubble(message.content);
           continue;

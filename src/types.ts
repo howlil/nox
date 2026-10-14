@@ -94,6 +94,10 @@ export interface AgentTurnMetrics {
   retrievedChunks: number;
   compacted: boolean;
   firstTokenMs?: number;
+  /** From runtime invocation to the first provider text event (includes CLI spawn/auth). */
+  providerFirstTextMs?: number;
+  /** From runtime invocation through the provider's completed event. */
+  providerDurationMs?: number;
   /** End-to-end time before context is prepared (includes session recovery). */
   contextMs?: number;
   /** End-to-end time before the runtime is invoked, including preflight persistence. */

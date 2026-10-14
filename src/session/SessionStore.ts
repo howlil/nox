@@ -249,6 +249,8 @@ export class SessionStore {
           compacted: item.compacted,
         };
         if (finite("firstTokenMs")) metrics.firstTokenMs = item.firstTokenMs as number;
+        if (finite("providerFirstTextMs")) metrics.providerFirstTextMs = item.providerFirstTextMs as number;
+        if (finite("providerDurationMs")) metrics.providerDurationMs = item.providerDurationMs as number;
         if (finite("contextMs")) metrics.contextMs = item.contextMs as number;
         if (finite("preparationMs")) metrics.preparationMs = item.preparationMs as number;
         if (finite("firstVisibleMs")) metrics.firstVisibleMs = item.firstVisibleMs as number;

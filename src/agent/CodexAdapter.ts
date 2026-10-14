@@ -233,6 +233,7 @@ export class CodexAdapter implements AgentAdapter {
     let exitCode: number | null = null;
     let error: Error | undefined;
     const lines: string[] = [];
+    let head = 0;
     let notify: (() => void) | undefined;
     const wake = () => { notify?.(); notify = undefined; };
     const data = (chunk: Buffer) => {
@@ -261,8 +262,13 @@ export class CodexAdapter implements AgentAdapter {
       while (true) {
         if (signal.aborted) { yield { type: "cancelled" }; return; }
         if (error) { yield { type: "failed", failure: codexFailure(error.message) }; return; }
-        if (lines.length) {
-          const events = parseCodexLine(lines.shift()!, state);
+        if (head < lines.length) {
+          const line = lines[head++]!;
+          if (head >= 512 && head * 2 >= lines.length) {
+            lines.splice(0, head);
+            head = 0;
+          }
+          const events = parseCodexLine(line, state);
           if (state.failure) { yield { type: "failed", failure: state.failure }; return; }
           yield* events;
           continue;

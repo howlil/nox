@@ -766,6 +766,7 @@ export class RunLearningTurn {
       yield { type: "activity-phase", phase: "waiting-model", at: Date.now() };
       let receivedModelOutput = false;
       let regeneratedConversationId: string | undefined;
+      const providerStartedAt = performance.now();
       for await (const event of this.runtime.send(
         { prompt: effectivePrompt, context: envelope.context },
         { model: conversation.model, conversationId, history: envelope.history },
@@ -780,7 +781,10 @@ export class RunLearningTurn {
             receivedModelOutput = true;
             yield { type: "activity-phase", phase: "receiving-output", at: Date.now() };
           }
-          if (metrics.firstTokenMs === undefined) metrics.firstTokenMs = performance.now() - startedAt;
+          if (metrics.firstTokenMs === undefined) {
+            metrics.firstTokenMs = performance.now() - startedAt;
+            metrics.providerFirstTextMs = performance.now() - providerStartedAt;
+          }
           executionPhase = "processing";
           if (lockedMode) {
             scopedEvents.push(...parser.push(event.content));
@@ -804,6 +808,7 @@ export class RunLearningTurn {
         }
 
         if (event.type === "completed") {
+          metrics.providerDurationMs = performance.now() - providerStartedAt;
           yield { type: "activity-phase", phase: "finalizing", at: Date.now() };
           executionPhase = "processing";
           if (event.usage) {
