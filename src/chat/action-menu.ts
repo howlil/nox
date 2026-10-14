@@ -98,6 +98,10 @@ export function buildActionMenu(
   let primary: ActionMenuEntry;
   if (context.hasPracticeQuestion) {
     primary = { ...advanced.find(item => item.key === "hint")! };
+  } else if (context.legacyMode === "locked") {
+    primary = { ...advanced.find(item => item.key === "pause")! };
+  } else if (context.legacyMode === "paused") {
+    primary = { ...advanced.find(item => item.key === "resume")! };
   } else if (hasSession(context)) {
     primary = { ...advanced.find(item => item.key === "next")! };
   } else if (hasProgram(context)) {
@@ -112,11 +116,16 @@ export function buildActionMenu(
     keywords: [item.meta, "note"],
   }));
   const programNav = advanced.find(item => item.key === "programs")!;
-  const defaults: ActionMenuEntry[] = [primary, ...capabilities,
-    ...(hasSavedPrograms(context) ? [programNav] : [])];
+  const visibleCapabilities = context.legacyMode === "locked"
+    ? capabilities.filter(item => item.key === "practice")
+    : capabilities;
+  const defaults: ActionMenuEntry[] = [primary, ...visibleCapabilities,
+    ...(hasSavedPrograms(context) && context.legacyMode !== "locked" ? [programNav] : [])];
   if (!query) return defaults;
 
-  const entries = [...capabilities, ...advanced.filter(item => item.visible(context))];
+  const entries = [...visibleCapabilities, ...advanced.filter(item =>
+    item.visible(context) && (context.legacyMode !== "locked" ||
+      ["pause", "hint", "assessment", "focused"].includes(item.key)))];
   const unique = new Map<string, ActionMenuEntry>();
   for (const item of entries) unique.set(item.key, item);
   return [...unique.values()]
