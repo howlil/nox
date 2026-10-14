@@ -3,7 +3,8 @@ import type { NoxSettings } from "./NoxSettings";
 
 export interface NoxSettingsHost {
   getSettings(): NoxSettings;
-  getUsageRecords(): AgentUsageRecord[];
+  getUsageRecords(): Array<{ id: string; at: number; provider: string; model: string;
+    inputTokens: number; outputTokens: number; cachedInputTokens?: number }>;
   updateSettings(next: Partial<NoxSettings>): Promise<void>;
   getChatGPTConnection(): { connected: boolean; sharing: boolean; email?: string; description: string;
     lastFailure?: { stage: string; code: string; message: string } };
