@@ -3,14 +3,18 @@ import { validateConstraints } from "./rules";
 
 export type ProgramCommand =
   | { kind: "plan"; goal: string; constraints: ProgramConstraints }
-  | { kind: "next" | "progress" | "start-session" | "end-session" | "review-due" };
+  | { kind: "next" | "progress" | "start-session" | "end-session" | "review-due" | "programs" }
+  | { kind: "use-program"; id: string };
 
 /** Explicit, human-auditable constraints; never hallucinate settings from a goal. */
 export function parseProgramCommand(input: string): ProgramCommand | null {
   const value = input.trim();
+  const selected = /^\/use-program\s+([a-f0-9-]{36})$/i.exec(value);
+  if (selected) return { kind: "use-program", id: selected[1] };
+  if (/^\/use-program(?:\s|$)/i.test(value)) throw new Error("Use /use-program <program-id> shown by /programs.");
   const commands: Record<string, ProgramCommand["kind"]> = {
     "/next": "next", "/progress": "progress", "/start-session": "start-session",
-    "/end-session": "end-session", "/review-due": "review-due",
+    "/end-session": "end-session", "/review-due": "review-due", "/programs": "programs",
   };
   if (commands[value.toLowerCase()]) return { kind: commands[value.toLowerCase()] } as ProgramCommand;
   if (!/^\/plan(?:\s|$)/i.test(value)) return null;
