@@ -350,14 +350,18 @@ export class RunLearningTurn {
       ];
     }
     if (researchResult) {
-      // These are bounded source excerpts, not executable agent instructions.
-      // Keep canonical vault path so source links and edit authorization stay stable.
-      visible = [...visible, ...researchResult.hits.map(hit => ({
-        type: "note" as const,
-        file: hit.path,
+      // Deliberate selections win; research excerpts outrank ambient whole-note content.
+      const selected = visible.filter(item => item.type === "selection");
+      const explicitPaths = new Set(request.explicitContext.map(ref =>
+        ref.kind === "vault-note" ? ref.path : "attachment/" + ref.name));
+      const explicitSources = visible.filter(item => explicitPaths.has(item.file));
+      const ambient = visible.filter(item => item.type !== "selection" && !explicitPaths.has(item.file));
+      const snippets: AgentContext[] = researchResult.hits.map(hit => ({
+        type: "note", file: hit.path,
         content: "[Research evidence: " + hit.path + ":" + hit.line +
           " | section: " + hit.heading + " | revision: " + hit.revision + "]\n" + hit.content,
-      }))];
+      }));
+      visible = [...selected, ...snippets, ...explicitSources, ...ambient];
     }
     const system: AgentContext[] = [];
 
