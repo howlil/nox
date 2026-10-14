@@ -629,6 +629,7 @@ export class RunLearningTurn {
           objectiveId: practiceAttempt.objectiveId,
           assisted: Boolean(practiceAttempt.assisted),
           taskKind: practiceAttempt.taskKind,
+          assessmentCoverage: practiceAttempt.programId ? "single-item" : undefined,
         };
         for await (const item of this.commitPracticeOutcome(
           evaluation, snapshot, turnSessionId, practice, practiceAttempt,
