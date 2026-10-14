@@ -3803,3 +3803,178 @@
   .nox-history-menu .nox-history-more,
   .nox-history-menu .nox-history-swipe-front { transition: none; }
 }
+
+/* NOX rich response system — calm, flat, semantic, and responsive.
+   These rules are scoped to Nox assistant output, never Obsidian note tables. */
+.nox-root .nox-markdown h1 { font-size: 18px; font-weight: 680; line-height: 1.3; margin: 18px 0 8px; }
+.nox-root .nox-markdown h2 { font-size: 16px; font-weight: 650; line-height: 1.35; margin: 16px 0 7px; }
+.nox-root .nox-markdown h3 { font-size: 14px; font-weight: 620; line-height: 1.4; margin: 14px 0 6px; }
+.nox-root .nox-markdown h4 { font-size: 13px; font-weight: 600; line-height: 1.45; margin: 12px 0 5px; }
+.nox-root .nox-markdown :is(h1,h2,h3,h4):first-child { margin-top: 0; }
+.nox-root .nox-response-table-scroll {
+  min-width: 0;
+  width: 100%;
+  max-width: 100%;
+  margin: 10px 0;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: thin;
+}
+.nox-root .nox-response-table-scroll table {
+  display: table;
+  width: 100%;
+  max-width: none;
+  min-width: 330px;
+  margin: 0;
+  border: 0;
+  border-collapse: collapse;
+  background: transparent;
+  font-size: 12px;
+  line-height: 1.5;
+}
+.nox-root .nox-response-table-scroll :is(th,td) {
+  border: 0;
+  border-bottom: 1px solid var(--nox-line);
+  padding: 9px 10px 9px 0;
+  background: transparent;
+  vertical-align: middle;
+  text-align: left;
+  overflow-wrap: anywhere;
+}
+.nox-root .nox-response-table-scroll th {
+  font-weight: 650;
+  color: var(--nox-ink);
+  white-space: nowrap;
+}
+.nox-root .nox-response-table-scroll tr:last-child td { border-bottom: 0; }
+.nox-root .nox-response-table-scroll :is(th,td):last-child {
+  padding-right: 2px;
+}
+.nox-root .nox-response-table-scroll td[data-status] {
+  white-space: nowrap;
+  text-align: right;
+  color: var(--nox-ink-2);
+}
+.nox-rich-inline-status {
+  display: inline-flex;
+  vertical-align: middle;
+  margin-right: 6px;
+}
+.nox-root [data-status="success"] > .nox-rich-inline-status,
+.nox-root .nox-rich-status[data-status="success"] .nox-rich-icon { color: var(--nox-green); }
+.nox-root [data-status="pending"] > .nox-rich-inline-status,
+.nox-root .nox-rich-status[data-status="pending"] .nox-rich-icon { color: var(--nox-ink-3); }
+.nox-root [data-status="warning"] > .nox-rich-inline-status,
+.nox-root .nox-rich-status[data-status="warning"] .nox-rich-icon { color: var(--nox-orange); }
+.nox-root [data-status="error"] > .nox-rich-inline-status,
+.nox-root .nox-rich-status[data-status="error"] .nox-rich-icon { color: var(--nox-red); }
+.nox-rich-heading {
+  display: flex;
+  align-items: center;
+  min-height: 21px;
+  color: var(--nox-ink);
+}
+.nox-rich-title { font-size: 13px; font-weight: 620; }
+.nox-rich-caption {
+  margin: 3px 0 9px;
+  color: var(--nox-ink-2);
+  font-size: 11px;
+  line-height: 1.5;
+}
+.nox-root .nox-rich-card,
+.nox-root .nox-rich-chart,
+.nox-root .nox-rich-flow {
+  padding: 11px 12px;
+  background: var(--nox-surface);
+  border: 1px solid var(--nox-line);
+  border-radius: var(--nox-radius-card);
+  box-shadow: none;
+}
+.nox-rich-metrics {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  margin-top: 10px;
+}
+.nox-rich-metric { display: flex; flex-direction: column; min-width: 0; gap: 4px; }
+.nox-rich-metric-label { color: var(--nox-ink-2); font-size: 11px; }
+.nox-rich-metric-value { display: flex; flex-wrap: wrap; gap: 5px; align-items: baseline; }
+.nox-rich-metric-value strong {
+  color: var(--nox-ink);
+  font-size: 21px;
+  font-weight: 660;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+}
+.nox-rich-metric-unit, .nox-rich-metric-detail { color: var(--nox-ink-3); font-size: 11px; }
+.nox-rich-status-table th:last-child,
+.nox-rich-status-table td:last-child { text-align: right; }
+.nox-rich-status { white-space: nowrap; }
+.nox-rich-icon { display: inline-flex; vertical-align: middle; align-items: center; }
+.nox-rich-status .nox-rich-icon { margin-right: 6px; }
+.nox-rich-bars { display: grid; gap: 11px; margin: 12px 0 7px; }
+.nox-rich-bar-row {
+  display: grid;
+  grid-template-columns: minmax(76px, 33%) minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+  min-width: 0;
+}
+.nox-rich-bar-label { color: var(--nox-ink-2); font-size: 11px; overflow-wrap: anywhere; }
+.nox-rich-bar-value { color: var(--nox-ink-2); font-size: 10px; font-variant-numeric: tabular-nums; }
+.nox-rich-bar-track { height: 8px; min-width: 0; border-radius: var(--nox-radius-pill); background: var(--nox-inset); overflow: hidden; }
+.nox-rich-bar-fill { display: block; height: 100%; border-radius: inherit; background: var(--nox-accent); }
+.nox-rich-flow-viewport {
+  max-width: 100%;
+  max-height: 520px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  scrollbar-width: thin;
+  margin-top: 8px;
+}
+.nox-rich-flow-svg { display: block; width: 100%; height: auto; }
+.nox-flow-edge { fill: none; stroke: var(--nox-line-strong); stroke-width: 1.3; }
+.nox-flow-arrow { fill: var(--nox-line-strong); }
+.nox-flow-node rect { fill: var(--nox-inset); stroke: var(--nox-line-strong); stroke-width: 1; }
+.nox-flow-node text { fill: var(--nox-ink); font-size: 12px; font-weight: 550; }
+.nox-flow-node[data-kind="focus"] rect { fill: var(--nox-accent-tint); stroke: var(--nox-accent-border); }
+.nox-flow-node[data-kind="focus"] text { fill: var(--nox-accent-ink); }
+.nox-flow-node[data-kind="decision"] rect { stroke-dasharray: 3 3; }
+.nox-flow-node[data-kind="result"] rect { fill: var(--nox-surface); }
+.nox-rich-flow-details {
+  border-top: 1px solid var(--nox-line-soft);
+  margin-top: 8px;
+  padding-top: 5px;
+}
+.nox-rich-flow-details summary { cursor: pointer; color: var(--nox-ink-2); font-size: 11px; }
+.nox-rich-flow-details ol { padding-left: 18px; font-size: 11px; color: var(--nox-ink-2); line-height: 1.5; }
+.nox-root .nox-learning-map-scroll {
+  max-width: 100%;
+  max-height: 420px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  background: var(--nox-surface);
+}
+.nox-root .nox-learning-map-svg { display: block; width: 100%; height: auto; }
+.nox-learning-map-arrow { fill: var(--nox-line-strong); }
+@media (max-width: 385px) {
+  .nox-rich-metrics { gap: 10px; }
+  .nox-rich-metric-value strong { font-size: 18px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .nox-rich-bar-fill { transition: none; animation: none; }
+}
+
+
+/* Keyboard-accessible scroll regions without the Obsidian outer focus ring. */
+.nox-root .nox-response-table-scroll:focus-visible,
+.nox-root .nox-rich-flow-viewport:focus-visible {
+  outline: none;
+  box-shadow: none;
+  background: var(--nox-inset);
+}
+.nox-root .nox-response-table-scroll:focus-visible {
+  border-radius: var(--nox-radius-chip);
+}

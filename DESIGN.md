@@ -518,15 +518,21 @@ The complete ownership/state graph, test cases, and failure policy live in
 Plain Markdown remains the default response. Obsidian MarkdownRenderer owns headings,
 tables, links, mathematics, syntax highlighting, and Mermaid diagrams.
 
-Only opt-in fenced html-preview, svg-preview, and nox-chart blocks get a dedicated
-functional container. These use existing semantic tokens, compact 11–13px labels,
-small controls, keyboard focus and read-only source fallback. HTML/SVG begin on
+Only opt-in fenced html-preview, svg-preview, nox-chart, nox-flow and nox-card
+blocks get a dedicated functional container. Native Markdown tables use a
+NOX-scoped horizontal-divider/scroll treatment and native status icons only
+for exact known status text. Unnumbered heading style is a model presentation
+preference, never a destructive rewrite of heading text. The polished diagram
+path is a bounded, read-only top-down SVG; normal Mermaid still belongs to
+Obsidian. Cards and chart data never imply unverified measurements.
+These surfaces reuse NOX tokens, compact 11–13px labels, keyboard focus and
+read-only source fallback. HTML/SVG begin on
 Code tab; running previews require explicit click and isolated sandbox iframes.
 Restored transcripts never auto-execute embedded code.
 
-The learning map displays a read-only prerequisite diagram plus existing accessible
-objective details. Overflow is scrollable; cycles and excessive node counts
-degrade to textual hierarchy. Geometry is derived from program state; graphs
+The learning map displays a centered vertical read-only prerequisite diagram plus
+existing accessible objective details. Overflow scrolls down, never sideways;
+cycles and excessive node counts degrade to textual hierarchy. Geometry is derived from program state; graphs
 cannot change curriculum or mastery.
 
 See docs/RESPONSE_VISUALS.md for schema, safety and manual acceptance gates.
