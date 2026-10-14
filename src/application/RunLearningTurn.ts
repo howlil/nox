@@ -211,10 +211,10 @@ export class RunLearningTurn {
             : `MODE: ${next.mode} · backend. ${question ? `Kembali ke pertanyaan: ${question}`
               : "Kirim 'mulai' untuk pertanyaan backend pertama."} Ketik /pause untuk diskusi bebas.`;
         if (scopeCommand === "invalid" || unavailableResume) {
-          if (!request.retry) await this.sessions.recordUserMessage(request.prompt, sessionAtStart.id);
+          if (!request.retry) await this.sessions.recordUserMessage(request.prompt, sessionAtStart.id, "ask", request.turnId);
           await this.sessions.recordAssistantMessage(reply, undefined, sessionAtStart.id);
         } else {
-          await this.sessions.recordScopeChange(next, request.prompt, reply, sessionAtStart.id);
+          await this.sessions.recordScopeChange(next, request.prompt, reply, sessionAtStart.id, request.turnId);
           // An explicit mode transition exits ordinary Practice. The backend
           // machine remains derived from its separately marked transcript parts.
           this.practices.reset(sessionAtStart.id);
@@ -237,7 +237,7 @@ export class RunLearningTurn {
       if (request.action === "edit" || request.action === "review") {
         try {
           const reply = scopeDeflection(this.practiceForSession(sessionAtStart).snapshot()?.currentQuestion);
-          if (!request.retry) await this.sessions.recordUserMessage(request.prompt, sessionAtStart.id, "practice");
+          if (!request.retry) await this.sessions.recordUserMessage(request.prompt, sessionAtStart.id, "practice", request.turnId);
           await this.sessions.recordAssistantMessage(reply, undefined, sessionAtStart.id);
           yield { type: "response-delta", text: reply };
           yield { type: "completed" };
