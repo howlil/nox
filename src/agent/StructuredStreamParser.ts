@@ -67,7 +67,15 @@ function isPracticePayload(value: unknown): value is PracticePayload {
       Array.isArray(obj.misconceptions) &&
       obj.misconceptions.every((item) => typeof item === "string") &&
       (obj.nextQuestion === undefined ||
-        typeof obj.nextQuestion === "string")
+        typeof obj.nextQuestion === "string") &&
+      (obj.rubricResults === undefined ||
+        (Array.isArray(obj.rubricResults) && obj.rubricResults.length <= 20 &&
+          obj.rubricResults.every((result: unknown) => {
+            if (!result || typeof result !== "object") return false;
+            const r = result as Record<string, unknown>;
+            return typeof r.criterion === "string" && r.criterion.trim().length > 0 &&
+              typeof r.met === "boolean" && typeof r.evidence === "string";
+          })))
     );
   }
 
