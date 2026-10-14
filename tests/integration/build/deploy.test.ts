@@ -161,3 +161,23 @@ test("rejects missing or mismatched plugin build before touching the vault", () 
   }), /manifest plugin id/);
   assert.equal(existsSync(join(vault, ".obsidian", "plugins")), false);
 });
+
+test("production deploy removes only the managed development hot-reload marker", () => {
+  const root = tempRoot();
+  const dist = join(root, "dist");
+  const vault = join(root, "vault");
+  mkdirSync(dist, { recursive: true });
+  mkdirSync(join(vault, ".obsidian"), { recursive: true });
+  writeFileSync(join(dist, "main.js"), "bundle");
+  addRequiredBuildAssets(dist);
+
+  const target = deployPlugin({ targetVault: vault, distDir: dist, logger: silent });
+  const marker = join(target, ".hotreload");
+  writeFileSync(marker, "managed by NOX development orchestrator\n");
+  deployPlugin({ targetVault: vault, distDir: dist, logger: silent });
+  assert.equal(existsSync(marker), false);
+
+  writeFileSync(marker, "user-owned");
+  deployPlugin({ targetVault: vault, distDir: dist, logger: silent });
+  assert.equal(readFileSync(marker, "utf8"), "user-owned");
+});

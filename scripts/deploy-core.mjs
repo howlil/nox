@@ -46,6 +46,14 @@ export function deployPlugin({
     logger.log(`  ✓ Copied ${file}`);
   }
 
+  // A production deploy must not inherit the marker created by pnpm dev.
+  // Leave user-owned markers untouched; only remove the orchestrator marker.
+  const devMarker = path.join(pluginDest, ".hotreload");
+  if (fs.existsSync(devMarker) &&
+      fs.readFileSync(devMarker, "utf8") === "managed by NOX development orchestrator\n") {
+    fs.rmSync(devMarker);
+  }
+
   const communityPluginsPath = path.join(
     targetVault,
     ".obsidian",

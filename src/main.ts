@@ -30,6 +30,7 @@ import { NoxSettingsTab } from "./settings/SettingsTab";
 declare const __NOX_BUILD_REVISION__: string;
 declare const __NOX_BUILD_TIMESTAMP__: string;
 declare const __NOX_BUILD_TRANSPORT__: string;
+declare const __NOX_DEV_BUILD__: boolean;
 
 /**
  * Composition root.
@@ -141,13 +142,39 @@ export default class NoxPlugin extends Plugin {
         }, 100);
       },
     });
+
+    if (__NOX_DEV_BUILD__ && this.consumeDevelopmentSidebarRestore()) {
+      this.app.workspace.onLayoutReady(() => { void this.activateView(); });
+    }
   }
 
   async onunload(): Promise<void> {
+    this.rememberDevelopmentSidebar();
     this.runtime?.dispose();
     this.chatGptAuth.dispose();
     this.app.workspace.detachLeavesOfType(NOX_VIEW_TYPE);
     this.learning?.dispose();
+  }
+
+  private developmentSidebarKey(): string {
+    return "nox:dev-sidebar:" + this.manifest.id + ":" + (this.vaultPath ?? "unknown");
+  }
+
+  private rememberDevelopmentSidebar(): void {
+    if (!__NOX_DEV_BUILD__ || !this.app.workspace.getLeavesOfType(NOX_VIEW_TYPE).length) return;
+    try {
+      // Session-scoped intent, not a persisted preference or runtime state.
+      window.sessionStorage.setItem(this.developmentSidebarKey(), String(Date.now() + 12_000));
+    } catch { /* Storage can be unavailable; reloading must still succeed. */ }
+  }
+
+  private consumeDevelopmentSidebarRestore(): boolean {
+    try {
+      const key = this.developmentSidebarKey();
+      const value = window.sessionStorage.getItem(key);
+      window.sessionStorage.removeItem(key);
+      return value !== null && Number(value) > Date.now();
+    } catch { return false; }
   }
 
   private async activateView(): Promise<void> {

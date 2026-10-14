@@ -123,10 +123,62 @@ Restart Obsidian after changing environment variables. On Windows, a native
 `codex.exe` is required; common npm shims are resolved to their bundled native
 binary, or you can configure that absolute path directly.
 
+## Live development in Obsidian
+
+NOX uses an incremental esbuild watcher, a separate Tailwind v4 watcher, and
+an orchestrator that deploys completed artifacts to the selected local Obsidian
+vault. You no longer need to close Obsidian or toggle the plugin after each
+successful edit.
+
+1. Install dependencies with `pnpm install`.
+2. Enable **Settings → General → Command line interface** in a recent Obsidian
+   desktop installation. Confirm `obsidian version` runs in your terminal.
+3. Create an untracked `.env.local` in the repository root:
+
+   ```dotenv
+   NOX_DEV_VAULT=C:\\Users\\howlil\\Documents\\howlil
+   NOX_DEV_RELOAD=cli
+   # Optional if the Obsidian CLI uses a different vault name/id:
+   # NOX_DEV_VAULT_NAME=howlil
+   ```
+
+4. Keep the target vault open in Obsidian, enable NOX once in Community Plugins,
+   then run `pnpm dev`. Changing a TypeScript file or Tailwind source will
+   build, sync, and request plugin reload automatically.
+
+CLI reload targets `vault=<vault-name>` and `id=nox-obsidian`. The default
+vault selector is the basename of `NOX_DEV_VAULT`; set
+`NOX_DEV_VAULT_NAME` if the CLI uses a different name or unique ID, especially
+when two vaults share the same name. The orchestrator prints the actual target
+path and confirms that the installed `main.js` matches the build.
+
+If Obsidian CLI is unavailable, install and enable the community developer
+**Hot-Reload** plugin (pjeby/hot-reload), and set `NOX_DEV_RELOAD=hot-reload`.
+The orchestrator creates the required `.hotreload` marker **only** in the
+development vault's plugin directory. Do not enable CLI auto-reload and the
+Hot-Reload plugin for the same plugin at once. Use `NOX_DEV_RELOAD=none` for
+automatic builds/deploys without reload.
+
+You can override local settings without editing files:
+
+```sh
+pnpm dev -- --vault "C:\\Path\\To\\Vault" --vault-name "Vault" --reload cli
+```
+
+**Failure behavior:** A failed TypeScript compilation does not sync the bundle;
+the existing installed NOX remains unchanged. Repeated changes are debounced and
+reloads are serialized. The dev build remembers an open NOX sidebar briefly
+across a plugin reload, but in-flight AI turns can be canceled because full
+plugin reload is not React-style module HMR. An unsent composer draft may be
+lost. CLI command success confirms a reload request, not a completed end-to-end
+runtime test: verify **Settings → Nox → Loaded plugin build** if necessary.
+
+Production `pnpm build` never installs a `.hotreload` marker.
+
 ## Development commands
 
 ```sh
-pnpm run dev               # watch the plugin bundle
+pnpm run dev               # watch, deploy to dev vault, and reload Obsidian
 pnpm run typecheck         # TypeScript check
 pnpm run test:unit         # deterministic unit and state tests
 pnpm run test:integration  # process, deploy, and boundary tests
