@@ -70,6 +70,19 @@ test("only changed artifacts are synchronized and hot-reload marker is opt-in", 
   } finally { rmSync(f.root, { recursive: true, force: true }); }
 });
 
+test("CLI mode rejects an unmanaged Hot-Reload marker instead of double-reloading", () => {
+  const f = fixture();
+  try {
+    syncDevelopmentArtifacts({ targetVault: f.vault, distDir: f.dist });
+    writeFileSync(join(f.plugin, ".hotreload"), "user-owned");
+    assert.throws(
+      () => syncDevelopmentArtifacts({ targetVault: f.vault, distDir: f.dist, reloadMode: "cli" }),
+      /conflicts with CLI reload/,
+    );
+    assert.equal(readFileSync(join(f.plugin, ".hotreload"), "utf8"), "user-owned");
+  } finally { rmSync(f.root, { recursive: true, force: true }); }
+});
+
 test("publish queue coalesces multiple changes and supports recovery after failures", async () => {
   let attempts = 0;
   const errors: unknown[] = [];
