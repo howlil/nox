@@ -92,6 +92,20 @@ export class LearningProgramOrchestrator {
     const state = await this.learningState.load();
     return { program, decision: chooseNextActivity(program, state.evidence) };
   }
+  async reviewDueSummary(): Promise<string> {
+    const program = await this.getActiveProgram();
+    if (!program) return "No active learning program.";
+    const state = await this.learningState.load();
+    const { objectiveProgress } = await import("../domain/learning-program/rules");
+    const now = Date.now();
+    const due = program.objectives.filter(item => {
+      const p = objectiveProgress(program, item.id, state.evidence, now);
+      return p.dueAt !== null && p.dueAt <= now;
+    });
+    return due.length ? "Reviews due:\n" + due.map(item => "- " + item.title).join("\n") :
+      "No reviews are due. Use /progress for the next scheduled activity.";
+  }
+
   async progressSummary(): Promise<string> {
     const result = await this.getDecision();
     if (!result) return "No active learning program. Use /plan <goal> to create one.";
