@@ -588,6 +588,7 @@ export class RunLearningTurn {
 
     let visibleText = "";
     let thoughtText = "";
+    let firstVisibleMs: number | undefined;
     let executionPhase: "agent" | "processing" = "agent";
     const reviewBuffer: { observed: boolean; findings: ReviewFinding[] } = {
       observed: false, findings: [],
@@ -600,7 +601,7 @@ export class RunLearningTurn {
     const persistMappedEvent = (mapped: LearningEvent): void => {
       if (mapped.type === "response-delta") {
         visibleText += mapped.text;
-        if (metrics?.firstVisibleMs === undefined) metrics.firstVisibleMs = Date.now() - runStartedAt;
+        if (firstVisibleMs === undefined) firstVisibleMs = Date.now() - runStartedAt;
       }
       if (mapped.type === "thought-delta") thoughtText += mapped.text;
     };
@@ -946,6 +947,7 @@ export class RunLearningTurn {
           }
           const elapsedMs = Date.now() - runStartedAt;
           metrics.elapsedMs = elapsedMs;
+          if (firstVisibleMs !== undefined) metrics.firstVisibleMs = firstVisibleMs;
           await this.sessions.recordAssistantMessage(
             visibleText,
             snapshot.mutableFile,
