@@ -1,14 +1,5 @@
-import type { LearningObjective, ActivityKind } from "../domain/learning-program/types";
+import type { NoxProgramOverview } from "../application/learning-types";
 import { createNoxButton, setNoxIcon } from "./primitives";
-
-export interface NoxProgramOverview {
-  goal: string;
-  active: boolean;
-  next: { kind: ActivityKind; objectiveId?: string; reason: string };
-  objectives: Array<{ objective: LearningObjective;
-    status: "unseen" | "remediate" | "provisional" | "mastered";
-    attempts: number; dueAt: number | null }>;
-}
 
 /** Accessible dependency-level navigator. The application owns every learning decision. */
 export function renderLearningGraph(
