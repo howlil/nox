@@ -87,27 +87,27 @@ export class LearningController {
 
   private assertRuntimeIdle(): void {
     if (this.configuringRuntime) throw new Error("Wait for runtime settings to finish saving.");
-    if (this.turns.isRunning() || this.applyingProposals.size > 0) {
-      throw new Error("Finish or stop the active turn or note edit before changing runtime settings.");
+    if (this.turns.isRunning() || this.applyingProposals.size > 0 || this.programs?.isPlanning()) {
+      throw new Error("Finish the active turn, plan or note edit before changing runtime settings.");
     }
     if (this.appliedButUnsynced.size > 0) throw new Error("Retry saving applied edit status before changing runtime settings.");
   }
 
   setModel(modelId?: string): Promise<void> {
-    if (this.configuringRuntime) throw new Error("Wait for runtime settings to finish saving.");
+    this.assertRuntimeIdle();
     return this.sessions.setModel(modelId);
   }
 
   async newSession(): Promise<ChatSession> {
     if (this.configuringRuntime) throw new Error("Wait for runtime settings to finish saving.");
-    if (this.turns.isRunning() || this.applyingProposals.size > 0) throw new Error("Finish the active turn or note edit before creating a session.");
+    if (this.turns.isRunning() || this.applyingProposals.size > 0 || this.programs?.isPlanning()) throw new Error("Finish the active operation before creating a session.");
     if (this.appliedButUnsynced.size > 0) throw new Error("Retry saving applied edit status before changing sessions.");
     return this.sessions.newSession();
   }
 
   async selectSession(id: string): Promise<ChatSession | null> {
     if (this.configuringRuntime) throw new Error("Wait for runtime settings to finish saving.");
-    if (this.turns.isRunning() || this.applyingProposals.size > 0) throw new Error("Finish the active turn or note edit before switching sessions.");
+    if (this.turns.isRunning() || this.applyingProposals.size > 0 || this.programs?.isPlanning()) throw new Error("Finish the active operation before switching sessions.");
     if (this.appliedButUnsynced.size > 0) throw new Error("Retry saving applied edit status before changing sessions.");
     return this.sessions.selectSession(id);
   }
@@ -224,7 +224,9 @@ export class LearningController {
               yield* this.turns.run({ ...request, action: "practice" });
               return;
             }
-            response = selected?.decision.reason ?? "No active program. Use /plan <goal> first.";
+            if (!selected?.program || selected.program.session) {
+              response = selected?.decision.reason ?? "No active program. Use /plan <goal> first.";
+            }
           }
         }
         if (!request.retry) await this.sessions.recordUserMessage(request.prompt, this.sessions.getSession().id, "ask");
