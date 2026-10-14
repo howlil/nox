@@ -130,6 +130,25 @@ test("blank assistant messages are not persisted", async () => {
   assert.deepEqual(controller.getSession().messages, []);
 });
 
+test("records assistant message with thought and elapsedMs", async () => {
+  const harness = pluginHarness();
+  const controller = createController(harness);
+
+  await controller.init();
+  await controller.recordAssistantMessage(
+    "Response text",
+    "note.md",
+    undefined,
+    "Thinking process content",
+    3500,
+  );
+
+  const message = controller.getSession().messages[0];
+  assert.equal(message?.content, "Response text");
+  assert.equal(message?.thought, "Thinking process content");
+  assert.equal(message?.elapsedMs, 3500);
+});
+
 test("lists sessions and restores a selected session as current", async () => {
   const harness = pluginHarness();
   let id = 0;

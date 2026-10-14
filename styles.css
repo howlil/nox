@@ -718,6 +718,21 @@
   white-space: nowrap;
 }
 
+.nox-thinking-thought {
+  margin: 6px 0 4px 20px;
+  padding: 8px 12px;
+  border-left: 2px solid var(--nox-line-strong);
+  background: var(--nox-inset);
+  border-radius: var(--nox-radius-chip);
+  color: var(--nox-ink-2);
+  font-size: 12px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 260px;
+  overflow-y: auto;
+}
+
 .nox-inline-status {
   display: flex;
   align-items: center;

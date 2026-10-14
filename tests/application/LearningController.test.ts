@@ -87,7 +87,21 @@ function createHarness(
     },
     recordUserMessage: async (_content: string) => { recordedUserMessages += 1; },
     setConversationId: async (_id?: string) => {},
-    recordAssistantMessage: async (_content: string) => {},
+    recordAssistantMessage: async (
+      content: string,
+      sourcePath?: string,
+      _sessionId?: string,
+      thought?: string,
+      elapsedMs?: number,
+    ) => {
+      session.messages.push({
+        role: "assistant",
+        content,
+        sourcePath,
+        thought,
+        elapsedMs,
+      });
+    },
     recordStructuredPart: async (part: { type: string; questionId?: string }) => {
       if (part.type === "practice-evaluation" && transcriptFailures-- > 0) {
         throw new Error("Simulated session persistence failure");
@@ -1027,4 +1041,31 @@ test("in-flight Apply blocks navigation and conflicting proposal actions", async
   assert.equal(harness.getProposalState(proposed.edit.id), "applied");
   assert.equal(harness.controller.getSession().id, originalSession);
   await harness.controller.newSession();
+});
+
+test("streams thought-delta from <think> tags and persists thought on assistant message", async () => {
+  const harness = createHarness(async function* () {
+    yield { type: "text", content: "<think>Step 1 reasoning\nStep 2 reasoning</think>Here is the final answer" };
+    yield { type: "completed" };
+  });
+
+  const events = await collectEvents(harness.controller.run({
+    prompt: "Why?", action: "ask", explicitContext: [],
+  }));
+
+  const thoughtEvents = events.filter((e) => e.type === "thought-delta");
+  const responseEvents = events.filter((e) => e.type === "response-delta");
+
+  assert.ok(thoughtEvents.length > 0);
+  const totalThought = thoughtEvents.map((e) => (e as { text: string }).text).join("");
+  assert.equal(totalThought, "Step 1 reasoning\nStep 2 reasoning");
+
+  assert.ok(responseEvents.length > 0);
+  const totalResponse = responseEvents.map((e) => (e as { text: string }).text).join("");
+  assert.equal(totalResponse, "Here is the final answer");
+
+  const message = harness.controller.getSession().messages.find((m) => m.role === "assistant");
+  assert.equal(message?.content, "Here is the final answer");
+  assert.equal(message?.thought, "Step 1 reasoning\nStep 2 reasoning");
+  assert.ok(typeof message?.elapsedMs === "number");
 });

@@ -501,12 +501,14 @@ export class RunLearningTurn {
     const parser = new StructuredStreamParser();
     const scopedEvents: StructuredStreamEvent[] = [];
 
+    const startedAt = Date.now();
     const timeout = setTimeout(() => {
       activeTurn.cancelReason = "timeout";
       controller.abort();
     }, this.turnTimeoutMs);
 
     let visibleText = "";
+    let thoughtText = "";
     let executionPhase: "agent" | "processing" = "agent";
     const reviewBuffer: { observed: boolean; findings: ReviewFinding[] } = {
       observed: false, findings: [],
@@ -518,6 +520,7 @@ export class RunLearningTurn {
     // a successful terminal event and a durable transcript commit.
     const persistMappedEvent = (mapped: LearningEvent): void => {
       if (mapped.type === "response-delta") visibleText += mapped.text;
+      if (mapped.type === "thought-delta") thoughtText += mapped.text;
     };
 
     const rollbackPractice = () => {
@@ -651,7 +654,7 @@ export class RunLearningTurn {
               if (decision.outcome === "help") {
                 const text = scopedEvents.filter((item) => item.type === "text").map((item) => item.text).join("").trim();
                 if (!practiceAttempt || !text || text.length > 1200 || scopedEvents.some((item) =>
-                  item.type !== "text" && item.type !== "scope-decision")) {
+                  item.type !== "text" && item.type !== "thought" && item.type !== "scope-decision")) {
                   yield { type: "failed", failure: { code: "protocol-invalid", message: "Nox returned invalid practice help. The question is unchanged; retry." } };
                   return;
                 }
@@ -662,7 +665,7 @@ export class RunLearningTurn {
               yield { type: "completed" };
               return;
             }
-            completedEvents = scopedEvents.filter((item) => item.type !== "text" && item.type !== "scope-decision");
+            completedEvents = scopedEvents.filter((item) => item.type !== "text" && item.type !== "thought" && item.type !== "scope-decision");
             const expected = practiceAttempt ? "practice-evaluation" : "practice-question";
             if (completedEvents.length !== 1 || completedEvents[0].type !== expected) {
               rollbackPractice();
@@ -796,10 +799,13 @@ export class RunLearningTurn {
                 edit: { id: editProposalId, proposal: committed.proposal } };
             }
           }
+          const elapsedMs = Date.now() - startedAt;
           await this.sessions.recordAssistantMessage(
             visibleText,
             snapshot.mutableFile,
             turnSessionId,
+            thoughtText.trim() || undefined,
+            elapsedMs,
           );
           yield { type: "completed" };
           return;
@@ -1005,6 +1011,16 @@ export class RunLearningTurn {
         if (event.text) {
           yield {
             type: "response-delta",
+            text: event.text,
+          };
+        }
+        continue;
+      }
+
+      if (event.type === "thought") {
+        if (event.text) {
+          yield {
+            type: "thought-delta",
             text: event.text,
           };
         }

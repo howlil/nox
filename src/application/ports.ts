@@ -21,7 +21,7 @@ export interface SessionPort {
   recordScopeChange(state: LearningScopeState, command: string, reply: string, sessionId: string): Promise<void>;
   recordUserMessage(content: string, sessionId?: string, action?: ChatMessage["action"]): Promise<void>;
   setConversationId(conversationId?: string, sessionId?: string): Promise<void>;
-  recordAssistantMessage(content: string, sourcePath?: string, sessionId?: string): Promise<void>;
+  recordAssistantMessage(content: string, sourcePath?: string, sessionId?: string, thought?: string, elapsedMs?: number): Promise<void>;
   recordStructuredPart(part: TranscriptPart, sourcePath?: string, sessionId?: string): Promise<void>;
   recordPracticeOutcome(parts: TranscriptPart[], operationId: string, sourcePath: string, sessionId: string): Promise<TranscriptPart[]>;
   recordReviewOutcome(part: Extract<TranscriptPart, { type: "review-findings" }>, sourcePath: string, sessionId: string): Promise<Extract<TranscriptPart, { type: "review-findings" }>>;

@@ -82,6 +82,8 @@ export interface ChatMessage {
   proposal?: EditProposal;
   proposalMutableFile?: string;
   proposalState?: "pending" | "applied" | "rejected" | "stale";
+  thought?: string;
+  elapsedMs?: number;
 }
 
 export interface AgentModel {

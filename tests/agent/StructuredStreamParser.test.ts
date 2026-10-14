@@ -298,3 +298,55 @@ test("incomplete structured blocks fail only when the stream finishes", () => {
     },
   ]);
 });
+
+test("parses <think> and <thought> tags across every stream split boundary", () => {
+  for (const tag of ["think", "thought"]) {
+    const payload = `<${tag}>Thinking step 1\nStep 2</${tag}>Final answer`;
+    for (const events of parseAtEverySplit(payload)) {
+      const merged: StructuredStreamEvent[] = [];
+      for (const event of events) {
+        const last = merged[merged.length - 1];
+        if (event.type === "thought" && last?.type === "thought") {
+          last.text += event.text;
+        } else if (event.type === "text" && last?.type === "text") {
+          last.text += event.text;
+        } else {
+          merged.push({ ...event });
+        }
+      }
+      assert.deepEqual(merged, [
+        { type: "thought", text: "Thinking step 1\nStep 2" },
+        { type: "text", text: "Final answer" },
+      ]);
+    }
+  }
+});
+
+test("streams thought chunks progressively before </think>", () => {
+  const parser = new StructuredStreamParser();
+  const chunk1 = parser.push("<think>Analyzing note...");
+  assert.deepEqual(chunk1, [{ type: "thought", text: "Analyzing note..." }]);
+
+  const chunk2 = parser.push(" and drafting reply</think>Here is the response");
+  const final = parser.finish();
+  const mergedText = [...chunk2, ...final]
+    .filter((e) => e.type === "text")
+    .map((e) => (e as { text: string }).text)
+    .join("");
+
+  assert.deepEqual(chunk2[0], { type: "thought", text: " and drafting reply" });
+  assert.equal(mergedText, "Here is the response");
+});
+
+test("unclosed <think> flushes remaining thought text without error", () => {
+  const parser = new StructuredStreamParser();
+  const chunk = parser.push("<think>Thinking that didn't finish");
+  const final = parser.finish();
+  const total = [...chunk, ...final]
+    .filter((e) => e.type === "thought")
+    .map((e) => (e as { text: string }).text)
+    .join("");
+  assert.equal(total, "Thinking that didn't finish");
+  assert.ok(![...chunk, ...final].some((e) => e.type === "error"));
+});
+

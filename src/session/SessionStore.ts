@@ -179,6 +179,12 @@ export class SessionStore {
     if (Array.isArray(raw.parts)) {
       message.parts = raw.parts.filter(isTranscriptPart).map((part) => structuredClone(part));
     }
+    if (typeof raw.thought === "string" && raw.thought.trim()) {
+      message.thought = raw.thought.trim();
+    }
+    if (typeof raw.elapsedMs === "number" && Number.isFinite(raw.elapsedMs) && raw.elapsedMs >= 0) {
+      message.elapsedMs = raw.elapsedMs;
+    }
 
     if (raw.role === "assistant" && raw.proposal && typeof raw.proposal === "object") {
       const proposal = raw.proposal as Record<string, unknown>;

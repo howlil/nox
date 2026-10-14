@@ -192,3 +192,21 @@ test("valid legacy proposal is preserved but never actionable after restart", as
   assert.equal(restored?.proposal?.file, "old.md");
   assert.equal(restored?.proposalState, "stale");
 });
+
+test("assistant message with thought and elapsedMs survives session serialization", async () => {
+  const store = new SessionStore({ now: () => 1, uuid: () => "thought-session" });
+  const session = store.createSession();
+  session.messages.push({
+    role: "assistant",
+    content: "Final answer",
+    thought: "Here is my reasoning",
+    elapsedMs: 2450,
+  });
+  store.updateSession(session);
+  const restored = new SessionStore();
+  await restored.load(store.serialize());
+  const msg = restored.getCurrentSession()?.messages[0];
+  assert.equal(msg?.content, "Final answer");
+  assert.equal(msg?.thought, "Here is my reasoning");
+  assert.equal(msg?.elapsedMs, 2450);
+});

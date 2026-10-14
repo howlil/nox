@@ -218,13 +218,21 @@ export class SessionController {
     content: string,
     sourcePath?: string,
     sessionId?: string,
+    thought?: string,
+    elapsedMs?: number,
   ): Promise<void> {
-    if (!content.trim()) return;
+    if (!content.trim() && !thought?.trim()) return;
     return this.serializeWrite(async () => {
       await this.commitStoreTransaction((draft) => {
         const session = sessionId ? draft.getSession(sessionId) : draft.getCurrentSession();
         if (!session) throw new Error(`Session ${sessionId} no longer exists`);
-        session.messages.push({ role: "assistant", content, sourcePath });
+        session.messages.push({
+          role: "assistant",
+          content,
+          sourcePath,
+          ...(thought?.trim() ? { thought: thought.trim() } : {}),
+          ...(typeof elapsedMs === "number" ? { elapsedMs } : {}),
+        });
         draft.updateSession(session);
       });
     });

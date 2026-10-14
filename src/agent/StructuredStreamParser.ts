@@ -11,6 +11,7 @@ import type { ScopeOutcome } from "../domain/practice/learning-scope";
 export type StructuredStreamEvent =
   | { type: "scope-decision"; outcome: ScopeOutcome }
   | { type: "text"; text: string }
+  | { type: "thought"; text: string }
   | { type: "proposal"; proposal: EditProposal }
   | { type: "practice-question"; question: PracticeQuestion }
   | { type: "practice-evaluation"; evaluation: PracticeEvaluation }
@@ -29,9 +30,13 @@ const START_TAGS: Array<{
   { kind: "learning-review", marker: "```learning-review" },
 ];
 
+const THOUGHT_START_MARKERS = ["<think>", "<thought>"];
+const THOUGHT_END_MARKERS = ["</think>", "</thought>"];
+
 const END_TAG = "\n```";
 const MAX_MARKER_LENGTH = Math.max(
   ...START_TAGS.map((item) => item.marker.length),
+  ...THOUGHT_START_MARKERS.map((item) => item.length),
 );
 
 function isEditProposal(value: unknown): value is EditProposal {
@@ -118,13 +123,37 @@ function findStart(buffer: string):
   return best;
 }
 
+function findThoughtStart(buffer: string): { marker: string; index: number } | undefined {
+  const lower = buffer.toLowerCase();
+  let best: { marker: string; index: number } | undefined;
+  for (const marker of THOUGHT_START_MARKERS) {
+    const index = lower.indexOf(marker);
+    if (index >= 0 && (!best || index < best.index)) {
+      best = { marker: buffer.slice(index, index + marker.length), index };
+    }
+  }
+  return best;
+}
+
+function findThoughtEnd(buffer: string): { marker: string; index: number } | undefined {
+  const lower = buffer.toLowerCase();
+  let best: { marker: string; index: number } | undefined;
+  for (const marker of THOUGHT_END_MARKERS) {
+    const index = lower.indexOf(marker);
+    if (index >= 0 && (!best || index < best.index)) {
+      best = { marker: buffer.slice(index, index + marker.length), index };
+    }
+  }
+  return best;
+}
+
 /**
  * Incremental parser for the small structured protocol embedded in streamed
  * model text. UI code only receives normalized events.
  */
 export class StructuredStreamParser {
   private buffer = "";
-  private mode: "text" | BlockKind = "text";
+  private mode: "text" | BlockKind | "thought" = "text";
 
   push(chunk: string): StructuredStreamEvent[] {
     this.buffer += chunk;
@@ -140,10 +169,20 @@ export class StructuredStreamParser {
 
     while (this.buffer.length > 0) {
       if (this.mode === "text") {
-        const start = findStart(this.buffer);
+        const blockStart = findStart(this.buffer);
+        const thoughtStart = findThoughtStart(this.buffer);
 
-        if (start) {
-          const visible = this.buffer.slice(0, start.index);
+        let earliest:
+          | { kind: BlockKind; marker: string; index: number }
+          | { kind: "thought"; marker: string; index: number }
+          | undefined = blockStart;
+
+        if (thoughtStart && (!earliest || thoughtStart.index < earliest.index)) {
+          earliest = { kind: "thought", marker: thoughtStart.marker, index: thoughtStart.index };
+        }
+
+        if (earliest) {
+          const visible = this.buffer.slice(0, earliest.index);
           if (visible) {
             events.push({
               type: "text",
@@ -152,9 +191,9 @@ export class StructuredStreamParser {
           }
 
           this.buffer = this.buffer.slice(
-            start.index + start.marker.length,
+            earliest.index + earliest.marker.length,
           );
-          this.mode = start.kind;
+          this.mode = earliest.kind;
           continue;
         }
 
@@ -179,6 +218,55 @@ export class StructuredStreamParser {
             text: this.buffer.slice(0, emitLength),
           });
           this.buffer = this.buffer.slice(emitLength);
+        }
+        break;
+      }
+
+      if (this.mode === "thought") {
+        const end = findThoughtEnd(this.buffer);
+
+        if (end) {
+          const thoughtContent = this.buffer.slice(0, end.index);
+          if (thoughtContent) {
+            events.push({
+              type: "thought",
+              text: thoughtContent,
+            });
+          }
+          this.buffer = this.buffer.slice(end.index + end.marker.length);
+          this.mode = "text";
+          continue;
+        }
+
+        if (final) {
+          if (this.buffer) {
+            events.push({
+              type: "thought",
+              text: this.buffer,
+            });
+          }
+          this.buffer = "";
+          this.mode = "text";
+          break;
+        }
+
+        const lower = this.buffer.toLowerCase();
+        const lastLt = lower.lastIndexOf("<");
+        if (lastLt >= 0 && lower.length - lastLt < 10) {
+          const emitLength = lastLt;
+          if (emitLength > 0) {
+            events.push({
+              type: "thought",
+              text: this.buffer.slice(0, emitLength),
+            });
+            this.buffer = this.buffer.slice(emitLength);
+          }
+        } else {
+          events.push({
+            type: "thought",
+            text: this.buffer,
+          });
+          this.buffer = "";
         }
         break;
       }

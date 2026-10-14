@@ -42,6 +42,10 @@ export type LearningEvent =
       context: TurnContextSnapshot;
     }
   | {
+      type: "thought-delta";
+      text: string;
+    }
+  | {
       type: "response-delta";
       text: string;
     }

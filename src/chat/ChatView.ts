@@ -141,8 +141,10 @@ export class ChatView extends ItemView {
   private thinkingLabelEl: HTMLElement | null = null;
   private thinkingChevronEl: HTMLElement | null = null;
   private thinkingPanelEl: HTMLElement | null = null;
+  private thinkingThoughtEl: HTMLElement | null = null;
   private thinkingRows: HTMLElement[] = [];
   private thinkingManualExpanded: boolean | null = null;
+  private streamedThoughtText = "";
   private streamedResponseText = "";
   private streamingPendingText = "";
 
@@ -1322,6 +1324,8 @@ export class ChatView extends ItemView {
     this.agentCursorEl = null;
     this.agentContentEl = null;
     this.statusEl = null;
+    this.streamedThoughtText = "";
+    this.thinkingThoughtEl = null;
     this.streamedResponseText = "";
     this.streamingPendingText = "";
     this.stopLoadingTimer();
@@ -1363,6 +1367,13 @@ export class ChatView extends ItemView {
       this.systemContextFiles = event.context.system.map((item) => item.file);
       this.syncContextChips();
       this.setThinkingStage(1);
+      return;
+    }
+
+    if (event.type === "thought-delta") {
+      const shouldFollow = this.isNearThreadBottom();
+      this.appendThoughtText(event.text);
+      if (shouldFollow) this.scrollThread("auto");
       return;
     }
 
@@ -1465,7 +1476,11 @@ export class ChatView extends ItemView {
     this.flushStreamingText();
     this.renderMarkdownResponse();
     if (doneLabel === undefined) this.appendStreamActions();
-    this.settleThinking(doneLabel ?? `Completed in ${elapsed}`);
+    const hasThought = this.streamedThoughtText.trim().length > 0;
+    const defaultLabel = hasThought
+      ? `Thought for ${elapsed}`
+      : `Completed in ${elapsed}`;
+    this.settleThinking(doneLabel ?? defaultLabel);
     this.stopLoadingTimer();
     this.agentCursorEl?.removeClass("nox-bubble--streaming");
     this.agentCursorEl = null;
@@ -1475,6 +1490,7 @@ export class ChatView extends ItemView {
     this.thinkingLabelEl = null;
     this.thinkingChevronEl = null;
     this.thinkingPanelEl = null;
+    this.thinkingThoughtEl = null;
     this.thinkingRows = [];
     this.thinkingManualExpanded = null;
   }
@@ -1744,6 +1760,9 @@ export class ChatView extends ItemView {
           this.appendUserBubble(message.content);
           continue;
         }
+        if (message.thought || message.elapsedMs !== undefined) {
+          this.appendRestoredThinkingTrace(message);
+        }
         if (message.content.trim()) {
           await this.appendRestoredAssistant(message.content, message.sourcePath);
         }
@@ -1934,6 +1953,90 @@ export class ChatView extends ItemView {
 
     this.startLoadingTimer();
     animateNoxEnter(trace, 4);
+    return trace;
+  }
+
+  private appendThoughtText(text: string): void {
+    this.ensureThinkingTrace();
+    this.setThinkingStage(2);
+    if (!this.thinkingPanelEl) return;
+
+    if (!this.thinkingThoughtEl) {
+      this.thinkingThoughtEl = this.thinkingPanelEl.createDiv({
+        cls: "nox-thinking-thought",
+      });
+    }
+
+    this.streamedThoughtText += text;
+    this.thinkingThoughtEl.textContent = this.streamedThoughtText;
+
+    if (this.thinkingManualExpanded === null) {
+      this.thinkingPanelEl.addClass("is-expanded");
+      this.thinkingToggleEl?.setAttribute("aria-expanded", "true");
+      this.thinkingChevronEl?.addClass("is-expanded");
+    }
+  }
+
+  private appendRestoredThinkingTrace(message: ChatMessage): HTMLElement {
+    const trace = this.thread.createDiv({ cls: "nox-thinking nox-thinking--restored" });
+    trace.setAttribute("role", "status");
+
+    const toggle = trace.createEl("button", {
+      cls: "nox-thinking-toggle",
+      attr: { type: "button", "aria-expanded": "false" },
+    });
+
+    toggle.createEl("img", {
+      cls: "nox-thinking-logo",
+      attr: { src: this.getLogoUrl(), alt: "" },
+    });
+
+    const elapsed = message.elapsedMs !== undefined ? this.formatElapsed(message.elapsedMs) : null;
+    const labelText = message.thought
+      ? (elapsed ? `Thought for ${elapsed}` : "Thought")
+      : (elapsed ? `Completed in ${elapsed}` : "Completed");
+
+    toggle.createSpan({
+      cls: "nox-thinking-label nox-thinking-label--done",
+      text: labelText,
+    });
+
+    const chevron = toggle.createSpan({ cls: "nox-thinking-chevron", text: "⌄" });
+
+    const panel = trace.createDiv({ cls: "nox-thinking-panel" });
+    const list = panel.createDiv({ cls: "nox-thinking-trace nox-thinking-trace--facts" });
+
+    const source = message.sourcePath;
+    const facts: Array<{ primary: string; secondary?: string }> = [
+      {
+        primary: "Resolving context",
+        secondary: source?.split("/").pop(),
+      },
+      {
+        primary: `Ran ${ACTIONS.find((action) => action.kind === message.action)?.label ?? "Ask"}`,
+      },
+      { primary: "Generated response" },
+    ];
+
+    for (const fact of facts) {
+      const row = list.createDiv({ cls: "nox-thinking-row is-done" });
+      row.createSpan({ cls: "nox-thinking-marker", text: "✓" });
+      row.createSpan({ cls: "nox-thinking-primary", text: fact.primary });
+      if (fact.secondary) row.createSpan({ cls: "nox-thinking-secondary", text: fact.secondary });
+    }
+
+    if (message.thought?.trim()) {
+      const thoughtEl = panel.createDiv({ cls: "nox-thinking-thought" });
+      thoughtEl.textContent = message.thought;
+    }
+
+    toggle.addEventListener("click", () => {
+      const expanded = !panel.hasClass("is-expanded");
+      panel.toggleClass("is-expanded", expanded);
+      toggle.setAttribute("aria-expanded", String(expanded));
+      chevron.toggleClass("is-expanded", expanded);
+    });
+
     return trace;
   }
 
