@@ -137,7 +137,7 @@ continue to work when typed explicitly in compatible learning modes. These
 commands are retained for existing sessions, not recommended to new learners.
 
 On an empty conversation, the welcome view shows the **same contextual primary
-learning action** as the menu and four neutral, compact note-tool shortcuts.
+learning action** as the menu and four original soft-gradient note cards, each with\nits own purple/blue/coral/green accent, description, slash shortcut and metadata.
 Clicking a note shortcut selects its intent without sending an AI request.
 Creating a learning plan leaves the `/plan` prefix in the composer so the goal
 can be entered. A complete session-action CTA can execute with one click.
