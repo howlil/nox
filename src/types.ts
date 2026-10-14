@@ -119,7 +119,16 @@ export interface ResponseVersion {
   elapsedMs?: number;
 }
 
+export interface ChatReplyReference {
+  sourceSessionId: string;
+  sourceMessageId: string;
+  sourceRole: "assistant";
+  quote: string;
+}
+
 export interface ChatMessage {
+  id?: string;
+  replyTo?: ChatReplyReference;
   role: "user" | "assistant";
   content: string;
   responseVersions?: ResponseVersion[];

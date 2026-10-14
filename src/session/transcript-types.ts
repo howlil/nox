@@ -3,7 +3,16 @@ import type { ReviewFinding } from "../domain/review/types";
 import type { LearningScopeState } from "../domain/practice/learning-scope";
 import type { ChatMessage } from "../types";
 
+export interface SessionForkOrigin {
+  parentSessionId: string;
+  parentMessageId: string;
+  parentMessageIndex: number;
+  inheritedMessageCount: number;
+  createdAt: number;
+}
+
 export interface ChatSession {
+  fork?: SessionForkOrigin;
   id: string;
   /** Archived sessions remain durable but do not appear in active history. */
   archivedAt?: number;

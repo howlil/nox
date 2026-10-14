@@ -9,7 +9,6 @@ export interface NoxHistoryCallbacks {
   open(id: string): Promise<void>;
   mutate(ids: string[], action: HistoryAction): Promise<void>;
   confirmDelete(count: number): Promise<boolean>;
-  appearance(): "system" | "light" | "dark";
 }
 
 /**
@@ -160,9 +159,16 @@ export class NoxHistoryList {
     });
     if (session.id === this.currentId && !archived) open.addClass("is-current");
     const icon = open.createSpan({ cls: "nox-history-entry-icon" });
-    setNoxIcon(icon, archived ? "archive" : "message-circle");
+    setNoxIcon(icon, archived ? "archive" : session.fork ? "git-branch" : "message-circle");
     const copy = open.createDiv({ cls: "nox-history-entry-copy" });
     copy.createSpan({ cls: "nox-history-entry-name", text: this.title(session) });
+    if (session.fork) {
+      const parent = this.sessions.find(item => item.id === session.fork?.parentSessionId);
+      copy.createSpan({
+        cls: "nox-history-entry-fork",
+        text: parent ? "Fork of " + this.title(parent) : "Fork · original removed",
+      });
+    }
     copy.createSpan({ cls: "nox-history-entry-preview", text: this.preview(session) });
     const time = open.createSpan({ cls: "nox-history-entry-time", text: this.formatTime(session.updatedAt) });
     time.setAttribute("aria-hidden", "true");
@@ -189,13 +195,9 @@ export class NoxHistoryList {
     more.addEventListener("click", () => {
       if (this.selecting || this.busy) return;
       this.closeSwipe();
-      // Obsidian's Menu normally mounts on body, outside NOX's appearance scope.
-      // A temporary, fixed portal preserves native menu semantics without
-      // leaking the host theme when NOX explicitly selects Light or Dark.
+      // Native menus mount outside the sidebar; the portal owns the same
+      // fixed light NOX tokens without modifying Obsidian's global theme.
       const portal = document.body.createDiv({ cls: "nox-theme-portal nox-menu-portal" });
-      const appearance = this.callbacks.appearance();
-      portal.toggleClass("nox-force-light", appearance === "light");
-      portal.toggleClass("nox-force-dark", appearance === "dark");
       const menu = new Menu();
       menu.setUseNativeMenu(false);
       menu.setParentElement(portal);

@@ -119,13 +119,25 @@ export class SessionStore {
    * Build the next durable snapshot without modifying the live store.
    * The caller publishes it to memory only after saveData succeeds.
    */
+  private ensureMessageIds(session: ChatSession): ChatSession {
+    const seen = new Set<string>();
+    return { ...session, messages: session.messages.map((message, index) => {
+      const base = message.id || this.uuid();
+      let id = base;
+      let suffix = 0;
+      while (seen.has(id)) id = `${base}:${index}:${++suffix}`;
+      seen.add(id);
+      return { ...message, id };
+    }) };
+  }
+
   stageSessionUpdate(session: ChatSession, defaults?: { model?: string }): {
     serialized: Record<string, unknown>;
     committed: ChatSession;
   } {
     const next = structuredClone(this.data);
     if (defaults) next.defaultModel = defaults.model;
-    const committed = { ...structuredClone(session), updatedAt: this.now() };
+    const committed = { ...this.ensureMessageIds(structuredClone(session)), updatedAt: this.now() };
     next.sessions[session.id] = committed;
     return { serialized: { [STORE_KEY]: next }, committed };
   }
@@ -135,7 +147,7 @@ export class SessionStore {
   }
 
   updateSession(session: ChatSession): void {
-    this.data.sessions[session.id] = { ...structuredClone(session), updatedAt: this.now() };
+    this.data.sessions[session.id] = { ...this.ensureMessageIds(structuredClone(session)), updatedAt: this.now() };
   }
 
   setCurrentSession(id: string): void {
@@ -216,9 +228,20 @@ export class SessionStore {
       typeof raw.content !== "string") return null;
 
     const message: ChatMessage = {
+      ...(typeof raw.id === "string" && raw.id.length > 0 && raw.id.length <= 160 ? { id: raw.id } : {}),
       role: raw.role,
       content: raw.content,
     };
+    if (raw.role === "user" && raw.replyTo && typeof raw.replyTo === "object" && !Array.isArray(raw.replyTo)) {
+      const ref = raw.replyTo as Record<string, unknown>;
+      if (ref.sourceRole === "assistant" && typeof ref.sourceSessionId === "string" &&
+          ref.sourceSessionId.length <= 160 && typeof ref.sourceMessageId === "string" &&
+          ref.sourceMessageId.length <= 160 && typeof ref.quote === "string" &&
+          ref.quote.trim().length > 0 && ref.quote.length <= 4000) {
+        message.replyTo = { sourceRole: "assistant", sourceSessionId: ref.sourceSessionId,
+          sourceMessageId: ref.sourceMessageId, quote: ref.quote };
+      }
+    }
     if (typeof raw.sourcePath === "string") message.sourcePath = raw.sourcePath;
     if (["ask", "explain", "practice", "review", "edit"].includes(String(raw.action))) {
       message.action = raw.action as ChatMessage["action"];
@@ -327,6 +350,18 @@ export class SessionStore {
       archivedAt: typeof session.archivedAt === "number" &&
         Number.isFinite(session.archivedAt) && session.archivedAt > 0
         ? session.archivedAt : undefined,
+      fork: session.fork && typeof session.fork === "object" &&
+        typeof session.fork.parentSessionId === "string" &&
+        typeof session.fork.parentMessageId === "string" &&
+        Number.isInteger(session.fork.parentMessageIndex) && session.fork.parentMessageIndex >= 0 &&
+        Number.isInteger(session.fork.inheritedMessageCount) && session.fork.inheritedMessageCount >= 0 &&
+        session.fork.inheritedMessageCount <= session.messages.length &&
+        typeof session.fork.createdAt === "number" && Number.isFinite(session.fork.createdAt)
+        ? { parentSessionId: session.fork.parentSessionId,
+          parentMessageId: session.fork.parentMessageId,
+          parentMessageIndex: session.fork.parentMessageIndex,
+          inheritedMessageCount: session.fork.inheritedMessageCount,
+          createdAt: session.fork.createdAt } : undefined,
       runtimeProvider: typeof session.runtimeProvider === "string" ? session.runtimeProvider : undefined,
       learningScope: session.learningScope &&
         (session.learningScope.mode === "FREE" || isLockedLearningMode(session.learningScope.mode))
@@ -345,7 +380,10 @@ export class SessionStore {
             .filter(([key, value]) => key.length > 0 && key.length <= 200 && isPracticeAnswer(value)))
         : undefined,
       messages: session.messages
-        .map((message) => this.decodeMessage(message))
+        .map((message, index): ChatMessage | null => {
+          const decoded = this.decodeMessage(message);
+          return decoded ? { ...decoded, id: decoded.id ?? `legacy:${index}` } : null;
+        })
         .filter((message): message is ChatMessage => message !== null),
       createdAt: session.createdAt,
       updatedAt: session.updatedAt,

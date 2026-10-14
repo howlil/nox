@@ -127,6 +127,7 @@ export function renderNoxFlow(spec: NoxFlowSpec): HTMLElement {
   root.setAttribute("aria-label", spec.title ?? "Top-down flow diagram");
   heading(root, spec.title ?? "Flow diagram");
   const viewport = el("div", "nox-rich-flow-viewport");
+  viewport.style.setProperty("--nox-flow-width", layout.width + "px");
   viewport.tabIndex = 0;
   viewport.setAttribute("role", "region");
   viewport.setAttribute("aria-label", "Scroll vertically to inspect all diagram steps");

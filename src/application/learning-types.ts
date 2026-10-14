@@ -36,6 +36,7 @@ export type LearningActionKind =
 
 export interface LearningRequest {
   prompt: string;
+  replyTo?: import("../types").ChatReplyReference;
   action: LearningActionKind;
   explicitContext: ExplicitContextRef[];
   /** Origin of a Review finding; follow-ups must not silently retarget edits. */

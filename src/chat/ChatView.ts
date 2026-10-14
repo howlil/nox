@@ -27,7 +27,7 @@ import {
   renderPracticeEvaluationCard,
   renderReviewFindingCards,
 } from "./learning-card-renderers";
-import { ChatMessage, EditProposal, type AgentModel, type ChatSession } from "../types";
+import { ChatMessage, EditProposal, type ChatReplyReference, type AgentModel, type ChatSession } from "../types";
 import {
   parsePromptToken,
   PromptMenuKind,
@@ -57,6 +57,8 @@ import { modelMenuItems } from "./model-menu";
 import { createNoxPopover, NoxPopoverState } from "./popover";
 import { NoxComposer, type NoxComposerContext } from "./composer";
 import { NoxRunInspector } from "./run-inspector";
+import { appendMessageActions } from "./message-actions";
+import { TranscriptSelectionController } from "./transcript-selection";
 import { renderLearningGraph } from "./learning-graph";
 import { enhanceNoxResponseVisuals } from "./response-visuals";
 import {
@@ -110,6 +112,9 @@ export class ChatView extends ItemView {
   private composer!: HTMLElement;
   private composerUi!: NoxComposer;
   private selectionActions!: NoxSelectionActions;
+  private transcriptSelection: TranscriptSelectionController | null = null;
+  private pendingReplyTo: ChatReplyReference | null = null;
+  private transcriptRenderEpoch = 0;
   private headerEl!: HTMLElement;
   private historyBtn!: HTMLButtonElement;
   private historyMenuEl!: HTMLElement;
@@ -197,7 +202,6 @@ export class ChatView extends ItemView {
     private readonly learning: LearningController,
     private readonly openSettings: () => void,
     private readonly getLogoUrl: () => string,
-    private readonly getAppearance: () => "system" | "light" | "dark",
   ) {
     super(leaf);
   }
@@ -218,7 +222,6 @@ export class ChatView extends ItemView {
     const root = this.contentEl;
     root.empty();
     root.addClass("nox-root");
-    this.applyAppearance(this.getAppearance());
 
     this.buildHeader(root);
     this.thread = root.createDiv({ cls: "nox-thread" });
@@ -227,6 +230,18 @@ export class ChatView extends ItemView {
       onAction: (action) => this.runSelectionAction(action),
     });
     this.buildComposer(this.composer);
+    this.transcriptSelection = new TranscriptSelectionController(root, this.thread, reference => {
+      if (this.uiState === "RUNNING" ||
+          reference.sourceSessionId !== this.learning.getSession().id) return;
+      if (isLockedLearningMode(this.learning.getSession().learningScope?.mode)) {
+        new Notice("Pause the assessment before asking about a chat quote.");
+        return;
+      }
+      this.pendingReplyTo = reference;
+      this.composerUi.setReplyReference(reference);
+      this.setAction("ask");
+      this.focusComposer();
+    });
 
     // Local transcripts remain available even if the runtime is offline.
     await this.restoreRuntimeState();
@@ -235,13 +250,11 @@ export class ChatView extends ItemView {
     this.sessionClockTimer = window.setInterval(() => { void this.refreshSessionClock(); }, 2000);
   }
 
-  applyAppearance(appearance: "system" | "light" | "dark"): void {
-    this.contentEl.toggleClass("nox-force-dark", appearance === "dark");
-    this.contentEl.toggleClass("nox-force-light", appearance === "light");
-  }
-
   async onClose(): Promise<void> {
     this.learning.cancel();
+    this.transcriptRenderEpoch++;
+    this.transcriptSelection?.destroy();
+    this.transcriptSelection = null;
     this.stopLoadingTimer();
     if (this.sessionClockTimer !== null) window.clearInterval(this.sessionClockTimer);
     this.sessionClockTimer = null;
@@ -365,12 +378,14 @@ export class ChatView extends ItemView {
       if (this.uiState === "RUNNING") return;
       try {
         await this.learning.newSession();
+        this.clearReplyReference();
         this.lastTurnRequest = null;
         this.pendingFindingSource = null;
         this.systemContextFiles = [];
         this.extraCtx = [];
         this.attachments = [];
         this.renderAttachments();
+        this.clearReplyReference();
         this.closePromptMenu();
         this.closeModelMenu();
         this.setAction("ask");
@@ -451,7 +466,6 @@ export class ChatView extends ItemView {
         );
       },
       confirmDelete: count => this.confirmHistoryDeletion(count),
-      appearance: () => this.getAppearance(),
     });
     this.historyMenuEl.addEventListener("keydown", event => {
       if (event.key === "Escape") {
@@ -551,9 +565,6 @@ export class ChatView extends ItemView {
     return new Promise(resolve => {
       const modal = new Modal(this.app);
       modal.modalEl.addClass("nox-theme-portal");
-      const appearance = this.getAppearance();
-      modal.modalEl.toggleClass("nox-force-dark", appearance === "dark");
-      modal.modalEl.toggleClass("nox-force-light", appearance === "light");
       let settled = false;
       const finish = (confirmed: boolean) => {
         if (settled) return;
@@ -589,6 +600,31 @@ export class ChatView extends ItemView {
     );
   }
 
+  private clearReplyReference(): void {
+    this.pendingReplyTo = null;
+    this.composerUi?.setReplyReference(null);
+  }
+
+  private async forkMessage(messageId: string): Promise<void> {
+    if (this.uiState === "RUNNING") return;
+    if (this.input.value.trim()) {
+      new Notice("Clear or send the composer draft before forking.");
+      return;
+    }
+    const originSessionId = this.learning.getSession().id;
+    const result = await this.learning.forkSession(originSessionId, messageId);
+    await this.selectHistorySession(result.session.id);
+    if (result.draftReplyTo) {
+      this.pendingReplyTo = result.draftReplyTo;
+      this.composerUi.setReplyReference(result.draftReplyTo);
+      this.setAction("ask");
+    }
+    if (result.draftUserPrompt !== undefined) {
+      this.input.value = result.draftUserPrompt;
+      this.onInput();
+    }
+  }
+
   private async selectHistorySession(id: string): Promise<void> {
     if (this.uiState === "RUNNING") return;
 
@@ -596,6 +632,10 @@ export class ChatView extends ItemView {
     if (!session) return;
 
     this.closeHistoryMenu();
+    this.clearReplyReference();
+    this.transcriptSelection?.hide();
+    this.input.value = "";
+    this.composerUi.syncInputLayout();
     this.lastTurnRequest = null;
     this.pendingFindingSource = null;
     this.systemContextFiles = [];
@@ -812,6 +852,7 @@ export class ChatView extends ItemView {
         this.composerUi.cancelBtn.disabled = true;
       },
       onSend: () => void this.doSend(),
+      onRemoveReply: () => this.clearReplyReference(),
     });
 
     this.promptMenuEl = this.composerUi.promptMenuEl;
@@ -1455,6 +1496,10 @@ export class ChatView extends ItemView {
   private async doSend(): Promise<void> {
     const prompt = this.input.value.trim() || "Review the attached context.";
     if (!this.canSend() || this.uiState === "RUNNING") return;
+    if (this.pendingReplyTo && prompt.startsWith("/")) {
+      new Notice("Remove the quoted response before running a command.");
+      return;
+    }
 
     this.closeModelMenu();
     const request: LearningRequest = {
@@ -1462,6 +1507,7 @@ export class ChatView extends ItemView {
       prompt,
       action: this.selectedAction,
       explicitContext: [...this.extraCtx],
+      ...(this.pendingReplyTo ? { replyTo: structuredClone(this.pendingReplyTo) } : {}),
       sourcePath: (this.selectedAction === "edit" || this.selectedAction === "practice")
         ? this.pendingFindingSource ?? undefined
         : undefined,
@@ -1486,6 +1532,7 @@ export class ChatView extends ItemView {
     appendUserMessage: boolean,
   ): Promise<void> {
     this.closePromptMenu();
+    this.clearReplyReference();
 
     this.input.value = "";
     this.composerUi.syncInputLayout();
@@ -1517,7 +1564,7 @@ export class ChatView extends ItemView {
     this.runningAction = request.action;
     this.lastAgentActivityAt = Date.now();
     this.turnContextSource = null;
-    if (appendUserMessage) this.appendUserBubble(request.prompt);
+    if (appendUserMessage) this.appendUserBubble(request.prompt, request.turnId, request.replyTo);
     this.setUIState("RUNNING");
     this.ensureThinkingTrace();
 
@@ -1891,6 +1938,9 @@ export class ChatView extends ItemView {
   }
 
   private showEmpty(): void {
+    this.transcriptRenderEpoch++;
+    this.restoringSession = false;
+    this.transcriptSelection?.hide();
     this.stopLoadingTimer();
     this.thread.empty();
     this.agentCursorEl = null;
@@ -2092,6 +2142,7 @@ export class ChatView extends ItemView {
   }
 
   private async restoreSession(): Promise<void> {
+    const epoch = ++this.transcriptRenderEpoch;
     const messages = this.learning.getSession().messages;
     if (messages.length === 0) {
       this.showEmpty();
@@ -2102,13 +2153,14 @@ export class ChatView extends ItemView {
     this.restoringSession = true;
     try {
       for (const [messageIndex, message] of messages.entries()) {
-        // Yield the main thread periodically while rendering long archives.
-        // Preserve every message and its actions; never truncate the transcript.
+        if (epoch !== this.transcriptRenderEpoch) return;
+        // Keep fork/switch cancellation valid across cooperative yields.
         if (messageIndex > 0 && messageIndex % 8 === 0) {
           await new Promise<void>(resolve => window.requestAnimationFrame(() => resolve()));
+          if (epoch !== this.transcriptRenderEpoch) return;
         }
         if (message.role === "user") {
-          this.appendUserBubble(message.content);
+          this.appendUserBubble(message.content, message.id, message.replyTo);
           continue;
         }
         if (message.thought || message.elapsedMs !== undefined) {
@@ -2123,8 +2175,9 @@ export class ChatView extends ItemView {
         this.appendRestoredStructuredParts(message);
       }
     } finally {
-      this.restoringSession = false;
+      if (epoch === this.transcriptRenderEpoch) this.restoringSession = false;
     }
+    if (epoch !== this.transcriptRenderEpoch) return;
     this.setUIState(this.runtimeReady ? "ANSWER" : "ERROR");
     this.scrollThread("auto");
   }
@@ -2142,7 +2195,7 @@ export class ChatView extends ItemView {
       sub: "Restored",
     });
     const content = bubble.createDiv({
-      cls: "nox-bubble-content nox-markdown",
+      cls: "nox-bubble-content nox-message-content nox-markdown",
     });
     const sourcePath = messageSourcePath ??
       this.currentContext?.selection?.file ??
@@ -2155,6 +2208,7 @@ export class ChatView extends ItemView {
       sourcePath,
       this,
     );
+    if (!bubble.isConnected) return;
     this.wireMarkdownLinks(content, sourcePath);
     enhanceNoxResponseVisuals(content);
     if (messageIndex !== undefined) this.appendResponseActions(bubble, markdown, messageIndex);
@@ -2208,13 +2262,21 @@ export class ChatView extends ItemView {
     });
   }
 
-  private appendUserBubble(text: string): void {
+  private appendUserBubble(
+    text: string, messageId?: string, replyTo?: ChatReplyReference,
+  ): void {
     this.thread.querySelector(".nox-empty-slate")?.remove();
-    const bubble = this.thread.createDiv({
-      cls: "nox-bubble nox-bubble--user",
+    const wrap = this.thread.createDiv({ cls: "nox-user-message" });
+    if (replyTo) wrap.createDiv({
+      cls: "nox-user-message-quote",
+      text: "Reply to Nox · " + replyTo.quote.slice(0, 110),
     });
-    bubble.setText(text);
-    animateNoxEnter(bubble, 4);
+    const bubble = wrap.createDiv({ cls: "nox-bubble nox-bubble--user" });
+    bubble.createDiv({ cls: "nox-message-content", text });
+    appendMessageActions(wrap, {
+      text, messageId, onFork: id => this.forkMessage(id),
+    });
+    animateNoxEnter(wrap, 4);
   }
 
   private ensureThinkingTrace(): void {
@@ -2240,7 +2302,7 @@ export class ChatView extends ItemView {
         )?.label ?? "Response",
     });
     this.agentContentEl = this.agentCursorEl.createDiv({
-      cls: "nox-bubble-content",
+      cls: "nox-bubble-content nox-message-content",
     });
     animateNoxEnter(this.agentCursorEl, 4);
   }
@@ -2480,22 +2542,13 @@ export class ChatView extends ItemView {
       (user.action === "ask" || user.action === "explain") &&
       !this.learning.hasActivePracticeQuestion() &&
       !message.proposal && !message.parts?.length;
-    const actions = bubble.createDiv({ cls: "nox-stream-actions" });
-    const copy = createNoxIconButton(actions, {
-      cls: "nox-stream-action", icon: "copy", label: "Copy response", title: "Copy response",
-    });
-    copy.addEventListener("click", () => {
-      void navigator.clipboard.writeText(responseText).then(() => {
-        copy.setAttribute("aria-label", "Copied");
-        copy.title = "Copied";
-        setNoxIcon(copy, "check");
-        window.setTimeout(() => {
-          if (!copy.isConnected) return;
-          copy.setAttribute("aria-label", "Copy response");
-          copy.title = "Copy response";
-          setNoxIcon(copy, "copy");
-        }, 1400);
-      }).catch(() => new Notice("Unable to copy the response."));
+    if (message.id) {
+      bubble.dataset.messageId = message.id;
+      bubble.dataset.sessionId = this.learning.getSession().id;
+    }
+    const actions = appendMessageActions(bubble, {
+      text: responseText, messageId: message.id, onFork: id => this.forkMessage(id),
+      className: "nox-stream-actions",
     });
 
     const versions = message.responseVersions;
@@ -2539,6 +2592,7 @@ export class ChatView extends ItemView {
           action: user?.action === "explain" ? "explain" : "ask",
           explicitContext: [],
           regenerate: { messageIndex, expectedContent: message.content },
+          ...(user?.replyTo ? { replyTo: user.replyTo } : {}),
         };
         this.lastTurnRequest = request;
         void this.runTurn(request, false);

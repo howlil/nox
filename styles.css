@@ -125,42 +125,6 @@
   letter-spacing: -0.01em;
 }
 
-.theme-dark .nox-root:not(.nox-force-light),
-.theme-dark .nox-settings:not(.nox-force-light),
-.theme-dark .nox-theme-portal:not(.nox-force-light),
-.nox-root.nox-force-dark,
-.nox-settings.nox-force-dark,
-.nox-theme-portal.nox-force-dark {
-  --nox-page: #080808;
-  --nox-canvas: #080808;
-  --nox-surface: #121212;
-  --nox-inset: #1B1B1B;
-  --nox-hover: #202020;
-  --nox-card-hover: #191919;
-  --nox-hover-2: #262626;
-  --nox-ink: #FEFEFE;
-  --nox-ink-2: #BFBFBF;
-  --nox-ink-3: #949494;
-  --nox-line: #262626;
-  --nox-line-strong: #424242;
-  --nox-line-soft: #1D1D1D;
-  --nox-field: #1B1B1B;
-  --nox-accent: #AD82EA;
-  --nox-accent-hover: #BE9AF2;
-  --nox-accent-ink: #C8A9F3;
-  --nox-accent-soft: #2A2038;
-  --nox-accent-border: #704F97;
-  --nox-on-accent: #121212;
-  --nox-green: #7ED4A2;
-  --nox-orange: #E6B96B;
-  --nox-red: #EE8888;
-  --nox-error-soft: #311C22;
-  --nox-success-soft: #162A20;
-  --nox-popover-shadow: none;
-  color-scheme: dark;
-
-}
-
 .nox-root :focus-visible,
 .nox-settings :focus-visible {
   outline: none;
@@ -349,6 +313,8 @@
 }
 
 .nox-thread {
+  /* Single reading-column authority for streamed, restored, and activity UI. */
+  --nox-reading-width: 768px;
   @apply flex min-h-0 flex-1 flex-col overflow-y-auto;
   display: flex;
   flex: 1;
@@ -365,8 +331,8 @@
 
 /* One readable column regardless of Obsidian pane width. Visuals own their scroll. */
 .nox-thread > :not(.nox-bubble--user) {
-  width: min(100%, 768px);
-  max-width: 768px;
+  width: min(100%, var(--nox-reading-width));
+  max-width: var(--nox-reading-width);
   min-width: 0;
   margin-inline: auto;
 }
@@ -717,8 +683,9 @@
 }
 
 .nox-thinking {
-  width: 100%;
-  max-width: 380px;
+  /* Width/alignment are owned by .nox-thread, not the activity panel. */
+  min-width: 0;
+  margin-inline: auto;
 }
 
 .nox-thinking-toggle {
@@ -3028,24 +2995,88 @@
   border-radius: var(--nox-radius-chip);
   background: var(--nox-surface);
 }
+/* Settings-only compact analytics. No gradient, shadow or outer focus ring. */
+.nox-usage-overview {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
+  gap: 10px;
+  margin-bottom: 8px;
+}
+.nox-usage-primary, .nox-usage-metrics {
+  min-width: 0;
+  border: 1px solid var(--nox-line);
+  border-radius: var(--nox-radius-control);
+  background: var(--nox-surface);
+  padding: 12px;
+}
+.nox-usage-primary { display: flex; flex-direction: column; gap: 3px; }
+.nox-usage-eyebrow {
+  font-size: 10px;
+  line-height: 1.5;
+  letter-spacing: .04em;
+  font-weight: 600;
+  color: var(--nox-ink-3);
+}
+.nox-usage-total {
+  font-size: clamp(20px, 3vw, 28px);
+  line-height: 1.25;
+  letter-spacing: -.035em;
+  font-weight: 600;
+  color: var(--nox-ink);
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+.nox-usage-subtitle {
+  display: block;
+  font-size: 11px;
+  color: var(--nox-ink-2);
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+.nox-usage-split {
+  display: flex;
+  width: 100%;
+  height: 7px;
+  margin: 7px 0 4px;
+  background: var(--nox-inset);
+  border-radius: var(--nox-radius-pill);
+  overflow: hidden;
+}
+.nox-usage-split-input { background: var(--nox-accent); height: 100%; }
+.nox-usage-split-output { background: var(--nox-accent-border); height: 100%; }
 .nox-usage-metrics {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 10px 14px;
-  margin: 2px 0 10px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  align-content: center;
 }
 .nox-usage-metric { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .nox-usage-metric span { font-size: 11px; color: var(--nox-ink-2); }
 .nox-usage-metric strong {
   font-size: 17px;
   font-weight: 600;
-  letter-spacing: -0.02em;
+  letter-spacing: -.02em;
   font-variant-numeric: tabular-nums;
   overflow-wrap: anywhere;
 }
-.nox-usage-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.nox-usage-footnote {
+  margin: 3px 0 4px;
+  font-size: 11px;
+  color: var(--nox-ink-3);
+  line-height: 1.55;
+}
+.nox-usage-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 16px 0 8px;
+}
+.nox-usage-section-head h4 { margin: 0; font-size: 13px; font-weight: 600; }
+.nox-usage-table-wrap { overflow-x: auto; max-width: 100%; }
+.nox-usage-table { width: 100%; min-width: 390px; border-collapse: collapse; font-size: 12px; }
 .nox-usage-table th, .nox-usage-table td {
-  padding: 6px 5px;
+  padding: 7px 5px;
   text-align: left;
   border-bottom: 1px solid var(--nox-line);
   overflow-wrap: anywhere;
@@ -3055,18 +3086,116 @@
   text-align: right;
   font-variant-numeric: tabular-nums;
 }
-.nox-usage-limit {
-  margin-top: 12px;
-  padding-top: 10px;
-  border-top: 1px solid var(--nox-line);
+.nox-usage-model-provider, .nox-usage-model-name {
+  display: block;
+  font-size: 11px;
 }
-.nox-usage-limit strong { font-size: 12px; }
-.nox-usage-limit p { margin: 5px 0 0; font-size: 12px; color: var(--nox-ink-2); line-height: 1.55; }
+.nox-usage-model-provider { color: var(--nox-ink-3); margin-bottom: 2px; }
+.nox-usage-model-track {
+  min-width: 58px;
+  width: 100%;
+  height: 7px;
+  background: var(--nox-inset);
+  overflow: hidden;
+  border-radius: var(--nox-radius-pill);
+}
+.nox-usage-model-fill {
+  height: 100%;
+  background: var(--nox-accent);
+  border-radius: var(--nox-radius-pill);
+}
+.nox-credits { margin-top: 16px; padding-top: 2px; border-top: 1px solid var(--nox-line); }
+.nox-credits > .nox-usage-description { margin: 0 0 10px; }
+.nox-usage-section-head button, .nox-credit-actions button, .nox-credit-editor-actions button {
+  border: 1px solid var(--nox-line);
+  border-radius: var(--nox-radius-control);
+  background: var(--nox-surface);
+  color: var(--nox-ink-2);
+  padding: 5px 9px;
+  min-height: 28px;
+  box-shadow: none;
+  font-size: 11px;
+  cursor: pointer;
+}
+.nox-usage-section-head button:hover,
+.nox-credit-actions button:hover,
+.nox-credit-editor-actions button:hover { background: var(--nox-hover); }
+.nox-credit-row {
+  padding: 11px 0;
+  border-bottom: 1px solid var(--nox-line);
+  min-width: 0;
+}
+.nox-credit-title { display: flex; gap: 8px; align-items: center; justify-content: space-between; }
+.nox-credit-names { min-width: 0; flex: 1; }
+.nox-credit-names strong {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.nox-credit-actions { display: flex; gap: 4px; flex-shrink: 0; }
+.nox-credit-values {
+  font-size: 12px;
+  color: var(--nox-ink);
+  font-variant-numeric: tabular-nums;
+  margin-top: 8px;
+}
+.nox-credit-progress {
+  width: 100%;
+  height: 7px;
+  border-radius: var(--nox-radius-pill);
+  background: var(--nox-inset);
+  overflow: hidden;
+  margin: 7px 0 5px;
+}
+.nox-credit-progress-fill {
+  height: 100%;
+  border-radius: var(--nox-radius-pill);
+  background: var(--nox-accent);
+}
+.nox-credit-progress-fill.is-warning { background: var(--nox-orange); }
+.nox-credit-progress-fill.is-low { background: var(--nox-red); }
+.nox-credit-updated { font-size: 10px; color: var(--nox-ink-3); }
+.nox-credit-editor {
+  padding: 12px;
+  margin: 10px 0;
+  border: 1px solid var(--nox-line);
+  border-radius: var(--nox-radius-control);
+  background: var(--nox-inset);
+}
+.nox-credit-editor > strong { font-size: 12px; font-weight: 600; }
+.nox-credit-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px 10px;
+}
+.nox-credit-fields .setting-item {
+  min-width: 0;
+  border: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 4px;
+}
+.nox-credit-fields .setting-item-name { font-size: 11px; }
+.nox-credit-fields .setting-item-control { width: 100%; min-width: 0; }
+.nox-credit-fields :is(input, select) {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  height: 30px;
+  border-radius: var(--nox-radius-chip);
+  background: var(--nox-surface);
+  border: 1px solid var(--nox-line);
+}
+.nox-credit-editor-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 12px; }
 .nox-usage-warning { font-size: 12px; color: var(--nox-red); }
 @media (max-width: 620px) {
+  .nox-usage-overview { grid-template-columns: 1fr; }
   .nox-usage-filters { grid-template-columns: 1fr; }
-  .nox-usage-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
+@media (max-width: 430px) { .nox-credit-fields { grid-template-columns: 1fr; } }
 
 /* Agentic inspector (Beautiful UI information density × Arc motion discipline).
    New component ownership only; existing header/thread/composer rules stay canonical. */
@@ -3359,7 +3488,7 @@
   max-width: 100%;
 }
 .nox-root .nox-diagram {
-  margin: 10px 0;
+  margin: 10px auto;
   overflow: hidden;
   border: 1px solid var(--nox-line);
   border-radius: var(--nox-radius-card);
@@ -3378,20 +3507,24 @@
   width: 100%;
   max-width: 100%;
   min-width: 0;
-  max-height: 530px;
-  overflow: auto;
+  max-height: none;
+  overflow-x: auto;
+  overflow-y: visible;
   overscroll-behavior: contain;
   scrollbar-width: thin;
   background: var(--nox-surface);
 }
 .nox-diagram-viewport .mermaid {
   display: block;
-  width: 100%;
-  margin: 0;
+  width: max-content;
+  max-width: none !important;
+  min-width: 0;
+  margin-inline: auto;
   padding: 8px;
+  box-sizing: border-box;
 }
 .nox-root .nox-markdown .mermaid svg {
-  max-width: 100% !important;
+  max-width: none !important;
   height: auto !important;
 }
 .nox-diagram-viewport .mermaid svg {
@@ -3400,6 +3533,14 @@
   max-width: none !important;
   height: auto !important;
   margin: 0 auto;
+}
+.nox-diagram-viewport.is-zoomed { overflow-x: auto; overflow-y: visible; }
+.nox-diagram-viewport .mermaid[data-nox-sizing="natural"] {
+  flex: 0 0 auto;
+}
+.nox-diagram.is-expanded .nox-diagram-viewport {
+  overflow: auto;
+  min-height: 0;
 }
 .nox-diagram.is-expanded {
   position: fixed;
@@ -3482,7 +3623,7 @@
   min-width: 0;
   width: 100%;
   max-width: 100%;
-  overflow: hidden;
+  overflow: visible;
   background: var(--nox-inset);
 }
 .nox-root .nox-visual-source {
@@ -3495,7 +3636,7 @@
 .nox-root .nox-visual-frame {
   display: block;
   width: 100%;
-  height: clamp(240px, 48vh, 480px);
+  height: 240px; /* Updated by a validated resize signal; fallback for non-script SVG. */
   border: 0;
   background: #fff;
   color-scheme: light;
@@ -3536,10 +3677,13 @@
 
 /* Adaptive observed agent activity — BeUI interaction pattern, NOX visual tokens.
    One grid child guarantees the *entire* disclosure (including inspector) closes. */
-.nox-root .nox-thinking {
-  width: min(100%, 430px);
-  max-width: 100%;
-  align-self: flex-start;
+.nox-root .nox-thread > .nox-thinking {
+  /* Match assistant messages exactly across narrow and wide Obsidian panes. */
+  width: min(100%, var(--nox-reading-width));
+  max-width: var(--nox-reading-width);
+  min-width: 0;
+  align-self: stretch;
+  margin-inline: auto;
 }
 .nox-root .nox-thinking-toggle {
   min-height: 28px;
@@ -3564,6 +3708,9 @@
   min-width: 0;
 }
 .nox-thinking-panel-inner {
+  /* Keep the activity details compact without centering their outer wrapper. */
+  width: min(100%, 430px);
+  max-width: 430px;
   min-width: 0;
   min-height: 0;
   overflow: hidden;
@@ -4099,14 +4246,20 @@
 .nox-rich-bar-fill { display: block; height: 100%; border-radius: inherit; background: var(--nox-accent); }
 .nox-rich-flow-viewport {
   max-width: 100%;
-  max-height: 520px;
-  overflow-x: hidden;
-  overflow-y: auto;
+  max-height: none;
+  overflow-x: auto;
+  overflow-y: visible;
   overscroll-behavior-y: contain;
   scrollbar-width: thin;
   margin-top: 8px;
 }
-.nox-rich-flow-svg { display: block; width: 100%; height: auto; }
+.nox-rich-flow-svg {
+  display: block;
+  width: min(100%, var(--nox-flow-width, 100%));
+  max-width: 100%;
+  height: auto;
+  margin-inline: auto;
+}
 .nox-flow-edge { fill: none; stroke: var(--nox-line-strong); stroke-width: 1.3; }
 .nox-flow-arrow { fill: var(--nox-line-strong); }
 .nox-flow-node rect { fill: var(--nox-inset); stroke: var(--nox-line-strong); stroke-width: 1; }
@@ -4149,4 +4302,153 @@
 }
 .nox-root .nox-response-table-scroll:focus-visible {
   border-radius: var(--nox-radius-chip);
+}
+
+
+/* Transcript actions — compact in both NOX appearance modes. */
+.nox-root { position: relative; }
+.nox-user-message {
+  display: flex;
+  align-self: flex-end;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 3px;
+  max-width: 84%;
+  min-width: 0;
+}
+.nox-user-message .nox-bubble--user {
+  align-self: flex-end;
+  max-width: 100%;
+  user-select: text;
+  -webkit-user-select: text;
+}
+.nox-message-content {
+  user-select: text;
+  -webkit-user-select: text;
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+.nox-message-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 3px;
+  padding: 0 2px;
+}
+.nox-root .nox-message-action {
+  display: inline-flex;
+  width: 27px;
+  height: 27px;
+  min-height: 27px;
+  align-items: center;
+  justify-content: center;
+  border: 0 !important;
+  border-radius: 999px;
+  padding: 0;
+  background: transparent;
+  color: var(--nox-ink-2);
+  box-shadow: none !important;
+  cursor: pointer;
+}
+.nox-root .nox-message-action:hover,
+.nox-root .nox-message-action:focus-visible {
+  color: var(--nox-ink);
+  background: var(--nox-hover);
+}
+.nox-user-message-quote {
+  max-width: 100%;
+  color: var(--nox-ink-3);
+  font-size: 11px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.nox-bubble--agent .nox-stream-actions {
+  border-top: 0;
+  margin-top: 5px;
+  padding-top: 0;
+}
+.nox-transcript-selection-toolbar {
+  position: absolute;
+  z-index: 45;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  transform: translateX(-50%);
+  padding: 4px 7px;
+  border: 1px solid var(--nox-line);
+  border-radius: 999px;
+  background: var(--nox-surface);
+  color: var(--nox-ink);
+  box-shadow: none;
+}
+.nox-root .nox-transcript-selection-toolbar.nox-hidden { display: none; }
+.nox-root .nox-selection-ask {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  padding: 3px 4px;
+  min-height: 26px;
+  background: transparent;
+  color: inherit;
+}
+.nox-selection-ask-label { font-size: 11px; font-weight: 500; }
+.nox-composer-reply {
+  display: flex;
+  min-width: 0;
+  align-items: flex-start;
+  gap: 5px;
+  margin: 1px 0 7px;
+  padding: 3px 0 7px;
+  border-bottom: 1px solid var(--nox-line-soft);
+}
+.nox-composer-reply.nox-hidden { display: none; }
+.nox-composer-reply-text {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+  order: -1;
+}
+.nox-composer-reply-title {
+  color: var(--nox-ink-2);
+  font-size: 11px;
+  font-weight: 600;
+}
+.nox-composer-reply-quote {
+  color: var(--nox-ink-3);
+  font-size: 11px;
+  line-height: 1.35;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+.nox-root .nox-composer-reply-remove {
+  border: 0;
+  padding: 3px;
+  background: transparent;
+  color: var(--nox-ink-3);
+}
+.nox-history-entry-fork {
+  color: var(--nox-ink-3);
+  font-size: 10px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+@media (prefers-reduced-motion: reduce) {
+  .nox-transcript-selection-toolbar { transition: none; }
+}
+
+.nox-root .nox-composer-box.is-reply {
+  border-radius: 16px;
+  padding: 8px 8px 7px;
+}
+.nox-selection-ask {
+  gap: 5px;
+  white-space: nowrap;
 }
