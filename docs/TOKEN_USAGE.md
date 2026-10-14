@@ -57,7 +57,8 @@ This conservative choice can undercount the first observed resumed turn.
 - ChatGPT plan limits and Codex CLI session allowances are not the same as
   OpenAI API token pricing or token-per-minute limits.
 - In settings, `(runtime default)` means the CLI did not report the actual
-  model and Nox did not pin one. It is not guessed.
+  model and Nox did not pin one. It is not guessed. A `requested: model-id`
+  bucket represents the explicitly selected model, not a confirmed model ID.
 - Local plugin-data write failures must not convert a completed inference
   request to a failed learning response; Settings surfaces the tracking error.
 - Daily buckets use UTC. Account provider limits, if added later, must have
