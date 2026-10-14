@@ -261,7 +261,7 @@ export function enhanceNoxMarkdownTables(content: HTMLElement): void {
     wrapper.setAttribute("aria-label", "Response table, scroll horizontally when needed");
     table.before(wrapper);
     wrapper.append(table);
-    for (const th of Array.from(table.querySelectorAll("thead th"))) th.scope = "col";
+    for (const th of Array.from(table.querySelectorAll<HTMLTableCellElement>("thead th"))) th.scope = "col";
     const lookup: Record<string, { status: string; icon: string }> = {
       done: { status: "success", icon: "check-circle-2" },
       completed: { status: "success", icon: "check-circle-2" },
@@ -273,7 +273,7 @@ export function enhanceNoxMarkdownTables(content: HTMLElement): void {
       failed: { status: "error", icon: "x-circle" },
     };
     for (const tr of Array.from(table.querySelectorAll("tbody tr"))) {
-      const td = tr.querySelector("td:last-child");
+      const td = tr.querySelector<HTMLTableCellElement>("td:last-child");
       if (!td || td.children.length > 0) continue;
       const state = lookup[(td.textContent ?? "").trim().toLowerCase()];
       if (!state) continue;
