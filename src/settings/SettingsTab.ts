@@ -24,22 +24,7 @@ export class NoxSettingsTab extends PluginSettingTab {
     const settings = this.nox.getSettings();
     containerEl.empty();
     containerEl.addClass("nox-settings");
-    containerEl.toggleClass("nox-force-light", settings.appearance === "light");
-    containerEl.toggleClass("nox-force-dark", settings.appearance === "dark");
     containerEl.createEl("h2", { text: "Nox" });
-
-    new Setting(containerEl)
-      .setName("Appearance")
-      .setDesc("Choose a Nox theme independently of the Obsidian theme.")
-      .addDropdown((dropdown) => dropdown
-        .addOption("system", "System (Obsidian)")
-        .addOption("light", "Light")
-        .addOption("dark", "Dark")
-        .setValue(settings.appearance)
-        .onChange(async (value) => {
-          await this.saveSettings({ appearance: value === "light" || value === "dark" ? value : "system" });
-          this.display();
-        }));
 
     new Setting(containerEl)
       .setName("Agent provider")
