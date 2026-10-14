@@ -3197,6 +3197,54 @@
 }
 @media (max-width: 430px) { .nox-credit-fields { grid-template-columns: 1fr; } }
 
+/* Read-only live quota grouping belongs to the compact Settings analytics.
+   The same flat light theme and no-shadow interaction grammar apply. */
+.nox-provider-quotas {
+  margin-top: 18px;
+  padding-top: 2px;
+  border-top: 1px solid var(--nox-line);
+}
+.nox-provider-quotas > .nox-usage-description {
+  margin: 0 0 8px;
+}
+.nox-provider-quota-group {
+  min-width: 0;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--nox-line);
+}
+.nox-provider-quota-label {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 7px;
+}
+.nox-provider-quota-label strong,
+.nox-provider-quota-row .nox-credit-names strong {
+  font-size: 12px;
+  font-weight: 600;
+}
+.nox-provider-quota-row {
+  min-width: 0;
+  margin: 10px 0;
+  padding: 0 0 7px;
+}
+.nox-provider-quota-percent {
+  font-size: 12px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  margin-left: auto;
+}
+.nox-provider-quota-row .nox-credit-progress {
+  margin-top: 6px;
+}
+.nox-provider-quota-group .nox-usage-subtitle {
+  margin: 3px 0;
+}
+.nox-provider-quota-row .nox-credit-values {
+  margin: 4px 0;
+}
 /* Agentic inspector (Beautiful UI information density × Arc motion discipline).
    New component ownership only; existing header/thread/composer rules stay canonical. */
 .nox-run-inspector {
