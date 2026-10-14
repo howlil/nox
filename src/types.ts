@@ -111,6 +111,8 @@ export interface AgentTurnMetrics {
 export interface ResponseVersion {
   content: string;
   sourcePath?: string;
+  thought?: string;
+  elapsedMs?: number;
 }
 
 export interface ChatMessage {
