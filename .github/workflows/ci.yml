@@ -76,5 +76,8 @@ jobs:
       - name: Build Obsidian OAuth transport regression tests
         run: pnpm exec esbuild tests/agent/ObsidianOAuthTransport.test.ts --bundle --platform=node --format=esm --target=node22 --outfile=obsidian-oauth-test.mjs
 
-      - name: Windows PowerShell DPAPI and OAuth transport regressions
-        run: node --test chatgpt-provider-test.mjs obsidian-oauth-test.mjs
+      - name: Build Obsidian inference regression tests
+        run: pnpm exec esbuild tests/agent/ObsidianInferenceTransport.test.ts --bundle --platform=node --format=esm --target=node22 --outfile=obsidian-inference-test.mjs
+
+      - name: Windows DPAPI, OAuth and inference regressions
+        run: node --test chatgpt-provider-test.mjs obsidian-oauth-test.mjs obsidian-inference-test.mjs
