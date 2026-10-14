@@ -2212,6 +2212,8 @@ export class ChatView extends ItemView {
         };
         this.lastTurnRequest = request;
         await this.runTurn(request, true);
+        return this.learning.getSession().messages.some(m => m.parts?.some(p =>
+          p.type === "practice-evaluation" && p.questionId === questionId));
       },
     } : undefined);
     this.scrollThread();
