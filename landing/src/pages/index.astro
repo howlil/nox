@@ -51,7 +51,7 @@ const description = "Understand, practice, and review what you learn. NOX turns 
           <p class="hero-description">AI explanations, interactive practice, and evidence-based review. Built around your Obsidian notes.</p>
           <div class="hero-actions">
             <a class="hero-button-primary" href={github} target="_blank" rel="noopener noreferrer"><Github size={18} aria-hidden="true" /> Star on GitHub <ArrowUpRight size={16} aria-hidden="true" /></a>
-            {sponsorUrl ? <a class="hero-button-secondary" href={sponsorUrl} target="_blank" rel="noopener noreferrer"><Heart size={18} aria-hidden="true" /> Sponsor</a> : <span class="hero-button-secondary hero-disabled" title="Sponsor link is not configured yet"><Heart size={18} aria-hidden="true" /> Sponsor soon</span>}
+            {sponsorUrl ? <a class="hero-button-secondary" href={sponsorUrl} target="_blank" rel="noopener noreferrer"><Heart size={18} aria-hidden="true" /> Sponsor</a> : <button type="button" id="hero-sponsor-trigger" class="hero-button-secondary"><Heart size={18} aria-hidden="true" /> Sponsor</button>}
           </div>
         </div>
         <div class="mascot-position">
@@ -79,6 +79,12 @@ const description = "Understand, practice, and review what you learn. NOX turns 
         </div>
       </section>
     </main>
+    <script>
+      document.getElementById("hero-sponsor-trigger")?.addEventListener("click", () => {
+        const sponsor = document.querySelector<HTMLButtonElement>(".floating-capsule button.capsule-sponsor");
+        sponsor?.click();
+      });
+    </script>
     <footer class="footer"><div class="footer-inner"><div class="footer-brand"><img src="/nox.png" alt="" width="28" height="28" /> <strong>nox.</strong> <span>Learn actively.</span></div><a href={github} target="_blank" rel="noopener noreferrer">GitHub <ArrowUpRight size={15}/></a><span>NOX · Obsidian Learning Companion</span></div></footer>
   </body>
 </html>
