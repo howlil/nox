@@ -374,3 +374,26 @@ test("accepts MCQ and code questions across every stream split and rejects inval
   assert.equal(parsed.filter(event => event.type === "practice-question").length, 0);
   assert.equal(parsed.some(event => event.type === "error"), true);
 });
+
+test("structured practice instructions survive incremental parsing without interpreting task prose", () => {
+  const question = {
+    kind: "question", concept: "REST", question: "Build a Book controller.",
+    instructions: {
+      title: "Build REST Controller",
+      brief: "Use the provided service.",
+      tasks: ["GET books", "POST books"],
+      requirements: ["Use ResponseEntity"],
+      given: ["BookService exists"],
+      expectedOutput: ["Controller class"],
+      referenceCode: "interface BookService {}",
+    },
+    input: { type: "code", language: "java", executionMode: "review-only",
+      starterCode: "class BookController {}" },
+  };
+  const payload = fence + "learning-practice\n" + JSON.stringify(question) + "\n" + fence;
+  for (const events of parseAtEverySplit(payload)) {
+    assert.deepEqual(normalized(events), [
+      { type: "practice-question", question },
+    ]);
+  }
+});

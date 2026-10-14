@@ -1620,9 +1620,11 @@
   align-items: center;
   gap: 12px;
   padding: 11px 13px;
-  border: 1px solid var(--nox-line-strong);
+  border: 1px solid #e5dcff;
   border-radius: var(--nox-radius-card);
-  background: var(--nox-surface);
+  background:
+    radial-gradient(220px 150px at 106% 28%, rgba(125, 98, 236, 0.10) 0%, transparent 68%),
+    linear-gradient(135deg, #ffffff 0%, #faf8ff 100%);
   color: var(--nox-ink);
   box-shadow: none !important;
   cursor: pointer;
@@ -1634,7 +1636,9 @@
 .nox-learning-start:hover,
 .nox-learning-start:focus-visible {
   border-color: var(--nox-accent-border);
-  background: var(--nox-accent-tint);
+  background:
+    radial-gradient(220px 150px at 106% 28%, rgba(125, 98, 236, 0.15) 0%, transparent 68%),
+    linear-gradient(135deg, #ffffff 0%, #f5f0ff 100%);
 }
 
 .nox-learning-start:focus-visible,
@@ -1699,69 +1703,166 @@
 .nox-capability-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 7px;
+  gap: 10px;
 }
 
 .nox-capability-card {
-  display: flex !important;
+  --nox-card-wash: #ffffff;
+  --nox-card-wash-end: #fcfbff;
+  --nox-card-glow: rgba(125, 98, 236, 0.11);
+  --nox-card-line: #e8e2fb;
+  --nox-card-meta-ink: #7869a8;
+  position: relative;
+  display: block !important;
   width: 100%;
   min-width: 0;
-  min-height: 42px;
-  align-items: center;
-  padding: 9px 11px;
-  border: 1px solid var(--nox-line);
-  border-radius: var(--nox-radius-control);
-  background: var(--nox-surface);
-  color: var(--nox-ink);
-  box-shadow: none !important;
+  min-height: 98px;
+  overflow: hidden;
+  padding: 12px;
+  border: 1px solid var(--nox-card-line);
+  border-radius: var(--nox-radius-card);
   cursor: pointer;
-  font: inherit;
   text-align: left;
-  transition: background-color 120ms ease, border-color 120ms ease;
+  appearance: none;
+  font: inherit;
+  line-height: inherit;
+  background:
+    radial-gradient(220px 150px at 114% 28%, var(--nox-card-glow) 0%, transparent 68%),
+    linear-gradient(135deg, var(--nox-card-wash) 0%, var(--nox-card-wash-end) 100%);
+  box-shadow: none;
+  transition:
+    border-color 120ms ease,
+    background 120ms ease;
 }
 
-.nox-capability-card:hover {
-  background: var(--nox-hover);
-  border-color: var(--nox-line-strong);
+.nox-capability-card:hover,
+.nox-capability-card:focus-visible {
+  border-color: var(--nox-card-line);
+}
+
+.nox-capability-card::before {
+  display: none;
+}
+
+.nox-capability-card--purple {
+  --nox-card-wash-end: #faf8ff;
+  --nox-card-glow: rgba(125, 98, 236, 0.12);
+  --nox-card-line: #e5dcff;
+  --nox-card-meta-ink: #7869a8;
+}
+
+.nox-capability-card--blue {
+  --nox-card-wash-end: #f8fbff;
+  --nox-card-glow: rgba(102, 161, 224, 0.11);
+  --nox-card-line: #dfeaf7;
+  --nox-card-meta-ink: #66809b;
+}
+
+.nox-capability-card--coral {
+  --nox-card-wash-end: #fff9f7;
+  --nox-card-glow: rgba(226, 130, 111, 0.1);
+  --nox-card-line: #f0e1dd;
+  --nox-card-meta-ink: #9b7168;
+}
+
+.nox-capability-card--green {
+  --nox-card-wash-end: #f7fcf9;
+  --nox-card-glow: rgba(101, 178, 128, 0.1);
+  --nox-card-line: #dfede2;
+  --nox-card-meta-ink: #6b8c75;
 }
 
 .nox-capability-card.is-selected {
-  background: var(--nox-accent-tint);
   border-color: var(--nox-accent-border);
+  background:
+    radial-gradient(220px 150px at 114% 28%, var(--nox-card-glow) 0%, transparent 68%),
+    linear-gradient(
+      135deg,
+      color-mix(in oklch, var(--nox-card-wash) 76%, var(--nox-accent-tint)) 0%,
+      color-mix(in oklch, var(--nox-card-wash-end) 76%, var(--nox-accent-tint)) 100%
+    );
 }
 
-.nox-capability-card-top,
+.nox-capability-card-top {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 7px;
+}
+
 .nox-capability-name {
   display: flex;
   min-width: 0;
+  overflow: hidden;
   align-items: center;
-  gap: 8px;
+  gap: 7px;
 }
 
 .nox-capability-icon {
   display: inline-flex;
-  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
   color: var(--nox-ink-2);
 }
 
-.nox-capability-icon .svg-icon {
-  width: 15px;
-  height: 15px;
+.nox-capability-icon svg {
+  width: 14px;
+  height: 14px;
 }
 
 .nox-capability-title {
-  color: var(--nox-ink);
-  font-size: 12px;
-  font-weight: 550;
-  white-space: nowrap;
   overflow: hidden;
+  color: var(--nox-ink);
+  font-size: 13px;
+  font-weight: 650;
   text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .nox-prompt-menu-command {
   flex: 0 0 auto;
   color: var(--nox-ink-3);
   font-family: var(--font-monospace), ui-monospace, monospace;
+  font-size: 10px;
+}
+
+.nox-capability-command {
+  flex: 0 0 auto;
+  color: var(--nox-ink-3);
+  font-family: var(--font-monospace), ui-monospace, monospace;
+  font-size: 10px;
+}
+
+.nox-capability-description {
+  display: block;
+  width: 100%;
+  position: relative;
+  z-index: 1;
+  max-width: none;
+  overflow-wrap: anywhere;
+  color: var(--nox-ink-2);
+  font-size: 11px;
+  line-height: 1.45;
+  white-space: normal;
+}
+
+.nox-capability-meta {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  height: 20px;
+  align-items: center;
+  margin-top: 11px;
+  padding: 0 7px;
+  border: 1px solid rgba(255, 255, 255, 0.8);
+  border-radius: var(--nox-radius-pill);
+  background: rgba(255, 255, 255, 0.64);
+  color: var(--nox-card-meta-ink);
   font-size: 10px;
 }
 
@@ -2624,6 +2725,129 @@
 .nox-quiz-status { min-height: 0; font-size: 11px; color: var(--nox-ink-2); }
 .nox-quiz-status:empty { display: none; }
 
+/* Practice reading order v2 — title → brief → tasks → rules → given → solution.
+   Component-specific tokens inherit Nox/Obsidian themes; no new card chrome. */
+.nox-quiz-card {
+  gap: 14px;
+  padding: 16px;
+}
+.nox-quiz-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  column-gap: 12px;
+  row-gap: 4px;
+}
+.nox-quiz-kind {
+  color: var(--nox-ink-3);
+  font-size: 11px;
+  font-weight: 500;
+}
+.nox-quiz-instruction-title {
+  margin: 0;
+  color: var(--nox-ink);
+  font-size: 17px;
+  font-weight: 650;
+  line-height: 1.35;
+  letter-spacing: -0.015em;
+  overflow-wrap: anywhere;
+}
+.nox-quiz-instruction-brief {
+  margin: -4px 0 0;
+  color: var(--nox-ink-2);
+  font-size: 13px;
+  line-height: 1.65;
+  overflow-wrap: anywhere;
+}
+.nox-quiz-instruction-section,
+.nox-quiz-instruction-legacy {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  min-width: 0;
+}
+.nox-quiz-section-heading {
+  color: var(--nox-ink-2);
+  font-size: 11px;
+  font-weight: 650;
+  line-height: 1.4;
+  letter-spacing: 0.025em;
+}
+.nox-quiz-instruction-list {
+  margin: 0;
+  padding-left: 18px;
+  color: var(--nox-ink);
+  font-size: 13px;
+  line-height: 1.65;
+}
+.nox-quiz-instruction-list li {
+  padding-left: 2px;
+  margin: 0 0 4px;
+  overflow-wrap: anywhere;
+}
+.nox-quiz-instruction-list li:last-child { margin-bottom: 0; }
+.nox-quiz-instruction-tasks li::marker {
+  color: var(--nox-accent);
+  font-weight: 650;
+}
+.nox-quiz-instruction-paragraph.nox-practice-question {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.7;
+  overflow-wrap: anywhere;
+}
+.nox-quiz-instruction-brief code,
+.nox-quiz-instruction-title code,
+.nox-quiz-instruction-paragraph code,
+.nox-quiz-instruction-list code {
+  background: var(--nox-inset);
+  border-radius: 4px;
+  padding: 1px 3px;
+  color: var(--nox-ink);
+  font-size: 0.91em;
+}
+.nox-quiz-context {
+  border-radius: var(--nox-radius-chip);
+  background: var(--nox-inset);
+  min-width: 0;
+}
+.nox-quiz-context summary {
+  padding: 9px 11px;
+  cursor: pointer;
+  color: var(--nox-ink-2);
+  font-size: 12px;
+  font-weight: 550;
+  list-style-position: inside;
+}
+.nox-quiz-context summary:focus-visible {
+  outline: 2px solid var(--nox-accent);
+  outline-offset: 2px;
+}
+.nox-quiz-context[open] summary { color: var(--nox-ink); }
+.nox-quiz-reference-code {
+  margin: 0;
+  padding: 0 11px 11px;
+  max-height: 260px;
+  overflow: auto;
+  white-space: pre;
+  tab-size: 2;
+  font-size: 11.5px;
+  line-height: 1.6;
+  color: var(--nox-ink);
+}
+.nox-quiz-answer {
+  border-top: 1px solid var(--nox-line);
+  padding-top: 13px;
+  gap: 8px;
+}
+.nox-quiz-editor-label {
+  color: var(--nox-ink);
+  font-size: 12px;
+  font-weight: 650;
+}
+.nox-quiz-code-meta { margin-bottom: 0; }
+.nox-quiz-actions { flex-wrap: wrap; }
 
 /* Settings > Token usage. Calm, compact, theme-adaptive and deliberately flat. */
 .nox-usage {

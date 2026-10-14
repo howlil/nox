@@ -412,8 +412,21 @@ misconceptions and the existing progress/evidence workflow. Colors, spacing,
 typography and focus states reuse Nox tokens. No code execution in the
 Obsidian renderer.
 
----
+## Practice instruction reading order (2026-10-14)
 
+The existing in-thread Practice card must treat instructions as a reading
+problem before they become an input problem. In order: question type / concept,
+short title, one-sentence brief, ordered tasks, requirements, given context,
+expected output, optional collapsed reference code, then the editable answer.
+Use Nox tokens, compact headings, and calm list typography. A task item is not
+an interactive completion indicator or learning evidence. Long service API
+references are read-only; minimal starter code remains editable. For questions
+without structured instructions, present the original sentences in readable
+paragraphs without inventing requirements. Both live and historical questions
+must use the same renderer and remain theme-responsive. Details and decisions:
+docs/READABLE_PRACTICE_INSTRUCTIONS.md.
+
+---
 
 ## Settings: provider token usage
 

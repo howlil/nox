@@ -1,5 +1,6 @@
 import type { PracticeAnswer, PracticeQuestion } from "../domain/practice/types";
 import { validatePracticeAnswer } from "../domain/practice/question-schema";
+import { renderPracticeInstructions } from "./practice-instructions";
 
 export interface QuizCardActions {
   questionId: string;
@@ -17,13 +18,18 @@ export interface QuizCardActions {
 export function renderQuizCard(parent: HTMLElement, question: PracticeQuestion,
   actions: QuizCardActions): void {
   const card = parent.createDiv({ cls: "nox-quiz-card" });
-  card.createDiv({ cls: "nox-practice-label",
-    text: "Practice · " + question.concept });
-  card.createDiv({ cls: "nox-practice-question", text: question.question });
+  const header = card.createDiv({ cls: "nox-quiz-heading" });
+  header.createDiv({ cls: "nox-practice-label", text: "Practice · " + question.concept });
+  header.createSpan({ cls: "nox-quiz-kind", text: question.input?.type === "code"
+    ? "Code challenge" : question.input?.type === "multiple-choice"
+      ? "Multiple choice" : "Written answer" });
+  renderPracticeInstructions(card, question);
   // Legacy practice questions render as interactive essay cards too.
   const input = question.input ?? { type: "essay" as const };
   const disabled = !actions.active || !actions.questionId;
   const answerArea = card.createDiv({ cls: "nox-quiz-answer" });
+  answerArea.createDiv({ cls: "nox-quiz-editor-label", text: input.type === "code"
+    ? "Your solution" : "Your answer" });
   const status = card.createDiv({ cls: "nox-quiz-status", attr: { "aria-live": "polite" } });
   let answer: PracticeAnswer | undefined;
   let submit!: HTMLButtonElement;

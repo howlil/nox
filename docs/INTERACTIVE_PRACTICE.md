@@ -136,3 +136,13 @@ current card and requesting the next Practice activity. A pooled multi-question
 exam interface, automatic (without clicking Quiz me) Ask/Explain inline checks, secure sandboxed code
 execution, syntax-aware editor integration, timer/leaderboard and numeric
 grading are follow-on features, not silently part of this release.
+
+## Readable instruction layout (M6 extension)
+
+Generated questions can include optional structured instructions (title,
+brief, tasks, requirements, given, expectedOutput, referenceCode).
+The renderer shows only populated sections and uses a native collapsed
+reference-code disclosure. Existing one-paragraph questions get safe
+sentence breaks only; their canonical wording and starter code are unchanged.
+Source-of-truth, grading, draft recovery, and session ownership are unchanged.
+See docs/READABLE_PRACTICE_INSTRUCTIONS.md.

@@ -46,7 +46,7 @@ test("practice cards retain question, feedback, and misconceptions", () => {
     kind: "evaluation", concept: "index", outcome: "partial",
     feedback: "Missing IO cost", misconceptions: ["Disk seeks"],
   });
-  assert.equal(root.find("nox-practice-question")?.text, "Why B-trees?");
+  assert.equal(root.find("nox-practice-question")?.children.map(x => x.text).join(""), "Why B-trees?");
   assert.equal(root.find("nox-practice-hint")?.text, "Need a hint? Type /hint to reveal it.");
   assert.equal(root.find("nox-practice-feedback")?.text, "Missing IO cost");
   assert.equal(root.find("nox-practice-gap")?.text, "Disk seeks");

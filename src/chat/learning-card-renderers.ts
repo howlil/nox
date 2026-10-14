@@ -2,6 +2,7 @@ import type { PracticeQuestion, PracticeEvaluation } from "../domain/practice/ty
 import type { ReviewFinding } from "../domain/review/types";
 import { createNoxButton, createNoxSurface } from "./primitives";
 import { renderQuizCard, type QuizCardActions } from "./quiz-card";
+import { renderPracticeInstructions } from "./practice-instructions";
 
 /** Feature rendering only: learning and navigation effects belong to ChatView. */
 export function renderPracticeQuestionCard(parent: HTMLElement, question: PracticeQuestion,
@@ -12,7 +13,7 @@ export function renderPracticeQuestionCard(parent: HTMLElement, question: Practi
   }
   const card = createNoxSurface(parent, "nox-practice-card");
   card.createDiv({ cls: "nox-practice-label", text: `Practice · ${question.concept}` });
-  card.createDiv({ cls: "nox-practice-question", text: question.question });
+  renderPracticeInstructions(card, question);
   if (question.hint) {
     card.createDiv({ cls: "nox-practice-hint", text: "Need a hint? Type /hint to reveal it." });
   }
