@@ -162,6 +162,7 @@ export function parseNoxCard(raw: string): NoxCardSpec | null {
  */
 export function createNoxPreviewDocument(
   kind: "html-preview" | "svg-preview" | "js-preview", source: string,
+  frameId?: string,
 ): string | null {
   if (!source.trim() || source.length > MAX_VISUAL_SOURCE_CHARS) return null;
   const script = kind === "svg-preview" ? "'none'" : "'unsafe-inline'";
@@ -177,6 +178,27 @@ export function createNoxPreviewDocument(
     "style-src 'unsafe-inline'",
     "script-src " + script,
   ].join("; ");
+  // The frame owns height measurement. Host only accepts bounded size messages
+  // from this exact opaque-origin contentWindow with a per-instance identifier.
+  const autoHeight = kind !== "svg-preview" && frameId && /^[a-z0-9-]{1,80}$/i.test(frameId)
+    ? "<script>" + [
+      "(function(){",
+      "const frameId=" + JSON.stringify(frameId) + ";",
+      "let pending=false;",
+      "function report(){if(pending)return;pending=true;requestAnimationFrame(()=>{pending=false;",
+      "const root=document.documentElement,body=document.body;",
+      "const height=Math.max(root?.scrollHeight||0,body?.scrollHeight||0,",
+      "root?.offsetHeight||0,body?.offsetHeight||0);",
+      "parent.postMessage({kind:'nox-preview-resize',id:frameId,height},'*');",
+      "});}",
+      "const observer=new ResizeObserver(report);",
+      "observer.observe(document.documentElement);",
+      "if(document.body)observer.observe(document.body);",
+      "else document.addEventListener('DOMContentLoaded',()=>{observer.observe(document.body);report()},{once:true});",
+      "window.addEventListener('load',report);window.addEventListener('resize',report);",
+      "report();",
+      "})();",
+    ].join("") + "</script>" : "";
   // JavaScript has no access to the host: it runs only after an explicit click
   // in an opaque-origin iframe with network and parent access denied.
   const safeJs = source.replace(new RegExp("</script", "gi"), "<\\/script");
@@ -196,6 +218,6 @@ export function createNoxPreviewDocument(
     '<meta name="referrer" content="no-referrer">' +
     '<style>*,*::before,*::after{box-sizing:border-box}body{margin:12px;' +
     'font:14px/1.5 system-ui;overflow-wrap:anywhere}img,svg{max-width:100%;height:auto}' +
-    '</style></head><body>' + (kind === "js-preview" ? jsBody : source) +
+    '</style>' + autoHeight + '</head><body>' + (kind === "js-preview" ? jsBody : source) +
     '</body></html>';
 }
