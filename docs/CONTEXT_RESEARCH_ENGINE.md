@@ -69,3 +69,10 @@ The \`/research\` path decomposes a question deterministically into bounded subq
 3. Test 200-turn sessions and verify no loss of program state or edit integrity.
 4. Evaluate retrieval with labelled 20-query single-hop and multi-hop benchmark; tune source caps.
 5. Only then expand to external research tools or semantic embeddings, preserving source permissions.
+
+## Follow-up hardening (2026-10-14)
+
+- Context digests now shrink against actual estimated token pressure, including multilingual UTF-8 text; optional memory cannot bypass the history budget.
+- Local retrieval fingerprints unsaved Markdown editor buffers so a research rerun sees the current document even before Obsidian flushes it to disk.
+- Chunk line anchors follow line breaks for long sections instead of repeating a section's first line. These are source pointers, not semantic citations.
+- These changes require local `pnpm verify` and manual desktop tests before merge; connector-only editing does not imply verification.

@@ -126,9 +126,24 @@ export class ObsidianContext {
       await Promise.all(files.slice(i, i + 8).map(async file => {
         const links = Object.keys(this.app.metadataCache.resolvedLinks?.[file.path] ?? {})
           .filter(path => !options.allowedPaths || options.allowedPaths.includes(path));
-        const revision = file.stat.mtime + ":" + file.stat.size + ":" + links.join(",");
+        // Obsidian editors may hold unsaved buffers while file mtime remains
+        // unchanged. Include the active editor text fingerprint in the revision.
+        const openView = this.app.workspace.getLeavesOfType("markdown")
+          .map(leaf => leaf.view)
+          .find(view => view instanceof MarkdownView && view.file?.path === file.path);
+        const editorText = openView instanceof MarkdownView ? openView.editor.getValue() : undefined;
+        let fingerprint = 2166136261;
+        if (editorText !== undefined) {
+          for (let j = 0; j < editorText.length; j++) {
+            fingerprint ^= editorText.charCodeAt(j);
+            fingerprint = Math.imul(fingerprint, 16777619);
+          }
+        }
+        const revision = file.stat.mtime + ":" + file.stat.size + ":" + links.join(",") +
+          (editorText === undefined ? "" : ":editor:" + editorText.length + ":" + (fingerprint >>> 0));
         if (this.indexedRevisions.get(file.path) === revision) return;
-        const note = await this.loadNote(file.path);
+        const note = editorText === undefined ? await this.loadNote(file.path)
+          : { file: file.path, content: editorText };
         if (!note) return;
         this.researchIndex.upsert({
           path: file.path,
