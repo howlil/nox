@@ -61,11 +61,22 @@ export function parseCodexLine(line: string, state: CodexProtocolState): AgentSt
     if (!isCodexThreadId(event.thread_id) || (state.conversationId && state.conversationId !== event.thread_id)) {
       state.failure = codexFailure("Invalid or mismatched thread identity.", "protocol-invalid");
     } else state.conversationId = event.thread_id;
-  } else if (event.type === "item.updated" || event.type === "item.completed") {
+  } else if (event.type === "item.started" || event.type === "item.updated" || event.type === "item.completed") {
     const item = event.item as Record<string, unknown> | undefined;
     if (!item || typeof item !== "object" || typeof item.type !== "string") {
       state.failure = codexFailure("Invalid assistant item.", "protocol-invalid");
-    } else if (item.type === "agent_message" && item.phase !== "commentary") {
+    } else if (["command_execution", "mcp_tool_call", "web_search", "file_change"].includes(item.type)) {
+      // Metadata only: never expose private commands, outputs, arguments or reasoning.
+      if (typeof item.id === "string" && item.id.length > 0 && item.id.length < 200) {
+        if (event.type === "item.started") return [{
+          type: "tool-started", toolCallId: item.id, name: item.type.replace(/_/g, " "),
+        }];
+        if (event.type === "item.completed") return [{
+          type: "tool-completed", toolCallId: item.id,
+          outcome: item.status === "failed" ? "failed" : "completed",
+        }];
+      }
+    } else if (item.type === "agent_message" && item.phase !== "commentary" && event.type !== "item.started") {
       if (typeof item.id !== "string" || typeof item.text !== "string" ||
           (event.type === "item.completed" && !item.text.trim())) {
         state.failure = codexFailure("Invalid assistant message.", "protocol-invalid");
