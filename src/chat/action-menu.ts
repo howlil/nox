@@ -90,24 +90,26 @@ export function getPrimaryAction(context: ActionMenuContext): ActionMenuEntry {
 }
 
 function scoreAction(item: ActionMenuEntry, query: string): number | null {
-  const command = item.command?.trim().replace(/^\\//, "").toLowerCase() ?? "";
+  const rawCommand = item.command?.trim().toLowerCase() ?? "";
+  const command = rawCommand.startsWith("/") ? rawCommand.slice(1) : rawCommand;
   const name = item.name.toLowerCase();
   if (command.startsWith(query) || name.startsWith(query)) return 0;
 
   // A single character must not match arbitrary text like "s" in "session".
   if (query.length < 2) return null;
-  if (name.split(/\\s+/).some(word => word.startsWith(query))) return 1;
+  if (name.split(" ").some(word => word.startsWith(query))) return 1;
 
   // Keywords are intentional synonyms, never broad matches in descriptions.
   if (query.length >= 3 && item.keywords?.some(word =>
-    word.toLowerCase().split(/\\s+/).some(part => part.startsWith(query)))) return 2;
+    word.toLowerCase().split(" ").some(part => part.startsWith(query)))) return 2;
   if (query.length >= 3 && (command.includes(query) || name.includes(query))) return 3;
   return null;
 }
 
 /** Compact defaults. Search is a command palette, never a fuzzy description index. */
 export function buildActionMenu(context: ActionMenuContext, rawQuery = ""): ActionMenuEntry[] {
-  const query = rawQuery.trim().replace(/^\\//, "").toLowerCase();
+  const raw = rawQuery.trim().toLowerCase();
+  const query = raw.startsWith("/") ? raw.slice(1) : raw;
   const capabilities: ActionMenuEntry[] = NOX_CAPABILITIES.map(item => ({
     key: item.action, name: item.title, description: item.description,
     icon: item.icon, command: item.command,
