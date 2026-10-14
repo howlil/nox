@@ -8,6 +8,8 @@ export interface PracticeQuestion {
   concept: string;
   question: string;
   hint?: string;
+  programId?: string;
+  objectiveId?: string;
 }
 
 export interface PracticeEvaluation {
@@ -17,6 +19,8 @@ export interface PracticeEvaluation {
   feedback: string;
   misconceptions: string[];
   nextQuestion?: string;
+  programId?: string;
+  objectiveId?: string;
 }
 
 export type PracticePayload =
@@ -27,6 +31,9 @@ export interface PracticeTurn {
   id: string;
   concept: string;
   question: string;
+  programId?: string;
+  objectiveId?: string;
+  hint?: string;
   answer?: string;
   evaluation?: PracticeEvaluation;
 }
