@@ -2,7 +2,7 @@ import type { PracticeQuestion, PracticeEvaluation, PracticeOrigin, PracticeAnsw
 import type { ReviewFinding } from "../domain/review/types";
 import type { LearningScopeState } from "../domain/practice/learning-scope";
 import type { ChatMessage } from "../types";
-import type { AgentUsageRecord } from "../agent/token-usage";
+import type { AgentUsageRecord } from "../domain/telemetry/token-usage";
 
 export interface ChatSession {
   id: string;
