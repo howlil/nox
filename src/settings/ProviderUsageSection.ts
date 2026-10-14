@@ -67,15 +67,15 @@ export function mountProviderUsageSection(container:HTMLElement,host:ProviderUsa
           (loading?"Checking provider…":"No supported provider quota snapshot.")});
         continue;
       }
-      if(snapshot.checkedAt) group.createSpan({cls:"nox-credit-updated",
+      if(snapshot.checkedAt) group.createSpan({cls:"nox-quota-updated",
         text:"Last checked "+new Date(snapshot.checkedAt).toLocaleString()});
       if(snapshot.error) group.createEl("p",{cls:"nox-usage-subtitle",text:snapshot.error});
       if(!snapshot.readings.length) group.createEl("p",{cls:"nox-usage-description",
         text:"Provider returned no quota windows."});
       for(const reading of snapshot.readings) {
         const row=group.createDiv({cls:"nox-provider-quota-row"});
-        const title=row.createDiv({cls:"nox-credit-title"});
-        const copy=title.createDiv({cls:"nox-credit-names"});
+        const title=row.createDiv({cls:"nox-quota-title"});
+        const copy=title.createDiv({cls:"nox-quota-names"});
         copy.createEl("strong",{text:reading.label});
         copy.createSpan({cls:"nox-usage-subtitle",
           text:reading.model ? "Model-specific: "+reading.model : "Shared pool / window"});
@@ -83,19 +83,19 @@ export function mountProviderUsageSection(container:HTMLElement,host:ProviderUsa
           const value=Math.max(0,Math.min(100,reading.remainingPercent));
           title.createEl("strong",{cls:"nox-provider-quota-percent",
             text:Math.floor(value)+"% left"});
-          const progress=row.createDiv({cls:"nox-credit-progress",attr:{
+          const progress=row.createDiv({cls:"nox-quota-progress",attr:{
             role:"progressbar","aria-label":reading.label+" remaining",
             "aria-valuemin":"0","aria-valuemax":"100",
             "aria-valuenow":String(Math.floor(value)),
           }});
-          const fill=progress.createDiv({cls:"nox-credit-progress-fill"});
+          const fill=progress.createDiv({cls:"nox-quota-progress-fill"});
           fill.style.width=value+"%";
           fill.toggleClass("is-low",value<=15);
           fill.toggleClass("is-warning",value>15&&value<=35);
         }
-        if(reading.amount!==undefined)row.createEl("p",{cls:"nox-credit-values",
+        if(reading.amount!==undefined)row.createEl("p",{cls:"nox-quota-values",
           text:"Provider-reported balance: "+reading.amount});
-        if(reading.resetAt)row.createSpan({cls:"nox-credit-updated",
+        if(reading.resetAt)row.createSpan({cls:"nox-quota-updated",
           text:"Resets "+new Date(reading.resetAt).toLocaleString()});
       }
     }
