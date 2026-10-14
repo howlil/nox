@@ -1,3 +1,17 @@
+export interface RubricResult {
+  criterion: string;
+  met: boolean;
+  evidence: string;
+}
+export function isRubricResults(value: unknown): value is RubricResult[] {
+  return Array.isArray(value) && value.length <= 20 && value.every(item => {
+    if (!item || typeof item !== "object") return false;
+    const r = item as Record<string, unknown>;
+    return typeof r.criterion === "string" && r.criterion.trim().length > 0 &&
+      typeof r.met === "boolean" && typeof r.evidence === "string";
+  });
+}
+
 export interface PracticeOrigin {
   file: string;
   selectedText?: string;
@@ -20,7 +34,7 @@ export interface PracticeEvaluation {
   misconceptions: string[];
   nextQuestion?: string;
   assisted?: boolean;
-  rubricResults?: Array<{ criterion: string; met: boolean; evidence: string }>;
+  rubricResults?: RubricResult[];
   programId?: string;
   objectiveId?: string;
 }
