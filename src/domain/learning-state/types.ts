@@ -4,6 +4,8 @@ export interface KnowledgeGap {
   reason: string;
   evidenceIds: string[];
   status: "open" | "improving" | "resolved";
+  programId?: string;
+  objectiveId?: string;
 }
 
 export interface LearningEvidence {
@@ -18,6 +20,7 @@ export interface LearningEvidence {
   programId?: string;
   objectiveId?: string;
   assisted?: boolean;
+  rubricResults?: Array<{ criterion: string; met: boolean; evidence: string }>;
 }
 
 export interface LearningState {
