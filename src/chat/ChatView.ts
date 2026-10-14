@@ -1,3 +1,4 @@
+import { OnboardingFlow } from "./onboarding-flow";
 import {
   ItemView,
   Notice,
@@ -1949,6 +1950,28 @@ export class ChatView extends ItemView {
 
     const slate = this.thread.createDiv({
       cls: "nox-empty-slate",
+    });
+    // First-run welcome uses the same sidebar, header and composer.
+    // A damaged program index must NOT be treated as an empty vault.
+    void this.learning.getOnboardingContext().then(state => {
+      if (!slate.isConnected || state.hasProgram || state.dismissed ||
+          this.learning.getSession().messages.length > 0) return;
+      new OnboardingFlow(slate, this.learning, {
+        onSkip: () => {
+          void this.learning.dismissOnboarding().then(() => this.showEmpty())
+            .catch(error => this.appendInlineStatus(this.thread, "failed",
+              error instanceof Error ? error.message : "Could not save onboarding choice."));
+        },
+        onCreated: () => {
+          this.showEmpty();
+        },
+        onStart: () => {
+          this.input.value = "/start-session";
+          void this.doSend();
+        },
+      }, state.draft);
+    }).catch(error => {
+      console.warn("[Nox] Onboarding detection failed", error);
     });
 
     this.renderEmptyContext(slate);

@@ -14,6 +14,7 @@ export interface LearningControllerOptions {
   turnTimeoutMs?: number;
   programStore?: ProgramStorePort;
   workspaceWriter?: WorkspaceWriterPort;
+  onboardingState?: import("./ports").OnboardingStatePort;
 }
 
 /**
@@ -33,6 +34,7 @@ export class LearningController {
   private readonly applyingProposals = new Set<string>();
   private configuringRuntime = false;
   private readonly workspaceWriter?: WorkspaceWriterPort;
+  private readonly onboardingState?: import("./ports").OnboardingStatePort;
   // Short-lived receipt: editor mutation succeeded, but the durable applied
   // status has not been confirmed. Never use this as a session state authority.
   private readonly appliedButUnsynced = new Map<string, string>();
@@ -55,6 +57,7 @@ export class LearningController {
   ) {
     this.turns = new RunLearningTurn(sessions, runtime, contexts, policies, learningState, options);
     this.workspaceWriter = options.workspaceWriter;
+    this.onboardingState = options.onboardingState;
   }
 
   checkRuntime(): Promise<AgentHealth> {
@@ -102,10 +105,21 @@ export class LearningController {
   }
 
 
-  async getOnboardingContext(): Promise<{ hasProgram: boolean; activeNote?: string }> {
+  async getOnboardingContext(): Promise<{ hasProgram: boolean; activeNote?: string; dismissed: boolean;
+    draft?: import("../domain/onboarding/types").OnboardingDraft }> {
     const programs = await this.getProgramMenuState();
     const context = await this.contexts.resolve();
-    return { hasProgram: programs.programs.length > 0, activeNote: context.activeNote?.path };
+    const state = await this.onboardingState?.load();
+    return { hasProgram: programs.programs.length > 0, activeNote: context.activeNote?.path,
+      dismissed: state?.dismissed ?? false, draft: state?.draft };
+  }
+
+  async saveOnboardingDraft(draft: import("../domain/onboarding/types").OnboardingDraft): Promise<void> {
+    await this.onboardingState?.saveDraft(draft);
+  }
+
+  async dismissOnboarding(): Promise<void> {
+    await this.onboardingState?.dismiss();
   }
 
   async discoverLearningDirections(interests: string[], purpose: string) {

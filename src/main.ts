@@ -16,6 +16,7 @@ import { MutationService } from "./mutation/MutationService";
 import { VaultLearningStore } from "./persistence/VaultLearningStore";
 import { VaultProgramStore } from "./persistence/VaultProgramStore";
 import { VaultWorkspaceWriter } from "./persistence/VaultWorkspaceWriter";
+import { OnboardingStateRepository } from "./persistence/OnboardingStateRepository";
 import { LearningProgramOrchestrator } from "./application/LearningProgramOrchestrator";
 import { PluginDataRepository } from "./persistence/PluginDataRepository";
 import { TokenUsageRepository } from "./persistence/TokenUsageRepository";
@@ -112,7 +113,7 @@ export default class NoxPlugin extends Plugin {
       policies,
       mutations,
       learningState,
-      { programStore, workspaceWriter },
+      { programStore, workspaceWriter, onboardingState: new OnboardingStateRepository(this.pluginData) },
       programs,
     );
 

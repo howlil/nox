@@ -7,6 +7,11 @@ import type { LearningScopeState } from "../domain/practice/learning-scope";
 import type { PracticeAnswer } from "../domain/practice/types";
 import type { ProgramCollection } from "../domain/learning-program/types";
 
+export interface OnboardingStatePort {
+  load(): Promise<{ dismissed?: boolean; draft?: import("../domain/onboarding/types").OnboardingDraft }>;
+  saveDraft(draft: import("../domain/onboarding/types").OnboardingDraft): Promise<void>;
+  dismiss(): Promise<void>;
+}
 export interface WorkspaceWriterPort {
   ensure(program: import("../domain/learning-program/types").LearningProgram): Promise<void>;
 }
