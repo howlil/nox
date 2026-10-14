@@ -1310,6 +1310,13 @@ export class ChatView extends ItemView {
   }
 
   private onKey(event: KeyboardEvent): void {
+    // Unknown slash queries are searches, not messages to dispatch to an agent.
+    if (this.promptMenu === "command" && this.promptMenuState.rowCount === 0 &&
+        parsePromptToken(this.input.value)?.kind === "command" &&
+        (event.key === "Enter" && !event.shiftKey || event.key === "Tab")) {
+      event.preventDefault();
+      return;
+    }
     if (this.promptMenu && this.promptMenuState.rowCount > 0) {
       if (event.key === "ArrowDown" || event.key === "ArrowUp") {
         event.preventDefault();
