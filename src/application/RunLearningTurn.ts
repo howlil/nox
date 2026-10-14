@@ -451,18 +451,23 @@ export class RunLearningTurn {
         ? program.objectives.find(item => item.id === practiceAttempt.objectiveId)
         : objective;
       if (activeObjective) {
+        const lastEvidence = state.evidence.filter(item => item.scope === "learner" &&
+          item.programId === program.id && item.objectiveId === activeObjective.id).slice(-1)[0];
+        const missed = lastEvidence?.rubricResults?.filter(result => !result.met).map(result => result.criterion) ?? [];
         preparedPrompt += [
           "\n\nLEARNING PROGRAM CONTRACT (set by the application, not user-provided notes):",
           `Program ID: ${program.id}. Goal: ${program.goal}`,
           `Objective ID: ${activeObjective.id}. Outcome: ${activeObjective.outcome}`,
           `Required rubric: ${JSON.stringify(activeObjective.rubric)}`,
           `Activity: ${practiceAttempt ? "evaluate current answer" : decision?.kind}`,
+          `Previously failed rubric criteria: ${JSON.stringify(missed)}. If remedial practice, target these first.`,
           `Source constraint: ${program.constraints.sourceBound
             ? "Only the explicitly selected source note(s), do not claim external facts were verified."
             : "Use provided material where available and distinguish assumptions."}`,
           "Evaluate the specific objective only. Do not change topics or declare mastery.",
           "When generating, ask exactly one question and avoid revealing its answer.",
           "When evaluating, give specific rubric feedback and no follow-up nextQuestion; the application chooses the next objective.",
+          "Include rubricResults as [{criterion: exact criterion from the rubric, met: boolean, evidence: supporting text from the answer}].",
         ].join("\n");
       }
     }
@@ -678,7 +683,7 @@ export class RunLearningTurn {
           // Never leave a durable or visible unanswered question after failure.
           if (practiceBuffer.question) {
             practiceBuffer.question = program && objective
-              ? { ...practiceBuffer.question, programId: program.id, objectiveId: objective.id }
+              ? { ...practiceBuffer.question, concept: objective.title, programId: program.id, objectiveId: objective.id }
               : { ...practiceBuffer.question, programId: undefined, objectiveId: undefined };
             const questionId = crypto.randomUUID();
             await this.sessions.recordStructuredPart(
@@ -693,6 +698,10 @@ export class RunLearningTurn {
           }
 
           if (practiceAttempt && practiceBuffer.evaluation) {
+            if (practiceAttempt.programId && practiceBuffer.evaluation.outcome === "correct" &&
+                practiceBuffer.evaluation.rubricResults?.some(result => !result.met)) {
+              throw new InvalidLearningOutputError("Evaluation marked correct despite a failed rubric criterion.");
+            }
             const evaluation = practiceAttempt.programId
               ? { ...practiceBuffer.evaluation, programId: practiceAttempt.programId,
                   objectiveId: practiceAttempt.objectiveId, nextQuestion: undefined,
