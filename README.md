@@ -123,6 +123,16 @@ Restart Obsidian after changing environment variables. On Windows, a native
 `codex.exe` is required; common npm shims are resolved to their bundled native
 binary, or you can configure that absolute path directly.
 
+## Legacy migration and deployable entrypoint
+
+Nox deploys **only** `dist/main.js`. The obsolete root-level generated
+`main.js` is no longer tracked. `pnpm verify` rejects accidental root bundles.
+
+Existing `agy-sessions` history is migrated to `nox-sessions` after a fully
+decodable session restore. The migration preserves unrelated plugin settings
+and retains the original data if the storage write fails. Historical backend
+mode commands remain supported for existing sessions.
+
 ## Actions menu and welcome screen
 
 The slash menu is deliberately small. Open **Actions** without a query to see

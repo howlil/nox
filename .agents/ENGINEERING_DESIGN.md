@@ -77,6 +77,24 @@ GUI lifecycle behavior, which still require manual Obsidian verification.
 
 ---
 
+## Legacy cleanup and hint persistence — 2026-10-14
+
+The tracked root `main.js` artifact is retired. Only `dist/main.js` is a
+deployable entrypoint; verification fails if the obsolete root bundle returns.
+The unused `SessionController.recordProposal` entrypoint is removed; edit
+decisions use the already-atomic `recordEditOutcome` path.
+
+On startup, fully decoded `agy-sessions` data with a valid selected session is
+promoted atomically into `nox-sessions` through the existing serialized plugin
+data writer. The old key is deleted only by the successful write; failed writes
+leave the legacy input intact. Invalid legacy data is preserved for recovery.
+Existing canonical data continues to take precedence and is not overwritten.
+
+A Practice hint now persists its user intent and assistant hint in one serialized
+session transaction via `SessionController.recordPracticeHint`. Only after
+persistence succeeds does `RunLearningTurn` mark the attempt assisted. A failed
+write cannot publish half a hint or mutate evidence eligibility.
+
 ## Backend scope enforcement — 2026-10-14
 
 `domain/practice/learning-scope.ts` owns mode transitions and command meaning.

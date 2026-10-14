@@ -30,6 +30,120 @@ function createController(
   );
 }
 
+
+test("migrates decodable legacy session history atomically and only once", async () => {
+  const initial: Record<string, unknown> = {
+    "agy-sessions": {
+      currentSessionId: "historic",
+      defaultModel: "old-model",
+      sessions: {
+        historic: {
+          id: "historic",
+          messages: [{ role: "user", content: "Keep this history" }],
+          createdAt: 1, updatedAt: 2,
+        },
+      },
+    },
+    "nox-settings": { provider: "agy" },
+  };
+  const harness = pluginHarness(structuredClone(initial));
+  const controller = createController(harness);
+  await controller.init();
+  assert.equal(controller.getSession().id, "historic");
+  assert.equal(controller.getSession().messages[0]?.content, "Keep this history");
+  assert.equal(harness.getData()?.["agy-sessions"], undefined);
+  assert.ok(harness.getData()?.["nox-sessions"]);
+  assert.deepEqual(harness.getData()?.["nox-settings"], initial["nox-settings"]);
+
+  const snapshot = structuredClone(harness.getData());
+  const restored = createController(harness);
+  await restored.init();
+  assert.deepEqual(harness.getData(), snapshot);
+  assert.deepEqual(restored.getSession().messages, controller.getSession().messages);
+});
+
+test("failed migration preserves legacy data and succeeds on next initialization", async () => {
+  const initial: Record<string, unknown> = {
+    "agy-sessions": {
+      currentSessionId: "history",
+      sessions: {
+        history: { id: "history", messages: [{ role: "user", content: "Important" }],
+          createdAt: 1, updatedAt: 2 },
+      },
+    },
+  };
+  let durable: Record<string, unknown> = structuredClone(initial);
+  let failSave = true;
+  const plugin = {
+    loadData: async () => structuredClone(durable),
+    saveData: async (next: Record<string, unknown>) => {
+      if (failSave) throw new Error("disk unavailable");
+      durable = structuredClone(next);
+    },
+  };
+  const create = () => new SessionController(new PluginDataRepository(plugin as never),
+    new SessionStore({ now: () => 5, uuid: () => "fresh" }));
+  const first = create();
+  await assert.rejects(first.init(), /Unable to migrate legacy Nox sessions/);
+  assert.deepEqual(durable, initial);
+  assert.throws(() => first.getSession(), /not initialized/);
+
+  failSave = false;
+  const recovered = create();
+  await recovered.init();
+  assert.equal(recovered.getSession().id, "history");
+  assert.equal(durable["agy-sessions"], undefined);
+  assert.ok(durable["nox-sessions"]);
+});
+
+test("does not delete undecodable legacy history", async () => {
+  const raw: Record<string, unknown> = {
+    "agy-sessions": {
+      currentSessionId: "damaged",
+      sessions: {
+        damaged: { id: "damaged", messages: "corrupt", createdAt: 1, updatedAt: 2 },
+      },
+    },
+  };
+  const harness = pluginHarness(structuredClone(raw));
+  await createController(harness).init();
+  assert.deepEqual(harness.getData(), raw);
+});
+
+test("practice hint messages are committed as one snapshot or not at all", async () => {
+  let data: Record<string, unknown> | null = null;
+  let failSave = false;
+  const plugin = {
+    loadData: async () => data ? structuredClone(data) : null,
+    saveData: async (next: Record<string, unknown>) => {
+      if (failSave) throw new Error("disk unavailable");
+      data = structuredClone(next);
+    },
+  };
+  const controller = new SessionController(new PluginDataRepository(plugin as never),
+    new SessionStore({ now: () => 1, uuid: () => "s" }));
+  await controller.init();
+  await controller.recordStructuredPart({
+    type: "practice-question", questionId: "q", question: {
+      kind: "question", concept: "HTTP", question: "Define idempotency", hint: "Think about retries",
+    },
+  });
+  const prior = controller.getSession();
+  const durablePrior = structuredClone(data);
+  failSave = true;
+  await assert.rejects(controller.recordPracticeHint("Think about retries", "s"));
+  assert.deepEqual(controller.getSession(), prior);
+  assert.deepEqual(data, durablePrior);
+  failSave = false;
+  await controller.recordPracticeHint("Think about retries", "s");
+  assert.deepEqual(controller.getSession().messages.slice(-2).map(item => item.content),
+    ["/hint", "Hint: Think about retries"]);
+  const restored = new SessionStore();
+  await restored.load(data);
+  assert.deepEqual(restored.getSession("s")?.messages.slice(-2).map(item => item.content),
+    ["/hint", "Hint: Think about retries"]);
+});
+
 test("initializes a conversation without depending on runtime availability", async () => {
   const harness = pluginHarness();
   const controller = createController(harness);
@@ -190,15 +304,11 @@ test("leaving a session makes its pending proposals stale", async () => {
 
   await controller.init();
   const firstId = controller.getSession().id;
-  await controller.recordProposal(
-    "proposal-1",
-    {
+  await controller.recordEditOutcome("proposal-1", {
       file: "note.md",
       original: "before",
       replacement: "after",
-    },
-    "note.md",
-  );
+    }, "", "note.md", controller.getSession().id);
 
   assert.deepEqual(controller.getProposal("proposal-1"), {
     proposal: {
@@ -249,9 +359,9 @@ test("public getters cannot mutate canonical proposal history", async () => {
   const h = pluginHarness();
   const controller = createController(h);
   await controller.init();
-  await controller.recordProposal("proposal", {
+  await controller.recordEditOutcome("proposal", {
     file: "note.md", original: "old", replacement: "new",
-  }, "note.md");
+  }, "", "note.md", controller.getSession().id);
   const session = controller.getSession();
   session.messages[0]!.proposal!.replacement = "injected";
   session.messages[0]!.proposalState = "applied";
@@ -552,9 +662,9 @@ test("failed ordinary session writes do not publish unsaved messages, model or c
   await assert.rejects(controller.recordAssistantMessage("not committed"));
   await assert.rejects(controller.setConversationId("wrong-thread"));
   await assert.rejects(controller.setModel("wrong-model"));
-  await assert.rejects(controller.recordProposal("unsaved", {
+  await assert.rejects(controller.recordEditOutcome("unsaved", {
     file: "note.md", original: "old", replacement: "new",
-  }, "note.md"));
+  }, "", "note.md", controller.getSession().id));
   assert.deepEqual(controller.getSession(), before);
   assert.deepEqual(persisted, savedBefore);
   assert.equal(controller.getProposal("unsaved"), null);
@@ -582,9 +692,9 @@ test("failed session creation and selection preserve current session and pending
   );
   await controller.init();
   const first = controller.getSession().id;
-  await controller.recordProposal("first-proposal", {
+  await controller.recordEditOutcome("first-proposal", {
     file: "note.md", original: "old", replacement: "new",
-  }, "note.md");
+  }, "", "note.md", controller.getSession().id);
 
   fail = true;
   await assert.rejects(controller.newSession());
@@ -594,9 +704,9 @@ test("failed session creation and selection preserve current session and pending
 
   fail = false;
   const second = await controller.newSession();
-  await controller.recordProposal("second-proposal", {
+  await controller.recordEditOutcome("second-proposal", {
     file: "other.md", original: "before", replacement: "after",
-  }, "other.md");
+  }, "", "other.md", controller.getSession().id);
 
   fail = true;
   await assert.rejects(controller.selectSession(first));
@@ -617,9 +727,9 @@ test("proposal updates can target their originating conversation explicitly", as
   await controller.init();
   const first = controller.getSession().id;
   const second = await controller.newSession();
-  await controller.recordProposal("late-proposal", {
+  await controller.recordEditOutcome("late-proposal", {
     file: "note.md", original: "old", replacement: "new",
-  }, "note.md", first);
+  }, "", "note.md", first);
   await controller.updateProposalState("late-proposal", "applied", first);
   assert.equal(controller.getSession().id, second.id);
   assert.equal(controller.getProposal("late-proposal"), null);
