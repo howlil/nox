@@ -1,11 +1,10 @@
 import { App, Notice, PluginSettingTab, Setting } from "obsidian";
 import type { NoxSettings } from "./NoxSettings";
-import type { ChatGptConnection } from "../agent/ChatGptAuth";
 
 export interface NoxSettingsHost {
   getSettings(): NoxSettings;
   updateSettings(next: Partial<NoxSettings>): Promise<void>;
-  getChatGPTConnection(): ChatGptConnection;
+  getChatGPTConnection(): { connected: boolean; sharing: boolean; email?: string; description: string };
   connectChatGPT(): Promise<void>;
   disconnectChatGPT(): Promise<void>;
 }
