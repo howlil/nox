@@ -84,6 +84,12 @@ export class PracticeStateMachine {
     });
   }
 
+  /** Reading an available hint must not mutate evidence eligibility. */
+  peekHint(): string | undefined {
+    const current = this.session?.turns[this.session.turns.length - 1];
+    return this.isWaitingForAnswer() ? current?.hint : undefined;
+  }
+
   markHintUsed(): string | undefined {
     const current = this.session?.turns[this.session.turns.length - 1];
     if (!current || !this.isWaitingForAnswer()) return undefined;
