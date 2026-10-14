@@ -66,3 +66,17 @@ test("unowned preexisting note causes conflict without overwrite", async () => {
   await assert.rejects(writer.ensure(program), /collision/);
   assert.equal(vault.files.get(p), "Someone else's note");
 });
+
+test("objective notes materialize on demand without overwriting learner notes", async () => {
+  const vault = new FakeVault();
+  const writer = new VaultWorkspaceWriter({ vault } as never);
+  await writer.ensure(program);
+  const before = vault.files.size;
+  await writer.ensureObjective(program, "greetings");
+  assert.equal(vault.files.size, before + 1);
+  const lesson = planWorkspace(program).root + "/Lessons/greetings.md";
+  assert.match(vault.files.get(lesson)!, /Learning outcome/);
+  vault.files.set(lesson, vault.files.get(lesson)! + "\nUser notes");
+  await writer.ensureObjective(program, "greetings");
+  assert.match(vault.files.get(lesson)!, /User notes/);
+});

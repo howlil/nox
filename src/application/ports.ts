@@ -13,6 +13,7 @@ export interface OnboardingStatePort {
   dismiss(): Promise<void>;
 }
 export interface WorkspaceWriterPort {
+  ensureObjective?(program: import("../domain/learning-program/types").LearningProgram, objectiveId: string): Promise<void>;
   ensure(program: import("../domain/learning-program/types").LearningProgram): Promise<void>;
 }
 export interface ProgramStorePort {

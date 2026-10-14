@@ -442,6 +442,15 @@ export class LearningController {
             const selected = await this.programs.getDecision();
             if (selected?.program?.session && selected.decision.objective) {
               await this.programs.focusObjective(selected.decision.objective.id);
+              if (selected.program.workspaceApproved) {
+                try {
+                  await this.workspaceWriter?.ensureObjective?.(
+                    selected.program, selected.decision.objective.id);
+                } catch (error) {
+                  // Materialization is ancillary; a filesystem conflict must not lose learning progress.
+                  console.warn("[Nox] Lesson outline could not be materialized", error);
+                }
+              }
             }
             if (selected?.program && !selected.program.session) {
               response = "Start a timeboxed session first with /start-session.";
