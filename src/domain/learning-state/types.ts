@@ -14,6 +14,10 @@ export interface LearningEvidence {
   source: string;
   outcome?: string;
   createdAt: number;
+  /** Stable program/objective identity prevents concept-name collisions across curricula. */
+  programId?: string;
+  objectiveId?: string;
+  assisted?: boolean;
 }
 
 export interface LearningState {
