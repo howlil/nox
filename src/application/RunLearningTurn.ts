@@ -22,7 +22,9 @@ import {
   buildActionInstruction,
   buildPracticeEvaluationInstruction,
   buildPracticeQuestionInstruction,
+  buildScopedPracticeInstruction,
 } from "./action-builders";
+import { isLockedLearningMode, parseScopeCommand, scopeDeflection, transitionLearningScope } from "../domain/practice/learning-scope";
 import { toPromptLearningState } from "./learning-state-projection";
 import {
   LearningEvent,
@@ -84,14 +86,16 @@ export class RunLearningTurn {
 
   /** Reconstruct the active question from the same durable conversation transcript. */
   private practiceForSession(session: ChatSession): PracticeStateMachine {
-    const practice = this.practices.forSession(session.id);
+    const scoped = isLockedLearningMode(session.learningScope?.mode);
+    const practice = this.practices.forSession(scoped ? `${session.id}:backend` : session.id);
     if (practice.snapshot()) return practice;
     for (let i = session.messages.length - 1; i >= 0; i--) {
       const message = session.messages[i];
-      if (message.role === "user" && message.action && message.action !== "practice") break;
+      if (!scoped && message.role === "user" && message.action && message.action !== "practice") break;
       const parts = message.parts ?? [];
       for (let j = parts.length - 1; j >= 0; j--) {
         const part = parts[j];
+        if (part.type === "review-findings" || (part.scope === "backend") !== scoped) continue;
         if (part.type === "practice-evaluation") return practice;
         if (part.type === "practice-question") {
           practice.start(part.origin);
@@ -139,6 +143,60 @@ export class RunLearningTurn {
     this.activeTurn = activeTurn;
 
     const sessionAtStart = this.sessions.getSession();
+    const scopeCommand = parseScopeCommand(request.prompt);
+    if (scopeCommand) {
+      try {
+        const next = transitionLearningScope(sessionAtStart.learningScope, scopeCommand);
+        const unavailableResume = scopeCommand === "resume" && next.mode === "FREE" && !next.resumeMode;
+        const question = this.practiceForSession({ ...sessionAtStart, learningScope: next }).snapshot()?.currentQuestion;
+        const reply = scopeCommand === "invalid"
+          ? "Gunakan /mode assessment, /mode focused, /pause, /mode free, atau /resume."
+          : unavailableResume ? "Tidak ada mode backend yang dijeda. Gunakan /mode assessment atau /mode focused."
+          : next.mode === "FREE"
+            ? (next.resumeMode ? "Mode bebas. Pertanyaan backend disimpan; ketik /resume untuk melanjutkan."
+              : "Mode bebas. Ketik /mode assessment atau /mode focused untuk belajar backend.")
+            : `MODE: ${next.mode} · backend. ${question ? `Kembali ke pertanyaan: ${question}`
+              : "Kirim 'mulai' untuk pertanyaan backend pertama."} Ketik /pause untuk diskusi bebas.`;
+        if (scopeCommand === "invalid" || unavailableResume) {
+          if (!request.retry) await this.sessions.recordUserMessage(request.prompt, sessionAtStart.id);
+          await this.sessions.recordAssistantMessage(reply, undefined, sessionAtStart.id);
+        } else {
+          await this.sessions.recordScopeChange(next, request.prompt, reply, sessionAtStart.id);
+          // An explicit mode transition exits ordinary Practice. The backend
+          // machine remains derived from its separately marked transcript parts.
+          this.practices.reset(sessionAtStart.id);
+        }
+        yield { type: "response-delta", text: reply };
+        yield { type: "completed" };
+      } catch (error) {
+        yield { type: "failed", failure: { code: "persistence-failed",
+          message: "Nox could not save the learning mode. The previous mode is still active.",
+          diagnostic: error instanceof Error ? error.message : String(error) } };
+      } finally {
+        if (this.activeTurn === activeTurn) this.activeTurn = null;
+      }
+      return;
+    }
+    const mode = sessionAtStart.learningScope?.mode;
+    const lockedMode = isLockedLearningMode(mode) ? mode : undefined;
+    if (lockedMode) {
+      // All callers, including cards and selection shortcuts, obey the same lock.
+      if (request.action === "edit" || request.action === "review") {
+        try {
+          const reply = scopeDeflection(this.practiceForSession(sessionAtStart).snapshot()?.currentQuestion);
+          if (!request.retry) await this.sessions.recordUserMessage(request.prompt, sessionAtStart.id, "practice");
+          await this.sessions.recordAssistantMessage(reply, undefined, sessionAtStart.id);
+          yield { type: "response-delta", text: reply };
+          yield { type: "completed" };
+        } catch {
+          yield { type: "failed", failure: { code: "persistence-failed", message: "Nox could not save this response. Retry after checking storage." } };
+        } finally {
+          if (this.activeTurn === activeTurn) this.activeTurn = null;
+        }
+        return;
+      }
+      request = { ...request, action: "practice", sourcePath: undefined };
+    }
     const editProposalId = request.action === "edit"
       ? `edit:${sessionAtStart.id}:${request.turnId ?? crypto.randomUUID()}`
       : undefined;
@@ -345,7 +403,11 @@ export class RunLearningTurn {
         `${instruction}\n\nUser request:\n${request.prompt}`;
     }
 
+    if (lockedMode) {
+      preparedPrompt = buildScopedPracticeInstruction(lockedMode, preparedPrompt, Boolean(practiceAttempt));
+    }
     const parser = new StructuredStreamParser();
+    const scopedEvents: StructuredStreamEvent[] = [];
 
     const timeout = setTimeout(() => {
       activeTurn.cancelReason = "timeout";
@@ -434,12 +496,17 @@ export class RunLearningTurn {
         },
         {
           model: conversation.model,
-          conversationId: conversation.conversationId,
+          conversationId: lockedMode ? undefined : conversation.conversationId,
         },
         controller.signal,
       )) {
         if (event.type === "text") {
           executionPhase = "processing";
+          if (lockedMode) {
+            scopedEvents.push(...parser.push(event.content));
+            executionPhase = "agent";
+            continue;
+          }
           for await (const mapped of this.mapStructuredEvents(
             parser.push(event.content),
             request,
@@ -458,12 +525,56 @@ export class RunLearningTurn {
 
         if (event.type === "completed") {
           executionPhase = "processing";
-          if (event.conversationId) {
+          if (event.conversationId && !lockedMode) {
             await this.sessions.setConversationId(event.conversationId, turnSessionId);
           }
 
+          let completedEvents = parser.finish();
+          if (lockedMode) {
+            scopedEvents.push(...completedEvents);
+            if (controller.signal.aborted) {
+              rollbackPractice();
+              if (activeTurn.cancelReason === "timeout") {
+                yield { type: "failed", failure: { code: "timeout", message: "Nox turn timed out before scope validation." } };
+              } else yield { type: "cancelled" };
+              return;
+            }
+            const decisions = scopedEvents.filter((item) => item.type === "scope-decision");
+            const invalid = scopedEvents.some((item) => item.type === "error");
+            if (invalid || decisions.length !== 1) {
+              rollbackPractice();
+              yield { type: "failed", failure: { code: "protocol-invalid",
+                message: "Nox could not validate the response scope. The active question is unchanged; retry." } };
+              return;
+            }
+            const decision = decisions[0];
+            if (decision.outcome === "out-of-scope" || decision.outcome === "help") {
+              rollbackPractice();
+              let reply = scopeDeflection(practiceAttempt?.question);
+              if (decision.outcome === "help") {
+                const text = scopedEvents.filter((item) => item.type === "text").map((item) => item.text).join("").trim();
+                if (!practiceAttempt || !text || text.length > 1200 || scopedEvents.some((item) =>
+                  item.type !== "text" && item.type !== "scope-decision")) {
+                  yield { type: "failed", failure: { code: "protocol-invalid", message: "Nox returned invalid practice help. The question is unchanged; retry." } };
+                  return;
+                }
+                reply = `${text}\n\nKembali ke pertanyaan: ${practiceAttempt.question}`;
+              }
+              await this.sessions.recordAssistantMessage(reply, snapshot.mutableFile, turnSessionId);
+              yield { type: "response-delta", text: reply };
+              yield { type: "completed" };
+              return;
+            }
+            completedEvents = scopedEvents.filter((item) => item.type !== "text" && item.type !== "scope-decision");
+            const expected = practiceAttempt ? "practice-evaluation" : "practice-question";
+            if (completedEvents.length !== 1 || completedEvents[0].type !== expected) {
+              rollbackPractice();
+              yield { type: "failed", failure: { code: "protocol-invalid", message: "Nox returned an invalid scoped practice result. Retry the same question." } };
+              return;
+            }
+          }
           for await (const mapped of this.mapStructuredEvents(
-            parser.finish(),
+            completedEvents,
             request,
             snapshot,
             reviewBuffer,
@@ -495,7 +606,8 @@ export class RunLearningTurn {
             const questionId = crypto.randomUUID();
             await this.sessions.recordStructuredPart(
               { type: "practice-question", question: practiceBuffer.question,
-                questionId, origin: practice.snapshot()?.origin },
+                questionId, origin: practice.snapshot()?.origin,
+                ...(lockedMode ? { scope: "backend" as const } : {}) },
               snapshot.mutableFile,
               turnSessionId,
             );
@@ -510,6 +622,7 @@ export class RunLearningTurn {
               turnSessionId,
               practice,
               practiceAttempt,
+              Boolean(lockedMode),
             )) {
               persistMappedEvent(mapped);
               yield mapped;
@@ -689,6 +802,7 @@ export class RunLearningTurn {
     sessionId: string,
     practice: PracticeStateMachine,
     practiceAttempt: PracticeEvaluationAttempt,
+    scoped = false,
   ): AsyncIterable<LearningEvent> {
         const source =
           practiceAttempt.origin?.file ??
@@ -705,10 +819,12 @@ export class RunLearningTurn {
         const parts: TranscriptPart[] = [
           { type: "practice-evaluation", evaluation: evaluation,
             questionId: practiceAttempt.questionId, operationId,
-            nextQuestionId: nextId, sourcePath: source },
+            nextQuestionId: nextId, sourcePath: source,
+            ...(scoped ? { scope: "backend" as const } : {}) },
           ...(nextQuestion ? [{
             type: "practice-question" as const, question: nextQuestion,
             questionId: nextId, origin: practice.snapshot()?.origin,
+            ...(scoped ? { scope: "backend" as const } : {}),
           }] : []),
         ];
         const committed = await this.sessions.recordPracticeOutcome(
@@ -750,6 +866,9 @@ export class RunLearningTurn {
     practiceAttempt?: PracticeEvaluationAttempt,
   ): AsyncIterable<LearningEvent> {
     for (const event of events) {
+      if (event.type === "scope-decision") {
+        throw new Error("Unexpected scope decision outside a locked learning mode.");
+      }
       if (event.type === "text") {
         if (event.text) {
           yield {

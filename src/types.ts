@@ -1,4 +1,5 @@
 import type { TranscriptPart } from "./session/transcript-types";
+export type { ChatSession } from "./session/transcript-types";
 
 // Shared transport/session types.
 
@@ -83,15 +84,6 @@ export interface ChatMessage {
   proposalState?: "pending" | "applied" | "rejected" | "stale";
 }
 
-export interface ChatSession {
-  id: string;
-  conversationId?: string;
-  model?: string;
-  messages: ChatMessage[];
-  createdAt: number;
-  updatedAt: number;
-}
-
 export interface AgentModel {
   id: string;
   name: string;
@@ -108,7 +100,7 @@ export interface AgentAdapter {
     signal: AbortSignal,
   ): AsyncIterable<AgentStreamEvent>;
 
-  listModels(): Promise<AgentModel[]>;
+  listModels(signal?: AbortSignal): Promise<AgentModel[]>;
 
 }
 

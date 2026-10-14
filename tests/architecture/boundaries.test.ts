@@ -59,3 +59,9 @@ test("chat owns presentation helpers without another ui layer", () => {
     ...files, { path: "src/ui/another-popover.ts", source: "" },
   ]).some((message) => message.includes("unrecognized module owner")));
 });
+
+test("only concrete runtime adapters may own provider process I/O", () => {
+  assert.deepEqual(validateArchitecture([{ path: "src/agent/CodexAdapter.ts", source: 'import { spawn } from "child_process";' }]), []);
+  assert.ok(validateArchitecture([{ path: "src/agent/CodexProtocol.ts", source: 'import { spawn } from "child_process";' }])
+    .some((message) => message.includes("provider/process I/O")));
+});

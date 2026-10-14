@@ -39,6 +39,63 @@ test("initializes a conversation without depending on runtime availability", asy
   assert.equal(controller.getSession().id, "session-1");
 });
 
+test("provider changes clear only runtime cursor/model and preserve transcript and mode", async () => {
+  const harness = pluginHarness();
+  let id = 0;
+  const controller = createController(harness, { uuid: () => `session-${++id}`, now: () => id });
+  await controller.init();
+  await controller.configureRuntime("agy");
+  const agyId = controller.getSession().id;
+  await controller.setModel("agy-model");
+  await controller.setConversationId("agy-thread");
+  await controller.recordScopeChange({ mode: "FOCUSED_LEARNING" }, "/mode focused", "ready", agyId);
+  await controller.setConversationId("agy-thread");
+  const transcript = controller.getSession().messages;
+  await controller.newSession();
+  await controller.configureRuntime("codex", "codex-model");
+  await controller.selectSession(agyId);
+  assert.equal(controller.getSession().runtimeProvider, "codex");
+  assert.equal(controller.getSession().conversationId, undefined);
+  assert.equal(controller.getSession().model, "codex-model");
+  assert.deepEqual(controller.getSession().messages, transcript);
+  assert.equal(controller.getSession().learningScope?.mode, "FOCUSED_LEARNING");
+  await controller.setConversationId("codex-thread");
+  const restarted = createController(harness);
+  await restarted.init();
+  await restarted.configureRuntime("codex");
+  assert.equal(restarted.getSession().conversationId, "codex-thread");
+  assert.equal(restarted.getSession().model, "codex-model");
+  await restarted.configureRuntime("agy");
+  assert.equal(restarted.getSession().conversationId, undefined);
+  assert.equal(restarted.getSession().model, undefined);
+  assert.deepEqual(restarted.getSession().messages, transcript);
+});
+
+test("failed runtime selection leaves the previous cursor/model authoritative", async () => {
+  let saved: Record<string, unknown> | null = null;
+  let fail = false;
+  const controller = new SessionController(new PluginDataRepository({
+    loadData: async () => saved,
+    saveData: async (next: Record<string, unknown>) => {
+      if (fail) throw new Error("disk failed");
+      saved = structuredClone(next);
+    },
+  } as never), new SessionStore());
+  await controller.init();
+  await controller.configureRuntime("agy");
+  await controller.setModel("old-model");
+  await controller.setConversationId("old-thread");
+  fail = true;
+  await assert.rejects(controller.configureRuntime("codex", "new-model"));
+  assert.equal(controller.getSession().runtimeProvider, "agy");
+  assert.equal(controller.getSession().model, "old-model");
+  assert.equal(controller.getSession().conversationId, "old-thread");
+  fail = false;
+  await controller.configureRuntime("codex", "new-model");
+  assert.equal(controller.getSession().runtimeProvider, "codex");
+  assert.equal(controller.getSession().conversationId, undefined);
+});
+
 test("conversation mutations persist display messages and conversation id", async () => {
   const harness = pluginHarness();
   const controller = createController(harness);

@@ -1,5 +1,6 @@
 import { addIcon, FileSystemAdapter, Plugin } from "obsidian";
 import { AgyAdapter } from "./agent/AgyAdapter";
+import { CodexAdapter } from "./agent/CodexAdapter";
 import { AgentRuntime } from "./agent/AgentRuntime";
 import { ChatView, NOX_VIEW_TYPE } from "./chat/ChatView";
 import { ContextResolver } from "./context/ContextResolver";
@@ -13,8 +14,8 @@ import { SessionController } from "./session/SessionController";
 import { SessionStore } from "./session/SessionStore";
 import {
   decodeNoxSettings,
+  NOX_SETTINGS_KEY,
   NoxSettings,
-  saveNoxSettings,
 } from "./settings/NoxSettings";
 import { NoxSettingsTab } from "./settings/SettingsTab";
 
@@ -29,20 +30,21 @@ export default class NoxPlugin extends Plugin {
   private learning!: LearningController;
   private noxSettings!: NoxSettings;
   private pluginData!: PluginDataRepository;
+  private vaultPath?: string;
+  private runtime?: AgentRuntime;
 
   async onload(): Promise<void> {
     const vaultAdapter = this.app.vault.adapter;
-    const vaultPath =
+    this.vaultPath =
       vaultAdapter instanceof FileSystemAdapter
         ? vaultAdapter.getBasePath()
         : undefined;
 
     this.pluginData = new PluginDataRepository(this);
     this.noxSettings = decodeNoxSettings(await this.pluginData.read());
-    const adapter = new AgyAdapter(vaultPath, () => ({
-      executablePath: this.noxSettings.executablePath,
-    }));
+    const adapter = this.createAdapter(this.noxSettings);
     const runtime = new AgentRuntime(adapter);
+    this.runtime = runtime;
     const sessionStore = new SessionStore();
     const sessions = new SessionController(
       this.pluginData,
@@ -53,6 +55,7 @@ export default class NoxPlugin extends Plugin {
       runtime.init(),
       sessions.init(),
     ]);
+    await sessions.configureRuntime(this.noxSettings.provider, this.noxSettings.preferredModel || undefined);
     if (!sessions.getSession().model && this.noxSettings.preferredModel) {
       await sessions.setModel(this.noxSettings.preferredModel);
     }
@@ -119,6 +122,7 @@ export default class NoxPlugin extends Plugin {
   }
 
   async onunload(): Promise<void> {
+    this.runtime?.dispose();
     this.app.workspace.detachLeavesOfType(NOX_VIEW_TYPE);
     this.learning?.dispose();
   }
@@ -152,11 +156,25 @@ export default class NoxPlugin extends Plugin {
   }
 
   async updateSettings(update: Partial<NoxSettings>): Promise<void> {
-    this.noxSettings = { ...this.noxSettings, ...update };
-    await saveNoxSettings(this.pluginData, this.noxSettings);
-    if (update.preferredModel !== undefined) {
-      await this.learning.setModel(update.preferredModel || undefined);
-    }
+    const next = { ...this.noxSettings, ...update };
+    const runtimeChanged = next.provider !== this.noxSettings.provider ||
+      next.executablePath !== this.noxSettings.executablePath ||
+      next.codexExecutablePath !== this.noxSettings.codexExecutablePath;
+    await this.learning.configureRuntime(next.provider,
+      runtimeChanged ? this.createAdapter(next) : undefined,
+      next.preferredModel || undefined, {
+        updateModel: update.preferredModel !== undefined,
+        updateData: (data) => ({ ...data, [NOX_SETTINGS_KEY]: next }),
+      });
+    this.noxSettings = next;
+    await Promise.all(this.app.workspace.getLeavesOfType(NOX_VIEW_TYPE)
+      .map((leaf) => (leaf.view as ChatView).refreshRuntime(runtimeChanged)));
+  }
+
+  private createAdapter(settings: NoxSettings): AgyAdapter | CodexAdapter {
+    return settings.provider === "codex"
+      ? new CodexAdapter(this.vaultPath, () => ({ executablePath: settings.codexExecutablePath }))
+      : new AgyAdapter(this.vaultPath, () => ({ executablePath: settings.executablePath }));
   }
 
   private openSettings(): void {

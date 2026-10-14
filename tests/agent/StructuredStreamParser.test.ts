@@ -7,6 +7,24 @@ import {
 
 const fence = String.fromCharCode(96).repeat(3);
 
+test("scope decisions normalize at every streaming split", () => {
+  for (const outcome of ["answer", "help", "out-of-scope"]) {
+    const payload = `${fence}learning-scope\n${JSON.stringify({ outcome })}\n${fence}`;
+    for (const events of parseAtEverySplit(payload)) {
+      assert.deepEqual(events, [{ type: "scope-decision", outcome }]);
+    }
+  }
+});
+
+test("invalid and truncated scope decisions never become ordinary text", () => {
+  for (const body of ['{"outcome":"free"}\n```', '{"outcome":true}\n```', '{broken}\n```', '{"outcome":"answer"}']) {
+    const parser = new StructuredStreamParser();
+    const events = [...parser.push(`${fence}learning-scope\n${body}`), ...parser.finish()];
+    assert.ok(events.some((event) => event.type === "error"));
+    assert.ok(!events.some((event) => event.type === "text" || event.type === "scope-decision"));
+  }
+});
+
 function parseAtEverySplit(
   payload: string,
 ): StructuredStreamEvent[][] {

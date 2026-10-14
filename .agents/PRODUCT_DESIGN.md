@@ -292,6 +292,40 @@ start Practice
 
 ---
 
+### Backend scope lock
+
+New conversations start in **FREE** mode. Existing learning intents remain
+available there. Backend curriculum modes are opt-in:
+
+- `/mode assessment` enters **BASELINE_ASSESSMENT** for diagnostic backend questions.
+- `/mode focused` enters **FOCUSED_LEARNING** for the current backend concept.
+- `/pause` or `/mode free` permits free discussion and retains the backend question.
+- `/resume` restores the saved backend mode and unanswered question.
+
+Commands must be standalone user submissions. Slash-menu selection prepares a
+command; Send/Enter submits it. Mode entry acknowledges the lock and asks the user
+to send `mulai` for the first question. Relevant notes ground questions; absent
+relevant material, use backend fundamentals. Ordinary text and model output never
+change modes.
+
+While locked, messages address the active question or its necessary prerequisites.
+Wrong answers and admissions of not knowing remain valid evaluation inputs.
+Hints/clarification retain the question without creating learning evidence.
+Product design, feature brainstorming, unrelated chat, and topic/role-switch
+requests receive a brief application-authored deflection to the exact active
+question. OOS input must not advance the question or learner progress. Review/Edit
+shortcuts and historical Apply actions require an explicit pause first.
+
+Mode and pause state survive session switching and plugin restart. Free Practice
+while paused cannot replace the backend question. Question completion does not
+implicitly unlock a mode or promote assessment to focused learning. Explicit mode
+commands retain any pending backend question.
+
+The model judges semantic relevance; this is not a guarantee against every
+adversarial prompt. The application enforces transitions, output shape, terminal
+success, and progress effects. Missing/invalid/duplicate scope decisions fail
+closed with retry while retaining the active question.
+
 ## 6. Context model
 
 ### 6.1 Automatic context
@@ -455,6 +489,22 @@ missing, or ambiguous source makes the proposal stale and requires regeneration.
 ---
 
 ## 11. Session and model behavior
+
+Nox Settings selects AGY or local Codex CLI as the runtime provider. Existing
+installations default to AGY. Provider changes take effect immediately while idle,
+refreshing the runtime and model menu together. Active turns, note edits, and
+pending edit status recovery must finish before runtime settings can change;
+the executable path is retained separately for each provider. Local CLI sign-in
+owns authentication. Nox keeps no provider API key.
+
+Conversation history, learning evidence, and active backend scope survive provider
+changes. Incompatible runtime thread/model state is reset before sending to a new
+provider. Codex's model picker lists visible models from its local CLI catalog,
+alongside Runtime default. An explicit model can be entered in Preferred model
+and is shown by ID when absent from the catalog. Discovery failure preserves
+default/manual choices. The catalog is not an account entitlement guarantee.
+Codex cannot directly edit notes: normal Nox proposal
+review and native editor Apply remain authoritative.
 
 The user may create and switch conversations.
 

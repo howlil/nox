@@ -77,6 +77,37 @@ GUI lifecycle behavior, which still require manual Obsidian verification.
 
 ---
 
+## Backend scope enforcement — 2026-10-14
+
+`domain/practice/learning-scope.ts` owns mode transitions and command meaning.
+`ChatSession` lives in `session/transcript-types.ts`, with a compatibility type
+export from `types.ts`. `SessionController.recordScopeChange` serializes state
+and acknowledgement together and publishes only after storage succeeds. Sessions
+without a scope remain free.
+
+`RunLearningTurn` handles exact mode commands locally, routes ordinary locked
+turns through Practice, and rejects Review/Edit shortcuts. Historical Apply also
+checks the mode in `LearningController`. Locked turns do not resume provider
+history; explicit mode changes clear its cursor.
+Mode commands are blocked during an in-flight Apply, and Apply is blocked during
+an active turn, so editor effects cannot overlap a transition into a scope lock.
+
+Locked output is buffered until completion. The parser normalizes a
+`learning-scope` decision (`answer`, `help`, `out-of-scope`); the application
+requires exactly one valid decision. OOS output is discarded for a local
+re-anchor. Help retains the question without evidence. Answers require exactly
+one expected question/evaluation, with no other structured effects; narrative
+on this path is discarded.
+
+Backend Practice transcript parts carry `scope: "backend"`. The existing registry
+holds a derived machine per session/scope, so free Practice during a pause cannot
+replace the backend question. Both restore from the canonical transcript. New
+question parts are staged and published only after persistence succeeds.
+
+`tests/integration/learning/scope-flow.test.ts` exercises real session
+serialization with a controlled model boundary. This proves application state
+and effect enforcement, not semantic classifier accuracy or live Obsidian UI.
+
 ## 1. Engineering goal
 
 Implement the Nox product without allowing framework, provider, persistence, or
@@ -365,7 +396,7 @@ src/
 │   ├── practice/{types,PracticeStateMachine}.ts
 │   ├── review/types.ts
 │   └── mutation/replacement.ts
-├── agent/{AgentRuntime,AgyAdapter,AgyProtocol,StructuredStreamParser}.ts
+├── agent/{AgentRuntime,AgyAdapter,AgyProtocol,CodexAdapter,CodexProtocol,StructuredStreamParser}.ts
 ├── context/{ContextResolver,ObsidianContext,PolicyLoader,context-types}.ts
 ├── session/{SessionController,SessionStore,transcript-types,transcript-schema}.ts
 ├── persistence/{PluginDataRepository,VaultLearningStore,PersistenceError,learning-state-schema}.ts
@@ -886,6 +917,42 @@ sent to the agent.
 ---
 
 ## 8. Agent runtime boundary
+
+AGY and Codex are concrete adapters selected from Nox Settings.
+Legacy settings default to AGY. Executable paths are stored separately; changing
+provider clears the preferred-model setting. `LearningController.configureRuntime`
+guards active turns, editor Apply/status recovery, and concurrent configuration.
+Settings and staged session compatibility state persist in one plugin-data write
+before `AgentRuntime.replaceAdapter` clears and refreshes its model catalog.
+The composition root then refreshes open chat model menus and runtime health.
+Settings input updates are serialized by the settings tab.
+`SessionController.configureRuntime` binds the session's generic `runtimeProvider`
+metadata and resets incompatible cursor/model state after durable persistence.
+Historical sessions are aligned to the configured runtime when selected; transcript,
+structured cards, scope locks, and learning evidence remain session/domain-owned.
+
+`CodexAdapter` uses the local signed-in CLI (`codex exec --json`, stdin input,
+read-only sandbox, no interactive approvals). User configuration is excluded for
+the run while local CLI authentication remains in Codex. Resume uses only the
+originating session's validated UUID, never `--last`. `CodexProtocol` validates
+JSONL and projects assistant messages; reasoning, commentary and tools remain
+adapter-private. Success is held until process exit code zero; malformed output,
+failed turns, stdin errors and nonzero exits remain normalized failures.
+Cancellation kills the owned Windows process tree or Unix process group.
+
+`CodexAdapter.listModels` opens a short-lived `app-server --listen stdio://`
+connection, binds the OpenAI provider to match Nox exec turns, performs
+`initialize` → `initialized` → paginated `model/list`, and returns visible model
+slugs/display names. It never starts a thread/turn or sends note context. Model
+discovery uses local CLI sign-in/config; exec turns still exclude user config.
+Malformed/RPC/early-exit failures, repeated cursors, excessive output, timeout
+(10 seconds), and abort release the owned process; no partial catalog is published.
+`AgentRuntime` cancels replaced/disposed discoveries and prevents late catalogs
+from overwriting the active provider. Plugin unload disposes runtime discovery.
+Discovery failure retains default/manual model choices. Catalog entries are not
+an account entitlement guarantee. Do not invent a static catalog.
+Process integration tests exercise real controlled subprocess exit/cancellation,
+alongside protocol fixtures. They do not prove live account access or Obsidian UI.
 
 Upper layers depend on normalized runtime contracts.
 

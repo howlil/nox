@@ -7,6 +7,20 @@ import {
 } from "../../src/settings/NoxSettings";
 import { PluginDataRepository } from "../../src/persistence/PluginDataRepository";
 
+test("Codex is an explicit provider and keeps its executable separate from AGY", () => {
+  const settings = decodeNoxSettings({ "nox-settings": {
+    provider: "codex", executablePath: "/bin/agy", codexExecutablePath: "/bin/codex",
+  } });
+  assert.equal(settings.provider, "codex");
+  assert.equal(settings.executablePath, "/bin/agy");
+  assert.equal(settings.codexExecutablePath, "/bin/codex");
+});
+
+test("legacy and invalid provider settings keep the existing AGY default", () => {
+  assert.equal(decodeNoxSettings({ "nox-settings": { executablePath: "/bin/agy" } }).provider, "agy");
+  assert.equal(decodeNoxSettings({ "nox-settings": { provider: "unknown", codexExecutablePath: 42 } }).provider, "agy");
+});
+
 test("decodes settings field-by-field with safe defaults", () => {
   assert.deepEqual(
     decodeNoxSettings(null),
@@ -21,7 +35,9 @@ test("decodes settings field-by-field with safe defaults", () => {
       },
     }),
     {
+      provider: "agy",
       executablePath: "/bin/agy",
+      codexExecutablePath: "",
       preferredModel: "",
     },
   );
@@ -40,7 +56,9 @@ test("saving settings preserves unrelated plugin data", async () => {
   };
 
   const settings = {
+    provider: "agy" as const,
     executablePath: "/bin/agy",
+    codexExecutablePath: "",
     preferredModel: "model-a",
   };
 

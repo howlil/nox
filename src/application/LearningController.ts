@@ -1,10 +1,11 @@
-import type { AgentHealth, AgentModel, ApplyResult, ChatSession } from "../types";
+import type { AgentAdapter, AgentHealth, AgentModel, ApplyResult, ChatSession } from "../types";
 import type { ExplicitContextRef, LearningContext } from "../context/context-types";
-import type { SessionPort, ContextPort, PolicyPort, MutationPort, LearningStatePort } from "./ports";
+import type { SessionPort, ContextPort, PolicyPort, MutationPort, LearningStatePort, RuntimeSettingsWrite } from "./ports";
 import type { AgentRuntimePort } from "../agent/AgentRuntime";
 import type { LearningEvent, LearningRequest } from "./learning-types";
 import type { PracticeOrigin } from "../domain/practice/types";
 import { RunLearningTurn } from "./RunLearningTurn";
+import { isLockedLearningMode, parseScopeCommand } from "../domain/practice/learning-scope";
 
 export interface LearningControllerOptions {
   turnTimeoutMs?: number;
@@ -25,6 +26,7 @@ export interface LearningControllerOptions {
 export class LearningController {
   private readonly turns: RunLearningTurn;
   private readonly applyingProposals = new Set<string>();
+  private configuringRuntime = false;
   // Short-lived receipt: editor mutation succeeded, but the durable applied
   // status has not been confirmed. Never use this as a session state authority.
   private readonly appliedButUnsynced = new Set<string>();
@@ -63,17 +65,43 @@ export class LearningController {
     return this.runtime.getModels();
   }
 
+  async configureRuntime(
+    provider: string, adapter: AgentAdapter | undefined, preferredModel?: string,
+    options: RuntimeSettingsWrite = {},
+  ): Promise<void> {
+    this.assertRuntimeIdle();
+    if (adapter && !this.runtime.replaceAdapter) throw new Error("Runtime does not support provider changes.");
+    this.configuringRuntime = true;
+    try {
+      await this.sessions.configureRuntime(provider, preferredModel, options);
+      if (adapter) await this.runtime.replaceAdapter!(adapter);
+    } finally {
+      this.configuringRuntime = false;
+    }
+  }
+
+  private assertRuntimeIdle(): void {
+    if (this.configuringRuntime) throw new Error("Wait for runtime settings to finish saving.");
+    if (this.turns.isRunning() || this.applyingProposals.size > 0) {
+      throw new Error("Finish or stop the active turn or note edit before changing runtime settings.");
+    }
+    if (this.appliedButUnsynced.size > 0) throw new Error("Retry saving applied edit status before changing runtime settings.");
+  }
+
   setModel(modelId?: string): Promise<void> {
+    if (this.configuringRuntime) throw new Error("Wait for runtime settings to finish saving.");
     return this.sessions.setModel(modelId);
   }
 
   async newSession(): Promise<ChatSession> {
+    if (this.configuringRuntime) throw new Error("Wait for runtime settings to finish saving.");
     if (this.turns.isRunning()) throw new Error("Finish or stop the active turn before creating a session.");
     if (this.appliedButUnsynced.size > 0) throw new Error("Retry saving applied edit status before changing sessions.");
     return this.sessions.newSession();
   }
 
   async selectSession(id: string): Promise<ChatSession | null> {
+    if (this.configuringRuntime) throw new Error("Wait for runtime settings to finish saving.");
     if (this.turns.isRunning()) throw new Error("Finish or stop the active turn before switching sessions.");
     if (this.appliedButUnsynced.size > 0) throw new Error("Retry saving applied edit status before changing sessions.");
     return this.sessions.selectSession(id);
@@ -97,18 +125,36 @@ export class LearningController {
   }
 
   async *run(request: LearningRequest): AsyncIterable<LearningEvent> {
+    if (this.configuringRuntime) {
+      yield { type: "failed", failure: { code: "busy", message: "Wait for runtime settings to finish saving." } };
+      return;
+    }
+    if (parseScopeCommand(request.prompt) && this.applyingProposals.size > 0) {
+      yield { type: "failed", failure: { code: "busy",
+        message: "Wait for the note edit to finish before changing learning mode." } };
+      return;
+    }
     yield* this.turns.run(request);
   }
 
   async applyProposal(
     proposalId: string,
   ): Promise<ApplyResult> {
+    if (this.configuringRuntime) return { ok: false, reason: "error", message: "Wait for runtime settings to finish saving." };
     if (this.appliedButUnsynced.has(proposalId)) {
       return {
         ok: false,
         reason: "status-unsaved",
         message: this.statusSyncFailure.message,
       };
+    }
+    if (isLockedLearningMode(this.sessions.getSession().learningScope?.mode)) {
+      return { ok: false, reason: "unauthorized",
+        message: "Backend learning is locked. Type /pause before applying a note edit." };
+    }
+    if (this.turns.isRunning()) {
+      return { ok: false, reason: "error",
+        message: "Finish or stop the active turn before applying a note edit." };
     }
     const record = this.sessions.getProposal(proposalId);
 

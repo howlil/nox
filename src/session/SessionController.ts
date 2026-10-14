@@ -2,6 +2,7 @@ import { SessionStore } from "./SessionStore";
 import { PersistenceError } from "../persistence/PersistenceError";
 import { findCommittedPracticeOutcome, findCommittedReview, type TranscriptPart } from "./transcript-types";
 import { PluginDataRepository } from "../persistence/PluginDataRepository";
+import type { LearningScopeState } from "../domain/practice/learning-scope";
 import {
   ChatSession,
   EditProposal,
@@ -15,6 +16,7 @@ import {
  */
 export class SessionController {
   private currentSession: ChatSession | null = null;
+  private runtimeProvider?: string;
   // All session mutations—including snapshot staging and disk writes—have
   // one legal ordering. PluginDataRepository only serializes the I/O itself.
   private writeTail: Promise<void> = Promise.resolve();
@@ -39,11 +41,43 @@ export class SessionController {
     return structuredClone(this.currentSession);
   }
 
+  /** Bind cursor/model compatibility without changing the canonical transcript. */
+  async configureRuntime(provider: string, preferredModel?: string, options: {
+    updateModel?: boolean;
+    updateData?: (current: Record<string, unknown>) => Record<string, unknown>;
+  } = {}): Promise<void> {
+    return this.serializeWrite(async () => {
+      const current = this.sessionForWrite();
+      const changed = (current.runtimeProvider ?? "agy") !== provider;
+      const changeModel = changed || options.updateModel;
+      const model = changeModel ? preferredModel : this.store.getDefaultModel();
+      const next = { ...current, runtimeProvider: provider,
+        ...(changed ? { conversationId: undefined } : {}),
+        ...(changeModel ? { model: preferredModel } : {}) };
+      const staged = this.store.stageSessionUpdate(next, { model });
+      try {
+        await this.pluginData.update((data) => ({ ...(options.updateData?.(data) ?? data), ...staged.serialized }));
+      } catch (error) { throw new PersistenceError("Unable to persist runtime selection", error); }
+      this.store.acceptPersistedSession(staged.committed);
+      this.store.setDefaultModel(model);
+      this.currentSession = this.store.getSession(current.id);
+      this.runtimeProvider = provider;
+    });
+  }
+
+  private forRuntime(session: ChatSession): ChatSession {
+    if (!this.runtimeProvider) return session;
+    return { ...session, runtimeProvider: this.runtimeProvider,
+      ...((session.runtimeProvider ?? "agy") !== this.runtimeProvider
+        ? { conversationId: undefined, model: this.store.getDefaultModel() } : {}) };
+  }
+
   async newSession(): Promise<ChatSession> {
     return this.serializeWrite(async () => {
       this.stalePendingProposals(this.currentSession);
       const model = this.currentSession?.model ?? this.store.getDefaultModel();
-      this.currentSession = this.store.createSession(model);
+      this.currentSession = this.forRuntime(this.store.createSession(model));
+      this.commitSession(this.currentSession);
       await this.save();
       return this.getSession();
     });
@@ -55,11 +89,13 @@ export class SessionController {
 
   async selectSession(id: string): Promise<ChatSession | null> {
     return this.serializeWrite(async () => {
-      const session = this.store.getSession(id);
-      if (!session) return null;
+      const stored = this.store.getSession(id);
+      if (!stored) return null;
+      const session = this.forRuntime(stored);
 
       this.stalePendingProposals(this.currentSession);
       this.currentSession = session;
+      if (session.runtimeProvider !== stored.runtimeProvider) this.commitSession(session);
       this.store.setCurrentSession(id);
       await this.save();
       return this.getSession();
@@ -111,6 +147,31 @@ export class SessionController {
     });
   }
 
+  /** Publish the lock and its acknowledgement only after one durable write. */
+  async recordScopeChange(
+    state: LearningScopeState, command: string, reply: string, sessionId: string,
+  ): Promise<void> {
+    return this.serializeWrite(async () => {
+      const session = this.sessionForWrite(sessionId);
+      const next: ChatSession = {
+        ...session, learningScope: structuredClone(state),
+        // Provider conversations may contain instructions from the previous mode.
+        conversationId: undefined,
+        messages: [...session.messages,
+          { role: "user", content: command, action: "ask" },
+          { role: "assistant", content: reply }],
+      };
+      const staged = this.store.stageSessionUpdate(next);
+      try {
+        await this.pluginData.update((current) => ({ ...current, ...staged.serialized }));
+      } catch (error) {
+        throw new PersistenceError("Unable to persist learning mode", error);
+      }
+      this.store.acceptPersistedSession(staged.committed);
+      if (this.currentSession?.id === sessionId) this.currentSession = this.store.getSession(sessionId);
+    });
+  }
+
   async setConversationId(conversationId?: string, sessionId?: string): Promise<void> {
     return this.serializeWrite(async () => {
       const session = this.sessionForWrite(sessionId);
@@ -152,9 +213,7 @@ export class SessionController {
         await this.save();
         return;
       }
-      session.messages.push({ role: "assistant", content: "", parts: [part], sourcePath });
-      this.commitSession(session);
-      await this.save();
+      await this.persistOutcome(session, [part], sourcePath);
     });
   }
 
@@ -214,7 +273,7 @@ export class SessionController {
   private async persistOutcome(
     session: ChatSession,
     parts: TranscriptPart[],
-    sourcePath: string,
+    sourcePath?: string,
   ): Promise<void> {
     const next: ChatSession = {
       ...session,

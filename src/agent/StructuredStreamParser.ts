@@ -5,8 +5,10 @@ import {
   PracticeQuestion,
 } from "../domain/practice/types";
 import { ReviewFinding, ReviewPayload } from "../domain/review/types";
+import type { ScopeOutcome } from "../domain/practice/learning-scope";
 
 export type StructuredStreamEvent =
+  | { type: "scope-decision"; outcome: ScopeOutcome }
   | { type: "text"; text: string }
   | { type: "proposal"; proposal: EditProposal }
   | { type: "practice-question"; question: PracticeQuestion }
@@ -14,12 +16,13 @@ export type StructuredStreamEvent =
   | { type: "review-findings"; findings: ReviewFinding[] }
   | { type: "error"; message: string };
 
-type BlockKind = "edit-proposal" | "learning-practice" | "learning-review";
+type BlockKind = "edit-proposal" | "learning-practice" | "learning-review" | "learning-scope";
 
 const START_TAGS: Array<{
   kind: BlockKind;
   marker: string;
 }> = [
+  { kind: "learning-scope", marker: "```learning-scope" },
   { kind: "edit-proposal", marker: "```edit-proposal" },
   { kind: "learning-practice", marker: "```learning-practice" },
   { kind: "learning-review", marker: "```learning-review" },
@@ -206,6 +209,17 @@ export class StructuredStreamParser {
           type: "error",
           message: `Could not parse ${blockKind} returned by the agent.`,
         });
+        continue;
+      }
+
+      if (blockKind === "learning-scope") {
+        const outcome = parsed && typeof parsed === "object"
+          ? (parsed as Record<string, unknown>).outcome : undefined;
+        if (outcome === "answer" || outcome === "help" || outcome === "out-of-scope") {
+          events.push({ type: "scope-decision", outcome });
+        } else {
+          events.push({ type: "error", message: "Agent returned an invalid scope decision." });
+        }
         continue;
       }
 

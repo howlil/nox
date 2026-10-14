@@ -1,5 +1,6 @@
 import { ChatSession, ChatMessage, EditProposal } from "../types";
 import { isTranscriptPart } from "./transcript-schema";
+import { isLockedLearningMode } from "../domain/practice/learning-scope";
 
 const STORE_KEY = "nox-sessions";
 const LEGACY_STORE_KEY = "agy-sessions";
@@ -95,11 +96,12 @@ export class SessionStore {
    * Build the next durable snapshot without modifying the live store.
    * The caller publishes it to memory only after saveData succeeds.
    */
-  stageSessionUpdate(session: ChatSession): {
+  stageSessionUpdate(session: ChatSession, defaults?: { model?: string }): {
     serialized: Record<string, unknown>;
     committed: ChatSession;
   } {
     const next = structuredClone(this.data);
+    if (defaults) next.defaultModel = defaults.model;
     const committed = { ...structuredClone(session), updatedAt: this.now() };
     next.sessions[session.id] = committed;
     return { serialized: { [STORE_KEY]: next }, committed };
@@ -198,6 +200,13 @@ export class SessionStore {
 
     return {
       id: session.id,
+      runtimeProvider: typeof session.runtimeProvider === "string" ? session.runtimeProvider : undefined,
+      learningScope: session.learningScope &&
+        (session.learningScope.mode === "FREE" || isLockedLearningMode(session.learningScope.mode))
+        ? { mode: session.learningScope.mode,
+            ...(session.learningScope.mode === "FREE" && isLockedLearningMode(session.learningScope.resumeMode)
+              ? { resumeMode: session.learningScope.resumeMode } : {}) }
+        : undefined,
       conversationId:
         typeof session.conversationId === "string"
           ? session.conversationId

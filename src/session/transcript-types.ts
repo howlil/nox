@@ -1,11 +1,25 @@
 import type { PracticeQuestion, PracticeEvaluation, PracticeOrigin } from "../domain/practice/types";
 import type { ReviewFinding } from "../domain/review/types";
+import type { LearningScopeState } from "../domain/practice/learning-scope";
+import type { ChatMessage } from "../types";
+
+export interface ChatSession {
+  id: string;
+  learningScope?: LearningScopeState;
+  conversationId?: string;
+  /** Runtime cursor/model ownership; transcript and learning state are independent. */
+  runtimeProvider?: string;
+  model?: string;
+  messages: ChatMessage[];
+  createdAt: number;
+  updatedAt: number;
+}
 
 /** Durable structured assistant content. Legacy text/proposal fields remain readable. */
 export type TranscriptPart =
-  | { type: "practice-question"; question: PracticeQuestion; questionId?: string; origin?: PracticeOrigin }
+  | { type: "practice-question"; question: PracticeQuestion; questionId?: string; origin?: PracticeOrigin; scope?: "backend" }
   | { type: "practice-evaluation"; evaluation: PracticeEvaluation; questionId?: string;
-      operationId?: string; nextQuestionId?: string; sourcePath?: string }
+      operationId?: string; nextQuestionId?: string; sourcePath?: string; scope?: "backend" }
   | { type: "review-findings"; findings: ReviewFinding[]; sourcePath?: string; reviewId?: string };
 
 export function findCommittedReview(

@@ -21,6 +21,52 @@ test("runtime initialization tolerates model discovery failure", async () => {
   assert.deepEqual(await runtime.check(), { status: "ready" });
 });
 
+test("changing adapter discards the previous catalog and sends through the new runtime", async () => {
+  const agy: AgentAdapter = {
+    check: async () => ({ status: "ready" }),
+    listModels: async () => [{ id: "agy-model", name: "AGY model" }],
+    send: async function* () { yield { type: "text", content: "agy" }; },
+  };
+  const codex: AgentAdapter = {
+    check: async () => ({ status: "ready" }), listModels: async () => [],
+    send: async function* () { yield { type: "text", content: "codex" }; },
+  };
+  const runtime = new AgentRuntime(agy);
+  await runtime.init();
+  await runtime.replaceAdapter(codex);
+  assert.deepEqual(runtime.getModels(), []);
+  const events = [];
+  for await (const event of runtime.send({ prompt: "hello", context: [] }, {}, new AbortController().signal)) events.push(event);
+  assert.deepEqual(events, [{ type: "text", content: "codex" }]);
+  await runtime.replaceAdapter(agy);
+  assert.deepEqual(runtime.getModels(), [{ id: "agy-model", name: "AGY model" }]);
+});
+
+test("late old catalog cannot overwrite a new provider and disposal cancels discovery", async () => {
+  let resolveOld!: (models: Array<{ id: string; name: string }>) => void;
+  let oldSignal!: AbortSignal;
+  const old: AgentAdapter = {
+    check: async () => ({ status: "ready" }), send: async function* () {},
+    listModels: (signal) => {
+      oldSignal = signal!;
+      return new Promise((resolve) => { resolveOld = resolve; });
+    },
+  };
+  const runtime = new AgentRuntime(old);
+  const pending = runtime.init();
+  await runtime.replaceAdapter({ ...old, listModels: async () => [{ id: "new", name: "New model" }] });
+  assert.equal(oldSignal.aborted, true);
+  resolveOld([{ id: "old", name: "Old model" }]);
+  await pending;
+  assert.deepEqual(runtime.getModels(), [{ id: "new", name: "New model" }]);
+  const discovering = runtime.replaceAdapter(old);
+  runtime.dispose();
+  assert.equal(oldSignal.aborted, true);
+  resolveOld([{ id: "old", name: "Old model" }]);
+  await discovering;
+  assert.deepEqual(runtime.getModels(), []);
+});
+
 test("runtime forwards normalized turn execution without owning conversation state", async () => {
   let receivedModel: string | undefined;
   let receivedConversationId: string | undefined;

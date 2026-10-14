@@ -5,6 +5,7 @@ export function isTranscriptPart(value: unknown): value is TranscriptPart {
   if (!value || typeof value !== "object") return false;
   const part = value as Record<string, unknown>;
   if (part.type === "practice-question") {
+    if (part.scope !== undefined && part.scope !== "backend") return false;
     const q = part.question as Record<string, unknown> | undefined;
     const origin = part.origin as Record<string, unknown> | undefined;
     return Boolean(q && q.kind === "question" && typeof q.concept === "string" &&
@@ -14,6 +15,7 @@ export function isTranscriptPart(value: unknown): value is TranscriptPart {
         (origin.selectedText === undefined || typeof origin.selectedText === "string"))));
   }
   if (part.type === "practice-evaluation") {
+    if (part.scope !== undefined && part.scope !== "backend") return false;
     const e = part.evaluation as Record<string, unknown> | undefined;
     return Boolean(e && e.kind === "evaluation" && typeof e.concept === "string" &&
       ["correct", "partial", "incorrect"].includes(String(e.outcome)) &&

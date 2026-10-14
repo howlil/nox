@@ -8,6 +8,7 @@ import {
 } from "../types";
 
 export interface AgentRuntimePort {
+  replaceAdapter?(adapter: AgentAdapter): Promise<void>;
   check(): Promise<AgentHealth>;
   getModels(): AgentModel[];
   send(
@@ -24,15 +25,33 @@ export interface AgentRuntimePort {
  */
 export class AgentRuntime implements AgentRuntimePort {
   private models: AgentModel[] = [];
+  private discovery?: AbortController;
 
-  constructor(private readonly adapter: AgentAdapter) {}
+  constructor(private adapter: AgentAdapter) {}
+
+  async replaceAdapter(adapter: AgentAdapter): Promise<void> {
+    this.adapter = adapter;
+    this.models = [];
+    await this.init();
+  }
 
   async init(): Promise<void> {
+    this.discovery?.abort();
+    const discovery = this.discovery = new AbortController();
+    const adapter = this.adapter;
     try {
-      this.models = await this.adapter.listModels();
+      const models = await adapter.listModels(discovery.signal);
+      if (this.discovery === discovery && !discovery.signal.aborted) this.models = models;
     } catch {
-      this.models = [];
+      if (this.discovery === discovery && !discovery.signal.aborted) this.models = [];
+    } finally {
+      if (this.discovery === discovery) this.discovery = undefined;
     }
+  }
+
+  dispose(): void {
+    this.discovery?.abort();
+    this.discovery = undefined;
   }
 
   check(): Promise<AgentHealth> {

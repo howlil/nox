@@ -190,6 +190,17 @@ actual prompt.
 
 ## Context
 
+Backend modes reuse the intent chip and slash menu. Free is the default.
+`/mode assessment` and `/mode focused` are submitted commands. The chip shows
+`Backend · Assessment`, `Backend · Focused`, or `Backend · Paused`; its control
+prepares `/pause` or `/resume` for explicit submission. Another intent cannot
+clear the lock. The placeholder describes `/pause` as the escape route.
+
+Locked responses stay behind the thinking trace until scope validation. OOS
+shows a brief plain response with the active question and `/pause`, with no
+evaluation card or progress update. Protocol failure offers Retry and retains
+the question. Local mode commands work even when the runtime is unavailable.
+
 ```text
 Primary  = selection or current note
 Explicit = @vault-note / attachment
@@ -248,6 +259,11 @@ keyboard-focusable controls where a visible focus cue is required.
 UserBubble: compact purple tint, max ~84%, no broad shadow.
 
 PlainResponse: transparent outer surface, no border, 13–14px rendered Markdown.
+
+Assistant response text is natively selectable and copyable, including streamed
+text, restored Markdown, Practice/Review content, and proposal diffs. Response
+surfaces explicitly allow text selection instead of inheriting panel-level
+selection restrictions. Links and action buttons retain their normal behavior.
 
 Rendered Markdown links use Obsidian workspace navigation. Internal `.md`
 links and heading anchors open through `workspace.openLinkText` with the
@@ -330,6 +346,15 @@ surface treatment as their popovers. A menu that is open must look connected to
 the trigger; a native browser popup is not an accepted substitute.
 
 ## Runtime and recovery contracts
+
+- Settings exposes the local provider choice with immediate changes while idle,
+  separate executable paths, and the existing Preferred model field. Provider
+  names belong in configuration; protocol events and diagnostics stay out of chat.
+  Model menus refresh after a provider change, retaining Runtime default and any
+  manually selected model ID belonging to the current provider. Codex catalog
+  entries use their display names; hidden entries stay out of the picker.
+  Discovery failure retains default/manual choices. A busy or failed
+  settings save shows a notice and restores the persisted selection.
 
 - Transcript and history are local capabilities; they remain readable if the
   external AGY runtime is unavailable. Only actions requiring AGY are blocked.

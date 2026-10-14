@@ -1,5 +1,6 @@
 import {
   ItemView,
+  Notice,
   MarkdownRenderer,
   WorkspaceLeaf,
   type IconName,
@@ -32,6 +33,7 @@ import {
   stripPromptToken,
 } from "./prompt-token";
 import { NOX_CAPABILITIES } from "./capabilities";
+import { isLockedLearningMode, parseScopeCommand } from "../domain/practice/learning-scope";
 import { animateNoxEnter, animateNoxPopover } from "./motion";
 import { resolveNoxMarkdownLink } from "./markdown-links";
 import {
@@ -48,6 +50,7 @@ import {
   setNoxIcon,
 } from "./primitives";
 import { NoxMenuState } from "./menu";
+import { modelMenuItems } from "./model-menu";
 import { createNoxPopover, NoxPopoverState } from "./popover";
 import { NoxComposer, type NoxComposerContext } from "./composer";
 import {
@@ -82,6 +85,7 @@ type PromptMenuAction =
   | { type: "attach" }
   | { type: "info" }
   | { type: "vault-note"; path: string }
+  | { type: "scope"; command: string }
   | { type: "learning"; kind: Exclude<LearningActionKind, "ask"> };
 
 interface PromptMenuItem {
@@ -194,7 +198,7 @@ export class ChatView extends ItemView {
     });
     this.buildComposer(this.composer);
 
-    // Local transcripts remain available even if AGY is offline.
+    // Local transcripts remain available even if the runtime is offline.
     await this.restoreRuntimeState();
     await this.ensureRuntimeReady();
   }
@@ -204,14 +208,26 @@ export class ChatView extends ItemView {
     this.stopLoadingTimer();
   }
 
-  private async ensureRuntimeReady(): Promise<boolean> {
+  async refreshRuntime(recheckHealth = true): Promise<void> {
+    if (recheckHealth) {
+      this.runtimeReady = false;
+      this.setUIState(this.uiState);
+    }
+    await this.refreshModelList();
+    if (recheckHealth) await this.ensureRuntimeReady(true);
+  }
+
+  private async ensureRuntimeReady(preserveState = false): Promise<boolean> {
     try {
       const health = await this.learning.checkRuntime();
       if (health.status === "ready") {
         this.runtimeReady = true;
         this.runtimeFailureMessage = null;
         this.thread.querySelector(".nox-runtime-error")?.remove();
-        this.setUIState(this.learning.getSession().messages.length ? "ANSWER" : "EMPTY");
+        if (this.uiState !== "RUNNING") {
+          this.setUIState(preserveState && this.uiState !== "ERROR" ? this.uiState
+            : this.learning.getSession().messages.length ? "ANSWER" : "EMPTY");
+        }
         return true;
       }
       this.showRuntimeError(health.failure.message);
@@ -227,7 +243,7 @@ export class ChatView extends ItemView {
     this.thread.querySelector(".nox-runtime-error")?.remove();
     const row = this.thread.createDiv({ cls: "nox-runtime-error" });
     this.appendInlineStatus(row, "failed", message, () => void this.retryRuntime());
-    this.setUIState("ERROR");
+    if (this.uiState !== "RUNNING") this.setUIState("ERROR");
   }
 
   private async restoreRuntimeState(): Promise<void> {
@@ -503,10 +519,7 @@ export class ChatView extends ItemView {
   }
 
   private getModelMenuItems(): AgentModel[] {
-    return [
-      { id: "", name: "Runtime default" },
-      ...this.models,
-    ];
+    return modelMenuItems(this.models, this.learning.getSession().model);
   }
 
   private getSelectedModelIndex(): number {
@@ -530,6 +543,7 @@ export class ChatView extends ItemView {
   }
 
   private openModelMenu(): void {
+    this.models = this.learning.getModels();
     this.closePromptMenu();
     this.modelMenuState.openAt(this.getSelectedModelIndex());
     this.syncModelTrigger();
@@ -605,7 +619,11 @@ export class ChatView extends ItemView {
   }
 
   private async selectModel(modelId: string): Promise<void> {
-    await this.learning.setModel(modelId || undefined);
+    try {
+      await this.learning.setModel(modelId || undefined);
+    } catch (error) {
+      new Notice(error instanceof Error ? error.message : "Unable to save model selection.");
+    }
     this.closeModelMenu();
     this.modelTrigger.focus();
   }
@@ -749,14 +767,20 @@ export class ChatView extends ItemView {
 
   private async getPromptMenuItems(): Promise<PromptMenuItem[]> {
     if (this.promptMenu === "command") {
-      return PROMPT_COMMANDS.map((command) => ({
+      const scopeCommands: PromptMenuItem[] = [
+        { key: "assessment", name: "Baseline Assessment", description: "Assess backend fundamentals with a locked scope.", icon: "list-checks", command: "/mode assessment", action: { type: "scope", command: "/mode assessment" } },
+        { key: "focused", name: "Focused Learning", description: "Learn the active backend concept with a locked scope.", icon: "focus", command: "/mode focused", action: { type: "scope", command: "/mode focused" } },
+        { key: "pause", name: "Pause learning", description: "Discuss freely and keep the backend question for later.", icon: "pause", command: "/pause", action: { type: "scope", command: "/pause" } },
+        { key: "resume", name: "Resume learning", description: "Return to the saved backend question.", icon: "play", command: "/resume", action: { type: "scope", command: "/resume" } },
+      ];
+      return [...PROMPT_COMMANDS.map((command) => ({
         key: command.action,
         name: command.title,
         description: command.description,
         icon: command.icon,
         command: command.command,
         action: { type: "learning" as const, kind: command.action },
-      }));
+      })), ...scopeCommands];
     }
 
     const items: PromptMenuItem[] = [];
@@ -920,6 +944,13 @@ export class ChatView extends ItemView {
       return;
     }
     if (action.type === "info") return;
+    if (action.type === "scope") {
+      this.input.value = action.command;
+      this.closePromptMenu();
+      this.onInput();
+      this.input.focus();
+      return;
+    }
 
     const token = parsePromptToken(this.input.value);
     const prefix = token ? this.input.value.slice(0, token.start) : this.input.value;
@@ -979,6 +1010,7 @@ export class ChatView extends ItemView {
   }
 
   private setAction(action: LearningActionKind): void {
+    if (isLockedLearningMode(this.learning.getSession().learningScope?.mode)) action = "practice";
     const changed = action !== this.selectedAction;
     this.selectedAction = action;
     if (changed && this.pendingFindingSource) {
@@ -1014,18 +1046,36 @@ export class ChatView extends ItemView {
   }
 
   private renderIntent(): void {
-    const label = this.selectedAction === "ask"
+    const scope = this.learning.getSession().learningScope;
+    const locked = isLockedLearningMode(scope?.mode);
+    const label = locked
+      ? scope?.mode === "BASELINE_ASSESSMENT" ? "Backend · Assessment" : "Backend · Focused"
+      : scope?.resumeMode && this.selectedAction === "ask" ? "Backend · Paused"
+      : this.selectedAction === "ask"
       ? null
       : ACTIONS.find((item) => item.kind === this.selectedAction)?.label ?? this.selectedAction;
     const chip = this.composerUi.setIntent(
       label,
       `nox-intent-chip--${this.selectedAction}`,
       () => {
+        if (locked || scope?.resumeMode) {
+          this.input.value = locked ? "/pause" : "/resume";
+          this.onInput();
+          this.composerUi.focus();
+          return;
+        }
         this.setAction("ask");
         this.composerUi.focus();
       },
     );
-    if (chip) animateNoxEnter(chip, 3);
+    if (chip) {
+      if (locked || scope?.resumeMode) {
+        chip.title = locked ? "Type /pause or /mode free to leave the backend scope." : "Type /resume to return to backend learning.";
+        const control = chip.querySelector("button");
+        control?.setAttribute("aria-label", locked ? "Prepare /pause command" : "Prepare /resume command");
+      }
+      animateNoxEnter(chip, 3);
+    }
   }
 
   private updatePlaceholder(): void {
@@ -1055,7 +1105,9 @@ export class ChatView extends ItemView {
     };
 
     if (this.input) {
-      this.input.placeholder = placeholders[this.selectedAction];
+      this.input.placeholder = isLockedLearningMode(this.learning.getSession().learningScope?.mode)
+        ? "Answer or ask about the backend question · /pause to leave"
+        : placeholders[this.selectedAction];
     }
   }
 
@@ -1140,8 +1192,14 @@ export class ChatView extends ItemView {
     this.closeModelMenu();
     this.composerUi.syncInputLayout();
     this.composerUi.setSendEnabled(
-      this.canSend() && this.uiState !== "RUNNING" && this.uiState !== "ERROR",
+      this.canSend() && this.uiState !== "RUNNING",
     );
+
+    // An exact mode command is submitted with Enter, not replaced by a menu row.
+    if (parseScopeCommand(this.input.value)) {
+      this.closePromptMenu();
+      return;
+    }
 
     const token = parsePromptToken(this.input.value);
     if (token && this.promptMenu !== token.kind) {
@@ -1371,6 +1429,7 @@ export class ChatView extends ItemView {
       this.setAction("ask");
     }
     this.runningAction = null;
+    if (this.learning.getSession().learningScope) this.syncPracticeComposerState();
   }
 
   private finishStreamingBubble(doneLabel?: string): void {
@@ -1481,13 +1540,15 @@ export class ChatView extends ItemView {
     this.selectionActions?.setBusy(busy);
     this.composerUi.setState({
       busy,
-      disabled: state === "ERROR",
+      // Mode commands remain local capabilities when the runtime is unavailable.
+      disabled: false,
       canSend: this.canSend(),
     });
   }
 
   private canSend(): boolean {
-    return this.input.value.trim().length > 0 || this.attachments.length > 0;
+    const hasInput = this.input.value.trim().length > 0 || this.attachments.length > 0;
+    return hasInput && (this.runtimeReady || Boolean(parseScopeCommand(this.input.value)));
   }
 
   private showEmpty(): void {

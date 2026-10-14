@@ -6,12 +6,16 @@ export interface SettingsDataPort {
 export const NOX_SETTINGS_KEY = "nox-settings";
 
 export interface NoxSettings {
+  provider: "agy" | "codex";
   executablePath: string;
+  codexExecutablePath: string;
   preferredModel: string;
 }
 
 export const DEFAULT_NOX_SETTINGS: NoxSettings = {
+  provider: "agy",
   executablePath: "",
+  codexExecutablePath: "",
   preferredModel: "",
 };
 
@@ -22,6 +26,8 @@ export function decodeNoxSettings(
   if (!value || typeof value !== "object") return { ...DEFAULT_NOX_SETTINGS };
   const candidate = value as Partial<NoxSettings>;
   return {
+    provider: candidate.provider === "codex" ? "codex" : "agy",
+    codexExecutablePath: typeof candidate.codexExecutablePath === "string" ? candidate.codexExecutablePath : "",
     executablePath:
       typeof candidate.executablePath === "string"
         ? candidate.executablePath

@@ -339,6 +339,12 @@
   box-shadow: none;
 }
 
+.nox-root .nox-bubble--agent,
+.nox-root .nox-proposal {
+  -webkit-user-select: text;
+  user-select: text;
+}
+
 .nox-bubble--agent {
   align-self: flex-start;
   width: 100%;
@@ -1196,17 +1202,21 @@
 
 .nox-prompt-plus {
   display: inline-flex;
+  grid-column: 1;
+  grid-row: 1;
   align-items: center;
   justify-content: center;
   width: 28px;
   height: 28px;
   flex: 0 0 auto;
   padding: 0;
-  border: 0;
+  border: 0 !important;
   border-radius: var(--nox-radius-control);
   background: transparent;
   color: var(--nox-ink-2);
   cursor: pointer;
+  appearance: none;
+  box-shadow: none !important;
   font-size: 19px;
   line-height: 1;
 }
@@ -1257,12 +1267,17 @@
 }
 
 .nox-btn-group {
+  grid-column: 4;
+  grid-row: 1;
+  align-items: center;
   gap: 5px;
 }
 
 .nox-composer-tools {
   @apply flex items-center gap-1;
   display: flex;
+  grid-column: 3;
+  grid-row: 1;
   align-items: center;
   min-width: 0;
   gap: 4px;
@@ -1721,20 +1736,6 @@
   background: var(--nox-inset);
 }
 
-.nox-composer-controls {
-  display: block;
-  width: 100%;
-  min-width: 0;
-}
-
-.nox-prompt-plus {
-  margin-top: 1px;
-  border: 0 !important;
-  color: var(--nox-ink-2);
-  appearance: none;
-  box-shadow: none !important;
-}
-
 .nox-input {
   display: block;
   width: 100%;
@@ -1744,19 +1745,6 @@
   padding: 5px 4px;
   font-size: 13px;
   line-height: 1.45;
-}
-
-.nox-composer-footer {
-  align-items: center;
-  gap: 6px;
-}
-
-.nox-composer-tools {
-  display: flex;
-  min-width: 0;
-  flex: 1;
-  align-items: center;
-  gap: 4px;
 }
 
 .nox-action-menu-btn {
@@ -2140,25 +2128,6 @@
   flex: 1 1 auto;
   padding: 2px 0;
   line-height: 20px;
-}
-
-.nox-prompt-plus {
-  grid-column: 1;
-  grid-row: 1;
-}
-
-.nox-composer-tools {
-  grid-column: 3;
-  grid-row: 1;
-  min-width: 0;
-}
-
-.nox-btn-group {
-  display: flex;
-  grid-column: 4;
-  grid-row: 1;
-  align-items: center;
-  gap: 5px;
 }
 
 .nox-action-menu-btn,

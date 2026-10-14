@@ -4,7 +4,7 @@ Nox is an AI learning companion for Obsidian. It keeps explanation,
 practice, review, and safe Markdown editing beside the note you are working on.
 
 Nox is agent-runtime agnostic at the product boundary. The current runtime
-adapter uses the AGY CLI, while the UI and Learning OS flow depend on the
+adapters use the AGY CLI or local Codex CLI, while the UI and Learning OS flow depend on the
 normalized agent contract rather than provider-specific stream events.
 
 ## What Nox does
@@ -23,7 +23,7 @@ normalized agent contract rather than provider-specific stream events.
 
 - Obsidian desktop `1.4.0` or newer.
 - Node.js and `pnpm` for development.
-- A configured agent runtime. The current adapter expects the AGY CLI to be
+- A configured AGY or Codex CLI runtime, signed in locally, to be
   available on `PATH`, or at an absolute path configured in Nox settings.
 
 ## Setup
@@ -33,12 +33,26 @@ pnpm install
 pnpm run verify
 ```
 
-Open the plugin settings in Obsidian and configure **Agent executable** if the
+Open the plugin settings in Obsidian, choose **Agent provider**, and configure **Agent executable** if the
 runtime is not discoverable on `PATH`. **Preferred model** may be left blank to
 use the runtime default.
 
-The runtime can also be selected through the `AGY_PATH` environment variable.
-Restart Obsidian after changing environment variables.
+AGY is the default for existing installations. Codex uses the existing local CLI
+login; Nox does not store an API key. Run `codex login` externally if needed.
+Provider changes apply immediately while idle and refresh the model menu. Finish
+or stop an active turn before changing runtime settings. Transcript and learning state are preserved;
+runtime thread/model state is reset when it belongs to the previous provider.
+Codex runs read-only, and note changes still require a Nox proposal and Apply.
+Codex model choices come from the local CLI's app-server catalog. Pick a model in
+the chat menu, leave **Runtime default**, or enter an ID in **Preferred model**.
+If discovery fails, the default and manual model remain available. Local Codex
+user config is excluded for Nox turns. Catalog entries do not guarantee account
+access; a completed turn verifies access to the selected model.
+
+Executable paths can also be configured through `AGY_PATH` or `CODEX_PATH`.
+Restart Obsidian after changing environment variables. On Windows, a native
+`codex.exe` is required; common npm shims are resolved to their bundled native
+binary, or you can configure that absolute path directly.
 
 ## Development commands
 
