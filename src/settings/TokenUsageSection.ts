@@ -1,7 +1,7 @@
 import { Setting } from "obsidian";
 import {
   creditForModel, type CreditBalance, type CreditBalanceInput, type CreditProvider, type CreditUnit,
-} from "../persistence/CreditBalanceRepository";
+} from "./CreditBalanceView";
 import { summarizeTokenUsage, type UsageFilters, type UsageViewEntry } from "./TokenUsageStats";
 
 export interface UsageViewSnapshot {
