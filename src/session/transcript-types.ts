@@ -5,6 +5,8 @@ import type { ChatMessage } from "../types";
 
 export interface ChatSession {
   id: string;
+  /** Archived sessions remain durable but do not appear in active history. */
+  archivedAt?: number;
   learningScope?: LearningScopeState;
   conversationId?: string;
   /** Runtime cursor/model ownership; transcript and learning state are independent. */
