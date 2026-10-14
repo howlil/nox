@@ -293,7 +293,7 @@ export function mountTokenUsageSection(container: HTMLElement, host: UsageViewHo
       fill.toggleClass("is-low", percent <= 15);
       fill.toggleClass("is-warning", percent > 15 && percent <= 35);
       el.createSpan({ cls: "nox-credit-updated", text: "Manual snapshot · " + new Date(balance.updatedAt).toLocaleString() });
-      if (scope.balance.model === null && scope.shared) continue; // Shared pool deletion belongs to provider-pool row.
+      if (scope.shared && row.model !== "") continue; // Only the canonical pool row deletes shared balances.
       const remove = buttons.createEl("button", { text: "Remove", attr: { type: "button" } });
       remove.addEventListener("click", async () => {
         if (saving) return;
