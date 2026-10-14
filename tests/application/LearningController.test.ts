@@ -86,6 +86,12 @@ function createHarness(
       return session;
     },
     recordUserMessage: async (_content: string) => { recordedUserMessages += 1; },
+    recordPracticeHint: async (hint: string) => {
+      session.messages.push(
+        { role: "user", content: "/hint", action: "practice" },
+        { role: "assistant", content: "Hint: " + hint },
+      );
+    },
     setConversationId: async (_id?: string) => {},
     recordAssistantMessage: async (
       content: string,
@@ -139,17 +145,6 @@ function createHarness(
       session.messages.push({ role: "assistant", content: "",
         parts: [part as ChatSession["messages"][number]["parts"] extends (infer T)[] ? T : never] });
       return part;
-    },
-    recordProposal: async (
-      id: string,
-      proposal: EditProposal,
-      mutableFile?: string,
-    ) => {
-      proposalRecords.set(id, {
-        proposal,
-        mutableFile,
-        state: "pending",
-      });
     },
     recordEditOutcome: async (
       id: string,
@@ -674,9 +669,9 @@ test("context preparation failures become recoverable learning failures", async 
         updatedAt: 1,
       }),
       recordUserMessage: async () => {},
+      recordPracticeHint: async () => {},
       setConversationId: async () => {},
       recordAssistantMessage: async () => {},
-      recordProposal: async () => {},
       getProposal: () => null,
       updateProposalState: async () => {},
     },

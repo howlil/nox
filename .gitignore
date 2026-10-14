@@ -3,3 +3,6 @@ dist/
 .DS_Store
 *.log
 .env.local
+
+# Root bundle is a generated, obsolete entrypoint; deploy dist/ only.
+/main.js

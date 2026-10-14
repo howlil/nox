@@ -179,7 +179,7 @@ test("failed question persistence leaves no recoverable phantom question", async
 
 test("action shortcuts and historical proposals cannot bypass a locked mode", async () => {
   const r = await rig();
-  await r.sessions.recordProposal("old-edit", { file: "note.md", original: "old", replacement: "new" }, "note.md");
+  await r.sessions.recordEditOutcome("old-edit", { file: "note.md", original: "old", replacement: "new" }, "", "note.md", r.sessions.getSession().id);
   await r.send("/mode assessment");
   for (const action of ["edit", "review"]) {
     const events = await r.send("Please change the note", action);
@@ -239,7 +239,7 @@ test("ordinary requests and quoted commands cannot unlock or switch sessions", a
 
 test("mode entry waits for an in-flight editor Apply to settle", async () => {
   const r = await rig();
-  await r.sessions.recordProposal("pending-edit", { file: "note.md", original: "old", replacement: "new" }, "note.md");
+  await r.sessions.recordEditOutcome("pending-edit", { file: "note.md", original: "old", replacement: "new" }, "", "note.md", r.sessions.getSession().id);
   let finishApply!: () => void;
   const waiting = new Promise<void>((resolve) => { finishApply = resolve; });
   r.mutateWith(async () => { await waiting; return { ok: true }; });
@@ -279,4 +279,31 @@ test("timeout keeps the scoped question and blocks an escape while the turn runs
   assert.equal(r.learning.hasActivePracticeQuestion(), true);
   assert.equal(r.evidence().length, 0);
   assert.equal(r.sessions.getSession().learningScope?.mode, "FOCUSED_LEARNING");
+});
+
+
+test("hint persistence failure does not assist a question until an atomic retry succeeds", async () => {
+  const r = await rig();
+  await r.send("/mode assessment");
+  r.queue.push(output("answer", { ...question, hint: "Think about retrying the same HTTP call." }));
+  await r.send("Start");
+  const before = r.sessions.getSession().messages;
+  r.failSave(true);
+  const failed = await r.send("/hint");
+  assert.equal(failed.at(-1)?.type, "failed");
+  assert.deepEqual(r.sessions.getSession().messages, before);
+  assert.equal(r.learning.hasActivePracticeQuestion(), true);
+
+  r.failSave(false);
+  const hint = await r.send("/hint");
+  assert.equal(hint.at(-1)?.type, "completed");
+  assert.deepEqual(r.sessions.getSession().messages.slice(-2).map(m => m.content),
+    ["/hint", "Hint: Think about retrying the same HTTP call."]);
+
+  r.queue.push(output("answer", evaluation));
+  await r.send("The same call has the same effect when repeated");
+  const saved = r.sessions.getSession().messages.flatMap(m => m.parts ?? [])
+    .find(part => part.type === "practice-evaluation");
+  assert.equal(saved?.type, "practice-evaluation");
+  if (saved?.type === "practice-evaluation") assert.equal(saved.evaluation.assisted, true);
 });

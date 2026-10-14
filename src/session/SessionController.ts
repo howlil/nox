@@ -32,6 +32,34 @@ export class SessionController {
     const data = await this.pluginData.read();
     await this.store.load(data);
 
+    // One-time legacy migration. Only compact a fully decodable, selected
+    // conversation; leave malformed legacy data intact for safe recovery.
+    const legacy = data["agy-sessions"];
+    if (data["nox-sessions"] == null && legacy && typeof legacy === "object" && !Array.isArray(legacy)) {
+      const rawSessions = (legacy as { sessions?: unknown }).sessions;
+      const keys = rawSessions && typeof rawSessions === "object" && !Array.isArray(rawSessions)
+        ? Object.keys(rawSessions) : [];
+      if (keys.length > 0 && this.store.listSessions().length === keys.length &&
+          this.store.getCurrentSession()) {
+        const normalized = this.store.serialize();
+        const original = JSON.stringify(legacy);
+        try {
+          await this.pluginData.update((current) => {
+            // Never overwrite a concurrent canonical migration or changed legacy snapshot.
+            if (current["nox-sessions"] != null) return current;
+            if (JSON.stringify(current["agy-sessions"]) !== original) {
+              throw new Error("Legacy sessions changed during migration.");
+            }
+            const next = { ...current, ...normalized };
+            delete next["agy-sessions"];
+            return next;
+          });
+        } catch (error) {
+          throw new PersistenceError("Unable to migrate legacy Nox sessions", error);
+        }
+      }
+    }
+
     this.currentSession = this.store.getCurrentSession();
     if (!this.currentSession) {
       this.currentSession = this.store.createSession(this.store.getDefaultModel());
@@ -149,14 +177,6 @@ export class SessionController {
     return staged.result;
   }
 
-  /** The only path for applying session mutations to the store. */
-  private commitSession(session: ChatSession): void {
-    this.store.updateSession(session);
-    if (this.currentSession?.id === session.id) {
-      this.currentSession = this.store.getSession(session.id);
-    }
-  }
-
   private sessionForWrite(sessionId?: string): ChatSession {
     const session = sessionId ? this.store.getSession(sessionId) : this.currentSession;
     if (!session) throw new Error(`Session ${sessionId} no longer exists`);
@@ -174,6 +194,22 @@ export class SessionController {
         const session = sessionId ? draft.getSession(sessionId) : draft.getCurrentSession();
         if (!session) throw new Error(`Session ${sessionId} no longer exists`);
         session.messages.push({ role: "user", content, action });
+        draft.updateSession(session);
+      });
+    });
+  }
+
+  /** Commit both hint messages before the caller marks the attempt assisted. */
+  async recordPracticeHint(hint: string, sessionId: string): Promise<void> {
+    if (!hint.trim()) throw new Error("Cannot persist an empty practice hint.");
+    return this.serializeWrite(async () => {
+      await this.commitStoreTransaction((draft) => {
+        const session = draft.getSession(sessionId);
+        if (!session) throw new Error("Practice session no longer exists.");
+        session.messages.push(
+          { role: "user", content: "/hint", action: "practice" },
+          { role: "assistant", content: "Hint: " + hint },
+        );
         draft.updateSession(session);
       });
     });
@@ -363,25 +399,6 @@ export class SessionController {
     }
   }
 
-
-  async recordProposal(
-    proposalId: string,
-    proposal: EditProposal,
-    mutableFile?: string,
-    sessionId?: string,
-  ): Promise<void> {
-    return this.serializeWrite(async () => {
-      await this.commitStoreTransaction((draft) => {
-        const session = sessionId ? draft.getSession(sessionId) : draft.getCurrentSession();
-        if (!session) throw new Error(`Session ${sessionId} no longer exists`);
-        session.messages.push({
-          role: "assistant", content: "", proposalId, proposal,
-          proposalMutableFile: mutableFile, proposalState: "pending",
-        });
-        draft.updateSession(session);
-      });
-    });
-  }
 
   /** An entire completed edit outcome is one durable transcript decision. */
   async recordEditOutcome(

@@ -20,6 +20,10 @@ if (existsSync("dist/.hotreload")) {
   throw new Error("Development Hot-Reload marker must not be included in production artifacts.");
 }
 
+if (existsSync("main.js")) {
+  throw new Error("Obsolete root main.js is tracked or generated; use dist/main.js only.");
+}
+
 if (existsSync("dist/forge.png")) {
   throw new Error("Legacy brand artifact must not exist: dist/forge.png");
 }
