@@ -76,6 +76,7 @@ export default class NoxPlugin extends Plugin {
     const programs = new LearningProgramOrchestrator(
       runtime, contexts, learningState, programStore,
       () => sessions.getSession().model,
+      () => sessions.getSession().runtimeProvider,
     );
 
     this.learning = new LearningController(
