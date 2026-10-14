@@ -39,8 +39,15 @@ test("decodes settings field-by-field with safe defaults", () => {
       executablePath: "/bin/agy",
       codexExecutablePath: "",
       preferredModel: "",
+      appearance: "system",
     },
   );
+});
+
+test("appearance validates persisted choices with a system fallback", () => {
+  assert.equal(decodeNoxSettings({ "nox-settings": { appearance: "dark" } }).appearance, "dark");
+  assert.equal(decodeNoxSettings({ "nox-settings": { appearance: "light" } }).appearance, "light");
+  assert.equal(decodeNoxSettings({ "nox-settings": { appearance: "invalid" } }).appearance, "system");
 });
 
 test("saving settings preserves unrelated plugin data", async () => {
@@ -60,6 +67,7 @@ test("saving settings preserves unrelated plugin data", async () => {
     executablePath: "/bin/agy",
     codexExecutablePath: "",
     preferredModel: "model-a",
+    appearance: "dark" as const,
   };
 
   await saveNoxSettings(
