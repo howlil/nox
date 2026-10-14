@@ -27,6 +27,7 @@ export interface LearningRequest {
   retry?: boolean;
   /** Stable identity across Retry. New user submissions receive new IDs. */
   turnId?: string;
+  programActivity?: { programId: string; objectiveId: string; kind: "teach" };
 }
 
 export interface ProposedEdit {
