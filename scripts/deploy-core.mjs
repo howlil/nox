@@ -12,6 +12,22 @@ export function deployPlugin({
       "dist/ directory not found. Please run 'pnpm run build' first.",
     );
   }
+  if (!fs.existsSync(path.join(targetVault, ".obsidian")) ||
+      !fs.statSync(path.join(targetVault, ".obsidian")).isDirectory()) {
+    throw new Error(
+      "Target is not an Obsidian vault (missing .obsidian directory): " + targetVault,
+    );
+  }
+  for (const file of ["main.js", "manifest.json", "styles.css"]) {
+    if (!fs.existsSync(path.join(distDir, file)) ||
+        !fs.statSync(path.join(distDir, file)).isFile()) {
+      throw new Error("Missing required plugin build output: dist/" + file);
+    }
+  }
+  const manifest = JSON.parse(fs.readFileSync(path.join(distDir, "manifest.json"), "utf8"));
+  if (manifest.id !== pluginId) {
+    throw new Error("Build manifest plugin id does not match deployment target.");
+  }
 
   const pluginDest = path.join(
     targetVault,

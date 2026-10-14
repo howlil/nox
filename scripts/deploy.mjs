@@ -1,5 +1,6 @@
 import fs from "fs";
 import path from "path";
+import { createHash } from "crypto";
 import { deployPlugin } from "./deploy-core.mjs";
 
 const PLUGIN_ID = "nox-obsidian";
@@ -36,10 +37,18 @@ try {
     pluginId: PLUGIN_ID,
   });
 
-  console.log(
-    `\n🎉 Successfully deployed ${PLUGIN_ID} to:`,
-  );
-  console.log(`   ${pluginDest}\n`);
+  const digest = (file) => createHash("sha256")
+    .update(fs.readFileSync(file)).digest("hex");
+  const sourceHash = digest(path.resolve("dist", "main.js"));
+  const installedHash = digest(path.join(pluginDest, "main.js"));
+  if (sourceHash !== installedHash) {
+    throw new Error("Installed main.js differs from current build. Deployment verification failed.");
+  }
+  console.log("\nDeployed Nox to:", pluginDest);
+  console.log("SHA256(main.js):", installedHash);
+  console.log("IMPORTANT: Fully reload Nox in this SAME Obsidian vault.");
+  console.log("Then open Nox Settings → Loaded plugin build to confirm revision/transport.");
+  console.log("If the open vault path differs from above, deploy to the correct vault.");
 } catch (error) {
   console.error(
     "❌",

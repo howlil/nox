@@ -25,6 +25,12 @@ import {
 } from "./settings/NoxSettings";
 import { NoxSettingsTab } from "./settings/SettingsTab";
 
+// Values are injected into the actual production bundle by esbuild. They are
+// not read from a manifest that could be newer than the loaded JavaScript.
+declare const __NOX_BUILD_REVISION__: string;
+declare const __NOX_BUILD_TIMESTAMP__: string;
+declare const __NOX_BUILD_TRANSPORT__: string;
+
 /**
  * Composition root.
  *
@@ -186,6 +192,16 @@ export default class NoxPlugin extends Plugin {
     this.noxSettings = next;
     await Promise.all(this.app.workspace.getLeavesOfType(NOX_VIEW_TYPE)
       .map((leaf) => (leaf.view as ChatView).refreshRuntime(runtimeChanged)));
+  }
+
+  getBuildDiagnostics(): { revision: string; builtAt: string; transport: string; pluginDir: string; vaultDir: string } {
+    return {
+      revision: __NOX_BUILD_REVISION__,
+      builtAt: __NOX_BUILD_TIMESTAMP__,
+      transport: __NOX_BUILD_TRANSPORT__,
+      pluginDir: this.manifest.dir ?? "(unknown plugin directory)",
+      vaultDir: this.vaultPath ?? "(non-file-system vault)",
+    };
   }
 
   getChatGPTConnection(): ChatGptConnection { return this.chatGptAuth.status(); }

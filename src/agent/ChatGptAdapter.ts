@@ -57,9 +57,13 @@ export interface ChatGptAdapterDeps { fetch: typeof fetch }
 /** Official Responses API via the account's OAuth grant; no API key or ChatGPT web session scraping. */
 export class ChatGptAdapter implements AgentAdapter {
   private readonly http: typeof fetch;
-  constructor(private readonly auth: ChatGptAuth, deps: Partial<ChatGptAdapterDeps> = {}) {
-    // Bind the default fetch explicitly: unbound window.fetch throws Illegal invocation in Obsidian.
-    this.http = deps.fetch ?? ((input, init) => globalThis.fetch(input, init));
+  constructor(private readonly auth: ChatGptAuth, deps: ChatGptAdapterDeps) {
+    // Fail closed: ChatGPT must use an explicitly injected HTTP transport.
+    // Do not reintroduce a fallback to window.fetch in the Electron renderer.
+    if (typeof deps?.fetch !== "function") {
+      throw new Error("ChatGPT transport missing. Rebuild and reload Nox.");
+    }
+    this.http = deps.fetch;
   }
   async check(): Promise<AgentHealth> {
     const session = this.auth.status();

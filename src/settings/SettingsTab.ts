@@ -8,6 +8,8 @@ export interface NoxSettingsHost {
     lastFailure?: { stage: string; code: string; message: string } };
   connectChatGPT(): Promise<void>;
   disconnectChatGPT(): Promise<void>;
+  getBuildDiagnostics(): { revision: string; builtAt: string; transport: string;
+    pluginDir: string; vaultDir: string };
 }
 
 export class NoxSettingsTab extends PluginSettingTab {
@@ -96,6 +98,25 @@ export class NoxSettingsTab extends PluginSettingTab {
               ? { codexExecutablePath: value.trim() } : { executablePath: value.trim() });
           }),
       );
+
+    const build = this.nox.getBuildDiagnostics();
+    new Setting(containerEl)
+      .setName("Loaded plugin build")
+      .setDesc("Git: " + build.revision + " · Built: " + build.builtAt +
+        " · Transport: " + build.transport +
+        " · Vault: " + build.vaultDir +
+        " · Plugin: " + build.pluginDir)
+      .addButton((button) => button
+        .setButtonText("Copy build diagnostic")
+        .onClick(async () => {
+          const report = "NOX loaded build: revision=" + build.revision +
+            "; builtAt=" + build.builtAt + "; transport=" + build.transport +
+            "; vault=" + build.vaultDir + "; plugin=" + build.pluginDir;
+          try {
+            await navigator.clipboard.writeText(report);
+            new Notice("NOX build diagnostic copied.");
+          } catch { new Notice("Could not copy NOX build diagnostic."); }
+        }));
 
     new Setting(containerEl)
       .setName("Preferred model")
