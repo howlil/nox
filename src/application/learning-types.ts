@@ -10,6 +10,18 @@ import {
   PracticeAnswer,
 } from "../domain/practice/types";
 import { ReviewFinding } from "../domain/review/types";
+import type { LearningObjective, ActivityKind } from "../domain/learning-program/types";
+
+/** Read-only domain projection for the learning graph. */
+export interface NoxProgramOverview {
+  goal: string;
+  active: boolean;
+  next: { kind: ActivityKind; objectiveId?: string; reason: string };
+  objectives: Array<{ objective: LearningObjective;
+    status: "unseen" | "remediate" | "provisional" | "mastered";
+    attempts: number; dueAt: number | null }>;
+}
+
 
 export type LearningActionKind =
   | "ask"
