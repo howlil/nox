@@ -1,0 +1,84 @@
+---
+import FloatingNav from "../components/FloatingNav";
+import MascotMotion from "../components/MascotMotion";
+import LearningDemo from "../components/LearningDemo";
+import TextReveal from "../components/arc/text-reveal/text-reveal";
+import { ArrowDown, ArrowUpRight, BookOpenText, BrainCircuit, Github, Heart, LockKeyhole, RotateCcw, Sparkles } from "lucide-react";
+import "../styles/global.css";
+
+const github = "https://github.com/howlil/nox";
+const sponsorUrl = import.meta.env.PUBLIC_SPONSOR_URL || undefined;
+const title = "NOX — AI Learning Companion for Obsidian";
+const description = "Understand, practice, and review what you learn. NOX turns your Obsidian notes into active learning with contextual AI and evidence-based practice.";
+---
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#100a2b" />
+    <meta name="description" content={description} />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:type" content="website" />
+    <meta property="og:image" content="/nox.png" />
+    <meta name="color-scheme" content="dark" />
+    <title>{title}</title>
+    <link rel="icon" href="/nox.png" type="image/png" />
+    <link rel="preload" href="/nox-mascot.svg" as="image" type="image/svg+xml" />
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to content</a>
+    <FloatingNav client:load sponsorUrl={sponsorUrl} />
+    <main id="main">
+      <section id="home" class="hero relative isolate overflow-hidden">
+        <div class="hero-grain" aria-hidden="true"></div>
+        <div class="hero-ambient" aria-hidden="true"></div>
+        <div class="hero-stars" aria-hidden="true"></div>
+        <svg class="waves" viewBox="0 0 1440 660" preserveAspectRatio="none" aria-hidden="true">
+          <defs>
+            <linearGradient id="wave-1" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#332092" /><stop offset=".6" stop-color="#6941d2" /><stop offset="1" stop-color="#4423b5"/></linearGradient>
+            <linearGradient id="wave-2" x1="0" y1="0" x2="1" y2="0"><stop stop-color="#392092" /><stop offset=".52" stop-color="#9862e8"/><stop offset="1" stop-color="#5634bb"/></linearGradient>
+            <linearGradient id="wave-3" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#aa78f9"/><stop offset="1" stop-color="#5934b8"/></linearGradient>
+          </defs>
+          <path class="wave-remote" d="M-30 315C170 145 340 410 550 250S890 115 1100 270S1350 420 1480 200V700H-30Z" fill="url(#wave-1)" opacity=".47"/>
+          <path class="wave-middle" d="M-30 460C180 180 370 515 610 355S980 200 1180 390S1360 490 1480 320V700H-30Z" fill="url(#wave-2)" opacity=".67"/>
+          <path class="wave-near" d="M-30 610C220 435 380 600 610 490S940 470 1160 560S1370 485 1480 465V700H-30Z" fill="url(#wave-3)" opacity=".56"/>
+        </svg>
+        <div class="hero-copy mx-auto flex flex-col items-center text-center">
+          <p class="hero-eyebrow"><Sparkles size={15} aria-hidden="true" /> TURN NOTES INTO REAL LEARNING</p>
+          <TextReveal text={"Learn deeper\nwith Nox."} as="h1" className="hero-title" />
+          <p class="hero-description">AI explanations, interactive practice, and evidence-based review. Built around your Obsidian notes.</p>
+          <div class="hero-actions">
+            <a class="hero-button-primary" href={github} target="_blank" rel="noopener noreferrer"><Github size={18} aria-hidden="true" /> Star on GitHub <ArrowUpRight size={16} aria-hidden="true" /></a>
+            {sponsorUrl ? <a class="hero-button-secondary" href={sponsorUrl} target="_blank" rel="noopener noreferrer"><Heart size={18} aria-hidden="true" /> Sponsor</a> : <span class="hero-button-secondary hero-disabled" title="Sponsor link is not configured yet"><Heart size={18} aria-hidden="true" /> Sponsor soon</span>}
+          </div>
+        </div>
+        <div class="mascot-position">
+          <MascotMotion client:visible />
+        </div>
+        <div class="hero-foot"><span>YOUR NOTES.<br />MORE UNDERSTANDING.</span><a href="#features">Explore NOX <ArrowDown size={17} aria-hidden="true" /></a><span>BUILT FOR<br />OBSIDIAN.</span></div>
+      </section>
+      <section id="features" class="content-section features-section">
+        <div class="section-inner">
+          <p class="section-kicker"><Sparkles size={15} /> BUILT TO MAKE LEARNING ACTIVE</p>
+          <h2>Read. Practice.<br/><span>Make it stick.</span></h2>
+          <p class="section-lead">NOX stays beside your notes, turning passive reading into a deliberate learning loop.</p>
+          <div class="feature-grid">
+            <article class="feature-card"><div class="feature-icon"><BookOpenText size={21}/></div><span>01 / UNDERSTAND</span><h3>Explore what you're reading.</h3><p>Ask questions and get explanations grounded in the notes you choose.</p></article>
+            <article class="feature-card"><div class="feature-icon"><BrainCircuit size={21}/></div><span>02 / PRACTICE</span><h3>Test your understanding.</h3><p>Answer multiple-choice, written, or code questions inside NOX.</p></article>
+            <article class="feature-card"><div class="feature-icon"><RotateCcw size={21}/></div><span>03 / REVIEW</span><h3>Revisit what needs work.</h3><p>Use practice evidence and focused review to identify gaps in your knowledge.</p></article>
+          </div>
+        </div>
+      </section>
+      <section id="how-it-works" class="content-section workflow-section">
+        <div class="section-inner">
+          <div class="workflow-intro"><div><p class="section-kicker"><LockKeyhole size={15}/> LEARN IN CONTEXT</p><h2>Right beside<br/><span>your notes.</span></h2></div><p class="section-lead">Select a note, choose an action, and explore a concept. The example is interactive—try the learning modes.</p></div>
+          <LearningDemo client:visible />
+          <div class="workflow-bottom"><p>NOX runs in Obsidian desktop. It proposes changes before editing your notes.</p><a href={github} target="_blank" rel="noopener noreferrer">Explore the source <ArrowUpRight size={16}/></a></div>
+        </div>
+      </section>
+    </main>
+    <footer class="footer"><div class="footer-inner"><div class="footer-brand"><img src="/nox.png" alt="" width="28" height="28" /> <strong>nox.</strong> <span>Learn actively.</span></div><a href={github} target="_blank" rel="noopener noreferrer">GitHub <ArrowUpRight size={15}/></a><span>NOX · Obsidian Learning Companion</span></div></footer>
+  </body>
+</html>
