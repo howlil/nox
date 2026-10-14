@@ -96,6 +96,7 @@ export class LearningController {
     return {
       goal: program.goal,
       active: Boolean(program.session),
+      ...(program.session ? { sessionTime: (await this.programs.getSessionTime()) ?? undefined } : {}),
       next: { kind: next?.kind ?? "wait", objectiveId: next?.objective?.id,
         reason: next?.reason ?? "No activity is available." },
       objectives: program.objectives.map(objective => {
@@ -185,6 +186,35 @@ export class LearningController {
     await this.sessions.savePracticeDraft(questionId, answer, session.id);
   }
 
+  /** Every model-backed turn passes through the same session-time accounting boundary. */
+  private async *runTimedTurn(request: LearningRequest): AsyncIterable<LearningEvent> {
+    const id = request.turnId ?? crypto.randomUUID();
+    let timingStarted = false;
+    try {
+      if (this.programs) timingStarted = await this.programs.beginAiWait(id);
+      for await (const event of this.turns.run(request)) {
+        // Release the budget before publishing a terminal event to the view.
+        if (timingStarted && (event.type === "completed" || event.type === "failed" ||
+            event.type === "cancelled")) {
+          await this.programs!.finishAiWait(id);
+          timingStarted = false;
+        }
+        yield event;
+      }
+    } catch (error) {
+      yield { type: "failed", failure: {
+        code: "persistence-failed",
+        message: "Nox could not update session time. Learning progress was preserved.",
+        diagnostic: error instanceof Error ? error.message : String(error),
+      } };
+    } finally {
+      if (timingStarted) {
+        try { await this.programs?.finishAiWait(id); }
+        catch { /* Remain safely paused until a successful recovery. */ }
+      }
+    }
+  }
+
   async *run(request: LearningRequest): AsyncIterable<LearningEvent> {
     if (this.configuringRuntime) {
       yield { type: "failed", failure: { code: "busy", message: "Wait for runtime settings to finish saving." } };
@@ -272,7 +302,7 @@ export class LearningController {
           response = `Active program changed to: ${selected.goal}`;
         } else if (command.kind === "free-practice") {
           if (this.turns.hasActivePracticeQuestion()) throw new Error("Finish the active question before starting free practice.");
-          yield* this.turns.run({ ...request, action: "practice", freePractice: true,
+          yield* this.runTimedTurn({ ...request, action: "practice", freePractice: true,
             prompt: "Ask me an independent practice question based on the current context." });
           return;
         } else if (command.kind === "progress") {
@@ -282,6 +312,20 @@ export class LearningController {
         } else if (command.kind === "start-session") {
           const program = await this.programs.startSession();
           response = `Learning session started. Timebox: ${program.constraints.minutesPerSession} min. Use /next to begin.`;
+        } else if (command.kind === "pause-session") {
+          await this.programs.pauseSession();
+          response = "Learning session paused. Use /resume-session when ready.";
+        } else if (command.kind === "resume-session") {
+          await this.programs.resumeSession();
+          response = "Learning session resumed. AI waiting time does not consume study budget.";
+        } else if (command.kind === "session-time") {
+          const time = await this.programs.getSessionTime();
+          response = time
+            ? [`Learning session: ${time.status}.`,
+                `Confirmed active: ${Math.round(time.activeMs / 1000)}s.`,
+                `Waiting for AI: ${Math.round(time.aiWaitingMs / 1000)}s.`,
+                `Remaining: ${Math.ceil(time.remainingMs / 60_000)} / ${time.budgetMs / 60_000} minutes.`].join("\n")
+            : "No active learning session. Use /start-session.";
         } else if (command.kind === "end-session") {
           await this.programs.endSession();
           response = "Session ended. Program progress remains saved. Use /start-session when ready.";
@@ -301,7 +345,7 @@ export class LearningController {
               const last = state.evidence.filter(item =>
                 item.programId === selected.program.id && item.objectiveId === objective.id &&
                 item.scope === "learner" && item.type === "practice").at(-1);
-              const activity = this.turns.run({
+              const activity = this.runTimedTurn({
                 ...request, action: "explain",
                 programActivity: { kind: "teach", programId: selected.program.id, objectiveId: objective.id },
                 prompt: "Teach the objective after my difficulty: " + objective.outcome,
@@ -314,7 +358,7 @@ export class LearningController {
               }
               return;
             } else if (selected?.decision.objective) {
-              yield* this.turns.run({ ...request, action: "practice" });
+              yield* this.runTimedTurn({ ...request, action: "practice" });
               return;
             }
             if (!selected?.program || selected.program.session) {
@@ -341,7 +385,7 @@ export class LearningController {
       yield { type: "failed", failure: { code: "busy", message: "Curriculum generation is in progress." } };
       return;
     }
-    yield* this.turns.run(request);
+    yield* this.runTimedTurn(request);
   }
 
   async applyProposal(
@@ -464,5 +508,6 @@ export class LearningController {
 
   dispose(): void {
     this.turns.dispose();
+    this.programs?.dispose();
   }
 }
