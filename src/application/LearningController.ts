@@ -178,7 +178,7 @@ export class LearningController {
   }
 
   async forkSession(parentId: string, anchorMessageId: string): Promise<{
-    session: ChatSession; draftUserPrompt?: string;
+    session: ChatSession; draftUserPrompt?: string; draftReplyTo?: ChatMessage["replyTo"];
   }> {
     this.assertRuntimeIdle();
     return this.sessions.forkSession(parentId, anchorMessageId);
