@@ -66,7 +66,6 @@ export class NoxHistoryList {
         this.scope = scope;
         this.expanded = null;
         this.selected.clear();
-        this.expanded = null;
         this.render(this.sessions, this.currentId);
       });
     }
@@ -169,6 +168,10 @@ export class NoxHistoryList {
     let suppressClick = false;
     open.addEventListener("click", () => {
       if (suppressClick) return;
+      if (this.expanded?.id === session.id) {
+        this.closeSwipe();
+        return;
+      }
       if (this.selecting) this.toggleSelected(session.id);
       else if (archived) void this.run([session.id], "restore");
       else void this.callbacks.open(session.id).catch(error => this.report(error));
@@ -277,6 +280,11 @@ export class NoxHistoryList {
   }
 
   /** Only one swipe row can remain revealed. Scroll collapses it immediately. */
+  /** Hide action drawers whenever the history popover is dismissed. */
+  resetSwipe(): void {
+    this.closeSwipe();
+  }
+
   private closeSwipe(exceptId?: string): void {
     for (const [id] of this.rowRefs) {
       if (id !== exceptId) this.positionRow(id, null);
