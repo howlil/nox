@@ -33,7 +33,9 @@ export function createNodeInferenceFetch(bufferedCatalogFetch: typeof fetch): ty
       };
       const req = httpsRequest(url, {
         method, headers,
-        timeout: 65_000,
+        // Socket inactivity limit; the turn-level AbortController owns the 300s deadline.
+        // Deep reasoning may legitimately produce no bytes for over 65 seconds.
+        timeout: 290_000,
       }, response => {
         responseStream = response;
         const status = response.statusCode ?? 0;
