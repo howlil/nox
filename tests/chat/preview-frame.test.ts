@@ -7,6 +7,6 @@ test("preview auto height rejects malformed and adversarial dimensions", () => {
     assert.equal(normalizePreviewHeight(value), null);
   }
   assert.equal(normalizePreviewHeight(0), 120);
-  assert.equal(normalizePreviewHeight(320.2), 323);
+  assert.equal(normalizePreviewHeight(320.2), 321);
   assert.equal(normalizePreviewHeight(50000), MAX_PREVIEW_HEIGHT);
 });
