@@ -31,10 +31,11 @@ export class CodexAdapter implements AgentAdapter {
     try {
       const bin = await this.resolveBinary();
       await this.probe(bin, ["--version"]);
+      await this.probe(bin, ["login", "status"]);
       return { status: "ready" };
     } catch (error) {
       return { status: this.getConfig().executablePath?.trim() ? "misconfigured" : "unavailable",
-        failure: codexFailure(String(error instanceof Error ? error.message : error), "runtime-unavailable") };
+        failure: codexFailure("Codex is unavailable or signed out. Run codex login locally. " + String(error instanceof Error ? error.message : error), "runtime-unavailable") };
     }
   }
 
