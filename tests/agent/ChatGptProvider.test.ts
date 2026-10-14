@@ -255,3 +255,79 @@ test("browser callback never displays success when OAuth token exchange fails", 
     auth.dispose();
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });
+
+/**
+ * The real OAuth service can respond with JSON OAuth errors, generic HTTP
+ * errors, proxy HTML, or a successful but incomplete token payload. All must
+ * produce a reproducible, secret-free diagnostic rather than request_failed.
+ */
+for (const scenario of [
+  { name: "standard OAuth error", status: 400,
+    body: '{"error":"invalid_grant","error_description":"secret-code-should-not-leak"}',
+    expected: "invalid_grant" },
+  { name: "nested OAuth error", status: 401,
+    body: '{"error":{"code":"invalid_client","message":"secret-code-should-not-leak"}}',
+    expected: "invalid_client" },
+  { name: "unknown HTTP error", status: 403,
+    body: '{"detail":"secret-code-should-not-leak"}', expected: "http_403" },
+  { name: "HTML error from proxy", status: 502,
+    body: "<html>secret-code-should-not-leak</html>", expected: "http_502_non_json" },
+  { name: "malformed successful JSON", status: 200,
+    body: "not-json", expected: "non_json_response" },
+  { name: "missing ID token", status: 200,
+    body: '{"access_token":"secret-code-should-not-leak"}', expected: "missing_id_token" },
+]) {
+  test("OAuth diagnostics distinguish " + scenario.name, async () => {
+    const dir = mkdtempSync(join(tmpdir(), "nox-token-diagnostic-"));
+    const file = join(dir, "nox", "chatgpt-auth.json");
+    let callbackPage: Promise<Response> | undefined;
+    const http = async (): Promise<Response> =>
+      new Response(scenario.body, { status: scenario.status });
+    try {
+      const auth = new ChatGptAuth({ storageFile: file, fetch: http as typeof fetch });
+      const attempt = auth.signIn(async (url) => {
+        const u = new URL(url);
+        const callback = new URL(u.searchParams.get("redirect_uri")!);
+        callback.searchParams.set("code", "private-one-time-code");
+        callback.searchParams.set("state", u.searchParams.get("state")!);
+        callback.searchParams.set("client_id", "oaiapp-test");
+        callbackPage = fetch(callback);
+      });
+      await assert.rejects(attempt);
+      assert.equal(auth.status().lastFailure?.stage, "token-exchange");
+      assert.equal(auth.status().lastFailure?.code, scenario.expected);
+      const page = await callbackPage!;
+      assert.equal(page.status, 500);
+      const body = await page.text();
+      assert.match(body, new RegExp(scenario.expected));
+      assert.doesNotMatch(body, /private-one-time-code|secret-code-should-not-leak/);
+      assert.doesNotMatch(auth.status().lastFailure?.message || "",
+        /private-one-time-code|secret-code-should-not-leak/);
+      auth.dispose();
+    } finally { rmSync(dir, { recursive: true, force: true }); }
+  });
+}
+
+test("OAuth network failure produces network_error without including connection diagnostics", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "nox-network-"));
+  const file = join(dir, "chatgpt-auth.json");
+  let callbackPage: Promise<Response> | undefined;
+  try {
+    const auth = new ChatGptAuth({ storageFile: file, fetch: (async () => {
+      throw new TypeError("fetch failed: private-one-time-code");
+    }) as typeof fetch });
+    const attempt = auth.signIn(async (url) => {
+      const u = new URL(url);
+      const callback = new URL(u.searchParams.get("redirect_uri")!);
+      callback.searchParams.set("state", u.searchParams.get("state")!);
+      callback.searchParams.set("code", "private-one-time-code");
+      callback.searchParams.set("client_id", "oaiapp-test");
+      callbackPage = fetch(callback);
+    });
+    await assert.rejects(attempt);
+    assert.equal(auth.status().lastFailure?.code, "network_error");
+    assert.doesNotMatch(auth.status().lastFailure?.message || "", /private-one-time-code/);
+    assert.equal((await callbackPage!).status, 500);
+    auth.dispose();
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
