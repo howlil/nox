@@ -8,6 +8,7 @@ import { ArrowDown, ArrowUpRight, BookOpenText, BrainCircuit, LockKeyhole, Rotat
 import "../styles/global.css";
 
 const github = "https://github.com/howlil/nox";
+const sponsorUrl = import.meta.env.PUBLIC_SPONSOR_URL || undefined;
 const title = "NOX — AI Learning Companion for Obsidian";
 const description = "Understand, practice, and review what you learn. NOX turns your Obsidian notes into active learning with contextual AI and evidence-based practice.";
 ---
@@ -32,7 +33,7 @@ const description = "Understand, practice, and review what you learn. NOX turns 
   </head>
   <body>
     <a class="skip-link" href="#main">Skip to content</a>
-    <FloatingNav client:load />
+    <FloatingNav client:load sponsorUrl={sponsorUrl} />
     <main id="main">
       <section id="home" class="hero relative isolate overflow-hidden">
         <div class="hero-grain" aria-hidden="true"></div>
