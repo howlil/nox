@@ -11,6 +11,8 @@ export interface AgentRuntimePort {
   replaceAdapter?(adapter: AgentAdapter): Promise<void>;
   check(): Promise<AgentHealth>;
   getModels(): AgentModel[];
+  getModelDiscoveryError?(): string | undefined;
+  refreshModels?(): Promise<void>;
   send(
     input: AgentInput,
     opts: SendOptions,
@@ -25,6 +27,7 @@ export interface AgentRuntimePort {
  */
 export class AgentRuntime implements AgentRuntimePort {
   private models: AgentModel[] = [];
+  private modelDiscoveryError?: string;
   private discovery?: AbortController;
 
   constructor(private adapter: AgentAdapter) {}
@@ -32,6 +35,7 @@ export class AgentRuntime implements AgentRuntimePort {
   async replaceAdapter(adapter: AgentAdapter): Promise<void> {
     this.adapter = adapter;
     this.models = [];
+    this.modelDiscoveryError = undefined;
     await this.init();
   }
 
@@ -39,11 +43,19 @@ export class AgentRuntime implements AgentRuntimePort {
     this.discovery?.abort();
     const discovery = this.discovery = new AbortController();
     const adapter = this.adapter;
+    this.modelDiscoveryError = undefined;
     try {
       const models = await adapter.listModels(discovery.signal);
-      if (this.discovery === discovery && !discovery.signal.aborted) this.models = models;
-    } catch {
-      if (this.discovery === discovery && !discovery.signal.aborted) this.models = [];
+      if (this.discovery === discovery && !discovery.signal.aborted) {
+        this.models = models;
+        if (models.length === 0) this.modelDiscoveryError = "No models available for the current provider.";
+      }
+    } catch (error) {
+      if (this.discovery === discovery && !discovery.signal.aborted) {
+        this.models = [];
+        // The ChatGPT adapter raises sanitized errors without credentials.
+        this.modelDiscoveryError = error instanceof Error ? error.message : "Model discovery failed.";
+      }
     } finally {
       if (this.discovery === discovery) this.discovery = undefined;
     }
@@ -61,6 +73,10 @@ export class AgentRuntime implements AgentRuntimePort {
   getModels(): AgentModel[] {
     return this.models.map((model) => ({ ...model }));
   }
+
+  getModelDiscoveryError(): string | undefined { return this.modelDiscoveryError; }
+
+  refreshModels(): Promise<void> { return this.init(); }
 
   send(
     input: AgentInput,
