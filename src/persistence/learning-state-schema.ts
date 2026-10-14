@@ -76,7 +76,8 @@ function isEvidenceV2(
 
   if (scope !== "learner" && scope !== "material") return false;
   const evidence = value as unknown as Record<string, unknown>;
-  return (evidence.programId === undefined || typeof evidence.programId === "string") &&
+  return (evidence.assessmentCoverage === undefined || evidence.assessmentCoverage === "single-item") &&
+    (evidence.programId === undefined || typeof evidence.programId === "string") &&
     (evidence.objectiveId === undefined || typeof evidence.objectiveId === "string") &&
     (evidence.assisted === undefined || typeof evidence.assisted === "boolean") &&
     (evidence.rubricResults === undefined || isRubricResults(evidence.rubricResults));
