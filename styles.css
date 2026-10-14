@@ -1999,9 +1999,6 @@
     margin-top: 14px;
   }
 
-  .nox-capability-grid {
-    grid-template-columns: 1fr;
-  }
 
   .nox-composer {
     padding-inline: 9px;
@@ -2014,6 +2011,10 @@
 }
 
 @media (max-width: 360px) {
+  .nox-capability-grid {
+    grid-template-columns: 1fr;
+  }
+
   .nox-model-trigger {
     width: 96px;
     max-width: 96px;
