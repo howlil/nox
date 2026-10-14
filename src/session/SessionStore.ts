@@ -1,5 +1,6 @@
 import { ChatSession, ChatMessage, EditProposal } from "../types";
 import { isTranscriptPart } from "./transcript-schema";
+import { isPracticeAnswer } from "../domain/practice/question-schema";
 import { isLockedLearningMode } from "../domain/practice/learning-scope";
 
 const STORE_KEY = "nox-sessions";
@@ -238,6 +239,11 @@ export class SessionStore {
           ? session.conversationId
           : undefined,
       model: typeof session.model === "string" ? session.model : undefined,
+      practiceDrafts: session.practiceDrafts && typeof session.practiceDrafts === "object" &&
+        !Array.isArray(session.practiceDrafts)
+        ? Object.fromEntries(Object.entries(session.practiceDrafts)
+            .filter(([key, value]) => key.length > 0 && key.length <= 200 && isPracticeAnswer(value)))
+        : undefined,
       messages: session.messages
         .map((message) => this.decodeMessage(message))
         .filter((message): message is ChatMessage => message !== null),
