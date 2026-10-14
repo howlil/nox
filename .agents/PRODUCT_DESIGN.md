@@ -718,3 +718,12 @@ NOX can persist explicitly user-entered quota snapshots for model-specific
 limits or a shared provider pool. It must label them Manual, never Verified;
 display Unavailable when no balance exists; and never subtract token usage from
 a manual credit balance. The UI is Settings-only, compact and light-only.
+
+## Provider quota reads
+
+Token Usage separates provider-reported quota windows from manually entered
+balance snapshots. An explicit Refresh credits action only performs bounded,
+authenticated CLI read-only operations, never an AI inference turn, credit
+consumption or quota bypass. The settings view is truthful when no data is
+available, when stale, or when pools are shared. ChatGPT direct-plan quota
+remains unavailable.
