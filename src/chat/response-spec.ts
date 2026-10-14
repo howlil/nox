@@ -1,8 +1,8 @@
 /** Presentation-only visual formats. Never grants model output vault or plugin authority. */
-export type NoxVisualKind = "html-preview" | "svg-preview" | "nox-chart";
+export type NoxVisualKind = "html-preview" | "svg-preview" | "nox-chart" | "nox-flow" | "nox-card";
 
 export interface NoxChartSpec {
-  type: "bar" | "line";
+  type: "bar" | "line" | "horizontal-bar";
   title?: string;
   labels: string[];
   values: number[];
@@ -13,7 +13,7 @@ export function visualKindFromClasses(classes: readonly string[]): NoxVisualKind
   for (const name of classes) {
     const language = name.startsWith("language-") ? name.slice(9) : "";
     if (language === "html-preview" || language === "svg-preview" ||
-        language === "nox-chart") return language;
+        language === "nox-chart" || language === "nox-flow" || language === "nox-card") return language;
   }
   return null;
 }
@@ -27,7 +27,7 @@ export function parseNoxChart(raw: string): NoxChartSpec | null {
   try { input = JSON.parse(raw); } catch { return null; }
   if (!input || typeof input !== "object" || Array.isArray(input)) return null;
   const obj = input as Record<string, unknown>;
-  if (obj.type !== "bar" && obj.type !== "line") return null;
+  if (obj.type !== "bar" && obj.type !== "line" && obj.type !== "horizontal-bar") return null;
   if (obj.title !== undefined && (typeof obj.title !== "string" || obj.title.length > 120)) return null;
   if (!Array.isArray(obj.labels) || !Array.isArray(obj.values) ||
       obj.labels.length < 1 || obj.labels.length > MAX_CHART_POINTS ||
@@ -36,6 +36,122 @@ export function parseNoxChart(raw: string): NoxChartSpec | null {
   if (!obj.values.every(x => typeof x === "number" && Number.isFinite(x) && x >= 0 && x <= 1e9)) return null;
   return { type: obj.type, title: obj.title as string | undefined,
     labels: obj.labels as string[], values: obj.values as number[] };
+}
+
+export interface NoxFlowSpec {
+  version: 1;
+  title?: string;
+  direction: "TB";
+  layout: "vertical-stack" | "layered";
+  nodes: Array<{ id: string; label: string; kind?: "default" | "decision" | "focus" | "result" }>;
+  edges: Array<{ from: string; to: string; label?: string }>;
+}
+
+export interface NoxCardSpec {
+  version: 1;
+  kind: "metrics" | "comparison" | "status-table";
+  title: string;
+  description?: string;
+  items: Array<{
+    label: string;
+    value: string | number;
+    unit?: string;
+    detail?: string;
+    status?: "success" | "pending" | "warning" | "error";
+  }>;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+function parseBoundedJSON(raw: string): Record<string, unknown> | null {
+  if (!raw.trim() || raw.length > MAX_VISUAL_SOURCE_CHARS) return null;
+  try {
+    const value: unknown = JSON.parse(raw);
+    return isRecord(value) ? value : null;
+  } catch { return null; }
+}
+
+const flowKinds = ["default", "decision", "focus", "result"];
+export function parseNoxFlow(raw: string): NoxFlowSpec | null {
+  const obj = parseBoundedJSON(raw);
+  if (!obj || obj.version !== 1 || obj.direction !== "TB" ||
+    (obj.layout !== "vertical-stack" && obj.layout !== "layered") ||
+    (obj.title !== undefined && (typeof obj.title !== "string" || obj.title.length > 120)) ||
+    !Array.isArray(obj.nodes) || !Array.isArray(obj.edges) ||
+    obj.nodes.length < 1 || obj.nodes.length > 24 || obj.edges.length > 48) return null;
+  const nodes: NoxFlowSpec["nodes"] = [];
+  const ids = new Set<string>();
+  for (const candidate of obj.nodes) {
+    if (!isRecord(candidate) || typeof candidate.id !== "string" ||
+      !/^[a-zA-Z0-9_-]{1,40}$/.test(candidate.id) || ids.has(candidate.id) ||
+      typeof candidate.label !== "string" || !candidate.label.trim() ||
+      candidate.label.length > 100 ||
+      (candidate.kind !== undefined && !flowKinds.includes(String(candidate.kind)))) return null;
+    ids.add(candidate.id);
+    nodes.push({ id: candidate.id, label: candidate.label,
+      ...(candidate.kind ? { kind: candidate.kind as NoxFlowSpec["nodes"][number]["kind"] } : {}) });
+  }
+  const edges: NoxFlowSpec["edges"] = [];
+  const duplicates = new Set<string>();
+  for (const candidate of obj.edges) {
+    if (!isRecord(candidate) || typeof candidate.from !== "string" ||
+      typeof candidate.to !== "string" || !ids.has(candidate.from) || !ids.has(candidate.to) ||
+      candidate.from === candidate.to ||
+      (candidate.label !== undefined && (typeof candidate.label !== "string" || candidate.label.length > 64))) return null;
+    const key = candidate.from + "\\0" + candidate.to;
+    if (duplicates.has(key)) return null;
+    duplicates.add(key);
+    edges.push({ from: candidate.from, to: candidate.to,
+      ...(typeof candidate.label === "string" ? { label: candidate.label } : {}) });
+  }
+  const children = new Map(nodes.map(node => [node.id, [] as string[]]));
+  for (const edge of edges) children.get(edge.from)!.push(edge.to);
+  const visited = new Set<string>(), active = new Set<string>();
+  const walk = (id: string): boolean => {
+    if (active.has(id)) return false;
+    if (visited.has(id)) return true;
+    active.add(id);
+    for (const next of children.get(id) ?? []) if (!walk(next)) return false;
+    active.delete(id);
+    visited.add(id);
+    return true;
+  };
+  if (!nodes.every(node => walk(node.id))) return null;
+  return { version: 1, title: obj.title as string | undefined, direction: "TB",
+    layout: obj.layout, nodes, edges };
+}
+
+export function parseNoxCard(raw: string): NoxCardSpec | null {
+  const obj = parseBoundedJSON(raw);
+  if (!obj || obj.version !== 1 ||
+    (obj.kind !== "metrics" && obj.kind !== "comparison" && obj.kind !== "status-table") ||
+    typeof obj.title !== "string" || !obj.title.trim() || obj.title.length > 120 ||
+    (obj.description !== undefined &&
+      (typeof obj.description !== "string" || obj.description.length > 240)) ||
+    !Array.isArray(obj.items) || obj.items.length < 1 || obj.items.length > 12) return null;
+  const items: NoxCardSpec["items"] = [];
+  for (const item of obj.items) {
+    if (!isRecord(item) || typeof item.label !== "string" || !item.label.trim() ||
+      item.label.length > 90 ||
+      !((typeof item.value === "string" && item.value.length <= 120) ||
+        (typeof item.value === "number" && Number.isFinite(item.value) &&
+          Math.abs(item.value) <= 1e12)) ||
+      (item.unit !== undefined && (typeof item.unit !== "string" || item.unit.length > 32)) ||
+      (item.detail !== undefined && (typeof item.detail !== "string" || item.detail.length > 200)) ||
+      (item.status !== undefined && !["success", "pending", "warning", "error"].includes(String(item.status)))) {
+      return null;
+    }
+    items.push({
+      label: item.label, value: item.value,
+      ...(typeof item.unit === "string" ? { unit: item.unit } : {}),
+      ...(typeof item.detail === "string" ? { detail: item.detail } : {}),
+      ...(typeof item.status === "string" ? { status: item.status as NoxCardSpec["items"][number]["status"] } : {}),
+    });
+  }
+  return { version: 1, kind: obj.kind, title: obj.title,
+    description: obj.description as string | undefined, items };
 }
 
 /**
