@@ -181,7 +181,7 @@ export class LearningController {
           if (this.turns.hasActivePracticeQuestion()) {
             throw new Error("Finish or exit the active Practice question before replacing the learning plan.");
           }
-          const program = await this.programs.createProgram(command.goal, command.constraints);
+          const program = await this.programs.createProgram(command.goal, command.constraints, request.turnId);
           const f = feasibility(program);
           response = [
             `Created learning program: **${program.goal}**`,
@@ -205,14 +205,19 @@ export class LearningController {
           }
           const selected = await this.programs.selectProgram(command.id);
           response = `Active program changed to: ${selected.goal}`;
-        } else if (command.kind === "progress" || command.kind === "review-due") {
+        } else if (command.kind === "progress") {
           response = await this.programs.progressSummary();
+        } else if (command.kind === "review-due") {
+          response = await this.programs.reviewDueSummary();
         } else if (command.kind === "start-session") {
           const program = await this.programs.startSession();
           response = `Learning session started. Timebox: ${program.constraints.minutesPerSession} min. Use /next to begin.`;
         } else if (command.kind === "end-session") {
           await this.programs.endSession();
           response = "Session ended. Program progress remains saved. Use /start-session when ready.";
+        } else if (command.kind === "extend-session") {
+          const program = await this.programs.extendSession(command.minutes);
+          response = "Session timebox extended to " + program.session!.timeBudgetMinutes + " minutes.";
         } else {
           if (this.turns.hasActivePracticeQuestion()) {
             response = "Answer the active question first, or use /hint for a small nudge.";
@@ -220,6 +225,24 @@ export class LearningController {
             const selected = await this.programs.getDecision();
             if (selected?.program && !selected.program.session) {
               response = "Start a timeboxed session first with /start-session.";
+            } else if (selected?.decision.kind === "teach" && selected.decision.objective) {
+              const objective = selected.decision.objective;
+              const state = await this.learningState.load();
+              const last = state.evidence.filter(item =>
+                item.programId === selected.program.id && item.objectiveId === objective.id &&
+                item.scope === "learner" && item.type === "practice").at(-1);
+              const activity = this.turns.run({
+                ...request, action: "explain",
+                programActivity: { kind: "teach", programId: selected.program.id, objectiveId: objective.id },
+                prompt: "Teach the objective after my difficulty: " + objective.outcome,
+              });
+              for await (const event of activity) {
+                if (event.type === "completed" && last) {
+                  await this.programs.markTaught(objective.id, last.createdAt);
+                }
+                yield event;
+              }
+              return;
             } else if (selected?.decision.objective) {
               yield* this.turns.run({ ...request, action: "practice" });
               return;
