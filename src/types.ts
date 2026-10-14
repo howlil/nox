@@ -111,4 +111,6 @@ export interface AgentRuntimeConfig {
 export interface SendOptions {
   model?: string;
   conversationId?: string;
+  /** Canonical local transcript for stateless HTTP model transports. */
+  history?: Array<{ role: "user" | "assistant"; content: string }>;
 }

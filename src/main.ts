@@ -1,6 +1,8 @@
 import { addIcon, FileSystemAdapter, Plugin } from "obsidian";
 import { AgyAdapter } from "./agent/AgyAdapter";
 import { CodexAdapter } from "./agent/CodexAdapter";
+import { ChatGptAdapter } from "./agent/ChatGptAdapter";
+import { ChatGptAuth, type ChatGptConnection } from "./agent/ChatGptAuth";
 import { AgentRuntime } from "./agent/AgentRuntime";
 import { ChatView, NOX_VIEW_TYPE } from "./chat/ChatView";
 import { ContextResolver } from "./context/ContextResolver";
@@ -32,6 +34,7 @@ export default class NoxPlugin extends Plugin {
   private pluginData!: PluginDataRepository;
   private vaultPath?: string;
   private runtime?: AgentRuntime;
+  private readonly chatGptAuth = new ChatGptAuth();
 
   async onload(): Promise<void> {
     const vaultAdapter = this.app.vault.adapter;
@@ -123,6 +126,7 @@ export default class NoxPlugin extends Plugin {
 
   async onunload(): Promise<void> {
     this.runtime?.dispose();
+    this.chatGptAuth.dispose();
     this.app.workspace.detachLeavesOfType(NOX_VIEW_TYPE);
     this.learning?.dispose();
   }
@@ -171,8 +175,31 @@ export default class NoxPlugin extends Plugin {
       .map((leaf) => (leaf.view as ChatView).refreshRuntime(runtimeChanged)));
   }
 
-  private createAdapter(settings: NoxSettings): AgyAdapter | CodexAdapter {
-    return settings.provider === "codex"
+  getChatGPTConnection(): ChatGptConnection { return this.chatGptAuth.status(); }
+
+  async connectChatGPT(): Promise<void> {
+    const electron = require("electron") as { shell: { openExternal(url: string): Promise<void> } };
+    await this.chatGptAuth.signIn((url) => electron.shell.openExternal(url));
+    if (this.noxSettings.provider === "chatgpt") {
+      await this.runtime?.init();
+      await Promise.all(this.app.workspace.getLeavesOfType(NOX_VIEW_TYPE)
+        .map((leaf) => (leaf.view as ChatView).refreshRuntime(true)));
+    }
+  }
+
+  async disconnectChatGPT(): Promise<void> {
+    this.chatGptAuth.signOut();
+    if (this.noxSettings.provider === "chatgpt") {
+      await this.runtime?.init();
+      await Promise.all(this.app.workspace.getLeavesOfType(NOX_VIEW_TYPE)
+        .map((leaf) => (leaf.view as ChatView).refreshRuntime(true)));
+    }
+  }
+
+  private createAdapter(settings: NoxSettings): AgyAdapter | CodexAdapter | ChatGptAdapter {
+    return settings.provider === "chatgpt"
+      ? new ChatGptAdapter(this.chatGptAuth)
+      : settings.provider === "codex"
       ? new CodexAdapter(this.vaultPath, () => ({ executablePath: settings.codexExecutablePath }))
       : new AgyAdapter(this.vaultPath, () => ({ executablePath: settings.executablePath }));
   }

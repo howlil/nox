@@ -60,18 +60,24 @@ export function parseCodexLine(line: string, state: CodexProtocolState): AgentSt
     if (!isCodexThreadId(event.thread_id) || (state.conversationId && state.conversationId !== event.thread_id)) {
       state.failure = codexFailure("Invalid or mismatched thread identity.", "protocol-invalid");
     } else state.conversationId = event.thread_id;
-  } else if (event.type === "item.completed") {
+  } else if (event.type === "item.updated" || event.type === "item.completed") {
     const item = event.item as Record<string, unknown> | undefined;
     if (!item || typeof item !== "object" || typeof item.type !== "string") {
-      state.failure = codexFailure("Invalid completed item.", "protocol-invalid");
+      state.failure = codexFailure("Invalid assistant item.", "protocol-invalid");
     } else if (item.type === "agent_message" && item.phase !== "commentary") {
-      if (typeof item.id !== "string" || typeof item.text !== "string" || !item.text.trim()) {
+      if (typeof item.id !== "string" || typeof item.text !== "string" ||
+          (event.type === "item.completed" && !item.text.trim())) {
         state.failure = codexFailure("Invalid assistant message.", "protocol-invalid");
-      } else if (state.messages.has(item.id)) {
-        if (state.messages.get(item.id) !== item.text) state.failure = codexFailure("Conflicting duplicate assistant message.", "protocol-invalid");
       } else {
-        state.messages.set(item.id, item.text);
-        return [{ type: "text", content: item.text }];
+        const prior = state.messages.get(item.id) || "";
+        // CLI updates contain the cumulative assistant text, not a delta.
+        if (!item.text.startsWith(prior)) {
+          state.failure = codexFailure("Conflicting assistant stream update.", "protocol-invalid");
+        } else {
+          state.messages.set(item.id, item.text);
+          const delta = item.text.slice(prior.length);
+          if (delta) return [{ type: "text", content: delta }];
+        }
       }
     }
   } else if (event.type === "turn.completed") {

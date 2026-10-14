@@ -4,6 +4,9 @@ import type { NoxSettings } from "./NoxSettings";
 export interface NoxSettingsHost {
   getSettings(): NoxSettings;
   updateSettings(next: Partial<NoxSettings>): Promise<void>;
+  getChatGPTConnection(): { connected: boolean; sharing: boolean; email?: string; description: string };
+  connectChatGPT(): Promise<void>;
+  disconnectChatGPT(): Promise<void>;
 }
 
 export class NoxSettingsTab extends PluginSettingTab {
@@ -24,13 +27,38 @@ export class NoxSettingsTab extends PluginSettingTab {
       .addDropdown((dropdown) => dropdown
         .addOption("agy", "AGY")
         .addOption("codex", "Codex")
+        .addOption("chatgpt", "ChatGPT plan")
         .setValue(settings.provider)
         .onChange(async (value) => {
-          await this.saveSettings({ provider: value === "codex" ? "codex" : "agy", preferredModel: "" });
+          await this.saveSettings({ provider: value === "codex" || value === "chatgpt" ? value : "agy", preferredModel: "" });
           this.display();
         }));
 
-    new Setting(containerEl)
+    if (settings.provider === "chatgpt") {
+      const connection = this.nox.getChatGPTConnection();
+      new Setting(containerEl)
+        .setName("ChatGPT account")
+        .setDesc(connection.email ? connection.email + " — " + connection.description : connection.description)
+        .addButton((button) => button
+          .setButtonText(connection.connected ? "Reconnect ChatGPT" : "Continue with ChatGPT")
+          .setCta()
+          .onClick(async () => {
+            button.setDisabled(true);
+            try { await this.nox.connectChatGPT(); this.display(); }
+            catch (error) { new Notice(error instanceof Error ? error.message : "ChatGPT sign-in failed."); button.setDisabled(false); }
+          }))
+        .addExtraButton((button) => button
+          .setIcon("log-out")
+          .setTooltip("Disconnect ChatGPT")
+          .setDisabled(!connection.connected)
+          .onClick(async () => {
+            try { await this.nox.disconnectChatGPT(); this.display(); }
+            catch (error) { new Notice(error instanceof Error ? error.message : "Unable to disconnect."); }
+          }));
+      new Setting(containerEl)
+        .setName("Plan usage")
+        .setDesc("Requires ChatGPT plan permission. Selected note context is sent to OpenAI when you submit a message. Uses the official Responses API, not your API billing key.");
+    } else new Setting(containerEl)
       .setName("Agent executable")
       .setDesc("Optional absolute path to the configured agent runtime.")
       .addText((text) =>
