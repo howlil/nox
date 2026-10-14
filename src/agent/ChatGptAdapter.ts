@@ -45,7 +45,8 @@ export interface ChatGptAdapterDeps { fetch: typeof fetch }
 export class ChatGptAdapter implements AgentAdapter {
   private readonly http: typeof fetch;
   constructor(private readonly auth: ChatGptAuth, deps: Partial<ChatGptAdapterDeps> = {}) {
-    this.http = deps.fetch || fetch;
+    // Bind the default fetch explicitly: unbound window.fetch throws Illegal invocation in Obsidian.
+    this.http = deps.fetch ?? ((input, init) => globalThis.fetch(input, init));
   }
   async check(): Promise<AgentHealth> {
     const session = this.auth.status();
