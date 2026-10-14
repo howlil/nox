@@ -73,12 +73,12 @@ export function setNoxIcon(element: HTMLElement, icon: IconName): void {
   if (!svg) return;
 
   svg.classList.add("nox-icon");
-  svg.setAttribute("width", "15");
-  svg.setAttribute("height", "15");
-  svg.style.setProperty("width", "15px", "important");
-  svg.style.setProperty("height", "15px", "important");
-  svg.style.setProperty("min-width", "15px", "important");
-  svg.style.setProperty("min-height", "15px", "important");
+  svg.setAttribute("width", "16");
+  svg.setAttribute("height", "16");
+  svg.style.setProperty("width", "16px", "important");
+  svg.style.setProperty("height", "16px", "important");
+  svg.style.setProperty("min-width", "16px", "important");
+  svg.style.setProperty("min-height", "16px", "important");
   svg.style.setProperty("display", "block", "important");
 }
 
