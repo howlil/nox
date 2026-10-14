@@ -8,7 +8,6 @@ export interface NoxCapability {
   description: string;
   meta: string;
   icon: IconName;
-  tone: "purple" | "blue" | "coral" | "green";
 }
 
 export const NOX_CAPABILITIES: readonly NoxCapability[] = [
@@ -19,7 +18,6 @@ export const NOX_CAPABILITIES: readonly NoxCapability[] = [
     description: "Break down a concept and its relationships.",
     meta: "Understanding",
     icon: "circle-help",
-    tone: "purple",
   },
   {
     action: "practice",
@@ -28,7 +26,6 @@ export const NOX_CAPABILITIES: readonly NoxCapability[] = [
     description: "Test understanding with active recall.",
     meta: "Recall",
     icon: "list-checks",
-    tone: "blue",
   },
   {
     action: "review",
@@ -37,7 +34,6 @@ export const NOX_CAPABILITIES: readonly NoxCapability[] = [
     description: "Find missing links and weak explanations.",
     meta: "Gaps",
     icon: "search",
-    tone: "coral",
   },
   {
     action: "edit",
@@ -46,6 +42,5 @@ export const NOX_CAPABILITIES: readonly NoxCapability[] = [
     description: "Propose a safe change to the active note.",
     meta: "Safe edit",
     icon: "pencil",
-    tone: "green",
   },
 ];
