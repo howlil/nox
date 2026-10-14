@@ -222,6 +222,31 @@ Selecting text exposes a contextual action bar above the composer:
 Actions are direct shortcuts into the existing Explain/Edit learning flow;
 they do not simulate a second response stream or bypass context resolution.
 
+## Chat history triage and appearance
+
+The header history popover is a compact, local conversation manager. Active and
+Archived are derived views over the same persisted session map. Selection and
+swipe open state are presentation-only; no second history store is permitted.
+
+- Select enables checkboxes and Select All for the current tab only.
+- Batch Archive/Restore/Delete are a single serialized SessionController write.
+- Archived chats retain their transcript/model metadata and can be restored.
+- Delete always requires a count-specific confirmation and cannot be undone.
+- Archiving or deleting the current chat selects the newest available active
+  chat; if none remains, it creates one empty active chat in the same write.
+- While a turn, plan, editor apply or status recovery is active, mutations are
+  rejected by LearningController. Failed writes leave UI and durable state intact.
+- Swipe left reveals Archive/Restore and Delete; swipe right reveals primary
+  Archive/Restore. Full swipe commits only non-destructive Archive/Restore.
+  A keyboard- and mouse-accessible More actions button exposes the same actions.
+- UIArc Swipe Actions interaction semantics are adapted to Obsidian native DOM,
+  not installed as a React runtime dependency.
+
+Appearance is a persisted system/light/dark preference for NOX only. System
+follows Obsidian theme. Explicit choices override NOX's root and Settings
+token scope without changing Obsidian globally. All three themes use flat
+colors, existing NOX semantic tokens and reduced-motion support.
+
 ## Visual system
 
 Adopt the `howlil-app` neutral-first foundation and retain NOX purple as the

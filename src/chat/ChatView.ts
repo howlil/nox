@@ -1,6 +1,7 @@
 import {
   ItemView,
   Notice,
+  Modal,
   MarkdownRenderer,
   WorkspaceLeaf,
   type IconName,
@@ -51,6 +52,7 @@ import {
   setNoxIcon,
 } from "./primitives";
 import { NoxMenuState } from "./menu";
+import { NoxHistoryList } from "./history-list";
 import { modelMenuItems } from "./model-menu";
 import { createNoxPopover, NoxPopoverState } from "./popover";
 import { NoxComposer, type NoxComposerContext } from "./composer";
@@ -112,6 +114,7 @@ export class ChatView extends ItemView {
   private historyBtn!: HTMLButtonElement;
   private historyMenuEl!: HTMLElement;
   private historyPopover!: NoxPopoverState;
+  private historyList!: NoxHistoryList;
   private readonly historyMenuState = new NoxMenuState();
 
   private input!: HTMLTextAreaElement;
@@ -195,6 +198,7 @@ export class ChatView extends ItemView {
     private readonly learning: LearningController,
     private readonly openSettings: () => void,
     private readonly getLogoUrl: () => string,
+    private readonly getAppearance: () => "system" | "light" | "dark",
   ) {
     super(leaf);
   }
@@ -215,6 +219,7 @@ export class ChatView extends ItemView {
     const root = this.contentEl;
     root.empty();
     root.addClass("nox-root");
+    this.applyAppearance(this.getAppearance());
 
     this.buildHeader(root);
     this.thread = root.createDiv({ cls: "nox-thread" });
@@ -229,6 +234,11 @@ export class ChatView extends ItemView {
     await this.ensureRuntimeReady();
     void this.refreshSessionClock();
     this.sessionClockTimer = window.setInterval(() => { void this.refreshSessionClock(); }, 2000);
+  }
+
+  applyAppearance(appearance: "system" | "light" | "dark"): void {
+    this.contentEl.toggleClass("nox-force-dark", appearance === "dark");
+    this.contentEl.toggleClass("nox-force-light", appearance === "light");
   }
 
   async onClose(): Promise<void> {
@@ -415,10 +425,41 @@ export class ChatView extends ItemView {
     this.historyMenuEl = createNoxPopover(this.headerEl, {
       cls: "nox-history-menu",
       id: "nox-history-menu",
-      role: "menu",
+      role: "dialog",
       label: "Chat history",
     });
     this.historyPopover = new NoxPopoverState(this.historyMenuEl);
+    this.historyList = new NoxHistoryList(this.historyMenuEl, {
+      open: id => this.selectHistorySession(id),
+      mutate: async (ids, action) => {
+        const result = await this.learning.mutateHistory(ids, action);
+        if (result.activeSessionChanged) {
+          this.lastTurnRequest = null;
+          this.pendingFindingSource = null;
+          this.systemContextFiles = [];
+          this.extraCtx = [];
+          this.attachments = [];
+          this.renderAttachments();
+          this.closePromptMenu();
+          this.closeModelMenu();
+          this.syncPracticeComposerState();
+          await this.syncChips();
+          await this.restoreSession();
+        }
+        this.renderHistoryMenu();
+        if (result.affected > 0) new Notice(
+          `${result.affected} conversation${result.affected === 1 ? "" : "s"} ${action === "archive" ? "archived" : action === "restore" ? "restored" : "deleted"}.`,
+        );
+      },
+      confirmDelete: count => this.confirmHistoryDeletion(count),
+    });
+    this.historyMenuEl.addEventListener("keydown", event => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        this.closeHistoryMenu();
+        this.historyBtn.focus();
+      }
+    });
     this.syncHistoryTrigger();
   }
 
@@ -498,88 +539,40 @@ export class ChatView extends ItemView {
 
   private renderHistoryMenu(): void {
     if (!this.historyMenuEl) return;
-
-    this.historyMenuEl.empty();
     this.historyPopover.setOpen(this.historyMenuState.isOpen);
     this.syncHistoryTrigger();
     if (!this.historyMenuState.isOpen) return;
-
-    const header = this.historyMenuEl.createDiv({ cls: "nox-history-header" });
-    header.createSpan({ cls: "nox-history-title", text: "Chat history" });
-    header.createSpan({
-      cls: "nox-history-hint",
-      text: "Stored in this vault",
-    });
-
-    const sessions = this.learning.listSessions();
-    if (sessions.length === 0) {
-      this.historyMenuEl.createDiv({
-        cls: "nox-history-empty",
-        text: "No conversations yet.",
-      });
-      this.historyMenuState.setRows([]);
-      return;
-    }
-
-    const rows: HTMLButtonElement[] = [];
-    const currentId = this.learning.getSession().id;
-    for (const session of sessions) {
-      const row = createNoxMenuRow(this.historyMenuEl, {
-        cls: "nox-history-row",
-        id: `nox-history-option-${session.id}`,
-        icon: "message-circle",
-        name: this.getHistoryTitle(session),
-        nameClass: "nox-history-row-name",
-        description: this.getHistoryPreview(session),
-        descriptionClass: "nox-history-row-preview",
-        command: this.formatHistoryTime(session.updatedAt),
-        commandClass: "nox-history-row-time",
-        selected: session.id === currentId,
-        trailingClass: "nox-history-row-check",
-        trailingIcon: session.id === currentId ? "check" : undefined,
-      });
-      row.addEventListener("click", () => {
-        void this.selectHistorySession(session.id);
-      });
-      rows.push(row);
-    }
-
-    this.historyMenuState.setRows(rows);
-    this.historyMenuState.syncRows();
+    this.historyList.render(this.learning.listSessions(true), this.learning.getSession().id);
     animateNoxPopover(this.historyMenuEl);
   }
 
-  private getHistoryTitle(session: ChatSession): string {
-    const firstPrompt = session.messages.find(
-      (message) => message.role === "user" && message.content.trim(),
-    )?.content.trim();
-    return firstPrompt ? this.truncateHistoryText(firstPrompt, 48) : "New session";
-  }
-
-  private getHistoryPreview(session: ChatSession): string {
-    const lastMessage = [...session.messages]
-      .reverse()
-      .find((message) => message.content.trim());
-    if (!lastMessage) return "No messages yet";
-
-    const count = session.messages.length;
-    return `${count} ${count === 1 ? "message" : "messages"} · ${this.truncateHistoryText(lastMessage.content, 52)}`;
-  }
-
-  private truncateHistoryText(text: string, maxLength: number): string {
-    const normalized = text.replace(/\s+/g, " ").trim();
-    return normalized.length > maxLength
-      ? `${normalized.slice(0, maxLength - 1)}…`
-      : normalized;
-  }
-
-  private formatHistoryTime(timestamp: number): string {
-    const date = new Date(timestamp);
-    const now = new Date();
-    if (date.toDateString() === now.toDateString()) {
-      return date.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
-    }
-    return date.toLocaleDateString([], { month: "short", day: "numeric" });
+  private confirmHistoryDeletion(count: number): Promise<boolean> {
+    return new Promise(resolve => {
+      const modal = new Modal(this.app);
+      let settled = false;
+      const finish = (confirmed: boolean) => {
+        if (settled) return;
+        settled = true;
+        modal.close();
+        resolve(confirmed);
+      };
+      modal.titleEl.setText("Delete conversations?");
+      modal.contentEl.createEl("p", {
+        text: `Delete ${count} conversation${count === 1 ? "" : "s"} from this vault? This cannot be undone.`,
+      });
+      const actions = modal.contentEl.createDiv({ cls: "nox-history-confirm-actions" });
+      const cancel = actions.createEl("button", { text: "Cancel", attr: { type: "button" } });
+      cancel.addEventListener("click", () => finish(false));
+      const remove = actions.createEl("button", {
+        text: "Delete",
+        cls: "mod-warning",
+        attr: { type: "button" },
+      });
+      remove.addEventListener("click", () => finish(true));
+      modal.onClose = () => finish(false);
+      modal.open();
+      cancel.focus();
+    });
   }
 
   /** The same practice projection is used after startup and history navigation. */

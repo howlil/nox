@@ -137,7 +137,50 @@ export class SessionStore {
   }
 
   setCurrentSession(id: string): void {
+    const session = this.data.sessions[id];
+    if (!session || session.archivedAt) throw new Error("Cannot select a missing or archived session");
     this.data.currentSessionId = id;
+  }
+
+  /** Mutations are made only on a staged copy owned by SessionController. */
+  archiveSessions(ids: string[], archived: boolean): number {
+    let changed = 0;
+    const now = this.now();
+    for (const id of new Set(ids)) {
+      const session = this.data.sessions[id];
+      if (!session || Boolean(session.archivedAt) === archived) continue;
+      if (archived) {
+        session.archivedAt = now;
+        // An archived thread must never keep an actionable pending note edit.
+        for (const message of session.messages) {
+          if (message.proposalState === "pending") message.proposalState = "stale";
+        }
+      } else delete session.archivedAt;
+      changed++;
+    }
+    this.ensureActiveSession();
+    return changed;
+  }
+
+  deleteSessions(ids: string[]): number {
+    let deleted = 0;
+    for (const id of new Set(ids)) {
+      if (!this.data.sessions[id]) continue;
+      delete this.data.sessions[id];
+      deleted++;
+    }
+    this.ensureActiveSession();
+    return deleted;
+  }
+
+  private ensureActiveSession(): void {
+    const current = this.data.currentSessionId && this.data.sessions[this.data.currentSessionId];
+    if (current && !current.archivedAt) return;
+    const fallback = Object.values(this.data.sessions)
+      .filter(session => !session.archivedAt)
+      .sort((a, b) => b.updatedAt - a.updatedAt)[0];
+    if (fallback) this.data.currentSessionId = fallback.id;
+    else this.createSession(this.data.defaultModel);
   }
 
   // ── Model preference ─────────────────────────────────────────────────────
@@ -153,8 +196,9 @@ export class SessionStore {
   // ── Utility ──────────────────────────────────────────────────────────────
 
   /** All sessions, newest first. */
-  listSessions(): ChatSession[] {
+  listSessions(includeArchived = false): ChatSession[] {
     return Object.values(this.data.sessions)
+      .filter(session => includeArchived || !session.archivedAt)
       .sort((a, b) => b.updatedAt - a.updatedAt)
       .map((session) => structuredClone(session));
   }
@@ -252,6 +296,9 @@ export class SessionStore {
 
     return {
       id: session.id,
+      archivedAt: typeof session.archivedAt === "number" &&
+        Number.isFinite(session.archivedAt) && session.archivedAt > 0
+        ? session.archivedAt : undefined,
       runtimeProvider: typeof session.runtimeProvider === "string" ? session.runtimeProvider : undefined,
       learningScope: session.learningScope &&
         (session.learningScope.mode === "FREE" || isLockedLearningMode(session.learningScope.mode))

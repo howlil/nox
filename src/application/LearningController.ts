@@ -62,8 +62,16 @@ export class LearningController {
     return this.sessions.getSession();
   }
 
-  listSessions(): ChatSession[] {
-    return this.sessions.listSessions();
+  listSessions(includeArchived = false): ChatSession[] {
+    return this.sessions.listSessions(includeArchived);
+  }
+
+  async mutateHistory(ids: string[], action: "archive" | "restore" | "delete"): Promise<{
+    affected: number;
+    activeSessionChanged: boolean;
+  }> {
+    this.assertRuntimeIdle();
+    return this.sessions.mutateHistory(ids, action);
   }
 
   getModels(): AgentModel[] {

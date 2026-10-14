@@ -124,6 +124,7 @@ export default class NoxPlugin extends Plugin {
         this.learning,
         () => this.openSettings(),
         () => this.getLogoUrl(),
+        () => this.noxSettings.appearance,
       ),
     );
 
@@ -222,6 +223,14 @@ export default class NoxPlugin extends Plugin {
 
   async updateSettings(update: Partial<NoxSettings>): Promise<void> {
     const next = { ...this.noxSettings, ...update };
+    if (Object.keys(update).every(key => key === "appearance")) {
+      await this.pluginData.update(current => ({ ...current, [NOX_SETTINGS_KEY]: next }));
+      this.noxSettings = next;
+      for (const leaf of this.app.workspace.getLeavesOfType(NOX_VIEW_TYPE)) {
+        (leaf.view as ChatView).applyAppearance(next.appearance);
+      }
+      return;
+    }
     const runtimeChanged = next.provider !== this.noxSettings.provider ||
       next.executablePath !== this.noxSettings.executablePath ||
       next.codexExecutablePath !== this.noxSettings.codexExecutablePath;
@@ -232,6 +241,9 @@ export default class NoxPlugin extends Plugin {
         updateData: (data) => ({ ...data, [NOX_SETTINGS_KEY]: next }),
       });
     this.noxSettings = next;
+    for (const leaf of this.app.workspace.getLeavesOfType(NOX_VIEW_TYPE)) {
+      (leaf.view as ChatView).applyAppearance(next.appearance);
+    }
     await Promise.all(this.app.workspace.getLeavesOfType(NOX_VIEW_TYPE)
       .map((leaf) => (leaf.view as ChatView).refreshRuntime(runtimeChanged)));
   }
