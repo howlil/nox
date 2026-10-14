@@ -26,7 +26,7 @@ const program: LearningProgram = {
 function evidenceFor(id: string, at: number): LearningEvidence {
   return { id: id + at, programId: "goal", objectiveId: id, type: "practice",
     scope: "learner", concept: id, source: "note.md", outcome: "correct",
-    assisted: false, createdAt: at, assessmentCoverage: "multi-item" };
+    assisted: false, createdAt: at };
 }
 const evidence = ["a","b","c"].flatMap(id => [
   evidenceFor(id, now - 2 * DAY), evidenceFor(id, now),
