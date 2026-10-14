@@ -4,6 +4,7 @@ import {
   Plugin,
   TFile,
 } from "obsidian";
+import { LocalResearchIndex, type ResearchResult } from "./LocalResearch";
 
 /**
  * Resolves learning context from the most recent Markdown editor rather than
@@ -12,6 +13,8 @@ import {
  */
 export class ObsidianContext {
   private lastMarkdownView: MarkdownView | null = null;
+  private readonly researchIndex = new LocalResearchIndex();
+  private readonly indexedRevisions = new Map<string, string>();
 
   constructor(
     private readonly app: App,
@@ -96,6 +99,62 @@ export class ObsidianContext {
       )
       .slice(0, limit)
       .map(({ path, name }) => ({ path, name }));
+  }
+
+  /**
+   * Lazy and incremental: ordinary chat never pays for vault-wide indexing.
+   * Cached revisions are checked at query time, including deleted notes.
+   */
+  async searchKnowledge(query: string, options: {
+    allowedPaths?: string[];
+    limit?: number;
+  } = {}): Promise<ResearchResult> {
+    const files = this.app.vault.getMarkdownFiles()
+      .filter(file => !options.allowedPaths || options.allowedPaths.includes(file.path))
+      .sort((a, b) => b.stat.mtime - a.stat.mtime)
+      .slice(0, 600);
+    const paths = new Set(files.map(file => file.path));
+    if (!options.allowedPaths) {
+      for (const path of this.researchIndex.paths()) {
+        if (!paths.has(path)) {
+          this.researchIndex.remove(path);
+          this.indexedRevisions.delete(path);
+        }
+      }
+    }
+    for (let i = 0; i < files.length; i += 8) {
+      await Promise.all(files.slice(i, i + 8).map(async file => {
+        const links = Object.keys(this.app.metadataCache.resolvedLinks?.[file.path] ?? {})
+          .filter(path => !options.allowedPaths || options.allowedPaths.includes(path));
+        // Obsidian editors may hold unsaved buffers while file mtime remains
+        // unchanged. Include the active editor text fingerprint in the revision.
+        const openView = this.app.workspace.getLeavesOfType("markdown")
+          .map(leaf => leaf.view)
+          .find(view => view instanceof MarkdownView && view.file?.path === file.path);
+        const editorText = openView instanceof MarkdownView ? openView.editor.getValue() : undefined;
+        let fingerprint = 2166136261;
+        if (editorText !== undefined) {
+          for (let j = 0; j < editorText.length; j++) {
+            fingerprint ^= editorText.charCodeAt(j);
+            fingerprint = Math.imul(fingerprint, 16777619);
+          }
+        }
+        const revision = file.stat.mtime + ":" + file.stat.size + ":" + links.join(",") +
+          (editorText === undefined ? "" : ":editor:" + editorText.length + ":" + (fingerprint >>> 0));
+        if (this.indexedRevisions.get(file.path) === revision) return;
+        const note = editorText === undefined ? await this.loadNote(file.path)
+          : { file: file.path, content: editorText };
+        if (!note) return;
+        this.researchIndex.upsert({
+          path: file.path,
+          content: note.content.slice(0, 120_000),
+          links,
+          revision,
+        });
+        this.indexedRevisions.set(file.path, revision);
+      }));
+    }
+    return this.researchIndex.search(query, { limit: options.limit, allowedPaths: options.allowedPaths });
   }
 
   async loadNote(

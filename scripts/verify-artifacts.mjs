@@ -56,7 +56,7 @@ if (pkg.main !== "dist/main.js") {
 // CI must reject a build that cannot reveal its loaded runtime identity.
 // A successful build alone does not prove Obsidian is executing this bundle.
 const mainBundle = readFileSync("dist/main.js", "utf8");
-if (!mainBundle.includes("NOX_RUNTIME_TRANSPORT_V2:obsidian-requesturl")) {
+if (!mainBundle.includes("NOX_RUNTIME_TRANSPORT_V3:node-https-sse")) {
   throw new Error("Build is missing its ChatGPT HTTP transport marker.");
 }
 

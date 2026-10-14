@@ -32,7 +32,7 @@ function isApprovedEdge(from, to) {
       return to === "src/agent/AgentRuntime.ts" ||
         to === "src/agent/StructuredStreamParser.ts";
     }
-    if (target === "context") return to === "src/context/context-types.ts";
+    if (target === "context") return to === "src/context/context-types.ts" || to === "src/context/ContextBudget.ts" || to === "src/context/LocalResearch.ts";
     if (target === "session") return to === "src/session/transcript-types.ts";
     if (target === "persistence") return to === "src/persistence/PersistenceError.ts";
   }

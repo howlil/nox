@@ -41,7 +41,7 @@ export function createNoxBuildOptions({ production = false, onStart, onBuild } =
       __NOX_BUILD_TIMESTAMP__: JSON.stringify(
         production ? new Date().toISOString() : BUILD_TIMESTAMP_PLACEHOLDER,
       ),
-      __NOX_BUILD_TRANSPORT__: JSON.stringify("NOX_RUNTIME_TRANSPORT_V2:obsidian-requesturl"),
+      __NOX_BUILD_TRANSPORT__: JSON.stringify("NOX_RUNTIME_TRANSPORT_V3:node-https-sse"),
       __NOX_DEV_BUILD__: JSON.stringify(!production),
     },
     bundle: true,

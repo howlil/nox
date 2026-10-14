@@ -29,7 +29,7 @@ test("dev orchestrator builds and deploys into a temporary vault without Obsidia
       const main = join(installed, "main.js");
       const css = join(installed, "styles.css");
       if (existsSync(main) && existsSync(css) &&
-          readFileSync(main, "utf8").includes("NOX_RUNTIME_TRANSPORT_V2:obsidian-requesturl") &&
+          readFileSync(main, "utf8").includes("NOX_RUNTIME_TRANSPORT_V3:node-https-sse") &&
           readFileSync(css, "utf8").length > 100) {
         ready = true;
         break;

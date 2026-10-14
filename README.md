@@ -48,6 +48,22 @@ See `docs/LEARNING_ORCHESTRATOR.md` for the decision policy and limitations.
 - Persists sessions, model preferences, and structured learning cards in the plugin data.
 - Restores an unanswered practice question with its original note context after reopening the sidebar or switching sessions.
 
+## Context-bounded research
+
+Nox uses a bounded per-turn context envelope instead of sending entire local
+history and every attached note to the model. Ordinary chat remains single-call.
+Type `/research <question>` (or find **Research notes** by searching the
+Actions menu) for on-demand local Markdown content search and link-assisted
+research. Evidence points back to vault note paths. This is not web search,
+a remote embedding service, or a claim of external verification.
+
+Inference on the ChatGPT provider uses Node HTTPS incremental SSE on Obsidian
+desktop, while model discovery and authentication continue to use the Obsidian
+HTTP transport. Inference is never replayed automatically on a streaming failure.
+Node transport compatibility requires testing on the actual desktop installation.
+See [context/research engineering contract](docs/CONTEXT_RESEARCH_ENGINE.md)
+for budgets, telemetry, privacy/source restrictions and limitations.
+
 ## Requirements
 
 - Obsidian desktop `1.4.0` or newer.
@@ -73,20 +89,15 @@ or stop an active turn before changing runtime settings. Transcript and learning
 runtime thread/model state is reset when it belongs to the previous provider.
 Codex runs read-only, and note changes still require a Nox proposal and Apply.\n\n### ChatGPT plan (no API key)\n\nIn **Nox Settings → Agent provider**, select **ChatGPT plan**, then choose **Continue with ChatGPT**. Your default browser completes Sign in with ChatGPT using OAuth Authorization Code + PKCE. The local callback listens only on `127.0.0.1` and requires an exact matching `state`. Nox verifies the signed ID token and checks the granted `chatgpt.tokens.use.direct` scope. You must authorize plan use; identity-only sign-in does not enable inference.\n\nNox discovers models for the signed-in account, streams supported Responses requests with `store: false` and `stream: true`, and sends relevant local transcript history as input. ChatGPT plan inference has usage limits and may not support every Responses feature; no fallback to an API key or paid API billing is performed. Obsidian note selections/context are transmitted to OpenAI **only when you send a turn**. Nox still requires separate approval before applying any Markdown edit.\n\nThe issued client ID, host ID, tokens, and basic account profile are stored **outside the Obsidian vault** in the user-local Nox configuration folder (`LOCALAPPDATA\\nox` on Windows or `~/.config/nox` on Unix by default). Windows credentials are protected with current-user DPAPI; on Unix credential files use owner-only permissions (`0600`) and a private directory (`0700`). Do not sync or publish this directory. ChatGPT permission/token issues require **Reconnect ChatGPT**; **Disconnect ChatGPT** clears local tokens while retaining the original client registration. To check login without a browser, use the Codex CLI provider and run `codex login` once outside Obsidian.\n\n### ChatGPT model picker and response transport
 
-Nox requests the signed-in account's model catalog from `https://api.openai.com/v1/models`
-and inference from `https://api.openai.com/v1/responses` through Obsidian
-`requestUrl` instead of an unbound Electron `window.fetch`. This avoids the
-`Failed to execute 'fetch' on 'Window': Illegal invocation` failure and the
-associated empty model catalog. The model menu now displays a discovery error
-and a **Retry model discovery** action rather than hiding errors behind
-`Runtime default`.
+Nox retrieves model catalog through Obsidian `requestUrl` and sends inference
+requests through Node HTTPS incremental SSE. This avoids unbound Electron
+renderer `window.fetch` while rendering streamed tokens as they arrive.
+Model discovery errors still provide an explicit retry action.
 
-**Streaming trade-off:** Obsidian `requestUrl` buffers the whole HTTP
-response, so Nox does not render tokens incrementally for this provider.
-Nox still sends `store: false, stream: true`, parses SSE events, and
-accepts only a terminal `response.completed`. Other CLI providers retain
-their separate streaming implementations. Do not automatically repeat a
-timed-out inference because it may already have been processed remotely.
+**Streaming constraints:** Node HTTPS is desktop-only. If it cannot connect
+through a proxy or TLS configuration, NOX reports the failure without
+automatically replaying a possibly processed POST. Actual Obsidian
+Windows testing remains required; CI does not verify live provider streaming.
 
 ### Obsidian OAuth network transport
 

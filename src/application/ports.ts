@@ -1,5 +1,6 @@
 import type { AgentContext, ApplyResult, ChatMessage, ChatSession, EditProposal } from "../types";
 import type { ExplicitContextRef, LearningContext, LearningPolicy } from "../context/context-types";
+import type { ResearchResult } from "../context/LocalResearch";
 import type { LearningState } from "../domain/learning-state/types";
 import type { TranscriptPart } from "../session/transcript-types";
 import type { LearningScopeState } from "../domain/practice/learning-scope";
@@ -24,7 +25,7 @@ export interface SessionPort {
   recordPracticeHint(hint: string, sessionId: string): Promise<void>;
   savePracticeDraft(questionId: string, answer: PracticeAnswer, sessionId?: string): Promise<void>;
   setConversationId(conversationId?: string, sessionId?: string): Promise<void>;
-  recordAssistantMessage(content: string, sourcePath?: string, sessionId?: string, thought?: string, elapsedMs?: number): Promise<void>;
+  recordAssistantMessage(content: string, sourcePath?: string, sessionId?: string, thought?: string, elapsedMs?: number, metrics?: import("../types").AgentTurnMetrics): Promise<void>;
   recordStructuredPart(part: TranscriptPart, sourcePath?: string, sessionId?: string): Promise<void>;
   recordPracticeOutcome(parts: TranscriptPart[], operationId: string, sourcePath: string, sessionId: string): Promise<TranscriptPart[]>;
   recordReviewOutcome(part: Extract<TranscriptPart, { type: "review-findings" }>, sourcePath: string, sessionId: string): Promise<Extract<TranscriptPart, { type: "review-findings" }>>;
@@ -38,6 +39,7 @@ export interface ContextPort {
   resolve(explicit?: ExplicitContextRef[]): Promise<LearningContext>;
   searchNotes(query: string, limit?: number): Array<{ path: string; name: string }>;
   toAgentContext(context: LearningContext): AgentContext[];
+  searchKnowledge?(query: string, options?: { allowedPaths?: string[]; limit?: number }): Promise<ResearchResult>;
 }
 export interface RuntimeSettingsWrite {
   updateModel?: boolean;

@@ -84,3 +84,15 @@ test("completed Codex JSONL event emits exact per-turn token usage", () => {
     usage: { inputTokens: 120, outputTokens: 40, totalTokens: 160, cachedInputTokens: 30 },
   }]);
 });
+
+test("tool lifecycle metadata never exposes command arguments or private output", () => {
+  const current = state();
+  const started = emit({ type: "item.started",
+    item: { id: "tool-a", type: "command_execution", command: "secret", aggregated_output: "private" } }, current);
+  assert.deepEqual(started, [{ type: "tool-started", toolCallId: "tool-a", name: "command execution" }]);
+  const ended = emit({ type: "item.completed",
+    item: { id: "tool-a", type: "command_execution", status: "failed", aggregated_output: "private" } }, current);
+  assert.deepEqual(ended, [{ type: "tool-completed", toolCallId: "tool-a", outcome: "failed" }]);
+  assert.equal(JSON.stringify([...started, ...ended]).includes("secret"), false);
+  assert.equal(JSON.stringify([...started, ...ended]).includes("private"), false);
+});
