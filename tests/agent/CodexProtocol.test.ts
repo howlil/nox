@@ -71,3 +71,23 @@ test("rejects contradictory cumulative assistant updates", () => {
   emit({ type: "item.completed", item: { type: "agent_message", id: "a", text: "Different" } }, current);
   assert.equal(current.failure?.code, "protocol-invalid");
 });
+
+test("tool lifecycle metadata omits sensitive command arguments and output", () => {
+  const current = state();
+  const started = emit({ type: "item.started",
+    item: { id: "tool-a", type: "command_execution", command: "secret", aggregated_output: "private" } }, current);
+  assert.deepEqual(started, [{ type: "tool-started", toolCallId: "tool-a", name: "command execution" }]);
+  const ended = emit({ type: "item.completed",
+    item: { id: "tool-a", type: "command_execution", status: "failed", aggregated_output: "private" } }, current);
+  assert.deepEqual(ended, [{ type: "tool-completed", toolCallId: "tool-a", outcome: "failed" }]);
+  assert.equal(JSON.stringify([...started, ...ended]).includes("secret"), false);
+  assert.equal(JSON.stringify([...started, ...ended]).includes("private"), false);
+});
+test("successful completed turns surface actual token usage only", () => {
+  const current = state();
+  emit({ type: "thread.started", thread_id: thread }, current);
+  emit({ type: "item.completed", item: { id: "answer", type: "agent_message", text: "Answer" } }, current);
+  assert.deepEqual(emit({ type: "turn.completed",
+    usage: { input_tokens: 200, output_tokens: 50, cached_input_tokens: 80 } }, current),
+    [{ type: "usage", inputTokens: 200, outputTokens: 50, cachedInputTokens: 80 }]);
+});
