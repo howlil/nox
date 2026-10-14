@@ -23,6 +23,7 @@ export class NoxSettingsTab extends PluginSettingTab {
     const { containerEl } = this;
     const settings = this.nox.getSettings();
     containerEl.empty();
+    containerEl.addClass("nox-settings");
     containerEl.createEl("h2", { text: "Nox" });
 
     new Setting(containerEl)
