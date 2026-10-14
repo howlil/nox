@@ -1,4 +1,4 @@
-/** Pure, bounded graph layout; presentation only, never changes curriculum state. */
+/** Pure, bounded vertical prerequisite layout; learning state stays authoritative elsewhere. */
 export interface LearningMapItem {
   id: string;
   title: string;
@@ -22,11 +22,12 @@ export interface LearningMapLayout {
   height: number;
   problem?: "cycle" | "large";
 }
-const NODE_WIDTH = 154;
-const NODE_HEIGHT = 42;
-const LEVEL_GAP = 26;
-const ROW_GAP = 12;
+const NODE_WIDTH = 192;
+const NODE_HEIGHT = 46;
+const ROW_GAP = 22;
+const RANK_GAP = 16;
 const LIMIT = 40;
+const NODE_X = 24;
 
 export function layoutLearningMap(items: readonly LearningMapItem[]): LearningMapLayout {
   const empty = (problem?: "cycle" | "large"): LearningMapLayout =>
@@ -58,12 +59,15 @@ export function layoutLearningMap(items: readonly LearningMapItem[]): LearningMa
     levels.set(level, group);
   }
   const nodes: LearningMapNode[] = [];
+  let y = 12, lastRank = -1;
   for (const [level, group] of [...levels].sort(([a], [b]) => a - b)) {
     group.sort((a, b) => a.title.localeCompare(b.title) || a.id.localeCompare(b.id));
-    group.forEach((item, index) => {
-      nodes.push({ ...item, level, x: 10 + level * (NODE_WIDTH + LEVEL_GAP),
-        y: 10 + index * (NODE_HEIGHT + ROW_GAP) });
-    });
+    if (lastRank !== -1) y += RANK_GAP;
+    for (const item of group) {
+      nodes.push({ ...item, level, x: NODE_X, y });
+      y += NODE_HEIGHT + ROW_GAP;
+    }
+    lastRank = level;
   }
   const position = new Map(nodes.map(node => [node.id, node]));
   const edges: LearningMapEdge[] = [];
@@ -71,13 +75,12 @@ export function layoutLearningMap(items: readonly LearningMapItem[]): LearningMa
     for (const id of node.prerequisiteIds) {
       const prerequisite = position.get(id);
       if (prerequisite) edges.push({ from: id, to: node.id,
-        x1: prerequisite.x + NODE_WIDTH, y1: prerequisite.y + NODE_HEIGHT / 2,
-        x2: node.x, y2: node.y + NODE_HEIGHT / 2 });
+        x1: prerequisite.x + NODE_WIDTH / 2, y1: prerequisite.y + NODE_HEIGHT,
+        x2: node.x + NODE_WIDTH / 2, y2: node.y });
     }
   }
-  return { nodes, edges,
-    width: 20 + (Math.max(0, ...nodes.map(node => node.level)) + 1) * (NODE_WIDTH + LEVEL_GAP),
-    height: 20 + Math.max(1, ...[...levels.values()].map(group => group.length)) * (NODE_HEIGHT + ROW_GAP) };
+  return { nodes, edges, width: NODE_X * 2 + NODE_WIDTH,
+    height: Math.max(0, y - ROW_GAP + 12) };
 }
 
 export const LEARNING_MAP_NODE_SIZE = { width: NODE_WIDTH, height: NODE_HEIGHT } as const;
