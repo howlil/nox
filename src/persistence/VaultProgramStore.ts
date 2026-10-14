@@ -6,6 +6,10 @@ import { PersistenceError } from "./PersistenceError";
 
 const PATH = "00-learning-os/programs.json";
 const EMPTY: ProgramCollection = { version: 1, programs: [] };
+function validActivityDays(days: Record<string, number>): boolean {
+  return Object.entries(days).every(([day, ms]) =>
+    /^\d{4}-\d{2}-\d{2}$/.test(day) && Number.isFinite(ms) && ms >= 0);
+}
 
 /** One durable collection per vault; writes are serialized and validated before I/O. */
 export class VaultProgramStore {
@@ -49,7 +53,12 @@ export class VaultProgramStore {
         throw new Error("Invalid program session.");
       }
     }
+    if (program.session?.timing?.dailyActiveMs &&
+        !validActivityDays(program.session.timing.dailyActiveMs)) throw new Error("Invalid session daily activity.");
     for (const entry of program.sessionHistory ?? []) {
+      if (entry.dailyActiveMs && !validActivityDays(entry.dailyActiveMs)) throw new Error("Invalid daily activity.");
+      if (entry.materialActiveMinutes && (Object.values(entry.materialActiveMinutes).some(
+        n => !Number.isFinite(n) || n < 0))) throw new Error("Invalid material study time.");
       if (!Number.isFinite(entry.startedAt) || !Number.isFinite(entry.endedAt) ||
           entry.endedAt < entry.startedAt || !Number.isFinite(entry.minutesSpent) ||
           entry.minutesSpent < 0 ||

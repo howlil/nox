@@ -1,4 +1,4 @@
-import { addIcon, FileSystemAdapter, Plugin, requestUrl } from "obsidian";
+import { addIcon, FileSystemAdapter, TFile, Plugin, requestUrl } from "obsidian";
 import { AgyAdapter } from "./agent/AgyAdapter";
 import { CodexAdapter } from "./agent/CodexAdapter";
 import { ChatGptAdapter } from "./agent/ChatGptAdapter";
@@ -97,6 +97,31 @@ export default class NoxPlugin extends Plugin {
       () => sessions.getSession().model,
       () => sessions.getSession().runtimeProvider,
     );
+    let lastInteraction = Date.now();
+    let idle = false;
+    const observeInteraction = () => {
+      lastInteraction = Date.now();
+      if (idle) {
+        idle = false;
+        void programs.setIdle(false).catch(error => console.warn("[Nox] Idle resume failed", error));
+      }
+    };
+    this.registerDomEvent(document, "keydown", observeInteraction);
+    this.registerDomEvent(document, "pointerdown", observeInteraction);
+    this.registerInterval(window.setInterval(() => {
+      if (!idle && Date.now() - lastInteraction >= 180_000) {
+        idle = true;
+        void programs.setIdle(true).catch(error => console.warn("[Nox] Idle checkpoint failed", error));
+      }
+    }, 30_000));
+    this.registerEvent(this.app.workspace.on("file-open", file => {
+      if (file?.extension === "md") void programs.focusMaterial(file.path).catch(() => {});
+    }));
+    this.registerEvent(this.app.vault.on("rename", (file, oldPath) => {
+      if (file instanceof TFile && file.extension === "md") {
+        void programs.renameMaterial(oldPath, file.path).catch(() => {});
+      }
+    }));
     this.registerDomEvent(document, "visibilitychange", () => {
       void programs.setAppInactive(document.hidden).catch(error =>
         console.warn("[Nox] Could not save visibility pause", error));

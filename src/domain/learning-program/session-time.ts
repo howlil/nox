@@ -2,7 +2,7 @@ import type { LearningSession, SessionPauseReason, SessionTiming } from "./types
 
 /** Longer unobserved gaps (sleep, suspended JS) are NOT inferred as study. */
 export const MAX_OBSERVED_INTERVAL_MS = 120_000;
-const REASONS: readonly SessionPauseReason[] = ["manual", "ai-running", "app-inactive", "recovery"];
+const REASONS: readonly SessionPauseReason[] = ["manual", "ai-running", "app-inactive", "recovery", "idle"];
 
 export function newSessionTiming(now: number): SessionTiming {
   return { version: 2, activeMs: 0, aiWaitingMs: 0, pauseReasons: [], checkpointAt: now };
@@ -19,9 +19,33 @@ export function isValidSessionTiming(value: unknown): value is SessionTiming {
     new Set(t.pauseReasons).size === t.pauseReasons.length &&
     t.pauseReasons.every(reason => REASONS.includes(reason)) &&
     (t.focusObjectiveId === undefined || (typeof t.focusObjectiveId === "string" && t.focusObjectiveId.length > 0)) &&
+    (t.focusMaterialPath === undefined || (typeof t.focusMaterialPath === "string" && t.focusMaterialPath.length > 0)) &&
+    (t.dailyActiveMs === undefined || validCounter(t.dailyActiveMs)) &&
+    (t.materialActiveMs === undefined || validCounter(t.materialActiveMs)) &&
     (t.objectiveActiveMs === undefined || (typeof t.objectiveActiveMs === "object" &&
       t.objectiveActiveMs !== null && !Array.isArray(t.objectiveActiveMs) &&
       Object.values(t.objectiveActiveMs).every(ms => Number.isFinite(ms) && ms >= 0)));
+}
+
+function validCounter(value: unknown): value is Record<string, number> {
+  return !!value && typeof value === "object" && !Array.isArray(value) &&
+    Object.values(value).every(ms => Number.isFinite(ms) && ms >= 0);
+}
+/** Split observed time at actual local calendar midnights. Never infer background time. */
+export function distributeLocalDays(from: number, to: number, previous: Record<string, number> = {}):
+  Record<string, number> {
+  const days = { ...previous };
+  for (let at = from; at < to;) {
+    const current = new Date(at);
+    const key = [current.getFullYear(), String(current.getMonth() + 1).padStart(2, "0"),
+      String(current.getDate()).padStart(2, "0")].join("-");
+    const midnight = new Date(current.getFullYear(), current.getMonth(), current.getDate() + 1).getTime();
+    const end = Math.min(to, midnight);
+    if (end <= at) break;
+    days[key] = (days[key] ?? 0) + (end - at);
+    at = end;
+  }
+  return days;
 }
 
 /** Pure, deterministic checkpoint; no Date.now, Obsidian, provider or persistence. */
@@ -29,8 +53,18 @@ export function checkpointTiming(timing: SessionTiming, now: number): SessionTim
   const delta = now - timing.checkpointAt;
   const observed = Number.isFinite(delta) && delta >= 0 &&
     delta <= MAX_OBSERVED_INTERVAL_MS ? delta : 0;
+  const studying = timing.pauseReasons.length === 0;
   return {
     ...timing,
+    ...(studying && observed > 0 ? {
+      dailyActiveMs: distributeLocalDays(timing.checkpointAt, timing.checkpointAt + observed, timing.dailyActiveMs),
+      ...(timing.focusMaterialPath ? {
+        materialActiveMs: {
+          ...timing.materialActiveMs,
+          [timing.focusMaterialPath]: (timing.materialActiveMs?.[timing.focusMaterialPath] ?? 0) + observed,
+        },
+      } : {}),
+    } : {}),
     activeMs: timing.activeMs + (timing.pauseReasons.length === 0 ? observed : 0),
     aiWaitingMs: timing.aiWaitingMs + (timing.pauseReasons.includes("ai-running") ? observed : 0),
     ...(timing.focusObjectiveId && timing.pauseReasons.length === 0 ? {
@@ -57,6 +91,10 @@ export function setTimingPause(
 /** Explicit objective focus; a model cannot assign itself credit for learning time. */
 export function focusSessionObjective(timing: SessionTiming, objectiveId: string, now: number): SessionTiming {
   return { ...checkpointTiming(timing, now), focusObjectiveId: objectiveId };
+}
+
+export function focusSessionMaterial(timing: SessionTiming, path: string, now: number): SessionTiming {
+  return { ...checkpointTiming(timing, now), focusMaterialPath: path };
 }
 
 /** Legacy active sessions recover PAUSED; no old wall time is reclassified as learning. */

@@ -1,3 +1,4 @@
+import { summarizeActivity } from "../domain/activity/aggregation";
 import type { AgentAdapter, AgentHealth, AgentModel, ApplyResult, ChatSession, ChatMessage } from "../types";
 import type { ExplicitContextRef, LearningContext } from "../context/context-types";
 import type { SessionPort, ContextPort, PolicyPort, MutationPort, LearningStatePort, RuntimeSettingsWrite, ProgramStorePort, WorkspaceWriterPort } from "./ports";
@@ -87,6 +88,12 @@ export class LearningController {
 
   getModels(): AgentModel[] {
     return this.runtime.getModels();
+  }
+
+  async getActivitySummary(programId?: string) {
+    if (!this.programs) return summarizeActivity([]);
+    const all = await this.programs.listPrograms();
+    return summarizeActivity(all.programs.filter(program => !programId || program.id === programId));
   }
 
   async getProgramMenuState(): Promise<{

@@ -3,7 +3,7 @@ import type { ContextPort, LearningStatePort, ProgramStorePort } from "./ports";
 import type { LearningProgram, ProgramCollection, ProgramConstraints, LearningDecision, SessionPauseReason } from "../domain/learning-program/types";
 import { chooseNextActivity, feasibility, validateConstraints, validateCurriculum } from "../domain/learning-program/rules";
 import { estimateRemainingWork } from "../domain/learning-program/estimate";
-import { checkpointTiming, focusSessionObjective, newSessionTiming, projectedTiming, recoverTiming, sessionRemainingMs, sessionTimeStatus, setTimingPause } from "../domain/learning-program/session-time";
+import { checkpointTiming, focusSessionObjective, focusSessionMaterial, newSessionTiming, projectedTiming, recoverTiming, sessionRemainingMs, sessionTimeStatus, setTimingPause } from "../domain/learning-program/session-time";
 
 /** Program planning and session selection. The model generates content, never transitions. */
 export class LearningProgramOrchestrator {
@@ -109,6 +109,55 @@ export class LearningProgramOrchestrator {
     });
   }
 
+  async setIdle(idle: boolean): Promise<void> {
+    const program = await this.getActiveProgram();
+    if (!program?.session) return;
+    if (Boolean(program.session.timing?.pauseReasons.includes("idle")) === idle) return;
+    await this.setPause("idle", idle);
+  }
+
+  async focusMaterial(path: string): Promise<void> {
+    const program = await this.getActiveProgram();
+    if (!program?.session || !path || path.startsWith("00-learning-os/")) return;
+    if (program.session.timing?.focusMaterialPath === path) return;
+    await this.updateActive(current => {
+      if (!current.session?.timing) return current;
+      return { ...current, session: { ...current.session,
+        timing: focusSessionMaterial(current.session.timing, path, this.now()) } };
+    });
+  }
+
+  /** Preserve per-material attribution after an Obsidian note rename. */
+  async renameMaterial(oldPath: string, newPath: string): Promise<void> {
+    const op = this.mutationTail.then(async () => {
+      this.writing = true;
+      try {
+        const collection = await this.store.load();
+        let dirty = false;
+        for (const program of collection.programs) {
+          if (program.session?.timing) {
+            const t = program.session.timing;
+            if (t.focusMaterialPath === oldPath) { t.focusMaterialPath = newPath; dirty = true; }
+            if (t.materialActiveMs?.[oldPath] !== undefined) {
+              t.materialActiveMs[newPath] = (t.materialActiveMs[newPath] ?? 0) + t.materialActiveMs[oldPath];
+              delete t.materialActiveMs[oldPath]; dirty = true;
+            }
+          }
+          for (const history of program.sessionHistory ?? []) {
+            if (history.materialActiveMinutes?.[oldPath] !== undefined) {
+              history.materialActiveMinutes[newPath] =
+                (history.materialActiveMinutes[newPath] ?? 0) + history.materialActiveMinutes[oldPath];
+              delete history.materialActiveMinutes[oldPath]; dirty = true;
+            }
+          }
+        }
+        if (dirty) await this.store.save(collection);
+      } finally { this.writing = false; }
+    });
+    this.mutationTail = op.then(() => {}, () => {});
+    return op;
+  }
+
   async setAppInactive(inactive: boolean): Promise<void> {
     const program = await this.getActiveProgram();
     if (!program?.session) return;
@@ -206,6 +255,8 @@ export class LearningProgramOrchestrator {
           timing: newSessionTiming(now) } };
     });
     this.startCheckpointLoop();
+    const context = await this.contexts.resolve().catch(() => null);
+    if (context?.activeNote?.path) await this.focusMaterial(context.activeNote.path);
     return result;
   }
   async extendSession(minutes: number): Promise<LearningProgram> {
@@ -232,6 +283,11 @@ export class LearningProgramOrchestrator {
           ...(finalTiming ? {
             activeMinutes: finalTiming.activeMs / 60_000,
             aiWaitingMinutes: finalTiming.aiWaitingMs / 60_000,
+            ...(finalTiming.dailyActiveMs ? { dailyActiveMs: finalTiming.dailyActiveMs } : {}),
+            ...(finalTiming.materialActiveMs ? {
+              materialActiveMinutes: Object.fromEntries(Object.entries(finalTiming.materialActiveMs)
+                .map(([path, ms]) => [path, ms / 60_000])),
+            } : {}),
             ...(finalTiming.objectiveActiveMs ? {
               objectiveActiveMinutes: Object.fromEntries(Object.entries(finalTiming.objectiveActiveMs)
                 .map(([id, ms]) => [id, ms / 60_000])),
@@ -432,10 +488,10 @@ export class LearningProgramOrchestrator {
       const instruction = [
         "Recommend three distinct realistic learning directions for a user who has not chosen a goal.",
         "Domain neutral. No invented personal traits, experience or skill claims.",
-        "Return ONLY one JSON object: {\\"directions\\":[{\\"title\\":\\"imperative learning goal\\",\\"outcome\\":\\"testable practical outcome\\"}]}",
+        'Return ONLY one JSON object: {"directions":[{"title":"imperative learning goal","outcome":"testable practical outcome"}]}',
         "Interests: " + JSON.stringify(interests.slice(0, 6)),
         "Motivation: " + purpose.slice(0, 80),
-      ].join("\\n");
+      ].join("\n");
       let output = "", completed = false;
       for await (const event of this.runtime.send({ prompt: instruction, context: [] }, { model: this.currentModel() }, abort.signal)) {
         if (event.type === "failed") throw new Error(event.failure.message);
