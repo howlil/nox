@@ -3,6 +3,8 @@ import { StringDecoder } from "string_decoder";
 import { existsSync } from "fs";
 import { homedir } from "os";
 import { join } from "path";
+import { parseAgyUsage, parseAgyCredits, type QuotaReading } from "./QuotaProtocol";
+import { runAgyQuotaCommands } from "./QuotaProcess";
 import {
   AgentAdapter,
   AgentInput,
@@ -66,6 +68,13 @@ export class AgyAdapter implements AgentAdapter {
       ...DEFAULT_RUNTIME_DEPS,
       ...deps,
     };
+  }
+
+  /** Quota-only CLI commands (AGY 1.2.15+). Never starts an inference turn. */
+  async readQuota(signal?: AbortSignal): Promise<QuotaReading[]> {
+    const binary = await this.resolveBinary();
+    const { usage, credits } = await runAgyQuotaCommands(binary, this.cwd, signal, this.deps.spawn);
+    return [...parseAgyUsage(usage), ...parseAgyCredits(credits)];
   }
 
   async check(): Promise<AgentHealth> {
