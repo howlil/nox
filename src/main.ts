@@ -17,6 +17,7 @@ import { VaultLearningStore } from "./persistence/VaultLearningStore";
 import { VaultProgramStore } from "./persistence/VaultProgramStore";
 import { LearningProgramOrchestrator } from "./application/LearningProgramOrchestrator";
 import { PluginDataRepository } from "./persistence/PluginDataRepository";
+import { TokenUsageRepository } from "./persistence/TokenUsageRepository";
 import { SessionController } from "./session/SessionController";
 import { SessionStore } from "./session/SessionStore";
 import {
@@ -44,6 +45,7 @@ export default class NoxPlugin extends Plugin {
   private learning!: LearningController;
   private noxSettings!: NoxSettings;
   private pluginData!: PluginDataRepository;
+  private tokenUsage!: TokenUsageRepository;
   private vaultPath?: string;
   private runtime?: AgentRuntime;
   // Use the Obsidian HTTP stack for OAuth instead of renderer/Node global fetch.
@@ -57,9 +59,11 @@ export default class NoxPlugin extends Plugin {
         : undefined;
 
     this.pluginData = new PluginDataRepository(this);
+    this.tokenUsage = new TokenUsageRepository(this.pluginData);
     this.noxSettings = decodeNoxSettings(await this.pluginData.read());
     const adapter = this.createAdapter(this.noxSettings);
-    const runtime = new AgentRuntime(adapter);
+    const runtime = new AgentRuntime(adapter,
+      (usage, model, metadata) => this.tokenUsage.record(this.noxSettings.provider, model, usage, metadata));
     this.runtime = runtime;
     const sessionStore = new SessionStore();
     const sessions = new SessionController(
@@ -220,6 +224,14 @@ export default class NoxPlugin extends Plugin {
     this.noxSettings = next;
     await Promise.all(this.app.workspace.getLeavesOfType(NOX_VIEW_TYPE)
       .map((leaf) => (leaf.view as ChatView).refreshRuntime(runtimeChanged)));
+  }
+
+  getTokenUsageSnapshot(): ReturnType<TokenUsageRepository["snapshot"]> {
+    return this.tokenUsage.snapshot();
+  }
+
+  getTokenUsageError(): string | undefined {
+    return this.runtime?.getUsageTrackingError();
   }
 
   getBuildDiagnostics(): { revision: string; builtAt: string; transport: string; pluginDir: string; vaultDir: string } {

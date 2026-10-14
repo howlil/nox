@@ -616,7 +616,7 @@ Current product scope:
 
 Deferred until a concrete product need exists:
 
-- external/semantic embedding RAG;
+- external and embedding-based RAG;
 - always-on background indexing;
 - autonomous note mutation;
 - multi-agent orchestration;
@@ -683,3 +683,15 @@ Deferred until a concrete product need exists:
 - The surface remains compact and native to the Obsidian workflow.
 - Context and action hierarchy are immediately understandable.
 - Detailed implementation follows `DESIGN.md`.
+
+---
+
+
+## Runtime observability in Settings
+
+Settings displays provider-reported Nox-only input/output/total token usage,
+cached input, reasoning, and request counts. Filter by runtime provider, model,
+and time horizon without changing the current learning turn. The plugin must
+not present usage totals as account-wide credit or plan quota consumption.
+Account limits and reset times are unavailable until a trusted provider-specific
+integration exists. See `docs/TOKEN_USAGE.md`.

@@ -190,3 +190,20 @@ test("ignores malformed JSON until the process boundary decides the final outcom
   assert.deepEqual(parsed.state, previous);
   assert.equal(parsed.terminal, false);
 });
+
+
+test("successful AGY result reports cumulative counters for ledger delta tracking", () => {
+  const parsed = parseAgyLine(JSON.stringify({ event: "result",
+    result: { status: "SUCCESS", conversation_id: "c1", num_turns: 2,
+      response: "done", usage: { input_tokens: 100, output_tokens: 25,
+        total_tokens: 125, cache_read_tokens: 20, thinking_tokens: 5 } },
+  }), { sawText: true });
+  assert.deepEqual(parsed.events[0], {
+    type: "usage", conversationId: "c1", cumulative: true, turnCount: 2,
+    model: undefined, usage: {
+      inputTokens: 100, outputTokens: 25, totalTokens: 125,
+      cachedInputTokens: 20, reasoningTokens: 5,
+    },
+  });
+  assert.equal(parsed.events[1]?.type, "completed");
+});

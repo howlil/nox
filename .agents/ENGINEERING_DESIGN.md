@@ -10,14 +10,13 @@ Last updated: 2026-10-13
 
 ## Context + research incremental extension — 2026-10-14
 
-The optional `/research` path uses `ContextResolver` and `ObsidianContext` to
-query a derived, on-demand in-memory `LocalResearchIndex` using Markdown text
-and Obsidian `resolvedLinks`. No new canonical learning database is introduced.
-`ContextBudget` is a pure, provider-neutral envelope builder invoked by
-`RunLearningTurn`, keeping transcript authority with `SessionController`.
-`NodeInferenceTransport` streams Responses SSE through Node HTTPS; OAuth and
-model discovery retain Obsidian transport. Refer to
-`docs/CONTEXT_RESEARCH_ENGINE.md` for known limits and manual verification gates.
+Optional `/research` uses `ContextResolver` and `ObsidianContext` to query
+derived, on-demand `LocalResearchIndex` from Markdown notes and resolvedLinks.
+`ContextBudget` is a pure, provider-neutral envelope invoked by `RunLearningTurn`.
+`NodeInferenceTransport` sends progressive SSE over Node HTTPS; OAuth and
+catalog discovery remain on Obsidian requestUrl. Source truth remains with
+SessionController, VaultLearningStore and the existing token usage ledger.
+See `docs/CONTEXT_RESEARCH_ENGINE.md` for limits and smoke-test gates.
 
 ## Implementation checkpoint — 2026-10-13
 
@@ -2080,3 +2079,16 @@ AI content → StructuredStreamParser → PracticeQuestion candidate
 - Refer to `docs/INTERACTIVE_PRACTICE.md` for test cases and manual Obsidian
   acceptance. Automated tests do not certify renderer behavior in the user's
   actual vault/theme/account.
+
+---
+
+
+## Token usage telemetry ownership
+
+`AgentRuntime` consumes the normalized `usage` transport event and
+persists it via a composition-root callback, never through LearningController
+or transcript evidence. `TokenUsageRepository` owns daily immutable-on-read
+aggregates via the existing serialized `PluginDataRepository` writer.
+AGY cumulative counters require checkpoint deltas to avoid double counting.
+Settings reads a snapshot through the plugin host boundary. See
+`docs/TOKEN_USAGE.md`.

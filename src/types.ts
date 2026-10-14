@@ -39,8 +39,22 @@ export type AgentHealth =
   | { status: "ready" }
   | { status: "unavailable" | "misconfigured"; failure: AgentFailure };
 
+export interface TokenUsage {
+  inputTokens: number;
+  outputTokens: number;
+  totalTokens: number;
+  /** Cached prompt tokens already included in inputTokens. */
+  cachedInputTokens?: number;
+  /** Reasoning tokens already included in outputTokens. */
+  reasoningTokens?: number;
+  cacheWriteTokens?: number;
+}
+
 export type AgentStreamEvent =
   | { type: "text"; content: string }
+  | { type: "usage"; usage: TokenUsage; model?: string; conversationId?: string;
+      /** AGY reports cumulative conversation usage rather than per-turn deltas. */
+      cumulative?: boolean; turnCount?: number }
   | { type: "completed"; conversationId?: string; usage?: { inputTokens: number; outputTokens: number } }
   | { type: "failed"; failure: AgentFailure }
   | { type: "cancelled" };
@@ -69,7 +83,7 @@ export type ApplyResult =
       message: string;
     };
 
-/** Provider-measured numbers are separate from budget estimates. */
+/** Input estimates and latency are distinct from provider usage and quota. */
 export interface AgentTurnMetrics {
   estimatedInputTokens: number;
   estimatedContextTokens: number;

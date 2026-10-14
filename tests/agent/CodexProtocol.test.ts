@@ -71,3 +71,16 @@ test("rejects contradictory cumulative assistant updates", () => {
   emit({ type: "item.completed", item: { type: "agent_message", id: "a", text: "Different" } }, current);
   assert.equal(current.failure?.code, "protocol-invalid");
 });
+
+
+test("completed Codex JSONL event emits exact per-turn token usage", () => {
+  const current = state();
+  emit({ type: "thread.started", thread_id: thread }, current);
+  emit({ type: "item.completed", item: { type: "agent_message", id: "a", text: "ok" } }, current);
+  assert.deepEqual(emit({ type: "turn.completed", usage: {
+    input_tokens: 120, cached_input_tokens: 30, output_tokens: 40,
+  } }, current), [{
+    type: "usage", model: undefined,
+    usage: { inputTokens: 120, outputTokens: 40, totalTokens: 160, cachedInputTokens: 30 },
+  }]);
+});

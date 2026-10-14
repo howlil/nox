@@ -5,6 +5,7 @@ import {
   AgentModel,
   AgentStreamEvent,
   SendOptions,
+  TokenUsage,
 } from "../types";
 
 export interface AgentRuntimePort {
@@ -29,8 +30,13 @@ export class AgentRuntime implements AgentRuntimePort {
   private models: AgentModel[] = [];
   private modelDiscoveryError?: string;
   private discovery?: AbortController;
+  private usageTrackingError?: string;
 
-  constructor(private adapter: AgentAdapter) {}
+  constructor(private adapter: AgentAdapter,
+    private readonly onUsage?: (usage: TokenUsage, model: string | undefined, metadata: {
+      conversationId?: string; cumulative?: boolean; turnCount?: number;
+      freshConversation?: boolean;
+    }) => Promise<void>) {}
 
   async replaceAdapter(adapter: AgentAdapter): Promise<void> {
     this.adapter = adapter;
@@ -78,11 +84,35 @@ export class AgentRuntime implements AgentRuntimePort {
 
   refreshModels(): Promise<void> { return this.init(); }
 
-  send(
+  getUsageTrackingError(): string | undefined { return this.usageTrackingError; }
+
+  async *send(
     input: AgentInput,
     opts: SendOptions,
     signal: AbortSignal,
   ): AsyncIterable<AgentStreamEvent> {
-    return this.adapter.send(input, opts, signal);
+    const adapter = this.adapter;
+    for await (const event of adapter.send(input, opts, signal)) {
+      // Telemetry is a runtime side effect, not a learning event. Persist it even
+      // when the subsequent structured learning response is rejected.
+      if (event.type === "usage") {
+        if (this.onUsage) {
+          try {
+            await this.onUsage(event.usage, event.model ??
+              (opts.model ? "requested: " + opts.model : undefined), {
+              conversationId: event.conversationId,
+              cumulative: event.cumulative,
+              turnCount: event.turnCount,
+              freshConversation: !opts.conversationId,
+            });
+            this.usageTrackingError = undefined;
+          } catch {
+            this.usageTrackingError = "Usage could not be saved. Check plugin data storage.";
+          }
+        }
+        continue;
+      }
+      yield event;
+    }
   }
 }

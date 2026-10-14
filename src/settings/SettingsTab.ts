@@ -1,7 +1,8 @@
 import { App, Notice, PluginSettingTab, Setting } from "obsidian";
 import type { NoxSettings } from "./NoxSettings";
+import { mountTokenUsageSection, type UsageViewHost } from "./TokenUsageSection";
 
-export interface NoxSettingsHost {
+export interface NoxSettingsHost extends UsageViewHost {
   getSettings(): NoxSettings;
   updateSettings(next: Partial<NoxSettings>): Promise<void>;
   getChatGPTConnection(): { connected: boolean; sharing: boolean; email?: string; description: string;
@@ -84,8 +85,8 @@ export class NoxSettingsTab extends PluginSettingTab {
             }));
       }
       new Setting(containerEl)
-        .setName("Plan usage")
-        .setDesc("Requires ChatGPT plan permission. Selected note context is sent to OpenAI when you submit a message. Uses the official Responses API, not your API billing key.");
+        .setName("ChatGPT plan access")
+        .setDesc("Requires plan permission. Selected note context is sent to OpenAI when you submit a message. This is not API-key billing.");
     } else new Setting(containerEl)
       .setName("Agent executable")
       .setDesc("Optional absolute path to the configured agent runtime.")
@@ -129,6 +130,8 @@ export class NoxSettingsTab extends PluginSettingTab {
             await this.saveSettings({ preferredModel: value.trim() });
           }),
       );
+
+    mountTokenUsageSection(containerEl, this.nox);
   }
 
   private async saveSettings(update: Partial<NoxSettings>): Promise<void> {
