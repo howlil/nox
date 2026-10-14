@@ -153,6 +153,25 @@ unnecessary runtime reconfiguration. ChatView and SettingsTab apply class
 overrides to the existing flat NOX color tokens without changing the global
 Obsidian theme.
 
+## 2026-10-15 — Appearance scope and native portal alignment
+
+Independent NOX appearance is a scoped CSS contract, not an Obsidian global
+theme toggle. `styles.css` owns both paletted token sets and maps the
+minimum native Obsidian variables needed by MarkdownRenderer, dropdowns,
+links and code blocks. `color-scheme` aligns browser-painted form controls
+and scrollbars. System follows the containing `.theme-dark` class without
+runtime observers; forced light/dark class selectors override it.
+
+ChatView applies appearance to the root and to its Obsidian delete modal.
+HistoryList creates a short-lived fixed portal for the Obsidian DOM Menu and
+destroys it on hide; no second theme store, modal manager or global body
+mutations. SettingsTab uses the same scope and the persisted `NoxSettings`
+appearance preference.
+
+Protect the four effective theme combinations, contrast and portal ownership
+with `tests/branding/NoxThemeScope.test.ts`. CI static tests do not replace
+real Obsidian browser/theme visual verification.
+
 ## 1. Engineering goal
 
 Implement the Nox product without allowing framework, provider, persistence, or
