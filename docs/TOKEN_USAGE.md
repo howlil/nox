@@ -74,4 +74,24 @@ This conservative choice can undercount the first observed resumed turn.
    one increment per turn, not repeated all-history additions.
 6. Force a failed plugin-data write; inference still completes, Settings shows
    the ledger error, and no fabricated counts appear.
-7. Verify dark/light themes, narrow setting panels, keyboard navigation.
+7. Verify the light-only NOX theme inside light and dark Obsidian hosts, narrow setting panels, keyboard navigation.
+
+## Compact visualization and manual balances (2026-10-15)
+
+- Token usage uses a compact total hero, input/output proportional split,
+  four small supporting metrics, and model rows with relative bar lengths.
+- A separate `nox-credit-balances-v1` key stores **manual snapshots only**,
+  via the existing serialized `PluginDataRepository` writer. It never writes
+  inferred or fabricated account/provider values.
+- Inputs: provider, model or shared provider scope, unit, total limit, remaining
+  amount, timestamp. Model-specific snapshots override shared pools.
+- A shared provider pool appears once as a canonical editable entry and can
+  be echoed under member models with a Shared label. This is one pool, not
+  multiple credits available to sum. No automatic debit from token usage.
+- Unsupported provider account balances render **Unavailable**, not zero.
+- Current transports still cannot verify provider quota, account limits,
+  allowance resets or pricing. No claim of real-time remaining capacity.
+- Persistence: entries are validated, malformed records ignored, deletion
+  removes only the requested scope, and independent token ledger remains.
+- Light-only NOX removes the Appearance selector; host Obsidian theme is
+  not modified.
