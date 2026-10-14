@@ -1,4 +1,5 @@
 import type { TranscriptPart } from "./transcript-types";
+import { isRubricResults } from "../domain/practice/types";
 
 /** Reject malformed plugin data before it reaches the UI. */
 export function isTranscriptPart(value: unknown): value is TranscriptPart {
@@ -10,6 +11,8 @@ export function isTranscriptPart(value: unknown): value is TranscriptPart {
     const origin = part.origin as Record<string, unknown> | undefined;
     return Boolean(q && q.kind === "question" && typeof q.concept === "string" &&
       typeof q.question === "string" && (q.hint === undefined || typeof q.hint === "string") &&
+      (q.programId === undefined || typeof q.programId === "string") &&
+      (q.objectiveId === undefined || typeof q.objectiveId === "string") &&
       (part.questionId === undefined || typeof part.questionId === "string") &&
       (origin === undefined || (typeof origin.file === "string" &&
         (origin.selectedText === undefined || typeof origin.selectedText === "string"))));
@@ -22,6 +25,10 @@ export function isTranscriptPart(value: unknown): value is TranscriptPart {
       typeof e.feedback === "string" && Array.isArray(e.misconceptions) &&
       e.misconceptions.every((value: unknown) => typeof value === "string") &&
       (e.nextQuestion === undefined || typeof e.nextQuestion === "string") &&
+      (e.programId === undefined || typeof e.programId === "string") &&
+      (e.objectiveId === undefined || typeof e.objectiveId === "string") &&
+      (e.assisted === undefined || typeof e.assisted === "boolean") &&
+      (e.rubricResults === undefined || isRubricResults(e.rubricResults)) &&
       (part.questionId === undefined || typeof part.questionId === "string") &&
       (part.operationId === undefined || typeof part.operationId === "string") &&
       (part.nextQuestionId === undefined || typeof part.nextQuestionId === "string") &&

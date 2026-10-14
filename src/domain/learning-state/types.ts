@@ -4,6 +4,8 @@ export interface KnowledgeGap {
   reason: string;
   evidenceIds: string[];
   status: "open" | "improving" | "resolved";
+  programId?: string;
+  objectiveId?: string;
 }
 
 export interface LearningEvidence {
@@ -14,6 +16,11 @@ export interface LearningEvidence {
   source: string;
   outcome?: string;
   createdAt: number;
+  /** Stable program/objective identity prevents concept-name collisions across curricula. */
+  programId?: string;
+  objectiveId?: string;
+  assisted?: boolean;
+  rubricResults?: Array<{ criterion: string; met: boolean; evidence: string }>;
 }
 
 export interface LearningState {

@@ -1,14 +1,18 @@
 import type { AgentAdapter, AgentHealth, AgentModel, ApplyResult, ChatSession } from "../types";
 import type { ExplicitContextRef, LearningContext } from "../context/context-types";
-import type { SessionPort, ContextPort, PolicyPort, MutationPort, LearningStatePort, RuntimeSettingsWrite } from "./ports";
+import type { SessionPort, ContextPort, PolicyPort, MutationPort, LearningStatePort, RuntimeSettingsWrite, ProgramStorePort } from "./ports";
 import type { AgentRuntimePort } from "../agent/AgentRuntime";
 import type { LearningEvent, LearningRequest } from "./learning-types";
 import type { PracticeOrigin } from "../domain/practice/types";
 import { RunLearningTurn } from "./RunLearningTurn";
 import { isLockedLearningMode, parseScopeCommand } from "../domain/practice/learning-scope";
+import { parseProgramCommand } from "../domain/learning-program/commands";
+import { feasibility } from "../domain/learning-program/rules";
+import type { LearningProgramOrchestrator } from "./LearningProgramOrchestrator";
 
 export interface LearningControllerOptions {
   turnTimeoutMs?: number;
+  programStore?: ProgramStorePort;
 }
 
 /**
@@ -45,6 +49,7 @@ export class LearningController {
     private readonly mutations: MutationPort,
     private readonly learningState: LearningStatePort,
     options: LearningControllerOptions = {},
+    private readonly programs?: LearningProgramOrchestrator,
   ) {
     this.turns = new RunLearningTurn(sessions, runtime, contexts, policies, learningState, options);
   }
@@ -129,9 +134,116 @@ export class LearningController {
       yield { type: "failed", failure: { code: "busy", message: "Wait for runtime settings to finish saving." } };
       return;
     }
+    if (request.prompt.trim().toLowerCase() === "/hint") {
+      if (this.turns.isRunning() || this.applyingProposals.size > 0) {
+        yield { type: "failed", failure: { code: "busy", message: "Finish the active operation before requesting a hint." } };
+        return;
+      }
+      if (!this.turns.hasActivePracticeQuestion()) {
+        yield { type: "response-delta", text: "No active question to hint." };
+        yield { type: "completed" }; return;
+      }
+      const hint = this.turns.getPracticeHint();
+      if (!hint) {
+        yield { type: "response-delta", text: "No hint is available for this question." };
+        yield { type: "completed" }; return;
+      }
+      await this.sessions.recordUserMessage("/hint", this.sessions.getSession().id, "practice");
+      await this.sessions.recordAssistantMessage("Hint: " + hint, undefined, this.sessions.getSession().id);
+      yield { type: "response-delta", text: "Hint: " + hint };
+      yield { type: "completed" }; return;
+    }
+    let command: ReturnType<typeof parseProgramCommand>;
+    try { command = parseProgramCommand(request.prompt); }
+    catch (error) {
+      yield { type: "failed", failure: { code: "unknown",
+        message: error instanceof Error ? error.message : "Invalid plan command." } };
+      return;
+    }
+    if (command) {
+      if (!this.programs) {
+        yield { type: "failed", failure: { code: "unknown", message: "Learning programs are not configured." } };
+        return;
+      }
+      if (this.turns.isRunning() || this.applyingProposals.size > 0 || this.programs.isPlanning()) {
+        yield { type: "failed", failure: { code: "busy", message: "Finish the active operation first." } };
+        return;
+      }
+      if (isLockedLearningMode(this.sessions.getSession().learningScope?.mode) &&
+          (command.kind === "next" || command.kind === "plan")) {
+        yield { type: "failed", failure: { code: "busy",
+          message: "Use /pause to leave the legacy backend-only learning lock before starting a general program." } };
+        return;
+      }
+      try {
+        let response: string;
+        if (command.kind === "plan") {
+          if (this.turns.hasActivePracticeQuestion()) {
+            throw new Error("Finish or exit the active Practice question before replacing the learning plan.");
+          }
+          const program = await this.programs.createProgram(command.goal, command.constraints);
+          const f = feasibility(program);
+          response = [
+            `Created learning program: **${program.goal}**`,
+            `**Curriculum:** ${program.objectives.length} measurable objectives`,
+            ...program.objectives.map((objective, index) =>
+              `${index + 1}. **${objective.title}** — ${objective.outcome} (${objective.estimatedMinutes} min)`),
+            `**Time:** ${program.constraints.minutesPerSession} min/session, ${program.constraints.sessionsPerWeek} sessions/week`,
+            f.feasible === false ? `**Schedule at risk:** ~${f.estimatedMinutes} min required, ~${f.availableMinutes} min available. Reduce scope, change the deadline, or increase your time budget.` :
+              `**Estimated work including review:** ${f.estimatedMinutes} min.`,
+            "Use /start-session, then /next. Use /progress to inspect your plan.",
+          ].join("\n\n");
+        } else if (command.kind === "programs") {
+          const collection = await this.programs.listPrograms();
+          response = collection.programs.length
+            ? collection.programs.map(p =>
+                `${p.id === collection.activeProgramId ? "**Active** " : ""}${p.goal} (ID: ${p.id})`).join("\n\n")
+            : "No saved learning programs yet. Use /plan <goal>.";
+        } else if (command.kind === "use-program") {
+          if (this.turns.hasActivePracticeQuestion()) {
+            throw new Error("Finish the current practice question before switching programs.");
+          }
+          const selected = await this.programs.selectProgram(command.id);
+          response = `Active program changed to: ${selected.goal}`;
+        } else if (command.kind === "progress" || command.kind === "review-due") {
+          response = await this.programs.progressSummary();
+        } else if (command.kind === "start-session") {
+          const program = await this.programs.startSession();
+          response = `Learning session started. Timebox: ${program.constraints.minutesPerSession} min. Use /next to begin.`;
+        } else if (command.kind === "end-session") {
+          await this.programs.endSession();
+          response = "Session ended. Program progress remains saved. Use /start-session when ready.";
+        } else {
+          if (this.turns.hasActivePracticeQuestion()) {
+            response = "Answer the active question first, or use /hint for a small nudge.";
+          } else {
+            const selected = await this.programs.getDecision();
+            if (selected?.program && !selected.program.session) {
+              response = "Start a timeboxed session first with /start-session.";
+            } else if (selected?.decision.objective) {
+              yield* this.turns.run({ ...request, action: "practice" });
+              return;
+            }
+            response = selected?.decision.reason ?? "No active program. Use /plan <goal> first.";
+          }
+        }
+        if (!request.retry) await this.sessions.recordUserMessage(request.prompt, this.sessions.getSession().id, "ask");
+        await this.sessions.recordAssistantMessage(response, undefined, this.sessions.getSession().id);
+        yield { type: "response-delta", text: response };
+        yield { type: "completed" }; return;
+      } catch (error) {
+        yield { type: "failed", failure: { code: "unknown",
+          message: error instanceof Error ? error.message : "Unable to finish program operation." } };
+        return;
+      }
+    }
     if (parseScopeCommand(request.prompt) && this.applyingProposals.size > 0) {
       yield { type: "failed", failure: { code: "busy",
         message: "Wait for the note edit to finish before changing learning mode." } };
+      return;
+    }
+    if (this.programs?.isPlanning()) {
+      yield { type: "failed", failure: { code: "busy", message: "Curriculum generation is in progress." } };
       return;
     }
     yield* this.turns.run(request);
@@ -252,6 +364,7 @@ export class LearningController {
 
   cancel(): void {
     this.turns.cancel();
+    this.programs?.cancel();
   }
 
   dispose(): void {

@@ -768,6 +768,14 @@ export class ChatView extends ItemView {
   private async getPromptMenuItems(): Promise<PromptMenuItem[]> {
     if (this.promptMenu === "command") {
       const scopeCommands: PromptMenuItem[] = [
+        { key: "program-plan", name: "Create learning plan", description: "Goal, constraints, and curriculum. Add your goal after /plan.", icon: "route", command: "/plan ", action: { type: "scope", command: "/plan " } },
+        { key: "program-next", name: "Next learning activity", description: "Adaptive question from your active objective.", icon: "arrow-right-circle", command: "/next", action: { type: "scope", command: "/next" } },
+        { key: "programs-list", name: "Saved learning programs", description: "Show stored goals and program IDs.", icon: "library", command: "/programs", action: { type: "scope", command: "/programs" } },
+        { key: "program-switch", name: "Switch learning program", description: "Choose an ID from /programs.", icon: "list-restart", command: "/use-program ", action: { type: "scope", command: "/use-program " } },
+        { key: "program-progress", name: "Program progress", description: "Mastery, review due, feasibility, and next activity.", icon: "chart-no-axes-column", command: "/progress", action: { type: "scope", command: "/progress" } },
+        { key: "program-session", name: "Start timeboxed session", description: "Begin a session with your configured time budget.", icon: "clock", command: "/start-session", action: { type: "scope", command: "/start-session" } },
+        { key: "program-end", name: "End learning session", description: "Save progress and close the current timebox.", icon: "square", command: "/end-session", action: { type: "scope", command: "/end-session" } },
+        { key: "program-hint", name: "Request hint", description: "Get a hint without submitting the answer.", icon: "lightbulb", command: "/hint", action: { type: "scope", command: "/hint" } },
         { key: "assessment", name: "Baseline Assessment", description: "Assess backend fundamentals with a locked scope.", icon: "list-checks", command: "/mode assessment", action: { type: "scope", command: "/mode assessment" } },
         { key: "focused", name: "Focused Learning", description: "Learn the active backend concept with a locked scope.", icon: "focus", command: "/mode focused", action: { type: "scope", command: "/mode focused" } },
         { key: "pause", name: "Pause learning", description: "Discuss freely and keep the backend question for later.", icon: "pause", command: "/pause", action: { type: "scope", command: "/pause" } },
@@ -1350,6 +1358,7 @@ export class ChatView extends ItemView {
     }
 
     if (event.type === "practice-question") {
+      this.setAction("practice");
       this.setThinkingStage(2);
       this.ensureAgentBubble();
       this.appendPracticeQuestion(event.question);
@@ -1429,7 +1438,9 @@ export class ChatView extends ItemView {
       this.setAction("ask");
     }
     this.runningAction = null;
-    if (this.learning.getSession().learningScope) this.syncPracticeComposerState();
+    if (this.learning.hasActivePracticeQuestion() || this.learning.getSession().learningScope) {
+      this.syncPracticeComposerState();
+    }
   }
 
   private finishStreamingBubble(doneLabel?: string): void {

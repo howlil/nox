@@ -38,6 +38,9 @@ export function recordPracticeEvaluation(
     evaluation: PracticeEvaluation;
     source: string;
     evidenceId?: string;
+    programId?: string;
+    objectiveId?: string;
+    assisted?: boolean;
   },
   deps: LearningTransitionDeps = {},
 ): LearningState {
@@ -55,6 +58,10 @@ export function recordPracticeEvaluation(
     source: input.source,
     outcome: input.evaluation.outcome,
     createdAt: resolved.now(),
+    ...(input.programId ? { programId: input.programId } : {}),
+    ...(input.objectiveId ? { objectiveId: input.objectiveId } : {}),
+    ...(input.assisted ? { assisted: true } : {}),
+    ...(input.evaluation.rubricResults ? { rubricResults: input.evaluation.rubricResults } : {}),
   };
 
   next.evidence.push(evidence);
@@ -64,7 +71,8 @@ export function recordPracticeEvaluation(
     const existing = next.gaps.find(
       (gap) =>
         normalize(gap.concept) === normalize(input.evaluation.concept) &&
-        normalize(gap.reason) === normalize(misconception),
+        normalize(gap.reason) === normalize(misconception) &&
+        gap.programId === input.programId && gap.objectiveId === input.objectiveId,
     );
 
     if (existing) {
@@ -81,6 +89,8 @@ export function recordPracticeEvaluation(
       reason: misconception,
       evidenceIds: [evidence.id],
       status: "open",
+      ...(input.programId ? { programId: input.programId } : {}),
+      ...(input.objectiveId ? { objectiveId: input.objectiveId } : {}),
     });
   }
 
@@ -91,6 +101,7 @@ export function recordPracticeEvaluation(
     for (const gap of next.gaps) {
       if (
         normalize(gap.concept) === normalize(input.evaluation.concept) &&
+        gap.programId === input.programId && gap.objectiveId === input.objectiveId &&
         gap.status === "open"
       ) {
         gap.status = "improving";
