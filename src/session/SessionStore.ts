@@ -366,7 +366,7 @@ export class SessionStore {
             .filter(([key, value]) => key.length > 0 && key.length <= 200 && isPracticeAnswer(value)))
         : undefined,
       messages: session.messages
-        .map((message, index) => {
+        .map((message, index): ChatMessage | null => {
           const decoded = this.decodeMessage(message);
           return decoded ? { ...decoded, id: decoded.id ?? `legacy:${index}` } : null;
         })
