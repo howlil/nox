@@ -9,7 +9,6 @@ export interface NoxHistoryCallbacks {
   open(id: string): Promise<void>;
   mutate(ids: string[], action: HistoryAction): Promise<void>;
   confirmDelete(count: number): Promise<boolean>;
-  appearance(): "system" | "light" | "dark";
 }
 
 /**
@@ -189,13 +188,9 @@ export class NoxHistoryList {
     more.addEventListener("click", () => {
       if (this.selecting || this.busy) return;
       this.closeSwipe();
-      // Obsidian's Menu normally mounts on body, outside NOX's appearance scope.
-      // A temporary, fixed portal preserves native menu semantics without
-      // leaking the host theme when NOX explicitly selects Light or Dark.
+      // Native menus mount outside the sidebar; the portal owns the same
+      // fixed light NOX tokens without modifying Obsidian's global theme.
       const portal = document.body.createDiv({ cls: "nox-theme-portal nox-menu-portal" });
-      const appearance = this.callbacks.appearance();
-      portal.toggleClass("nox-force-light", appearance === "light");
-      portal.toggleClass("nox-force-dark", appearance === "dark");
       const menu = new Menu();
       menu.setUseNativeMenu(false);
       menu.setParentElement(portal);
