@@ -38,7 +38,9 @@ export class VaultProgramStore {
       if (!Number.isFinite(startedAt) || startedAt < 0 ||
           !Number.isInteger(timeBudgetMinutes) || timeBudgetMinutes < 10 ||
           timeBudgetMinutes > 240 ||
-          (timing !== undefined && (!isValidSessionTiming(timing) || timing.checkpointAt < startedAt))) {
+          (timing !== undefined && (!isValidSessionTiming(timing) || timing.checkpointAt < startedAt ||
+            (timing.focusObjectiveId !== undefined && !program.objectives.some(o => o.id === timing.focusObjectiveId)) ||
+            Object.keys(timing.objectiveActiveMs ?? {}).some(id => !program.objectives.some(o => o.id === id))))) {
         throw new Error("Invalid program session.");
       }
     }
@@ -47,7 +49,10 @@ export class VaultProgramStore {
           entry.endedAt < entry.startedAt || !Number.isFinite(entry.minutesSpent) ||
           entry.minutesSpent < 0 ||
           (entry.activeMinutes !== undefined && (!Number.isFinite(entry.activeMinutes) || entry.activeMinutes < 0)) ||
-          (entry.aiWaitingMinutes !== undefined && (!Number.isFinite(entry.aiWaitingMinutes) || entry.aiWaitingMinutes < 0))) {
+          (entry.aiWaitingMinutes !== undefined && (!Number.isFinite(entry.aiWaitingMinutes) || entry.aiWaitingMinutes < 0)) ||
+          (entry.objectiveActiveMinutes !== undefined && (typeof entry.objectiveActiveMinutes !== "object" ||
+            Object.entries(entry.objectiveActiveMinutes).some(([id, minutes]) =>
+              !program.objectives.some(o => o.id === id) || !Number.isFinite(minutes) || minutes < 0)))) {
         throw new Error("Invalid program session history.");
       }
     }
