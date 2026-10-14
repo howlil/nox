@@ -740,7 +740,8 @@ test("hint usage survives restart and cannot count as independent mastery", asyn
   const restored = await rig.createLearning();
   assert.equal(restored.learning.hasActivePracticeQuestion(), true);
   rig.queue(practice({ kind: "evaluation", concept: "Atomicity", outcome: "correct",
-    feedback: "Good", misconceptions: [] }));
+    feedback: "Good", misconceptions: [],
+    rubricResults: [{ criterion: "Explain rollback", met: true, evidence: "All or nothing" }] }));
   await collectEvents(restored.learning.run({
     prompt: "All or nothing", action: "practice", explicitContext: [],
   }));
