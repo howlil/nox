@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createSign, generateKeyPairSync } from "node:crypto";
@@ -166,4 +166,20 @@ test("truncated SSE response is not marked complete", async () => {
   for await (const event of adapter.send({ prompt: "hi", context: [] }, {}, new AbortController().signal)) events.push(event);
   assert.equal(events[0]?.type, "text");
   assert.equal(events[1]?.type, "failed");
+});
+
+test("Windows credential corruption shows safe actionable error, never encoded PowerShell source", {
+  skip: process.platform !== "win32",
+}, () => {
+  const dir = mkdtempSync(join(tmpdir(), "nox-invalid-dpapi-"));
+  const file = join(dir, "chatgpt-auth.json");
+  try {
+    writeFileSync(file, "invalid-dpapi-ciphertext", "utf8");
+    assert.throws(() => new ChatGptAuth({ storageFile: file }), (error: unknown) => {
+      assert.ok(error instanceof Error);
+      assert.match(error.message, /Windows DPAPI/);
+      assert.doesNotMatch(error.message, /-EncodedCommand|CLIXML|invalid-dpapi-ciphertext/);
+      return true;
+    });
+  } finally { rmSync(dir, { recursive: true, force: true }); }
 });
