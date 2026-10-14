@@ -10,6 +10,7 @@ import {
 
 import { enhanceNoxMarkdownTables, renderNoxCard, renderNoxFlow, renderNoxHorizontalChart } from "./response-rich";
 import { setNoxIcon } from "./primitives";
+import { bindResponsivePreview } from "./preview-frame";
 import type { IconName } from "obsidian";
 
 const SVG_NS = "http://www.w3.org/2000/svg";
@@ -150,7 +151,9 @@ function renderPreview(
   original.classList.add("nox-visual-source");
   root.appendChild(stage);
 
-  const documentText = createNoxPreviewDocument(kind, source);
+  const previewId = crypto.randomUUID();
+  const documentText = createNoxPreviewDocument(kind, source, previewId);
+  let releaseFrame: (() => void) | null = null;
   if (!documentText) {
     preview.disabled = true;
     const error = element("p", "nox-visual-warning");
@@ -160,7 +163,9 @@ function renderPreview(
   }
 
   const showPreview = () => {
-    // Destroy the former execution realm, rather than hiding running scripts.
+    // Never retain a previous execution realm or its resize listener.
+    releaseFrame?.();
+    releaseFrame = null;
     stage.replaceChildren();
     const iframe = element("iframe", "nox-visual-frame");
     iframe.title = kind === "svg-preview" ? "Isolated SVG preview" : "Isolated code preview";
@@ -169,11 +174,14 @@ function renderPreview(
     iframe.setAttribute("loading", "lazy");
     iframe.srcdoc = documentText;
     stage.appendChild(iframe);
+    if (kind !== "svg-preview") releaseFrame = bindResponsivePreview(iframe, previewId);
     preview.setAttribute("aria-pressed", "true");
     code.setAttribute("aria-pressed", "false");
     reset.hidden = false;
   };
   const showCode = () => {
+    releaseFrame?.();
+    releaseFrame = null;
     stage.replaceChildren(original);
     preview.setAttribute("aria-pressed", "false");
     code.setAttribute("aria-pressed", "true");
@@ -285,12 +293,16 @@ function enhanceNoxCodeBlocks(content: HTMLElement): void {
     const kind = classes.some(name => name === "language-js" || name === "language-javascript")
       ? "js-preview" : classes.includes("language-html") ? "html-preview" : null;
     const source = code.textContent ?? "";
-    const srcdoc = kind ? createNoxPreviewDocument(kind, source) : null;
+    const previewId = crypto.randomUUID();
+    const srcdoc = kind ? createNoxPreviewDocument(kind, source, previewId) : null;
     if (srcdoc) {
       const run = button("Run isolated preview", "play");
       const stage = element("div", "nox-visual-stage");
       let running = false;
+      let releaseFrame: (() => void) | null = null;
       run.addEventListener("click", () => {
+        releaseFrame?.();
+        releaseFrame = null;
         stage.replaceChildren();
         if (running) {
           running = false;
@@ -305,6 +317,7 @@ function enhanceNoxCodeBlocks(content: HTMLElement): void {
         iframe.setAttribute("referrerpolicy", "no-referrer");
         iframe.srcdoc = srcdoc;
         stage.append(iframe);
+        releaseFrame = bindResponsivePreview(iframe, previewId);
         running = true;
         run.title = "Stop preview";
         run.setAttribute("aria-label", "Stop preview");
