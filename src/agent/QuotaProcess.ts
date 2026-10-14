@@ -1,17 +1,29 @@
-import { spawn, type ChildProcess } from "child_process";
+
 import { StringDecoder } from "string_decoder";
 import {
   parseCodexRateLimits, type QuotaReading,
 } from "./QuotaProtocol";
 
-export type QuotaSpawn = typeof spawn;
+// Process creation belongs to concrete AgyAdapter/CodexAdapter. This module
+// only owns protocol orchestration over an injected spawned-process handle.
+type QuotaChild = {
+  stdin: NodeJS.WritableStream | null;
+  stdout: NodeJS.ReadableStream | null;
+  stderr: NodeJS.ReadableStream | null;
+  on(event: string, callback: (...args: never[]) => void): unknown;
+  kill(): boolean;
+};
+export type QuotaSpawn = (
+  binary: string, args: string[],
+  options: { cwd?: string; windowsHide?: boolean; stdio: string[] },
+) => QuotaChild;
 const MAX_BYTES = 256 * 1024;
 const safeError = (message: string) => new Error(message);
 
 function runReadOnlyCommand(binary: string, argv: string[], cwd: string | undefined,
   signal: AbortSignal | undefined, spawnFn: QuotaSpawn, timeoutMs = 14000): Promise<string> {
   return new Promise((resolve, reject) => {
-    let child: ChildProcess;
+    let child: QuotaChild;
     try {
       child = spawnFn(binary, argv, { cwd, windowsHide: true, stdio: ["ignore","pipe","pipe"] });
     } catch {
@@ -46,7 +58,7 @@ function runReadOnlyCommand(binary: string, argv: string[], cwd: string | undefi
 
 /** Verify AGY is new enough for no-inference /usage and /credits print mode. */
 export async function runAgyQuotaCommands(binary: string, cwd: string | undefined,
-  signal?: AbortSignal, spawnFn: QuotaSpawn = spawn): Promise<{usage: unknown; credits: unknown | null}> {
+  signal: AbortSignal | undefined, spawnFn: QuotaSpawn): Promise<{usage: unknown; credits: unknown | null}> {
   const version = await runReadOnlyCommand(binary, ["--version"], cwd, signal, spawnFn, 6000);
   const m = version.match(/\b(\d+)\.(\d+)\.(\d+)\b/);
   if (!m) throw new Error("AGY CLI version is unknown; quota probing disabled for safety.");
