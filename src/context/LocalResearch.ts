@@ -36,19 +36,21 @@ function tokenize(text: string): string[] {
 export function splitNote(path: string, content: string): ResearchChunk[] {
   const lines = content.split(/\r?\n/);
   const result: ResearchChunk[] = [];
-  let heading = path, start = 1, block: string[] = [];
+  let heading = path, start = 1, block: string[] = [], blockLength = 0;
   const flush = () => {
     const text = block.join("\n").trim();
     if (text) {
       // Each excerpt must point to its actual first source line.
       // Character-based chunks may start in the middle of a line.
+      let line = start;
       for (let offset = 0; offset < text.length; offset += 1250) {
-        const prefix = text.slice(0, offset);
-        const line = start + (prefix.match(/\n/g)?.length ?? 0);
-        result.push({ path, heading, line, content: text.slice(offset, offset + 1250) });
+        const excerpt = text.slice(offset, offset + 1250);
+        result.push({ path, heading, line, content: excerpt });
+        line += (excerpt.match(/\n/g) ?? []).length;
       }
     }
     block = [];
+    blockLength = 0;
   };
   for (let i = 0; i < lines.length; i++) {
     const match = /^#{1,6}\s+(.+)/.exec(lines[i]);
@@ -58,8 +60,9 @@ export function splitNote(path: string, content: string): ResearchChunk[] {
       start = i + 1;
     } else {
       if (block.length === 0) start = i + 1;
+      blockLength += lines[i].length + (block.length ? 1 : 0);
       block.push(lines[i]);
-      if (block.join("\n").length > 1800) flush();
+      if (blockLength > 1800) flush();
     }
   }
   flush();
@@ -72,19 +75,68 @@ export function decomposeResearchQuestion(question: string): string[] {
   if (!query) return [];
   const parts = query.split(/\s+(?:vs\.?|versus|dibandingkan|compared to|dan|and)\s+/i)
     .map(part => part.trim()).filter(part => part.length > 6);
-  return [query, ...parts].filter((part, i, all) => all.indexOf(part) === i).slice(0, 4);
+  ret/**
+ * Derived sparse index. Each chunk is tokenized only on revision change,
+ * not on every search. Posting lists contain no note content or credentials.
+ */
+interface StoredChunk {
+  chunk: ResearchChunk;
+  wordCount: number;
+  revision: string;
 }
 
+type Posting = { frequency: number; titleHits: number };
+
 export class LocalResearchIndex {
-  private notes = new Map<string, { note: IndexedNote; chunks: ResearchChunk[] }>();
+  private notes = new Map<string, { note: IndexedNote; ids: string[]; links: Set<string> }>();
+  private chunks = new Map<string, StoredChunk>();
+  private postings = new Map<string, Map<string, Posting>>();
 
   upsert(note: IndexedNote): void {
     if (this.notes.get(note.path)?.note.revision === note.revision) return;
-    this.notes.set(note.path, { note: { ...note, links: [...note.links] },
-      chunks: splitNote(note.path, note.content) });
+    this.remove(note.path);
+    const ids: string[] = [];
+    const titleCounts = new Map<string, number>();
+    for (const term of tokenize(note.path)) {
+      titleCounts.set(term, (titleCounts.get(term) ?? 0) + 1);
+    }
+    for (const [index, chunk] of splitNote(note.path, note.content).entries()) {
+      const id = note.path + "\\0" + index;
+      ids.push(id);
+      const tokens = tokenize(chunk.heading + " " + chunk.content);
+      this.chunks.set(id, { chunk, wordCount: tokens.length, revision: note.revision });
+      const frequencies = new Map<string, number>();
+      for (const term of tokens) frequencies.set(term, (frequencies.get(term) ?? 0) + 1);
+      const combined = new Set([...frequencies.keys(), ...titleCounts.keys()]);
+      for (const term of combined) {
+        let posting = this.postings.get(term);
+        if (!posting) {
+          posting = new Map<string, Posting>();
+          this.postings.set(term, posting);
+        }
+        posting.set(id, { frequency: frequencies.get(term) ?? 0, titleHits: titleCounts.get(term) ?? 0 });
+      }
+    }
+    this.notes.set(note.path, { note: { ...note, links: [...note.links] }, ids, links: new Set(note.links) });
   }
 
-  remove(path: string): void { this.notes.delete(path); }
+  remove(path: string): void {
+    const stored = this.notes.get(path);
+    if (!stored) return;
+    for (const id of stored.ids) {
+      const chunk = this.chunks.get(id);
+      if (!chunk) continue;
+      const terms = new Set([...tokenize(chunk.chunk.heading + " " + chunk.chunk.content),
+        ...tokenize(path)]);
+      for (const term of terms) {
+        const posting = this.postings.get(term);
+        posting?.delete(id);
+        if (posting?.size === 0) this.postings.delete(term);
+      }
+      this.chunks.delete(id);
+    }
+    this.notes.delete(path);
+  }
 
   paths(): string[] { return [...this.notes.keys()]; }
 
@@ -93,18 +145,25 @@ export class LocalResearchIndex {
     const subquestions = decomposeResearchQuestion(question);
     const terms = new Set(subquestions.flatMap(tokenize));
     if (!terms.size) return { query: question, subquestions, hits: [], edges: [] };
-    const scored: ResearchHit[] = [];
-    for (const { note, chunks } of this.notes.values()) {
-      if (allowed && !allowed.has(note.path)) continue;
-      for (const chunk of chunks) {
-        const haystack = tokenize(chunk.heading + " " + chunk.content);
-        let hits = 0;
-        for (const term of terms) hits += haystack.filter(word => word === term).length;
-        const title = tokenize(note.path);
-        const titleBoost = title.filter(word => terms.has(word)).length * 2;
-        const score = (hits / Math.sqrt(1 + haystack.length / 60)) + titleBoost;
-        if (score > 0) scored.push({ ...chunk, score, revision: note.revision, linkedFrom: [] });
+    const counts = new Map<string, { hits: number; titleBoost: number }>();
+    for (const term of terms) {
+      const posting = this.postings.get(term);
+      if (!posting) continue;
+      for (const [id, value] of posting) {
+        const stored = this.chunks.get(id);
+        if (!stored || (allowed && !allowed.has(stored.chunk.path))) continue;
+        const count = counts.get(id) ?? { hits: 0, titleBoost: 0 };
+        count.hits += value.frequency;
+        count.titleBoost += 2 * value.titleHits;
+        counts.set(id, count);
       }
+    }
+    const scored: ResearchHit[] = [];
+    for (const [id, count] of counts) {
+      const stored = this.chunks.get(id);
+      if (!stored) continue;
+      const score = count.hits / Math.sqrt(1 + stored.wordCount / 60) + count.titleBoost;
+      if (score > 0) scored.push({ ...stored.chunk, score, revision: stored.revision, linkedFrom: [] });
     }
     scored.sort((a, b) => b.score - a.score || a.path.localeCompare(b.path) || a.line - b.line);
     const limit = Math.max(1, Math.min(16, options.limit ?? 8));
@@ -114,9 +173,9 @@ export class LocalResearchIndex {
       for (const hit of scored) {
         if (picked.length >= limit) break;
         if (topPaths.has(hit.path)) continue;
+        const links = this.notes.get(hit.path)?.links;
         const linked = [...topPaths].some(path =>
-          this.notes.get(path)?.note.links.includes(hit.path) ||
-          this.notes.get(hit.path)?.note.links.includes(path));
+          this.notes.get(path)?.links.has(hit.path) || links?.has(path));
         if (linked) { picked.push(hit); topPaths.add(hit.path); }
       }
     }
