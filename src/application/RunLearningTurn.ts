@@ -416,6 +416,12 @@ export class RunLearningTurn {
       | undefined;
 
     if (request.action === "practice") {
+      if (request.practiceSubmission && !practice.isWaitingForAnswer()) {
+        if (this.activeTurn === activeTurn) this.activeTurn = null;
+        yield { type: "failed", failure: { code: "protocol-invalid",
+          message: "This question has already been answered or is no longer active." } };
+        return;
+      }
       if (practice.isWaitingForAnswer()) {
         const active = practice.snapshot()?.turns.at(-1);
         let textAnswer = request.prompt;
