@@ -513,10 +513,11 @@ removal automatically selects an available unarchived session or creates one.
 These are blocked while agent turns, plans, note edits or unsynchronized Apply
 status are active. Swipe gestures never bypass the same guarded actions.
 
-### Appearance preference
+### Appearance
 
-NOX provides System (follow Obsidian), Light and Dark choices in plugin settings.
-This preference affects NOX surfaces only and survives plugin restart.
+NOX provides one flat, light-only scoped theme across the sidebar, Settings
+and owned menus/dialogs; it does not alter Obsidian's host appearance.
+There is no separate dark-mode or Appearance control.
 
 ## 11. Session and model behavior
 
@@ -710,3 +711,10 @@ and time horizon without changing the current learning turn. The plugin must
 not present usage totals as account-wide credit or plan quota consumption.
 Account limits and reset times are unavailable until a trusted provider-specific
 integration exists. See `docs/TOKEN_USAGE.md`.
+
+## Remaining credits
+
+NOX can persist explicitly user-entered quota snapshots for model-specific
+limits or a shared provider pool. It must label them Manual, never Verified;
+display Unavailable when no balance exists; and never subtract token usage from
+a manual credit balance. The UI is Settings-only, compact and light-only.
