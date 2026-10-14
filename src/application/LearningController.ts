@@ -178,13 +178,25 @@ export class LearningController {
         yield { type: "response-delta", text: "No active question to hint." };
         yield { type: "completed" }; return;
       }
-      const hint = this.turns.getPracticeHint();
+      const hint = this.turns.peekPracticeHint();
       if (!hint) {
         yield { type: "response-delta", text: "No hint is available for this question." };
         yield { type: "completed" }; return;
       }
-      await this.sessions.recordUserMessage("/hint", this.sessions.getSession().id, "practice");
-      await this.sessions.recordAssistantMessage("Hint: " + hint, undefined, this.sessions.getSession().id);
+      // Do not mutate assisted state until the /hint intent is durable.
+      // If the assistant transcript write fails, the persisted request still
+      // conservatively marks this attempt assisted on session recovery.
+      const sessionId = this.sessions.getSession().id;
+      try {
+        await this.sessions.recordUserMessage("/hint", sessionId, "practice");
+        this.turns.getPracticeHint();
+        await this.sessions.recordAssistantMessage("Hint: " + hint, undefined, sessionId);
+      } catch (error) {
+        yield { type: "failed", failure: { code: "persistence-failed",
+          message: "Could not save the hint. Retry after checking storage.",
+          diagnostic: error instanceof Error ? error.message : String(error) } };
+        return;
+      }
       yield { type: "response-delta", text: "Hint: " + hint };
       yield { type: "completed" }; return;
     }
