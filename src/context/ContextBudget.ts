@@ -100,7 +100,16 @@ export function prepareContextEnvelope(request: ContextEnvelopeRequest): Context
   let digest = earlier.length ? compactHistory(earlier) : "";
   let historyTokens = estimateTokens(JSON.stringify(recent)) + estimateTokens(digest);
   if (historyTokens > maxHistory) {
-    digest = extractRelevantText(digest, request.prompt, Math.max(200, (maxHistory - estimateTokens(JSON.stringify(recent))) * 2));
+    // A summary is optional; never allow the digest to consume source budget.
+    // A character budget alone is insufficient for UTF-8/CJK-heavy transcripts.
+    const remainingHistory = Math.max(0, maxHistory - estimateTokens(JSON.stringify(recent)));
+    if (remainingHistory === 0) digest = "";
+    else {
+      digest = extractRelevantText(digest, request.prompt, Math.max(80, remainingHistory * 2));
+      while (digest && estimateTokens(digest) > remainingHistory) {
+        digest = digest.slice(0, Math.floor(digest.length * 0.8));
+      }
+    }
     historyTokens = estimateTokens(JSON.stringify(recent)) + estimateTokens(digest);
   }
 

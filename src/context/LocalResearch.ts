@@ -40,8 +40,12 @@ export function splitNote(path: string, content: string): ResearchChunk[] {
   const flush = () => {
     const text = block.join("\n").trim();
     if (text) {
+      // Each excerpt must point to its actual first source line.
+      // Character-based chunks may start in the middle of a line.
       for (let offset = 0; offset < text.length; offset += 1250) {
-        result.push({ path, heading, line: start, content: text.slice(offset, offset + 1250) });
+        const prefix = text.slice(0, offset);
+        const line = start + (prefix.match(/\n/g)?.length ?? 0);
+        result.push({ path, heading, line, content: text.slice(offset, offset + 1250) });
       }
     }
     block = [];
