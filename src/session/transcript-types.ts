@@ -2,6 +2,7 @@ import type { PracticeQuestion, PracticeEvaluation, PracticeOrigin, PracticeAnsw
 import type { ReviewFinding } from "../domain/review/types";
 import type { LearningScopeState } from "../domain/practice/learning-scope";
 import type { ChatMessage } from "../types";
+import type { AgentUsageRecord } from "../agent/token-usage";
 
 export interface ChatSession {
   id: string;
@@ -13,6 +14,8 @@ export interface ChatSession {
   messages: ChatMessage[];
   /** Session-local unfinished inputs; only evaluated submissions become evidence. */
   practiceDrafts?: Record<string, PracticeAnswer>;
+  /** Durable provider-reported usage; never interpreted as plan quota or API cost. */
+  usageRecords?: AgentUsageRecord[];
   createdAt: number;
   updatedAt: number;
 }
