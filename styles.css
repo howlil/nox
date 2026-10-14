@@ -2992,24 +2992,88 @@
   border-radius: var(--nox-radius-chip);
   background: var(--nox-surface);
 }
+/* Settings-only compact analytics. No gradient, shadow or outer focus ring. */
+.nox-usage-overview {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
+  gap: 10px;
+  margin-bottom: 8px;
+}
+.nox-usage-primary, .nox-usage-metrics {
+  min-width: 0;
+  border: 1px solid var(--nox-line);
+  border-radius: var(--nox-radius-control);
+  background: var(--nox-surface);
+  padding: 12px;
+}
+.nox-usage-primary { display: flex; flex-direction: column; gap: 3px; }
+.nox-usage-eyebrow {
+  font-size: 10px;
+  line-height: 1.5;
+  letter-spacing: .04em;
+  font-weight: 600;
+  color: var(--nox-ink-3);
+}
+.nox-usage-total {
+  font-size: clamp(20px, 3vw, 28px);
+  line-height: 1.25;
+  letter-spacing: -.035em;
+  font-weight: 600;
+  color: var(--nox-ink);
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+.nox-usage-subtitle {
+  display: block;
+  font-size: 11px;
+  color: var(--nox-ink-2);
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+.nox-usage-split {
+  display: flex;
+  width: 100%;
+  height: 7px;
+  margin: 7px 0 4px;
+  background: var(--nox-inset);
+  border-radius: var(--nox-radius-pill);
+  overflow: hidden;
+}
+.nox-usage-split-input { background: var(--nox-accent); height: 100%; }
+.nox-usage-split-output { background: var(--nox-accent-border); height: 100%; }
 .nox-usage-metrics {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 10px 14px;
-  margin: 2px 0 10px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  align-content: center;
 }
 .nox-usage-metric { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .nox-usage-metric span { font-size: 11px; color: var(--nox-ink-2); }
 .nox-usage-metric strong {
   font-size: 17px;
   font-weight: 600;
-  letter-spacing: -0.02em;
+  letter-spacing: -.02em;
   font-variant-numeric: tabular-nums;
   overflow-wrap: anywhere;
 }
-.nox-usage-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.nox-usage-footnote {
+  margin: 3px 0 4px;
+  font-size: 11px;
+  color: var(--nox-ink-3);
+  line-height: 1.55;
+}
+.nox-usage-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 16px 0 8px;
+}
+.nox-usage-section-head h4 { margin: 0; font-size: 13px; font-weight: 600; }
+.nox-usage-table-wrap { overflow-x: auto; max-width: 100%; }
+.nox-usage-table { width: 100%; min-width: 390px; border-collapse: collapse; font-size: 12px; }
 .nox-usage-table th, .nox-usage-table td {
-  padding: 6px 5px;
+  padding: 7px 5px;
   text-align: left;
   border-bottom: 1px solid var(--nox-line);
   overflow-wrap: anywhere;
@@ -3019,18 +3083,116 @@
   text-align: right;
   font-variant-numeric: tabular-nums;
 }
-.nox-usage-limit {
-  margin-top: 12px;
-  padding-top: 10px;
-  border-top: 1px solid var(--nox-line);
+.nox-usage-model-provider, .nox-usage-model-name {
+  display: block;
+  font-size: 11px;
 }
-.nox-usage-limit strong { font-size: 12px; }
-.nox-usage-limit p { margin: 5px 0 0; font-size: 12px; color: var(--nox-ink-2); line-height: 1.55; }
+.nox-usage-model-provider { color: var(--nox-ink-3); margin-bottom: 2px; }
+.nox-usage-model-track {
+  min-width: 58px;
+  width: 100%;
+  height: 7px;
+  background: var(--nox-inset);
+  overflow: hidden;
+  border-radius: var(--nox-radius-pill);
+}
+.nox-usage-model-fill {
+  height: 100%;
+  background: var(--nox-accent);
+  border-radius: var(--nox-radius-pill);
+}
+.nox-credits { margin-top: 16px; padding-top: 2px; border-top: 1px solid var(--nox-line); }
+.nox-credits > .nox-usage-description { margin: 0 0 10px; }
+.nox-usage-section-head button, .nox-credit-actions button, .nox-credit-editor-actions button {
+  border: 1px solid var(--nox-line);
+  border-radius: var(--nox-radius-control);
+  background: var(--nox-surface);
+  color: var(--nox-ink-2);
+  padding: 5px 9px;
+  min-height: 28px;
+  box-shadow: none;
+  font-size: 11px;
+  cursor: pointer;
+}
+.nox-usage-section-head button:hover,
+.nox-credit-actions button:hover,
+.nox-credit-editor-actions button:hover { background: var(--nox-hover); }
+.nox-credit-row {
+  padding: 11px 0;
+  border-bottom: 1px solid var(--nox-line);
+  min-width: 0;
+}
+.nox-credit-title { display: flex; gap: 8px; align-items: center; justify-content: space-between; }
+.nox-credit-names { min-width: 0; flex: 1; }
+.nox-credit-names strong {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.nox-credit-actions { display: flex; gap: 4px; flex-shrink: 0; }
+.nox-credit-values {
+  font-size: 12px;
+  color: var(--nox-ink);
+  font-variant-numeric: tabular-nums;
+  margin-top: 8px;
+}
+.nox-credit-progress {
+  width: 100%;
+  height: 7px;
+  border-radius: var(--nox-radius-pill);
+  background: var(--nox-inset);
+  overflow: hidden;
+  margin: 7px 0 5px;
+}
+.nox-credit-progress-fill {
+  height: 100%;
+  border-radius: var(--nox-radius-pill);
+  background: var(--nox-accent);
+}
+.nox-credit-progress-fill.is-warning { background: var(--nox-orange); }
+.nox-credit-progress-fill.is-low { background: var(--nox-red); }
+.nox-credit-updated { font-size: 10px; color: var(--nox-ink-3); }
+.nox-credit-editor {
+  padding: 12px;
+  margin: 10px 0;
+  border: 1px solid var(--nox-line);
+  border-radius: var(--nox-radius-control);
+  background: var(--nox-inset);
+}
+.nox-credit-editor > strong { font-size: 12px; font-weight: 600; }
+.nox-credit-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px 10px;
+}
+.nox-credit-fields .setting-item {
+  min-width: 0;
+  border: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 4px;
+}
+.nox-credit-fields .setting-item-name { font-size: 11px; }
+.nox-credit-fields .setting-item-control { width: 100%; min-width: 0; }
+.nox-credit-fields :is(input, select) {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  height: 30px;
+  border-radius: var(--nox-radius-chip);
+  background: var(--nox-surface);
+  border: 1px solid var(--nox-line);
+}
+.nox-credit-editor-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 12px; }
 .nox-usage-warning { font-size: 12px; color: var(--nox-red); }
 @media (max-width: 620px) {
+  .nox-usage-overview { grid-template-columns: 1fr; }
   .nox-usage-filters { grid-template-columns: 1fr; }
-  .nox-usage-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
+@media (max-width: 430px) { .nox-credit-fields { grid-template-columns: 1fr; } }
 
 /* Agentic inspector (Beautiful UI information density × Arc motion discipline).
    New component ownership only; existing header/thread/composer rules stay canonical. */
