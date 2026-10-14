@@ -1,6 +1,7 @@
-import { Notice } from "obsidian";
+import { Menu, Notice } from "obsidian";
 import type { ChatSession } from "../types";
 import { setNoxIcon } from "./primitives";
+import { HISTORY_SWIPE_LEADING, HISTORY_SWIPE_TRAILING, swipeAxis, swipeOffset, swipeRelease } from "./history-swipe";
 
 type HistoryAction = "archive" | "restore" | "delete";
 
@@ -12,8 +13,8 @@ export interface NoxHistoryCallbacks {
 
 /**
  * Native Obsidian adaptation of UIArc Swipe Actions.
- * Touch: swipe left to reveal actions or right for the primary archive action.
- * Desktop/keyboard: the visible More actions button exposes the same controls.
+ * Pointer/touch: direction-locked horizontal swipe, preserving vertical scroll.
+ * Desktop/keyboard: a quiet native More actions menu exposes the same controls.
  * All actual mutations are delegated through LearningController.
  */
 export class NoxHistoryList {
@@ -22,17 +23,20 @@ export class NoxHistoryList {
   private selected = new Set<string>();
   private expanded: { id: string; side: "leading" | "trailing" } | null = null;
   private busy = false;
+  private readonly rowRefs = new Map<string, { item: HTMLElement; front: HTMLElement }>();
   private sessions: ChatSession[] = [];
   private currentId = "";
 
   constructor(private readonly parent: HTMLElement, private readonly callbacks: NoxHistoryCallbacks) {}
 
   render(sessions: ChatSession[], currentId: string): void {
+    const scrollTop = this.parent.querySelector<HTMLElement>(".nox-history-list")?.scrollTop ?? 0;
     this.sessions = sessions;
     this.currentId = currentId;
     const eligible = new Set(sessions.filter(session => Boolean(session.archivedAt) === (this.scope === "archived")).map(session => session.id));
     for (const id of this.selected) if (!eligible.has(id)) this.selected.delete(id);
     this.parent.empty();
+    this.rowRefs.clear();
 
     const header = this.parent.createDiv({ cls: "nox-history-header" });
     header.createSpan({ cls: "nox-history-title", text: "Chat history" });
@@ -60,6 +64,7 @@ export class NoxHistoryList {
       if (this.scope === scope) button.addClass("is-current");
       button.addEventListener("click", () => {
         this.scope = scope;
+        this.expanded = null;
         this.selected.clear();
         this.expanded = null;
         this.render(this.sessions, this.currentId);
@@ -82,6 +87,10 @@ export class NoxHistoryList {
       attr: { "aria-label": this.scope === "active" ? "Chats" : "Archived chats" },
     });
     for (const session of visible) this.renderItem(list, session);
+    list.scrollTop = scrollTop;
+    // Swipe drawers are transient; scrolling must never leave an action layer visible.
+    list.addEventListener("scroll", () => this.closeSwipe(), { passive: true });
+    list.addEventListener("wheel", () => this.closeSwipe(), { passive: true });
   }
 
   private renderSelectionBar(visible: ChatSession[]): void {
@@ -155,7 +164,7 @@ export class NoxHistoryList {
     copy.createSpan({ cls: "nox-history-entry-preview", text: this.preview(session) });
     const time = open.createSpan({ cls: "nox-history-entry-time", text: this.formatTime(session.updatedAt) });
     time.setAttribute("aria-hidden", "true");
-    open.setAttribute("aria-label", `${this.title(session)}. ${this.preview(session)}`);
+    // The visible title already names this button; avoid huge native hover tooltips.
     open.disabled = this.busy;
     let suppressClick = false;
     open.addEventListener("click", () => {
@@ -167,65 +176,135 @@ export class NoxHistoryList {
     const more = front.createEl("button", {
       cls: "nox-history-more",
       attr: { type: "button", "aria-label": `More actions for ${this.title(session)}`,
-        "aria-expanded": String(this.expanded?.id === session.id) },
+        "aria-haspopup": "menu" },
     });
     setNoxIcon(more, "more-horizontal");
     more.disabled = this.busy;
     more.addEventListener("click", () => {
-      if (this.selecting) return;
-      this.expanded = this.expanded?.id === session.id ? null : { id: session.id, side: "trailing" };
-      this.render(this.sessions, this.currentId);
+      if (this.selecting || this.busy) return;
+      this.closeSwipe();
+      const menu = new Menu();
+      menu.addItem(entry => entry.setTitle(primaryLabel).setIcon(primaryIcon)
+        .onClick(() => void this.run([session.id], primaryAction)));
+      menu.addItem(entry => entry.setTitle("Delete").setIcon("trash-2")
+        .onClick(() => void this.run([session.id], "delete")));
+      const bounds = more.getBoundingClientRect();
+      menu.showAtPosition({ x: Math.round(bounds.right), y: Math.round(bounds.bottom) });
     });
     if (this.selecting) more.addClass("nox-hidden");
 
-    this.setPosition(front, session.id);
+    this.rowRefs.set(session.id, { item, front });
+    this.positionRow(session.id, this.expanded?.id === session.id ? this.expanded.side : null);
 
-    // Do not hijack touch scrolling; only follow a clearly horizontal gesture.
-    let startX = 0, startY = 0, dx = 0, dragging = false, pointerId = -1;
+    // Capture only once a horizontal gesture has won the axis lock. Capturing
+    // on pointerdown would break normal button clicks and touch page scrolling.
+    let pointerId = -1;
+    let startX = 0;
+    let startY = 0;
+    let startOffset = 0;
+    let lastX = 0;
+    let lastAt = 0;
+    let velocityX = 0;
+    let axis: "undecided" | "horizontal" | "vertical" = "undecided";
+
     front.addEventListener("pointerdown", event => {
-      if (this.selecting || this.busy || event.pointerType === "mouse" ||
+      if (this.selecting || this.busy || (event.pointerType === "mouse" && event.button !== 0) ||
           (event.target as HTMLElement).closest("input, .nox-history-more")) return;
       pointerId = event.pointerId;
-      startX = event.clientX;
+      startX = lastX = event.clientX;
       startY = event.clientY;
-      dx = 0;
-      dragging = false;
+      startOffset = this.expanded?.id === session.id ?
+        (this.expanded.side === "trailing" ? -HISTORY_SWIPE_TRAILING : HISTORY_SWIPE_LEADING) : 0;
+      lastAt = event.timeStamp;
+      velocityX = 0;
+      axis = "undecided";
     });
+
     front.addEventListener("pointermove", event => {
-      if (pointerId !== event.pointerId) return;
-      const deltaX = event.clientX - startX;
-      const deltaY = event.clientY - startY;
-      if (!dragging && (Math.abs(deltaX) < 9 || Math.abs(deltaX) <= Math.abs(deltaY) * 1.3)) return;
-      dragging = true;
-      dx = deltaX;
-      const shift = Math.max(-144, Math.min(72, deltaX));
-      front.style.transform = `translateX(${shift}px)`;
+      if (pointerId !== event.pointerId || axis === "vertical") return;
+      const dx = event.clientX - startX;
+      const dy = event.clientY - startY;
+      if (axis === "undecided") {
+        const next = swipeAxis(dx, dy);
+        if (next === "undecided") return;
+        axis = next;
+        if (next === "vertical") {
+          pointerId = -1;
+          return;
+        }
+        this.closeSwipe(session.id);
+        front.style.transition = "none";
+        try { front.setPointerCapture(event.pointerId); } catch { /* gesture may have ended */ }
+      }
+      const elapsed = Math.max(1, event.timeStamp - lastAt);
+      velocityX = ((event.clientX - lastX) / elapsed) * 1000;
+      lastX = event.clientX;
+      lastAt = event.timeStamp;
+      const offset = swipeOffset(dx, startOffset);
+      this.revealDirection(item, offset >= 0 ? "leading" : "trailing", false);
+      front.style.transform = `translate3d(${offset}px, 0, 0)`;
+      event.preventDefault();
     });
-    const settle = (event: PointerEvent) => {
-      if (pointerId !== event.pointerId) return;
+
+    const finish = (event: PointerEvent) => {
+      if (event.pointerId !== pointerId) return;
       pointerId = -1;
-      if (!dragging) return;
+      if (axis !== "horizontal") return;
+      // Prevent a drag ending over a button from also selecting/opening the chat.
       suppressClick = true;
       window.setTimeout(() => { suppressClick = false; }, 0);
-      if (Math.abs(dx) > Math.max(200, front.clientWidth * 0.65)) {
-        this.expanded = null;
-        void this.run([session.id], primaryAction);
-      } else {
-        this.expanded = Math.abs(dx) >= 45 ?
-          { id: session.id, side: dx > 0 ? "leading" : "trailing" } : null;
-        this.render(this.sessions, this.currentId);
+      front.style.transition = "";
+      const dragged = startOffset + event.clientX - startX;
+      const result = swipeRelease(dragged, velocityX, item.clientWidth);
+      if (result.full) {
+        this.closeSwipe();
+        // Full swipe left is guarded by the same delete confirmation as the menu.
+        void this.run([session.id], result.side === "trailing" ? "delete" : primaryAction);
+        return;
       }
+      this.closeSwipe(session.id);
+      this.expanded = result.side ? { id: session.id, side: result.side } : null;
+      this.positionRow(session.id, result.side);
     };
-    front.addEventListener("pointerup", settle);
-    front.addEventListener("pointercancel", () => {
+    front.addEventListener("pointerup", finish);
+    front.addEventListener("pointercancel", event => {
+      if (pointerId !== event.pointerId) return;
       pointerId = -1;
-      this.setPosition(front, session.id);
+      axis = "undecided";
+      front.style.transition = "";
+      this.closeSwipe();
     });
   }
 
-  private setPosition(front: HTMLElement, id: string): void {
-    const offset = this.expanded?.id === id ? (this.expanded.side === "trailing" ? -144 : 72) : 0;
-    front.style.transform = `translateX(${offset}px)`;
+  /** Only one swipe row can remain revealed. Scroll collapses it immediately. */
+  private closeSwipe(exceptId?: string): void {
+    for (const [id] of this.rowRefs) {
+      if (id !== exceptId) this.positionRow(id, null);
+    }
+    if (this.expanded?.id !== exceptId) this.expanded = null;
+  }
+
+  private revealDirection(item: HTMLElement, side: "leading" | "trailing" | null, interactive: boolean): void {
+    item.toggleClass("is-swipe-leading", side === "leading");
+    item.toggleClass("is-swipe-trailing", side === "trailing");
+    for (const actions of Array.from(item.querySelectorAll<HTMLElement>(".nox-history-swipe-actions"))) {
+      const enabled = interactive && side !== null &&
+        actions.classList.contains(side === "leading" ? "is-leading" : "is-trailing");
+      actions.setAttribute("aria-hidden", String(!enabled));
+      for (const button of Array.from(actions.querySelectorAll<HTMLButtonElement>("button"))) {
+        button.tabIndex = enabled ? 0 : -1;
+      }
+    }
+  }
+
+  private positionRow(id: string, side: "leading" | "trailing" | null): void {
+    const row = this.rowRefs.get(id);
+    if (!row) return;
+    const offset = side === "leading" ? HISTORY_SWIPE_LEADING :
+      side === "trailing" ? -HISTORY_SWIPE_TRAILING : 0;
+    row.front.style.transition = "";
+    row.front.style.transform = `translate3d(${offset}px, 0, 0)`;
+    this.revealDirection(row.item, side, true);
   }
 
   private toggleSelected(id: string): void {
