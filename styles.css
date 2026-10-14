@@ -3730,3 +3730,76 @@
 @media (prefers-reduced-motion: reduce) {
   .nox-history-swipe-front { transition: none; }
 }
+
+/* Fixed history gesture layer. The list alone scrolls: the header/tabs never
+   slide under action drawers. Rows paint an opaque front above hidden actions. */
+.nox-history-menu {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.nox-history-menu .nox-history-header,
+.nox-history-menu .nox-history-tabs,
+.nox-history-menu .nox-history-selection { flex: 0 0 auto; }
+.nox-history-menu .nox-history-list {
+  display: block;
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: 320px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  padding: 3px 0 4px;
+}
+.nox-history-menu .nox-history-item {
+  overflow: clip;
+  border-radius: 0;
+  isolation: isolate;
+}
+.nox-history-menu .nox-history-swipe-front {
+  width: 100%;
+  min-width: 0;
+  background: var(--nox-surface);
+  touch-action: pan-y;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-user-drag: none;
+  cursor: grab;
+}
+.nox-history-menu .nox-history-swipe-front:active { cursor: grabbing; }
+.nox-history-menu .nox-history-item.is-selected .nox-history-swipe-front {
+  background: var(--nox-accent-soft);
+}
+.nox-history-menu .nox-history-swipe-actions {
+  visibility: hidden;
+  pointer-events: none;
+}
+.nox-history-menu .nox-history-item.is-swipe-leading .nox-history-swipe-actions.is-leading,
+.nox-history-menu .nox-history-item.is-swipe-trailing .nox-history-swipe-actions.is-trailing {
+  visibility: visible;
+  pointer-events: auto;
+}
+.nox-history-menu .nox-history-entry {
+  min-width: 0;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-user-drag: none;
+}
+.nox-history-menu .nox-history-more {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--nox-motion-fast) ease;
+}
+.nox-history-menu .nox-history-item:hover .nox-history-more,
+.nox-history-menu .nox-history-more:focus-visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+@media (hover: none) {
+  .nox-history-menu .nox-history-more { opacity: 1; pointer-events: auto; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .nox-history-menu .nox-history-more,
+  .nox-history-menu .nox-history-swipe-front { transition: none; }
+}
