@@ -37,13 +37,17 @@ export class ObsidianContext {
     );
     // Keep the index derived; editor-buffer freshness is separately checked
     // on each query because unsaved changes do not emit vault modifications.
-    plugin.registerEvent(this.app.vault.on("modify", file => this.invalidateResearch(file.path)));
-    plugin.registerEvent(this.app.vault.on("delete", file => this.invalidateResearch(file.path)));
-    plugin.registerEvent(this.app.vault.on("rename", (file, oldPath) => {
-      this.invalidateResearch(oldPath);
-      this.invalidateResearch(file.path);
-    }));
-    plugin.registerEvent(this.app.metadataCache.on("changed", file => this.invalidateResearch(file.path)));
+    if (typeof this.app.vault.on === "function") {
+      plugin.registerEvent(this.app.vault.on("modify", file => this.invalidateResearch(file.path)));
+      plugin.registerEvent(this.app.vault.on("delete", file => this.invalidateResearch(file.path)));
+      plugin.registerEvent(this.app.vault.on("rename", (file, oldPath) => {
+        this.invalidateResearch(oldPath);
+        this.invalidateResearch(file.path);
+      }));
+    }
+    if (typeof this.app.metadataCache?.on === "function") {
+      plugin.registerEvent(this.app.metadataCache.on("changed", file => this.invalidateResearch(file.path)));
+    }
   }
 
   getSelection(): { file: string; content: string } | null {

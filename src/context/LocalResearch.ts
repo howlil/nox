@@ -75,7 +75,10 @@ export function decomposeResearchQuestion(question: string): string[] {
   if (!query) return [];
   const parts = query.split(/\s+(?:vs\.?|versus|dibandingkan|compared to|dan|and)\s+/i)
     .map(part => part.trim()).filter(part => part.length > 6);
-  ret/**
+  return [query, ...parts].filter((part, i, all) => all.indexOf(part) === i).slice(0, 4);
+}
+
+/**
  * Derived sparse index. Each chunk is tokenized only on revision change,
  * not on every search. Posting lists contain no note content or credentials.
  */
@@ -101,7 +104,7 @@ export class LocalResearchIndex {
       titleCounts.set(term, (titleCounts.get(term) ?? 0) + 1);
     }
     for (const [index, chunk] of splitNote(note.path, note.content).entries()) {
-      const id = note.path + "\\0" + index;
+      const id = note.path + "\0" + index;
       ids.push(id);
       const tokens = tokenize(chunk.heading + " " + chunk.content);
       this.chunks.set(id, { chunk, wordCount: tokens.length, revision: note.revision });
