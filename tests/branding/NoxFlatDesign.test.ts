@@ -9,10 +9,10 @@ test("Nox uses Howlil neutral foundations and a solid purple accent", () => {
   for (const [token, value] of [
     ["--nox-page", "#FEFEFE"],
     ["--nox-inset", "#F7F7F7"],
-    ["--nox-ink", "#121212"],
+    ["--nox-ink", "#161616"],
     ["--nox-accent", "#8653D5"],
     ["--nox-accent-soft", "#F4EDFF"],
-    ["--nox-radius-window", "14px"],
+    ["--nox-radius-window", "10px"],
     ["--nox-space-8", "32px"],
   ]) {
     assert.ok(css.includes(`${token}: ${value};`), `missing flat token ${token}`);
@@ -60,4 +60,15 @@ test("Learning surfaces and actions keep their canonical selectors", () => {
   ]) {
     assert.ok(css.includes(selector), `missing canonical surface ${selector}`);
   }
+});
+
+test("compact visual grammar uses in-surface focus rather than outer rings", () => {
+  assert.doesNotMatch(css, /outline:\\s*2px solid/i);
+  assert.match(css, /\\.nox-composer-controls\\s*\\{[^}]*grid-template-rows:\\s*minmax\\(24px, auto\\) 30px;/s);
+  assert.match(css, /\\.nox-input-line\\s*\\{[^}]*grid-column:\\s*1 \\/ -1;/s);
+  assert.match(css, /textarea\\.nox-input:is\\(:hover, :focus, :focus-visible, :active\\)/);
+  assert.match(css, /\\.nox-composer-box:focus-within\\s*\\{[^}]*border-color:\\s*var\\(--nox-accent-border\\);/s);
+  assert.match(css, /\\.nox-usage-header\\s*\\{/);
+  assert.match(css, /\\.nox-capability-card\\s*\\{[^}]*min-height:\\s*90px;/s);
+  assert.match(css, /\\.nox-capability-meta\\s*\\{[^}]*background:\\s*transparent;/s);
 });
