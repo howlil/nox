@@ -6,7 +6,7 @@ export interface QuizCardActions {
   active: boolean;
   draft?: PracticeAnswer;
   onDraft: (answer: PracticeAnswer) => void;
-  onSubmit: (answer: PracticeAnswer) => Promise<void>;
+  onSubmit: (answer: PracticeAnswer) => Promise<boolean>;
   onHint: () => void;
 }
 
@@ -107,11 +107,22 @@ export function renderQuizCard(parent: HTMLElement, question: PracticeQuestion,
     if (!answer || !isValid() || submit.disabled) return;
     submit.disabled = true;
     status.setText("Submitting...");
-    try { await actions.onSubmit(answer); }
-    catch (error) {
+    let committed = false;
+    try {
+      committed = await actions.onSubmit(answer);
+      if (committed) {
+        status.setText("Answer recorded.");
+        submit.setText("Answered");
+        for (const control of card.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>("input,textarea")) {
+          control.disabled = true;
+        }
+      } else {
+        status.setText("The answer was not evaluated. You can retry.");
+      }
+    } catch (error) {
       status.setText(error instanceof Error ? error.message : "Unable to submit the answer.");
     } finally {
-      if (actions.active) submit.disabled = !isValid();
+      if (actions.active && !committed) submit.disabled = !isValid();
     }
   });
 }
