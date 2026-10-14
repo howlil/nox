@@ -22,7 +22,7 @@ const review = (payload: object): AgentStreamEvent[] => [
   { type: "completed" },
 ];
 
-function makeRig() {
+function makeRig(withProgram = false) {
   let pluginData: Record<string, unknown> | null = null;
   let failProgressWrites = 0;
   let failProposalWrites = 0;
@@ -124,10 +124,24 @@ function makeRig() {
     await runtime.init();
     const context = new ContextResolver(new ObsidianContext(app as never, plugin as never));
     const learningState = new VaultLearningStore(app as never);
+    const programStore = withProgram ? { load: async () => ({
+      version: 1 as const, activeProgramId: "acid-program",
+      programs: [{
+        version: 1 as const, id: "acid-program", goal: "Understand transactions",
+        constraints: { minutesPerSession: 45, sessionsPerWeek: 3,
+          sourcePaths: [], sourceBound: false, excludedTopics: [] },
+        objectives: [{ id: "atomicity", title: "Atomicity", outcome: "Explain atomicity",
+          prerequisiteIds: [], estimatedMinutes: 45, rubric: ["Explain rollback"],
+          sourceRefs: [], priority: "core" as const }],
+        createdAt: Date.now(), planVersion: 1,
+        session: { startedAt: Date.now(), timeBudgetMinutes: 45 },
+      }],
+    }) } : undefined;
     const learning = new LearningController(
       sessions, runtime, context, { load: async () => ({
         path: "AGENTS.md", rawInstructions: "",
       }) } as never, new MutationService(app as never), learningState,
+      { programStore: programStore as never },
     );
     return { sessions, learning, learningState, context };
   };
@@ -672,4 +686,83 @@ test("an empty but well-formed Review payload is successful", async () => {
   assert.ok(events.some((event) => event.type === "review-findings" && event.findings.length === 0));
   assert.equal(sessions.getSession().messages.flatMap((message) => message.parts ?? [])
     .filter((part) => part.type === "review-findings").length, 1);
+});
+
+test("domain-neutral program practice commits objective-linked evidence and ignores model nextQuestion", async () => {
+  const rig = makeRig(true);
+  const { learning, learningState, sessions } = await rig.createLearning();
+  rig.queue(practice({ kind: "question", concept: "Backend terms", question: "Explain transaction atomicity.",
+    hint: "Think rollback." }));
+  const asked = await collectEvents(learning.run({
+    prompt: "/next", action: "practice", explicitContext: [],
+  }));
+  const generated = asked.find(event => event.type === "practice-question");
+  assert.ok(generated && generated.type === "practice-question");
+  assert.equal(generated.question.programId, "acid-program");
+  assert.equal(generated.question.objectiveId, "atomicity");
+  assert.equal(generated.question.concept, "Atomicity");
+
+  rig.queue(practice({ kind: "evaluation", concept: "Atomicity", outcome: "correct",
+    feedback: "All operations roll back together.", misconceptions: [],
+    nextQuestion: "The model tries to skip the scheduler",
+    rubricResults: [{ criterion: "Explain rollback", met: true,
+      evidence: "Described undo on failure" }] }));
+  const evaluated = await collectEvents(learning.run({
+    prompt: "Either all changes commit or none do", action: "practice", explicitContext: [],
+  }));
+  assert.ok(evaluated.some(event => event.type === "practice-evaluation"));
+  assert.equal(evaluated.some(event => event.type === "practice-question"), false);
+  const state = await learningState.load();
+  assert.equal(state.evidence.length, 1);
+  assert.equal(state.evidence[0].programId, "acid-program");
+  assert.equal(state.evidence[0].objectiveId, "atomicity");
+  assert.equal(state.evidence[0].rubricResults?.[0].met, true);
+  const parts = sessions.getSession().messages.flatMap(item => item.parts ?? []);
+  const savedEval = parts.find(part => part.type === "practice-evaluation");
+  assert.ok(savedEval && savedEval.type === "practice-evaluation");
+  assert.equal(savedEval.evaluation.nextQuestion, undefined);
+});
+
+test("hint usage survives restart and cannot count as independent mastery", async () => {
+  const rig = makeRig(true);
+  const first = await rig.createLearning();
+  rig.queue(practice({ kind: "question", concept: "ACID", question: "Explain atomicity.",
+    hint: "Rollback means all-or-nothing." }));
+  await collectEvents(first.learning.run({
+    prompt: "Practice", action: "practice", explicitContext: [],
+  }));
+  const hint = await collectEvents(first.learning.run({
+    prompt: "/hint", action: "practice", explicitContext: [],
+  }));
+  assert.ok(hint.some(event => event.type === "response-delta" &&
+    event.text.includes("Rollback")));
+  first.learning.dispose();
+  const restored = await rig.createLearning();
+  assert.equal(restored.learning.hasActivePracticeQuestion(), true);
+  rig.queue(practice({ kind: "evaluation", concept: "Atomicity", outcome: "correct",
+    feedback: "Good", misconceptions: [] }));
+  await collectEvents(restored.learning.run({
+    prompt: "All or nothing", action: "practice", explicitContext: [],
+  }));
+  const state = await restored.learningState.load();
+  assert.equal(state.evidence.length, 1);
+  assert.equal(state.evidence[0].assisted, true);
+  const again = await rig.createLearning();
+  assert.equal((await again.learningState.load()).evidence[0].assisted, true);
+});
+
+test("program evaluator cannot claim correct when its rubric shows a missed criterion", async () => {
+  const rig = makeRig(true);
+  const { learning, learningState } = await rig.createLearning();
+  rig.queue(practice({ kind: "question", concept: "Atomicity", question: "Explain atomicity." }));
+  await collectEvents(learning.run({ prompt: "Practice", action: "practice", explicitContext: [] }));
+  rig.queue(practice({ kind: "evaluation", concept: "Atomicity", outcome: "correct",
+    feedback: "Contradictory", misconceptions: [],
+    rubricResults: [{ criterion: "Explain rollback", met: false, evidence: "No rollback mentioned" }] }));
+  const failure = await collectEvents(learning.run({
+    prompt: "Transactions are fast", action: "practice", explicitContext: [],
+  }));
+  assert.ok(failure.some(event => event.type === "failed" && event.failure.code === "protocol-invalid"));
+  assert.equal((await learningState.load()).evidence.length, 0);
+  assert.equal(learning.hasActivePracticeQuestion(), true);
 });
