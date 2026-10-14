@@ -176,7 +176,7 @@ export class LearningController {
         return;
       }
       try {
-        let response: string;
+        let response = "";
         if (command.kind === "plan") {
           if (this.turns.hasActivePracticeQuestion()) {
             throw new Error("Finish or exit the active Practice question before replacing the learning plan.");
