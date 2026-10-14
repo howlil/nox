@@ -87,7 +87,16 @@ export async function runAgyQuotaCommands(binary: string, cwd: string | undefine
     const data = await runReadOnlyCommand(binary,
       ["--output-format","json","-p","/credits"],cwd,signal,spawnFn,14000);
     credits = JSON.parse(data) as unknown;
-  } catch { /* Independent credits may be unsupported on this account. */ }
+    const c = credits && typeof credits === "object" && !Array.isArray(credits)
+      ? credits as Record<string,unknown> : null;
+    if (c && (typeof c.num_turns === "number" && c.num_turns > 0 ||
+      typeof c.conversation_id === "string" && c.conversation_id !== "")) {
+      throw new Error("AGY /credits triggered an AI turn; quota probing disabled.");
+    }
+  } catch (error) {
+    if (error instanceof Error && error.message.includes("triggered an AI turn")) throw error;
+    // A missing or unsupported credits response is unknown, never zero.
+  }
   return { usage, credits };
 }
 
