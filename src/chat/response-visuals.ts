@@ -281,8 +281,42 @@ function enhanceNoxCodeBlocks(content: HTMLElement): void {
       });
     });
     bar.append(copy);
-    pre.replaceWith(wrapper);
-    wrapper.append(bar, pre);
+    const classes = Array.from(code.classList);
+    const kind = classes.some(name => name === "language-js" || name === "language-javascript")
+      ? "js-preview" : classes.includes("language-html") ? "html-preview" : null;
+    const source = code.textContent ?? "";
+    const srcdoc = kind ? createNoxPreviewDocument(kind, source) : null;
+    if (srcdoc) {
+      const run = button("Run isolated preview", "play");
+      const stage = element("div", "nox-visual-stage");
+      let running = false;
+      run.addEventListener("click", () => {
+        stage.replaceChildren();
+        if (running) {
+          running = false;
+          run.title = "Run isolated preview";
+          run.setAttribute("aria-label", "Run isolated preview");
+          setNoxIcon(run, "play");
+          return;
+        }
+        const iframe = element("iframe", "nox-visual-frame");
+        iframe.title = "Isolated code execution";
+        iframe.setAttribute("sandbox", "allow-scripts allow-forms");
+        iframe.setAttribute("referrerpolicy", "no-referrer");
+        iframe.srcdoc = srcdoc;
+        stage.append(iframe);
+        running = true;
+        run.title = "Stop preview";
+        run.setAttribute("aria-label", "Stop preview");
+        setNoxIcon(run, "square");
+      });
+      bar.append(run);
+      pre.replaceWith(wrapper);
+      wrapper.append(bar, pre, stage);
+    } else {
+      pre.replaceWith(wrapper);
+      wrapper.append(bar, pre);
+    }
   }
 }
 
