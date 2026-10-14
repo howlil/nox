@@ -17,9 +17,7 @@ test("Nox uses Howlil neutral foundations and a solid purple accent", () => {
   ]) {
     assert.ok(css.includes(`${token}: ${value};`), `missing flat token ${token}`);
   }
-  assert.match(css, /\.theme-dark \.nox-settings:not\(\.nox-force-light\)/);
-  assert.match(css, /\.nox-root\.nox-force-dark,\s*\.nox-settings\.nox-force-dark,\s*\.nox-theme-portal\.nox-force-dark\s*\{[^}]*--nox-page:\s*#080808;/s);
-  assert.match(css, /\.nox-root\.nox-force-dark,\s*\.nox-settings\.nox-force-dark,\s*\.nox-theme-portal\.nox-force-dark\s*\{[^}]*--nox-accent:\s*#AD82EA;/s);
+  assert.doesNotMatch(css, /\.theme-dark \.nox-root|\.nox-force-dark|\.nox-force-light/);
   assert.match(css, /\.nox-root,\s*\.nox-settings,\s*\.nox-theme-portal\s*\{/);
 });
 
@@ -90,4 +88,14 @@ test("native rounded composer keeps the file picker, action menu and accessible 
   assert.match(css, /\.nox-model-trigger\s*\{[^}]*width:\s*32px;/s);
   assert.ok(composer.includes("wrapsAtCapsuleWidth"));
   assert.ok(composer.includes("const maxHeight = 120;"));
+});
+
+test("Token usage summary and manual credit bars follow flat design", () => {
+  const usage = readFileSync("src/settings/TokenUsageSection.ts", "utf8");
+  assert.ok(usage.includes('cls: "nox-usage-overview"'));
+  assert.ok(usage.includes('cls: "nox-usage-split-input"'));
+  assert.ok(usage.includes('cls: "nox-credit-progress"'));
+  assert.ok(usage.includes("Manual snapshot"));
+  assert.ok(css.includes(".nox-credit-progress-fill.is-low"));
+  assert.ok(css.includes(".nox-credit-progress-fill.is-warning"));
 });
