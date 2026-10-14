@@ -128,6 +128,7 @@ export class ChatView extends ItemView {
   private promptMenu: PromptMenuKind | null = null;
   private commandPage: "actions" | "programs" = "actions";
   private lastCommandQuery = "";
+  private commandProgramSnapshot: Awaited<ReturnType<LearningController["getProgramMenuState"]>> | null = null;
   private readonly promptMenuState = new NoxMenuState();
   private promptMenuRequest = 0;
   private attachments: Array<{
@@ -789,7 +790,9 @@ export class ChatView extends ItemView {
     if (this.promptMenu === "command") {
       let programState: Awaited<ReturnType<LearningController["getProgramMenuState"]>>;
       try {
-        programState = await this.learning.getProgramMenuState();
+        programState = this.commandProgramSnapshot ??
+          await this.learning.getProgramMenuState();
+        this.commandProgramSnapshot = programState;
       } catch {
         // The ordinary note actions remain usable when the vault program index is unavailable.
         programState = { sessionActive: false, programs: [] };
@@ -1090,6 +1093,7 @@ export class ChatView extends ItemView {
     this.promptMenu = null;
     this.commandPage = "actions";
     this.lastCommandQuery = "";
+    this.commandProgramSnapshot = null;
     this.promptMenuState.close();
     this.promptPopover.close();
     this.syncPromptMenuControls();
