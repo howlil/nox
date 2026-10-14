@@ -179,7 +179,7 @@ export function createNoxPreviewDocument(
   ].join("; ");
   // JavaScript has no access to the host: it runs only after an explicit click
   // in an opaque-origin iframe with network and parent access denied.
-  const safeJs = source.replace(/<\\/script/gi, "<\\\\/script");
+  const safeJs = source.replace(new RegExp("</script", "gi"), "<\\/script");
   const jsBody = '<pre id="nox-output" style="white-space:pre-wrap;overflow-wrap:anywhere;' +
     'font:13px/1.6 ui-monospace,monospace;margin:14px"></pre>' +
     '<script>' +
