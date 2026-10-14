@@ -44,7 +44,7 @@ export class TranscriptSelectionController {
       cls: "nox-selection-ask", icon: "message-circle-question",
       label: "Ask AI about selected text", title: "Ask AI",
     });
-    this.toolbar.createSpan({ cls: "nox-selection-ask-label", text: "Ask AI" });
+    ask.createSpan({ cls: "nox-selection-ask-label", text: "Ask AI" });
     ask.addEventListener("pointerdown", event => event.preventDefault());
     ask.addEventListener("click", () => {
       const reference = this.pending;
