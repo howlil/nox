@@ -23,7 +23,7 @@ export interface SessionPort {
     mutableFile: string, sessionId: string): Promise<{ proposal: EditProposal;
       state: "pending" | "applied" | "rejected" | "stale" }>;
   getProposal(proposalId: string): { proposal: EditProposal; mutableFile?: string; state: "pending" | "applied" | "rejected" | "stale" } | null;
-  updateProposalState(proposalId: string, state: "applied" | "rejected" | "stale"): Promise<void>;
+  updateProposalState(proposalId: string, state: "applied" | "rejected" | "stale", sessionId?: string): Promise<void>;
 }
 export interface ContextPort {
   resolve(explicit?: ExplicitContextRef[]): Promise<LearningContext>;

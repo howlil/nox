@@ -133,3 +133,14 @@ test("applies one exact editor replacement without vault.modify", async () => {
   ]);
   assert.equal(harness.getVaultModifyCalls(), 0);
 });
+
+
+test("overlapping original candidates cannot be applied", async () => {
+  const harness = makeService({ editorValue: "aaaa" });
+  const result = await harness.service.apply({
+    file: "note.md", original: "aaa", replacement: "x",
+  }, "note.md");
+  assert.equal(result.ok, false);
+  if (!result.ok) assert.equal(result.reason, "ambiguous");
+  assert.equal(harness.calls.length, 0);
+});

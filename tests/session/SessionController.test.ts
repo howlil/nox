@@ -508,3 +508,102 @@ test("failed proposal-state persistence leaves in-memory state unchanged until r
   await controller.updateProposalState("edit:session-1:t-1", "applied");
   assert.equal(controller.getProposal("edit:session-1:t-1")?.state, "applied");
 });
+
+
+test("failed ordinary session writes do not publish unsaved messages, model or cursor", async () => {
+  let persisted: Record<string, unknown> | null = null;
+  let fail = false;
+  const plugin = {
+    loadData: async () => persisted,
+    saveData: async (next: Record<string, unknown>) => {
+      if (fail) throw new Error("disk failure");
+      persisted = structuredClone(next);
+    },
+  };
+  const controller = new SessionController(new PluginDataRepository(plugin as never), new SessionStore());
+  await controller.init();
+  await controller.recordUserMessage("committed");
+  await controller.setModel("original-model");
+  await controller.setConversationId("original-thread");
+  const before = controller.getSession();
+  const savedBefore = structuredClone(persisted);
+
+  fail = true;
+  await assert.rejects(controller.recordUserMessage("not committed"));
+  await assert.rejects(controller.recordAssistantMessage("not committed"));
+  await assert.rejects(controller.setConversationId("wrong-thread"));
+  await assert.rejects(controller.setModel("wrong-model"));
+  await assert.rejects(controller.recordProposal("unsaved", {
+    file: "note.md", original: "old", replacement: "new",
+  }, "note.md"));
+  assert.deepEqual(controller.getSession(), before);
+  assert.deepEqual(persisted, savedBefore);
+  assert.equal(controller.getProposal("unsaved"), null);
+
+  fail = false;
+  await controller.recordAssistantMessage("saved after retry");
+  assert.equal(controller.getSession().messages.length, 2);
+  assert.equal(controller.getSession().model, "original-model");
+});
+
+test("failed session creation and selection preserve current session and pending proposals", async () => {
+  let persisted: Record<string, unknown> | null = null;
+  let fail = false;
+  let id = 0;
+  const plugin = {
+    loadData: async () => persisted,
+    saveData: async (next: Record<string, unknown>) => {
+      if (fail) throw new Error("disk failure");
+      persisted = structuredClone(next);
+    },
+  };
+  const controller = new SessionController(
+    new PluginDataRepository(plugin as never),
+    new SessionStore({ uuid: () => `session-${++id}`, now: () => id }),
+  );
+  await controller.init();
+  const first = controller.getSession().id;
+  await controller.recordProposal("first-proposal", {
+    file: "note.md", original: "old", replacement: "new",
+  }, "note.md");
+
+  fail = true;
+  await assert.rejects(controller.newSession());
+  assert.equal(controller.getSession().id, first);
+  assert.equal(controller.getProposal("first-proposal")?.state, "pending");
+  assert.equal(controller.listSessions().length, 1);
+
+  fail = false;
+  const second = await controller.newSession();
+  await controller.recordProposal("second-proposal", {
+    file: "other.md", original: "before", replacement: "after",
+  }, "other.md");
+
+  fail = true;
+  await assert.rejects(controller.selectSession(first));
+  assert.equal(controller.getSession().id, second.id);
+  assert.equal(controller.getProposal("second-proposal")?.state, "pending");
+  assert.equal(controller.listSessions().length, 2);
+  fail = false;
+  await controller.selectSession(first);
+  assert.equal(controller.getProposal("first-proposal")?.state, "stale");
+});
+
+test("proposal updates can target their originating conversation explicitly", async () => {
+  let id = 0;
+  const harness = pluginHarness();
+  const controller = createController(harness, {
+    uuid: () => `session-${++id}`, now: () => 1,
+  });
+  await controller.init();
+  const first = controller.getSession().id;
+  const second = await controller.newSession();
+  await controller.recordProposal("late-proposal", {
+    file: "note.md", original: "old", replacement: "new",
+  }, "note.md", first);
+  await controller.updateProposalState("late-proposal", "applied", first);
+  assert.equal(controller.getSession().id, second.id);
+  assert.equal(controller.getProposal("late-proposal"), null);
+  await controller.selectSession(first);
+  assert.equal(controller.getProposal("late-proposal")?.state, "applied");
+});

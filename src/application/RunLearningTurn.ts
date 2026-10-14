@@ -52,6 +52,9 @@ import {
  * Application use case: one learning turn and its session-scoped practice state.
  * This is the sole owner of the active-turn lock, timeout, and normalized stream.
  */
+/** An otherwise successful provider turn violated the selected product action. */
+class InvalidLearningOutputError extends Error {}
+
 export class RunLearningTurn {
   private readonly practices = new PracticeSessionRegistry();
   private activeTurn: {
@@ -600,6 +603,14 @@ export class RunLearningTurn {
             return;
           }
 
+          // Terminal success is insufficient when an intent has a required result.
+          if (request.action === "practice" && !practiceAttempt && !practiceBuffer.question) {
+            throw new InvalidLearningOutputError("Practice completed without a question.");
+          }
+          if (request.action === "review" && !reviewBuffer.observed) {
+            throw new InvalidLearningOutputError("Review completed without findings payload.");
+          }
+
           // A parsed question is only a candidate until the agent completes.
           // Never leave a durable or visible unanswered question after failure.
           if (practiceBuffer.question) {
@@ -634,7 +645,7 @@ export class RunLearningTurn {
             practice.snapshot()?.state ===
               "evaluating"
           ) {
-            throw new Error(
+            throw new InvalidLearningOutputError(
               "Agent completed without a practice evaluation.",
             );
           }
@@ -721,10 +732,13 @@ export class RunLearningTurn {
       const persistenceFailed = error instanceof PersistenceError;
       const failure: AgentFailure = {
         code: persistenceFailed ? "persistence-failed"
+          : error instanceof InvalidLearningOutputError ? "protocol-invalid"
           : executionPhase === "agent" ? "process-failed" : "unknown",
         message: persistenceFailed
           ? "Nox could not save this turn. Retry after checking vault storage."
-          : executionPhase === "agent"
+          : error instanceof InvalidLearningOutputError
+            ? "The agent returned an invalid result for this action. Retry the turn."
+            : executionPhase === "agent"
             ? "The agent process failed during this turn."
             : "Nox could not complete this learning operation.",
         diagnostic: persistenceFailed
@@ -867,7 +881,7 @@ export class RunLearningTurn {
   ): AsyncIterable<LearningEvent> {
     for (const event of events) {
       if (event.type === "scope-decision") {
-        throw new Error("Unexpected scope decision outside a locked learning mode.");
+        throw new InvalidLearningOutputError("Unexpected scope decision outside a locked learning mode.");
       }
       if (event.type === "text") {
         if (event.text) {
@@ -881,24 +895,27 @@ export class RunLearningTurn {
 
       if (event.type === "proposal") {
         if (request.action !== "edit") {
-          throw new Error("Edit proposal is not valid for this action.");
+          throw new InvalidLearningOutputError("Edit proposal is not valid for this action.");
         }
         if (!context.mutableFile || event.proposal.file !== context.mutableFile) {
-          throw new Error(`Edit target is not the active mutable note: ${event.proposal.file}`);
+          throw new InvalidLearningOutputError(`Edit target is not the active mutable note: ${event.proposal.file}`);
         }
         if (proposalBuffer.proposal) {
-          throw new Error("Agent returned multiple edit proposals for one turn.");
+          throw new InvalidLearningOutputError("Agent returned multiple edit proposals for one turn.");
         }
         proposalBuffer.proposal = event.proposal;
         continue;
       }
 
       if (event.type === "practice-question") {
+        if (request.action !== "practice") {
+          throw new InvalidLearningOutputError("Practice question is not valid for this action.");
+        }
         if (practiceAttempt) {
-          throw new Error("Agent returned a new practice question before finishing evaluation.");
+          throw new InvalidLearningOutputError("Agent returned a new practice question before finishing evaluation.");
         }
         if (practiceBuffer.question) {
-          throw new Error("Agent returned multiple questions for one Practice turn.");
+          throw new InvalidLearningOutputError("Agent returned multiple questions for one Practice turn.");
         }
         // Parser output is not durable or actionable before terminal success.
         practiceBuffer.question = event.question;
@@ -906,6 +923,9 @@ export class RunLearningTurn {
       }
 
       if (event.type === "review-findings") {
+        if (request.action !== "review" || reviewBuffer.observed) {
+          throw new InvalidLearningOutputError("Unexpected or duplicate Review payload.");
+        }
         // A complete provider turn is required before committing Review.
         // Do not persist partial findings if the stream later fails.
         reviewBuffer.observed = true;
@@ -914,11 +934,11 @@ export class RunLearningTurn {
       }
 
       if (event.type === "practice-evaluation") {
-        if (!practiceAttempt) {
-          throw new Error("Practice evaluation arrived without an active answer attempt.");
+        if (request.action !== "practice" || !practiceAttempt) {
+          throw new InvalidLearningOutputError("Practice evaluation arrived without an active answer attempt.");
         }
         if (practiceBuffer.evaluation) {
-          throw new Error("Agent returned multiple evaluations for the same question.");
+          throw new InvalidLearningOutputError("Agent returned multiple evaluations for the same question.");
         }
         // Do not persist an evaluation just because its fenced block parsed.
         // The runtime can still fail, cancel, or emit malformed output afterwards.
@@ -926,7 +946,7 @@ export class RunLearningTurn {
         continue;
       }
 
-      throw new Error(event.message);
+      throw new InvalidLearningOutputError(event.message);
     }
   }
 }

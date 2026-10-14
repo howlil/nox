@@ -27,6 +27,7 @@ function createHarness(
   ) => AsyncIterable<AgentStreamEvent>,
   options: {
     mutationResult?: ApplyResult;
+    mutationGate?: Promise<void>;
     contextOverride?: { activeNote: { path: string; content: string }; explicit: Array<{ type: "note"; path: string; content: string; source: "explicit" }> };
     agentContexts?: AgentContext[];
     learningSaveFailures?: number;
@@ -219,6 +220,7 @@ function createHarness(
     apply: async (_proposal: EditProposal, mutableFile?: string) => {
       mutationCalls += 1;
       mutationTarget = mutableFile;
+      if (options.mutationGate) await options.mutationGate;
       return options.mutationResult ?? { ok: true as const };
     },
   };
@@ -990,4 +992,39 @@ test("partial Review output is not committed and a retried Review is idempotent"
   assert.ok(repeated.some((e) => e.type === "completed"));
   assert.equal(calls, 2, "committed Review must not invoke the agent again");
   assert.equal(h.getEvidence().length, 1);
+});
+
+
+test("in-flight Apply blocks navigation and conflicting proposal actions", async () => {
+  let release!: () => void;
+  const gate = new Promise<void>((resolve) => { release = resolve; });
+  const fence = String.fromCharCode(96).repeat(3);
+  const harness = createHarness(async function* () {
+    yield { type: "text", content: fence + "edit-proposal\n" +
+      JSON.stringify({ file: "note.md", original: "current", replacement: "next" }) +
+      "\n" + fence };
+    yield { type: "completed" };
+  }, { mutationGate: gate });
+  const events = await collectEvents(harness.controller.run({
+    prompt: "Fix this", action: "edit", explicitContext: [],
+  }));
+  const proposed = events.find((item) => item.type === "mutation-proposed");
+  assert.ok(proposed && proposed.type === "mutation-proposed");
+  const originalSession = harness.controller.getSession().id;
+
+  const applying = harness.controller.applyProposal(proposed.edit.id);
+  await Promise.resolve();
+  await assert.rejects(harness.controller.newSession(), /active turn or note edit/);
+  await assert.rejects(harness.controller.selectSession(originalSession), /active turn or note edit/);
+  await assert.rejects(harness.controller.rejectProposal(proposed.edit.id), /active note edit/);
+  const repeated = await harness.controller.applyProposal(proposed.edit.id);
+  assert.equal(repeated.ok, false);
+  assert.equal(harness.getMutationCalls(), 1);
+
+  release();
+  const applied = await applying;
+  assert.equal(applied.ok, true);
+  assert.equal(harness.getProposalState(proposed.edit.id), "applied");
+  assert.equal(harness.controller.getSession().id, originalSession);
+  await harness.controller.newSession();
 });
