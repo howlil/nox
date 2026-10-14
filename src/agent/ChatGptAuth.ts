@@ -1,6 +1,7 @@
 import { createHash, createPublicKey, randomBytes, randomUUID, verify } from "crypto";
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "fs";
 import { createServer, type Server } from "http";
+import { execFileSync } from "child_process";
 import { homedir } from "os";
 import { dirname, join } from "path";
 
@@ -92,6 +93,26 @@ export async function verifyChatGptIdToken(
   return { subject: claims.sub, email: typeof claims.email === "string" ? claims.email : undefined };
 }
 
+/**
+ * Windows DPAPI protects secrets for the current OS user. The token itself
+ * travels only over stdin and never appears in a command argument.
+ * Unix uses the official OSS integration's 0600 owner-only local file model.
+ */
+function credentialFileText(value: string, encrypt: boolean): string {
+  if (process.platform !== "win32") return value;
+  const script = encrypt
+    ? '$bytes=[Text.Encoding]::UTF8.GetBytes([Console]::In.ReadToEnd());' +
+      '$secret=[Security.Cryptography.ProtectedData]::Protect($bytes,$null,[Security.Cryptography.DataProtectionScope]::CurrentUser);' +
+      '[Console]::Out.Write([Convert]::ToBase64String($secret))'
+    : '$data=[Convert]::FromBase64String([Console]::In.ReadToEnd().Trim());' +
+      '$plain=[Security.Cryptography.ProtectedData]::Unprotect($data,$null,[Security.Cryptography.DataProtectionScope]::CurrentUser);' +
+      '[Console]::Out.Write([Text.Encoding]::UTF8.GetString($plain))';
+  const encoded = Buffer.from(script, "utf16le").toString("base64");
+  return execFileSync("powershell.exe", ["-NoProfile", "-NonInteractive", "-EncodedCommand", encoded], {
+    input: value, encoding: "utf8", maxBuffer: 1024 * 1024, windowsHide: true,
+  }).trim();
+}
+
 /** Local OSS OAuth public client. No ChatGPT tokens are stored in the Obsidian vault. */
 export class ChatGptAuth {
   private record: RecordOnDisk;
@@ -103,7 +124,7 @@ export class ChatGptAuth {
   constructor(deps: Partial<ChatGptAuthDeps> = {}) {
     this.deps = { fetch, now: Date.now, storageFile: storagePath(), ...deps };
     if (existsSync(this.deps.storageFile)) {
-      const disk = object(JSON.parse(readFileSync(this.deps.storageFile, "utf8")));
+      const disk = object(JSON.parse(credentialFileText(readFileSync(this.deps.storageFile, "utf8"), false)));
       this.record = {
         hostId: typeof disk.hostId === "string" && disk.hostId.startsWith("urn:uuid:")
           ? disk.hostId : "urn:uuid:" + randomUUID(),
@@ -118,7 +139,7 @@ export class ChatGptAuth {
     const file = this.deps.storageFile;
     mkdirSync(dirname(file), { recursive: true, mode: 0o700 });
     const temp = file + "." + randomBytes(8).toString("hex") + ".tmp";
-    writeFileSync(temp, JSON.stringify(this.record), { encoding: "utf8", mode: 0o600 });
+    writeFileSync(temp, credentialFileText(JSON.stringify(this.record), true), { encoding: "utf8", mode: 0o600 });
     renameSync(temp, file);
   }
 
@@ -145,6 +166,7 @@ export class ChatGptAuth {
       const address = server.address();
       if (!address || typeof address === "string") throw new Error("Unable to start ChatGPT callback.");
       const redirectUri = "http://127.0.0.1:" + address.port + "/auth/callback";
+      if (!existsSync(this.deps.storageFile)) this.save(); // Persist host identity before initial registration.
       const knownClient = this.record.clientId;
       const url = new URL(AUTH_URL);
       url.searchParams.set("client_id", knownClient || "dynamic_agent_client");
