@@ -411,3 +411,15 @@ cards are read-only. Feedback is a separate nearby result, with explicit
 misconceptions and the existing progress/evidence workflow. Colors, spacing,
 typography and focus states reuse Nox tokens. No code execution in the
 Obsidian renderer.
+
+---
+
+
+## Settings: provider token usage
+
+Settings has a compact, read-only Token usage section. Provider / Model /
+Period dropdowns filter daily recorded totals; 3-column numeric metrics and
+a flat table use the Nox 11–13px type scale, minimal rules and Obsidian theme
+variables. No usage telemetry is rendered in the active learning sidebar.
+Account quota/remaining credits are visibly unavailable when the provider
+does not expose a supported source of truth. See `docs/TOKEN_USAGE.md`.
