@@ -1050,6 +1050,7 @@ export class ChatView extends ItemView {
       return;
     }
     if (action.type === "scope") {
+      if (action.command.startsWith("/research")) this.setAction("ask");
       this.input.value = action.command;
       this.closePromptMenu();
       this.onInput();
