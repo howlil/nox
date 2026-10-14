@@ -79,6 +79,7 @@ test("OAuth loopback PKCE authenticates a dynamically issued client and persists
       return jwks(input);
     };
     const running = new ChatGptAuth({ storageFile: file, fetch: dynamicFetch as typeof fetch, now: () => clock });
+    let callbackPage: Promise<Response> | undefined;
     const status = await running.signIn(async (url) => {
       requestUrl = url;
       const params = new URL(url).searchParams;
@@ -89,9 +90,14 @@ test("OAuth loopback PKCE authenticates a dynamically issued client and persists
       callback.searchParams.set("state", params.get("state")!);
       callback.searchParams.set("code", "fake-auth-code");
       callback.searchParams.set("client_id", clientId);
-      const response = await fetch(callback.toString());
-      assert.equal(response.status, 200);
+      // Browser navigation is not awaited by Electron.shell.openExternal.
+      // The callback HTTP response must wait for verified token storage.
+      callbackPage = fetch(callback.toString());
     });
+    assert.ok(callbackPage);
+    const response = await callbackPage;
+    assert.equal(response.status, 200);
+    assert.match(await response.text(), /ChatGPT connected to Nox/);
     assert.equal(status.connected, true);
     assert.equal(status.sharing, true);
     assert.equal(status.email, "user@example.com");
@@ -181,5 +187,52 @@ test("Windows credential corruption shows safe actionable error, never encoded P
       assert.doesNotMatch(error.message, /-EncodedCommand|CLIXML|invalid-dpapi-ciphertext/);
       return true;
     });
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+test("browser callback never displays success when OAuth token exchange fails", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "nox-auth-failure-"));
+  const file = join(dir, "chatgpt-auth.json");
+  let callbackPage: Promise<Response> | undefined;
+  let exchangeStarted: (() => void) | undefined;
+  let finishExchange: (() => void) | undefined;
+  const started = new Promise<void>((resolve) => { exchangeStarted = resolve; });
+  const gate = new Promise<void>((resolve) => { finishExchange = resolve; });
+  const http = async (url: unknown): Promise<Response> => {
+    if (String(url).endsWith("/oauth/token")) {
+      exchangeStarted?.();
+      await gate;
+      return new Response(JSON.stringify({ error: "invalid_grant" }), {
+        status: 400, headers: { "Content-Type": "application/json" },
+      });
+    }
+    throw new Error("Unexpected request");
+  };
+  try {
+    const auth = new ChatGptAuth({ storageFile: file, fetch: http as typeof fetch });
+    const attempt = auth.signIn(async (url) => {
+      const requested = new URL(url);
+      const callback = new URL(requested.searchParams.get("redirect_uri")!);
+      callback.searchParams.set("state", requested.searchParams.get("state")!);
+      callback.searchParams.set("code", "one-time-code");
+      callback.searchParams.set("client_id", "oaiapp-test");
+      callbackPage = fetch(callback);
+    });
+    await started;
+    assert.ok(callbackPage);
+    let browserCompleted = false;
+    void callbackPage.then(() => { browserCompleted = true; });
+    // The OAuth exchange is still pending, so the callback page is not complete.
+    await new Promise<void>((resolve) => setTimeout(resolve, 20));
+    assert.equal(browserCompleted, false);
+    finishExchange?.();
+    await assert.rejects(attempt, /invalid_grant/);
+    const browser = await callbackPage;
+    assert.equal(browser.status, 500);
+    const html = await browser.text();
+    assert.match(html, /ChatGPT connection failed/);
+    assert.doesNotMatch(html, /invalid_grant|one-time-code/);
+    assert.equal(auth.status().connected, false);
+    auth.dispose();
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });
