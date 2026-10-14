@@ -7,7 +7,8 @@ import type { PracticeOrigin, PracticeAnswer } from "../domain/practice/types";
 import { RunLearningTurn } from "./RunLearningTurn";
 import { isLockedLearningMode, parseScopeCommand } from "../domain/practice/learning-scope";
 import { parseProgramCommand } from "../domain/learning-program/commands";
-import { feasibility } from "../domain/learning-program/rules";
+import { feasibility, objectiveProgress } from "../domain/learning-program/rules";
+import type { NoxProgramOverview } from "../chat/learning-graph";
 import type { LearningProgramOrchestrator } from "./LearningProgramOrchestrator";
 
 export interface LearningControllerOptions {
@@ -82,6 +83,27 @@ export class LearningController {
       activeProgramId: active?.id,
       sessionActive: Boolean(active?.session),
       programs: collection.programs.map(item => ({ id: item.id, goal: item.goal })),
+    };
+  }
+
+  /** Read-only learning projection; the domain still owns every mastery decision. */
+  async getProgramOverview(): Promise<NoxProgramOverview | null> {
+    if (!this.programs) return null;
+    const program = await this.programs.getActiveProgram();
+    if (!program) return null;
+    const learning = await this.learningState.load();
+    const selected = await this.programs.getDecision();
+    const next = selected?.decision;
+    return {
+      goal: program.goal,
+      active: Boolean(program.session),
+      next: { kind: next?.kind ?? "wait", objectiveId: next?.objective?.id,
+        reason: next?.reason ?? "No activity is available." },
+      objectives: program.objectives.map(objective => {
+        const progress = objectiveProgress(program, objective.id, learning.evidence);
+        return { objective, status: progress.status, attempts: progress.attempts,
+          dueAt: progress.dueAt };
+      }),
     };
   }
 
