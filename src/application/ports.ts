@@ -30,7 +30,7 @@ export interface SessionPort {
   savePracticeDraft(questionId: string, answer: PracticeAnswer, sessionId?: string): Promise<void>;
   setConversationId(conversationId?: string, sessionId?: string): Promise<void>;
   recordAssistantMessage(content: string, sourcePath?: string, sessionId?: string, thought?: string, elapsedMs?: number, metrics?: import("../types").AgentTurnMetrics): Promise<void>;
-  recordRegeneratedResponse(messageIndex: number, expectedContent: string, replacement: ResponseVersion, sessionId: string, conversationId?: string): Promise<void>;
+  recordRegeneratedResponse(messageIndex: number, expectedContent: string, replacement: ResponseVersion, sessionId: string, conversationId?: string, metrics?: import("../types").AgentTurnMetrics): Promise<void>;
   selectResponseVersion(messageIndex: number, versionIndex: number, sessionId: string): Promise<void>;
   recordStructuredPart(part: TranscriptPart, sourcePath?: string, sessionId?: string): Promise<void>;
   recordPracticeOutcome(parts: TranscriptPart[], operationId: string, sourcePath: string, sessionId: string): Promise<TranscriptPart[]>;
