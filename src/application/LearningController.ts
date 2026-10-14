@@ -2,13 +2,12 @@ import type { AgentAdapter, AgentHealth, AgentModel, ApplyResult, ChatSession } 
 import type { ExplicitContextRef, LearningContext } from "../context/context-types";
 import type { SessionPort, ContextPort, PolicyPort, MutationPort, LearningStatePort, RuntimeSettingsWrite, ProgramStorePort } from "./ports";
 import type { AgentRuntimePort } from "../agent/AgentRuntime";
-import type { LearningEvent, LearningRequest } from "./learning-types";
+import type { LearningEvent, LearningRequest, NoxProgramOverview } from "./learning-types";
 import type { PracticeOrigin, PracticeAnswer } from "../domain/practice/types";
 import { RunLearningTurn } from "./RunLearningTurn";
 import { isLockedLearningMode, parseScopeCommand } from "../domain/practice/learning-scope";
 import { parseProgramCommand } from "../domain/learning-program/commands";
 import { feasibility, objectiveProgress } from "../domain/learning-program/rules";
-import type { NoxProgramOverview } from "./learning-types";
 import type { LearningProgramOrchestrator } from "./LearningProgramOrchestrator";
 
 export interface LearningControllerOptions {
