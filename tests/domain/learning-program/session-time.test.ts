@@ -3,11 +3,16 @@ import test from "node:test";
 import { checkpointTiming, newSessionTiming, recoverTiming, sessionRemainingMs, setTimingPause } from "../../../src/domain/learning-program/session-time";
 
 const MIN = 60_000;
+function advance(timing: ReturnType<typeof newSessionTiming>, from: number, to: number) {
+  let t = timing;
+  for (let at = from + 30_000; at <= to; at += 30_000) t = checkpointTiming(t, at);
+  return t;
+}
 test("AI wait does not consume the active learning budget", () => {
   let t = newSessionTiming(0);
-  t = checkpointTiming(t, 20 * MIN);
+  t = advance(t, 0, 20 * MIN);
   t = setTimingPause(t, "ai-running", true, 20 * MIN);
-  t = checkpointTiming(t, 30 * MIN);
+  t = advance(t, 20 * MIN, 30 * MIN);
   t = setTimingPause(t, "ai-running", false, 30 * MIN);
   assert.equal(t.activeMs, 20 * MIN);
   assert.equal(t.aiWaitingMs, 10 * MIN);
