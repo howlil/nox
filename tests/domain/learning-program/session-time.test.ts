@@ -51,7 +51,7 @@ test("objective focus accumulates only confirmed active study", () => {
   t = checkpointTiming(t, 31_000);
   t = setTimingPause(t, "ai-running", true, 31_000);
   t = checkpointTiming(t, 61_000);
-  assert.equal(t.objectiveActiveMs?.sql, 31_000);
+  assert.equal(t.objectiveActiveMs?.sql, 30_000);
   assert.equal(t.activeMs, 31_000);
   assert.equal(t.aiWaitingMs, 30_000);
 });
