@@ -1,4 +1,23 @@
 import { Setting } from "obsidian";
+// Settings-owned projection: infrastructure details never enter this boundary.
+interface QuotaReading {
+  provider: "agy" | "codex";
+  key: string;
+  label: string;
+  kind: "window" | "credit";
+  remainingPercent?: number;
+  amount?: string;
+  resetAt?: string;
+  model?: string;
+  shared: boolean;
+}
+interface ProviderQuotaSnapshot {
+  provider: "agy" | "codex";
+  status: "live" | "stale" | "unavailable";
+  checkedAt?: string;
+  readings: QuotaReading[];
+  error?: string;
+}
 import {
   creditForModel, type CreditBalance, type CreditBalanceInput, type CreditProvider, type CreditUnit,
 } from "./CreditBalanceView";
@@ -13,6 +32,7 @@ export interface UsageViewHost {
   getTokenUsageSnapshot(): Promise<UsageViewSnapshot>;
   getTokenUsageError(): string | undefined;
   getCreditBalances(): Promise<CreditBalance[]>;
+  getProviderQuotas(force?: boolean): Promise<ProviderQuotaSnapshot[]>;
   saveCreditBalance(input: CreditBalanceInput): Promise<void>;
   removeCreditBalance(provider: CreditProvider, model: string | null): Promise<void>;
 }
@@ -38,10 +58,31 @@ export function mountTokenUsageSection(container: HTMLElement, host: UsageViewHo
   const body = section.createDiv();
   let snapshot: UsageViewSnapshot = { entries: [] };
   let balances: CreditBalance[] = [];
+  let providerQuotas: ProviderQuotaSnapshot[] = [];
+  let quotaLoading = false;
+  let quotaStarted = false;
   const filters: UsageFilters = { provider: "all", model: "all", range: "all" };
   let saving = false;
   let errorMessage = "";
 
+  const readQuotas = async (force = false) => {
+    quotaLoading = true;
+    quotaStarted = true;
+    render();
+    try {
+      providerQuotas = await host.getProviderQuotas(force);
+    } catch {
+      providerQuotas = [
+        { provider: "agy", status: "unavailable", readings: [],
+          error: "AGY quota retrieval failed." },
+        { provider: "codex", status: "unavailable", readings: [],
+          error: "Codex quota retrieval failed." },
+      ];
+    } finally {
+      quotaLoading = false;
+      render();
+    }
+  };
   const refresh = async () => {
     const [usage, credit] = await Promise.all([
       host.getTokenUsageSnapshot(), host.getCreditBalances(),
@@ -49,6 +90,7 @@ export function mountTokenUsageSection(container: HTMLElement, host: UsageViewHo
     snapshot = usage;
     balances = credit;
     render();
+    if (!quotaStarted) void readQuotas();
   };
 
   const renderCreditEditor = (
@@ -226,12 +268,92 @@ export function mountTokenUsageSection(container: HTMLElement, host: UsageViewHo
       }
     }
 
+    // Quota availability is provider-reported, not inferred from the NOX token ledger.
+    const quotaSection = body.createDiv({ cls: "nox-provider-quotas" });
+    const qHead = quotaSection.createDiv({ cls: "nox-usage-section-head" });
+    qHead.createEl("h4", { text: "Provider quotas" });
+    const qRefresh = qHead.createEl("button", {
+      text: quotaLoading ? "Checking…" : "Refresh credits",
+      attr: { type: "button" },
+    });
+    qRefresh.disabled = quotaLoading;
+    qRefresh.addEventListener("click", () => { void readQuotas(true); });
+    quotaSection.createEl("p", { cls: "nox-usage-description",
+      text: "Read-only AGY and Codex CLI limits. Shared quota windows are not independent model credits." });
+    if (quotaLoading) quotaSection.createEl("p", { cls: "nox-usage-subtitle",
+      text: "Checking installed provider CLIs; no AI turn will be started…" });
+    for (const provider of ["agy", "codex"] as const) {
+      if (filters.provider !== "all" && filters.provider !== provider) continue;
+      const status = providerQuotas.find(q => q.provider === provider);
+      const group = quotaSection.createDiv({ cls: "nox-provider-quota-group" });
+      const label = group.createDiv({ cls: "nox-provider-quota-label" });
+      label.createEl("strong", { text: providerLabel(provider) });
+      label.createSpan({ cls: "nox-usage-subtitle",
+        text: status?.status === "live" ? "Provider-reported" :
+          status?.status === "stale" ? "Stale · Last successful reading" :
+          quotaLoading ? "Checking…" : "Unavailable" });
+      if (!status || status.status === "unavailable") {
+        group.createEl("p", { cls: "nox-usage-subtitle",
+          text: status?.error || (quotaLoading ? "Checking provider…" : "Quota not checked yet.") });
+        continue;
+      }
+      if (status.checkedAt) group.createEl("p", { cls: "nox-credit-updated",
+        text: "Last checked " + new Date(status.checkedAt).toLocaleString() });
+      if (status.error) group.createEl("p", { cls: "nox-usage-subtitle", text: status.error });
+      const scoped = status.readings.filter((q: QuotaReading) => {
+        if (filters.model === "all") return true;
+        const model = filters.model.replace(/^requested:\s*/i, "").toLowerCase();
+        if (q.model) return q.model.toLowerCase() === model;
+        if (q.provider === "agy") {
+          if (model.startsWith("gemini-")) return /gemini/i.test(q.label);
+          if (model.startsWith("claude-") || model.startsWith("gpt-")) return /claude.*gpt/i.test(q.label);
+        }
+        // Unmapped buckets remain scoped to the provider; don't pretend they
+        // belong to a specific model.
+        return false;
+      });
+      if (!scoped.length) group.createEl("p", { cls: "nox-usage-subtitle",
+        text: "No quota bucket is linked to this model. Select All models for provider-wide limits." });
+      for (const reading of scoped) {
+        const row = group.createDiv({ cls: "nox-provider-quota-row" });
+        const top = row.createDiv({ cls: "nox-credit-title" });
+        const names = top.createDiv({ cls: "nox-credit-names" });
+        names.createEl("strong", { text: reading.label });
+        names.createSpan({ cls: "nox-usage-subtitle",
+          text: reading.model ? "Model-specific" : "Shared pool / window" });
+        if (reading.remainingPercent !== undefined) {
+          const value = Math.max(0,Math.min(100,reading.remainingPercent));
+          top.createEl("strong", { cls: "nox-provider-quota-percent",
+            text: Math.floor(value) + "% left" });
+          const progress = row.createDiv({ cls: "nox-credit-progress", attr: {
+            role: "progressbar", "aria-label": reading.label + " remaining",
+            "aria-valuemin": "0", "aria-valuemax": "100",
+            "aria-valuenow": String(Math.floor(value)),
+          } });
+          const fill = progress.createDiv({ cls: "nox-credit-progress-fill" });
+          fill.style.width = value + "%";
+          fill.toggleClass("is-low",value <= 15);
+          fill.toggleClass("is-warning",value > 15 && value <= 35);
+        }
+        if (reading.amount !== undefined) row.createEl("p", { cls: "nox-credit-values",
+          text: "Provider-reported balance: " + reading.amount });
+        if (reading.resetAt) row.createSpan({ cls: "nox-credit-updated",
+          text: "Resets " + new Date(reading.resetAt).toLocaleString() });
+      }
+    }
+    if (filters.provider === "all" || filters.provider === "chatgpt") {
+      const unsupported = quotaSection.createDiv({ cls: "nox-provider-quota-group" });
+      unsupported.createEl("strong", { text: "ChatGPT plan" });
+      unsupported.createEl("p", { cls: "nox-usage-subtitle",
+        text: "Live per-model plan limits are unavailable through the current NOX ChatGPT adapter." });
+    }
+
     const credits = body.createDiv({ cls: "nox-credits" });
     const creditHead = credits.createDiv({ cls: "nox-usage-section-head" });
-    creditHead.createEl("h4", { text: "Remaining credits" });
+    creditHead.createEl("h4", { text: "Manual balances" });
     const add = creditHead.createEl("button", { text: "Add balance", attr: { type: "button" } });
     const creditIntro = credits.createEl("p", { cls: "nox-usage-description",
-      text: "Manual snapshots, not live provider balances. Shared pools are repeated for visibility, not counted per model." });
+      text: "Optional manual records. Shared balances are repeated for visibility, not counted per model. Live quotas are shown above." });
     creditIntro.setAttribute("aria-label", "Manual balance scope information");
 
     const known = new Map<string, { provider: string; model: string }>();

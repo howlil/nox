@@ -14,6 +14,27 @@ export interface AgentInput {
   context: AgentContext[];
 }
 
+// Read-only, provider-reported quota snapshots. Never conflated with NOX tokens or manual balances.
+export type QuotaProvider = "agy" | "codex";
+export interface QuotaReading {
+  provider: QuotaProvider;
+  key: string;
+  label: string;
+  kind: "window" | "credit";
+  remainingPercent?: number;
+  amount?: string;
+  resetAt?: string;
+  model?: string;
+  shared: boolean;
+}
+export interface ProviderQuotaSnapshot {
+  provider: QuotaProvider;
+  status: "live" | "stale" | "unavailable";
+  checkedAt?: string;
+  readings: QuotaReading[];
+  error?: string;
+}
+
 // ── Agent transport ─────────────────────────────────────────────────────────
 
 export interface AgentTurnInput {

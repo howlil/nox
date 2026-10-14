@@ -17,7 +17,12 @@ export type CreditBalanceInput = Pick<CreditBalance, "provider" | "model" | "uni
 export function creditForModel(
   balances: readonly CreditBalance[], provider: string, model: string,
 ): { balance: CreditBalance; shared: boolean } | null {
-  const specific = balances.find(b => b.provider === provider && b.model === model);
+  // Token ledgers may use `requested: model-id` when the provider omits the
+  // resolved model. Compare canonical IDs without changing persisted balances.
+  const canonical = (value: string): string =>
+    value.trim().replace(/^requested:\s*/i, "").trim().toLowerCase();
+  const specific = balances.find(b => b.provider === provider && b.model !== null &&
+    canonical(b.model) === canonical(model));
   if (specific) return { balance: specific, shared: false };
   const shared = balances.find(b => b.provider === provider && b.model === null);
   return shared ? { balance: shared, shared: true } : null;

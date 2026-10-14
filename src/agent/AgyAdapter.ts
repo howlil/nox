@@ -3,6 +3,8 @@ import { StringDecoder } from "string_decoder";
 import { existsSync } from "fs";
 import { homedir } from "os";
 import { join } from "path";
+import { parseAgyUsage, parseAgyCredits, type QuotaReading } from "./QuotaProtocol";
+import { runAgyQuotaCommands } from "./QuotaProcess";
 import {
   AgentAdapter,
   AgentInput,
@@ -56,6 +58,7 @@ const DEFAULT_RUNTIME_DEPS: AgyRuntimeDeps = {
 
 export class AgyAdapter implements AgentAdapter {
   private readonly deps: AgyRuntimeDeps;
+  private quotaProbeDisabled = false;
 
   constructor(
     private readonly cwd?: string,
@@ -66,6 +69,23 @@ export class AgyAdapter implements AgentAdapter {
       ...DEFAULT_RUNTIME_DEPS,
       ...deps,
     };
+  }
+
+  /** Quota-only CLI commands (AGY 1.2.15+). Never starts an inference turn. */
+  async readQuota(signal?: AbortSignal): Promise<QuotaReading[]> {
+    if (this.quotaProbeDisabled) {
+      throw new Error("AGY quota probing disabled after an unexpected AI turn.");
+    }
+    try {
+      const binary = await this.resolveBinary();
+      const { usage, credits } = await runAgyQuotaCommands(binary, this.cwd, signal, this.deps.spawn);
+      return [...parseAgyUsage(usage), ...parseAgyCredits(credits)];
+    } catch (error) {
+      if (error instanceof Error && /read-only.*command|triggered an AI turn/.test(error.message)) {
+        this.quotaProbeDisabled = true;
+      }
+      throw error;
+    }
   }
 
   async check(): Promise<AgentHealth> {
