@@ -199,7 +199,9 @@ export class LearningController {
             response = "Answer the active question first, or use /hint for a small nudge.";
           } else {
             const selected = await this.programs.getDecision();
-            if (selected?.decision.objective) {
+            if (selected?.program && !selected.program.session) {
+              response = "Start a timeboxed session first with /start-session.";
+            } else if (selected?.decision.objective) {
               yield* this.turns.run({ ...request, action: "practice" });
               return;
             }
