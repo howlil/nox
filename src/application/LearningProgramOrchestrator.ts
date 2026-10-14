@@ -2,6 +2,7 @@ import type { AgentRuntimePort } from "../agent/AgentRuntime";
 import type { ContextPort, LearningStatePort, ProgramStorePort } from "./ports";
 import type { LearningProgram, ProgramCollection, ProgramConstraints, LearningDecision, SessionPauseReason } from "../domain/learning-program/types";
 import { chooseNextActivity, feasibility, validateConstraints, validateCurriculum } from "../domain/learning-program/rules";
+import { estimateRemainingWork } from "../domain/learning-program/estimate";
 import { checkpointTiming, focusSessionObjective, newSessionTiming, projectedTiming, recoverTiming, sessionRemainingMs, sessionTimeStatus, setTimingPause } from "../domain/learning-program/session-time";
 
 /** Program planning and session selection. The model generates content, never transitions. */
@@ -264,6 +265,7 @@ export class LearningProgramOrchestrator {
     const mastered = program.objectives.filter(o =>
       objectiveProgress(program, o.id, state.evidence).status === "mastered").length;
     const f = feasibility(program);
+    const remainingEstimate = estimateRemainingWork(program, state.evidence, this.now());
     const historicalActive = (program.sessionHistory ?? []).reduce((sum, item) => sum + (item.activeMinutes ?? 0), 0);
     const historicalLegacy = (program.sessionHistory ?? []).filter(item => item.activeMinutes === undefined).length;
     const currentTiming = program.session ? projectedTiming(program.session, this.now()) : null;
@@ -279,6 +281,7 @@ export class LearningProgramOrchestrator {
       `Mastered: ${mastered}/${program.objectives.length} objectives (requires independent delayed recall)`,
       `Plan: ~${f.estimatedMinutes} minutes including estimated review; available: ${f.availableMinutes ?? "unspecified"} minutes.`,
       `Feasibility: ${estimate}`,
+      `Remaining work: ~${remainingEstimate.minutes} min (${remainingEstimate.basis}${remainingEstimate.basis === "calibrated" ? `, ${remainingEstimate.samples} measured objectives` : ""}).`,
       `Next: ${decision.kind} — ${decision.objective?.title ?? decision.reason}`,
       ...(decision.dueAt ? [`Review due: ${new Date(decision.dueAt).toLocaleString()}`] : []),
       `Session remaining: ${decision.minutesRemaining ?? program.constraints.minutesPerSession} minutes`,
