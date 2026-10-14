@@ -6,23 +6,43 @@ import { chooseNextActivity, feasibility, validateConstraints, validateCurriculu
 /** Program planning and session selection. The model generates content, never transitions. */
 export class LearningProgramOrchestrator {
   private planning = false;
+  private writing = false;
+  private currentAbort?: AbortController;
   constructor(private readonly runtime: AgentRuntimePort, private readonly contexts: ContextPort,
     private readonly learningState: LearningStatePort, private readonly store: ProgramStorePort,
     private readonly currentModel: () => string | undefined) {}
 
-  isPlanning() { return this.planning; }
+  isPlanning() { return this.planning || this.writing; }
+  cancel() { this.currentAbort?.abort(); }
+  async listPrograms(): Promise<ProgramCollection> { return this.store.load(); }
+  async selectProgram(id: string): Promise<LearningProgram> {
+    if (this.isPlanning()) throw new Error("Another program operation is in progress.");
+    this.writing = true;
+    try {
+      const collection = await this.store.load();
+      const selected = collection.programs.find(p => p.id === id);
+      if (!selected) throw new Error("Unknown program ID. Run /programs to list saved plans.");
+      collection.activeProgramId = id;
+      await this.store.save(collection);
+      return selected;
+    } finally { this.writing = false; }
+  }
   async getActiveProgram(): Promise<LearningProgram | null> {
     const collection = await this.store.load();
     return collection.programs.find(p => p.id === collection.activeProgramId) ?? null;
   }
   private async updateActive(edit: (program: LearningProgram) => LearningProgram): Promise<LearningProgram> {
-    const collection = await this.store.load();
-    const index = collection.programs.findIndex(p => p.id === collection.activeProgramId);
-    if (index === -1) throw new Error("No active learning program. Use /plan first.");
-    const next = edit(structuredClone(collection.programs[index]));
-    collection.programs[index] = next;
-    await this.store.save(collection);
-    return next;
+    if (this.isPlanning()) throw new Error("Another program operation is in progress.");
+    this.writing = true;
+    try {
+      const collection = await this.store.load();
+      const index = collection.programs.findIndex(p => p.id === collection.activeProgramId);
+      if (index === -1) throw new Error("No active learning program. Use /plan first.");
+      const next = edit(structuredClone(collection.programs[index]));
+      collection.programs[index] = next;
+      await this.store.save(collection);
+      return next;
+    } finally { this.writing = false; }
   }
   async startSession(): Promise<LearningProgram> {
     return this.updateActive(program => ({ ...program,
@@ -61,9 +81,9 @@ export class LearningProgramOrchestrator {
   }
 
   async createProgram(goal: string, requested: ProgramConstraints): Promise<LearningProgram> {
-    if (this.planning) throw new Error("A curriculum is already being generated.");
+    if (this.isPlanning()) throw new Error("Another learning program operation is in progress.");
     this.planning = true;
-    const abort = new AbortController();
+    const abort = this.currentAbort = new AbortController();
     const timeout = setTimeout(() => abort.abort(), 120_000);
     try {
       const context = await this.contexts.resolve();
@@ -108,7 +128,9 @@ export class LearningProgramOrchestrator {
       }
       if (!completed) throw new Error("The agent did not complete the curriculum.");
       const blocks = [...output.matchAll(/```learning-program\s*\n([\s\S]*?)\n```/g)];
-      if (blocks.length !== 1) throw new Error("Expected exactly one structured curriculum.");
+      if (blocks.length !== 1 || output.trim() !== blocks[0][0].trim()) {
+        throw new Error("Expected exactly one structured curriculum, without extra output.");
+      }
       let value: unknown;
       try { value = JSON.parse(blocks[0][1]); }
       catch { throw new Error("Curriculum is not valid JSON."); }
@@ -122,6 +144,6 @@ export class LearningProgramOrchestrator {
       collection.activeProgramId = program.id;
       await this.store.save(collection);
       return program;
-    } finally { clearTimeout(timeout); this.planning = false; }
+    } finally { clearTimeout(timeout); this.planning = false; this.currentAbort = undefined; }
   }
 }
