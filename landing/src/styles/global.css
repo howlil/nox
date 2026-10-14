@@ -49,41 +49,25 @@ a:focus-visible, button:focus-visible, input:focus-visible { outline: 2px solid 
 .skip-link { position: fixed; z-index: 90; left: 14px; top: 10px; padding: 10px 16px; border-radius: 8px; color: var(--nox-ink); background: white; transform: translateY(-150%); }
 .skip-link:focus { transform: none; }
 
-.floating-nav-shell { position: fixed; z-index: 60; left: 0; right: 0; top: 0; display: flex; flex-direction: column; align-items: center; gap: 9px; padding: 0 10px; pointer-events: none; }
-.floating-capsule { pointer-events: auto; display: flex; align-items: center; gap: 8px; width: 100%; max-width: 1180px; height: 68px; padding: 8px 16px; border: 1px solid transparent; border-radius: 0; color: #f9f5ff; background: transparent; box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none; transition: max-width .24s ease, height .24s ease, margin-top .24s ease, padding .24s ease, border-radius .24s ease, border-color .24s ease, background-color .24s ease, box-shadow .24s ease; }
+/* Responsive Modu-style header: transparent at page top, frosted pill after scrolling. */
+.floating-nav-shell { position: fixed; z-index: 60; left: 0; right: 0; top: 0; display: flex; flex-direction: column; align-items: center; padding: 0 10px; pointer-events: none; }
+.floating-capsule { pointer-events: auto; display: flex; align-items: center; gap: 16px; width: 100%; max-width: 1180px; height: 68px; padding: 8px 16px; border: 1px solid transparent; border-radius: 0; color: #f9f5ff; background: transparent; box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none; transition: max-width .24s ease, height .24s ease, margin-top .24s ease, padding .24s ease, border-radius .24s ease, border-color .24s ease, background-color .24s ease, box-shadow .24s ease; }
 .floating-nav-shell.is-scrolled .floating-capsule { max-width: 1080px; height: 48px; margin-top: 12px; padding: 4px 12px; border-color: rgba(255,255,255,.65); border-radius: 9999px; color: #251647; background: rgba(250,248,255,.88); box-shadow: 0 10px 35px rgba(8,4,28,.18); -webkit-backdrop-filter: blur(20px); backdrop-filter: blur(20px); }
-.brand { display: flex; align-items: center; gap: 8px; padding: 2px 8px 2px 3px; color: #f9f5ff; white-space: nowrap; }
+.brand { display: inline-flex; align-items: center; gap: 9px; padding: 2px 4px; color: #f9f5ff; white-space: nowrap; }
 .floating-nav-shell.is-scrolled .brand { color: #211438; }
 .brand-mark { width: 33px; height: 33px; flex: none; display: block; overflow: visible; background: none; filter: drop-shadow(0 1px 2px rgba(20, 8, 45, .12)); }
-.brand > span { font-size: 20px; font-weight: 750; line-height: 1; letter-spacing: -.085em; }
-.brand-dot { color: #8653d5; }
-.nav-divider { flex: none; background: rgba(255,255,255,.28); width: 1px; height: 21px; margin: 0 4px; }
-.floating-nav-shell.is-scrolled .nav-divider { background: #dad1e8; }
-.capsule-links { display: flex; align-items: center; gap: 2px; }
-.capsule-link { position: relative; display: inline-flex; align-items: center; justify-content: center; height: 38px; padding: 0 13px; border-radius: 9999px; color: #d4c7ea; font-size: 12px; font-weight: 600; white-space: nowrap; isolation: isolate; }
-.floating-nav-shell.is-scrolled .capsule-link { color: #655c79; }
-.capsule-link > span:last-child { position: relative; z-index: 1; }
-.capsule-active { position: absolute; inset: 0; z-index: 0; border-radius: 9999px; background: rgba(255,255,255,.16); }
-.floating-nav-shell.is-scrolled .capsule-active { background: #eae0ff; }
-.capsule-link[aria-current] { color: #fff; }
-.floating-nav-shell.is-scrolled .capsule-link[aria-current] { color: #5636ae; }
-.capsule-link:hover:not([aria-current]) { background: rgba(255,255,255,.1); }
-.floating-nav-shell.is-scrolled .capsule-link:hover:not([aria-current]) { background: rgba(117,76,190,.08); }
-.capsule-actions { display: flex; align-items: center; gap: 7px; margin-left: auto; }
-.capsule-github, .floating-capsule .capsule-sponsor { display: inline-flex; align-items: center; justify-content: center; gap: 7px; white-space: nowrap; min-height: 39px; padding: 9px 15px; border-radius: 9999px; font-size: 12px; font-weight: 650; line-height: 1; }
-.capsule-github { border: 1px solid rgba(255,255,255,.23); color: #f9f5ff; background: rgba(255,255,255,.1); }
-.floating-nav-shell.is-scrolled .capsule-github { border-color: rgba(80,52,123,.13); color: #302148; background: #f7f5fc; }
-.floating-nav-shell.is-scrolled .capsule-github, .floating-nav-shell.is-scrolled .capsule-sponsor { min-height: 36px; padding-top: 7px; padding-bottom: 7px; }
-.capsule-github:hover { background: rgba(255,255,255,.18); }
-.floating-nav-shell.is-scrolled .capsule-github:hover { background: #ebe5f8; }
-.floating-capsule .capsule-sponsor { background: #8653d5; border: 1px solid #7541c4; box-shadow: none; color: #fff; }
-.floating-capsule .capsule-sponsor:hover { background: #7541c4; }
-.capsule-menu-toggle { display: none; width: 34px; height: 34px; color: #f9f5ff; border-radius: 999px; align-items: center; justify-content: center; }
-.floating-nav-shell.is-scrolled .capsule-menu-toggle { color: #4a356e; }
-.mobile-nav-panel { pointer-events: auto; display: none; color: #2a1b4b; background: #fefefe; border: 1px solid #e7def8; border-radius: 18px; width: min(360px, 100%); padding: 8px; box-shadow: 0 12px 32px #110a2952; }
-.mobile-nav-panel a { display: flex; align-items: center; gap: 10px; border-radius: 10px; padding: 12px 13px; font-size: 14px; font-weight: 600; }
-.mobile-nav-panel a:hover { background: #f4edff; }
-.dialog-action { margin-top: 21px; display: inline-flex; align-items: center; gap: 9px; padding: 11px 15px; border-radius: 9px; background: #8653d5; color: #fff; font-size: 13px; font-weight: 600; }
+.brand > span { font-size: 19px; font-weight: 750; line-height: 1; letter-spacing: -.05em; }
+.brand-dot { color: #a77aff; }
+.floating-nav-shell.is-scrolled .brand-dot { color: #8653d5; }
+.capsule-actions { display: flex; align-items: center; margin-left: auto; min-width: 0; }
+/* The real Arc UI ActionButton supplies letter-morphing, trailing arrow and press animation. */
+.floating-capsule .download-action { min-height: 40px; padding: 0 18px; border-radius: 9999px; border-color: #7541c4; background: #8653d5; color: #fff; font-size: 13px; font-weight: 650; letter-spacing: -.01em; line-height: 1.2; }
+.floating-nav-shell.is-scrolled .download-action { min-height: 36px; }
+.hero .download-action { min-height: 50px; padding: 0 24px; border-radius: 9999px; border-color: #ddcaff; background: #ede5ff; color: #362065; font-size: 14px; font-weight: 650; letter-spacing: -.01em; }
+@media (hover: hover) and (pointer: fine) {
+  .floating-capsule .download-action:hover:not(:disabled) { background: #7541c4; border-color: #7541c4; }
+  .hero .download-action:hover:not(:disabled) { background: #f9f6ff; border-color: #eee1ff; }
+}
 
 .hero { min-height: max(790px, 100svh); width: 100%; position: relative; background: radial-gradient(ellipse 62% 50% at 50% -20%, #5331a9 0%, transparent 75%), radial-gradient(ellipse 66% 56% at 105% 70%, #462485 0%, transparent 76%), linear-gradient(150deg, #190e40, #100827 60%, #170c3c); }
 .hero:after { content: ""; pointer-events: none; z-index: 5; position: absolute; left: 0; right: 0; bottom: 0; height: 230px; background: linear-gradient(0deg, rgba(10,5,28,.52), transparent); }
@@ -101,12 +85,6 @@ a:focus-visible, button:focus-visible, input:focus-visible { outline: 2px solid 
 .hero-title .word { color: inherit; }
 .hero-description { max-width: 580px; margin: 24px auto 0; color: #d2c5e5; font-size: clamp(15px,1.6vw,19px); line-height: 1.6; }
 .hero-actions { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 12px; margin-top: 28px; }
-.hero-button-primary,.hero-button-secondary { display: inline-flex; justify-content: center; align-items: center; gap: 10px; min-height: 49px; padding: 13px 21px; border-radius: 999px; font-size: 14px; font-weight: 650; transition: transform .24s cubic-bezier(.22,1,.36,1), background .24s; }
-.hero-button-primary { background: #ede5ff; border: 1px solid #ddcaff; color: #362065; }
-.hero-button-primary:hover { background: #f8f5ff; transform: translateY(-2px); }
-.hero-button-secondary { background: #412570; border: 1px solid #ab8ae26b; color: #fdfaff; }
-.hero-button-secondary:not(.hero-disabled):hover { background: #512d85; transform: translateY(-2px); }
-.hero-disabled { cursor: default; opacity: .82; }
 .mascot-position { position: absolute; z-index: 3; width: min(44vw, 600px); min-width: 375px; left: 50%; bottom: -144px; transform: translateX(-50%); pointer-events: none; }
 .hero-mascot { width: 100%; display: block; height: auto; filter: drop-shadow(0 0 38px #ab7af952); }
 .hero-foot { position: absolute; z-index: 11; bottom: 34px; left: 0; right: 0; display: flex; align-items: end; justify-content: space-between; padding: 0 clamp(20px, 6vw, 100px); pointer-events: none; }
@@ -184,31 +162,24 @@ a:focus-visible, button:focus-visible, input:focus-visible { outline: 2px solid 
 @keyframes drift-wave { from { transform: translateX(-1%) translateY(0); } to { transform: translateX(1%) translateY(9px); } }
 @keyframes drift-wave-reverse { from { transform: translateX(1%) translateY(6px); } to { transform: translateX(-1%) translateY(-6px); } }
 @media (max-width: 970px) {
-  .capsule-links { display: none; }
-  .cta-divider { display: none; }
-  .capsule-menu-toggle { display: inline-flex; }
-  .mobile-nav-panel { display: grid; }
   .hero-title { font-size: clamp(62px,10vw,93px) !important; }
   .mascot-position { width: min(60vw,540px); }
 }
 @media (max-width: 680px) {
   .floating-nav-shell { padding: 0 8px; }
-  .floating-capsule { gap: 5px; height: 60px; padding: 5px 8px; }
+  .floating-capsule { gap: 8px; height: 60px; padding: 5px 8px; }
   .floating-nav-shell.is-scrolled .floating-capsule { height: 48px; padding: 5px 8px; }
   .brand { padding: 2px 4px; gap: 5px; }
   .brand-mark { height: 27px; width: 27px; }
-  .brand > span { font-size: 17px; }
-  .nav-divider { margin: 0 2px; }
-  .capsule-actions { gap: 4px; }
-  .capsule-github,.floating-capsule .capsule-sponsor { min-height: 34px; padding: 8px 10px; font-size: 11px; gap: 5px; }
-  .github-external { display: none; }
+  .brand > span { font-size: 17px; letter-spacing: -.04em; }
   .hero { min-height: max(800px,100svh); }
   .hero-copy { padding: 156px 15px 0; }
   .hero-eyebrow { letter-spacing: .09em; font-size: 9px; }
   .hero-title { font-size: clamp(52px, 14vw, 76px) !important; line-height: 1.01 !important; max-width: 12ch !important; margin-top: 18px !important; }
   .hero-description { margin-top: 19px; font-size: 15px; line-height: 1.58; max-width: 420px; }
   .hero-actions { margin-top: 22px; gap: 8px; }
-  .hero-button-primary,.hero-button-secondary { min-height: 43px; font-size: 12px; padding: 10px 14px; }
+  .floating-capsule .download-action { min-height: 38px; padding: 0 13px; font-size: 12px; }
+  .hero .download-action { min-height: 46px; font-size: 13px; padding: 0 20px; }
   .mascot-position { width: 470px; min-width: 0; bottom: -155px; }
   .waves { height: 54%; }
   .hero-foot { bottom: 25px; padding: 0 18px; }
@@ -229,9 +200,6 @@ a:focus-visible, button:focus-visible, input:focus-visible { outline: 2px solid 
   .footer-inner { flex-wrap: wrap; }
 }
 @media (max-width: 430px) {
-  .github-label { display: none; }
-  .floating-capsule .capsule-sponsor { padding: 8px; }
-  .floating-capsule .capsule-sponsor span { display: none; }
   .hero-title { font-size: clamp(49px,13.6vw,60px) !important; }
   .hero-foot span:last-child { display: none; }
   .hero-foot { justify-content: space-between; }
@@ -241,7 +209,7 @@ a:focus-visible, button:focus-visible, input:focus-visible { outline: 2px solid 
 @media (prefers-reduced-motion: reduce) {
   html { scroll-behavior: auto; }
   .wave-remote,.wave-middle,.wave-near { animation: none !important; }
-  .hero-button-primary,.hero-button-secondary,.floating-capsule { transition: none; }
+  .floating-capsule { transition: none; }
 }
 @media (prefers-reduced-transparency: reduce) {
   .floating-nav-shell.is-scrolled .floating-capsule { background: #faf8ff; backdrop-filter: none; -webkit-backdrop-filter: none; }
