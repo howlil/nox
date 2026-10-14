@@ -5,17 +5,18 @@ import type { TurnContextSnapshot } from "../context/context-types";
  */
 export class NoxRunInspector {
   private readonly details: HTMLElement;
+  private readonly summary: HTMLElement;
   private readonly context: HTMLElement;
   private readonly activity: HTMLElement;
   private readonly calls = new Map<string, HTMLElement>();
 
   constructor(parent: HTMLElement) {
     this.details = parent.createEl("details", { cls: "nox-run-inspector" });
-    this.details.createEl("summary", { text: "Run details" });
+    this.summary = this.details.createEl("summary", { text: "Context details" });
     this.context = this.details.createDiv({ cls: "nox-run-context" });
     this.activity = this.details.createDiv({ cls: "nox-run-activities" });
     this.context.createDiv({ cls: "nox-inspector-placeholder", text: "Context not resolved yet." });
-    this.activity.createDiv({ cls: "nox-inspector-placeholder", text: "No tool activity reported." });
+    // Tool activity belongs in the live timeline; diagnostic rows stay hidden until observed.
   }
 
   setContext(snapshot: TurnContextSnapshot): void {
@@ -25,6 +26,9 @@ export class NoxRunInspector {
       file: item.file, chars: item.content.length, excerpt: item.content.slice(0, 320), system: false })),
       ...snapshot.system.map(item => ({
         file: item.file, chars: item.content.length, excerpt: "", system: true }))];
+    this.summary.textContent = sources.length === 0
+      ? "Context details"
+      : `Context · ${sources.length} ${sources.length === 1 ? "source" : "sources"}`;
     if (sources.length === 0) {
       this.context.createDiv({ cls: "nox-inspector-placeholder", text: "No note context included." });
       return;

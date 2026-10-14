@@ -49,7 +49,7 @@ Provider usage is still recorded separately by `AgentRuntime`. Do not claim actu
 - Avoid per-word `span` creation, DOM animation per word, and frequent 100ms timer updates.
 - Existing NOX logo, `setNoxIcon` (Obsidian icon resolver) and `--nox-*` theme tokens are reused.
 - Keep native 11–13px type, the existing compact sidebar width, neutral ink and border tokens, and existing opening/closing motion.
-- Activity details start collapsed. The user controls expansion; auto-expanding the trace on every delta was removed.
+- During execution the observed activity stream is open in a max-height 164px viewport (it follows new events); terminal completion collapses to a one-line summary unless the user explicitly overrides it.\n- The entire disclosure is one grid child: never place an inspector as a second direct child of a 0fr grid, which leaks the supposedly collapsed content.\n- `Run details` was reduced to a source-count `Context` disclosure; system files stay inside nested diagnostics. Tool events participate in the activity timeline rather than living only in a separate inspector.
 - A prolonged absence of new model output is labeled exactly as such. No claim of internal reasoning access or inferred token progress.
 - Historical transcripts retain their existing presentation format and still use normalized icons.
 

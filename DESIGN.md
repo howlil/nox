@@ -498,3 +498,30 @@ or decorative panels belong in the shipped UI. Unreached stages stay hidden;
 failure/cancel stops on the observed stage. Render output progressively without
 per-word DOM creation. Reduced motion and compact sidebar behavior remain
 governing constraints. Details: `docs/AI_LATENCY_LIVE_ACTIVITY.md`.
+
+
+## Adaptive activity stream (2026-10-14 revision)
+
+The earlier always-collapsed chronological checklist has been replaced by a
+compact, BeUI-inspired **adaptive disclosure**. During a run, the actual observed
+timeline is visible automatically in a height-capped viewport and follows its
+newest event. On terminal completion it collapses into a one-line duration
+summary, with user override preserved.
+
+The structural contract is:
+```text
+Status header (Nox icon + working label + elapsed)
+└─ one collapsible panel grid child (required to avoid leakage)
+   ├─ activity viewport (observed phases + actual tools)
+   └─ optional collapsed source/diagnostics inspector
+```
+
+Only runtime-observed steps may enter the visible timeline; never pre-render
+all possible steps and never simulate tools or reasoning to fill quiet provider
+time. Actual context documents are not activities and remain behind a separate
+compact source-count disclosure. Default is no border, no extra card chrome,
+only the existing Nox logo, native Obsidian icons, `--nox-*` variables and
+reduced-motion-safe shimmer. While waiting for provider output, communicate
+the lack of updates honestly; rich animations cannot make model inference
+faster. Reference interaction pattern:
+https://beui.dev/components/agents/agent-activity .
