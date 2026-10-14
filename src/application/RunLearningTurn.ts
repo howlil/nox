@@ -497,6 +497,9 @@ export class RunLearningTurn {
         {
           model: conversation.model,
           conversationId: lockedMode ? undefined : conversation.conversationId,
+          history: lockedMode ? [] : conversation.messages.slice(-12).map((message) => ({
+            role: message.role, content: message.content,
+          })),
         },
         controller.signal,
       )) {
