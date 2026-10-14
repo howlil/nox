@@ -367,13 +367,23 @@ longer text moves onto its own line
 +                              Model ▾   send
 ```
 
-Composer uses one **flat white** 10px-radius bordered surface with two rows:
-a full-width prompt line above a compact + / Actions / Model / Send toolbar.
-The composer has no nested input field, halo, or shadow. Its textarea stays
-transparent during hover, focus, active and typing states (Obsidian must not
-inject a white hover rectangle). Controls use 8px radius and 30px height.
-The send action is solid purple when enabled, muted otherwise. Model selection
-is visually secondary, truncated in the available sidebar width.
+Composer uses a single flat bordered **capsule** on its default one-line state,
+with input and four controls in one row: `+ Attach file`, prompt input,
+`@ Actions`, `bot Model`, and `Send`. The plus opens the native
+file picker on a trusted user click (real text attachment, using the existing
+size/type policies), not the source menu. Typing `@name` continues to search
+vault notes, and slash commands continue to use the action menu. The agent
+button is icon-only, but preserves the complete selected model in its
+`aria-label` and tooltip.
+
+When the input wraps, contains a newline, or displays chips, the **same**
+capsule expands upwards to a soft 16px-radius two-row layout: context/intent/
+attachments and prompt above, tools below. Measure wrapping at the
+**collapsed** input width before switching layout to avoid oscillation.
+Text height caps at 120px with internal scrolling beyond that. All controls
+are 32px circles; header icons share the same visual shape and native
+Obsidian/Lucide outline family. No gradients, nested text-field rectangles,
+shadow, halo, or outer focus ring.
 The plus control owns context and file actions; do not duplicate it with a
 separate `No context` or context selector button.
 
@@ -642,3 +652,30 @@ Root UI tokens (styles.css)
   to the end to fight legacy declarations.
 - Regression gates: lint/typecheck/unit/integration/build, source design
   assertions, and manual Obsidian light/dark at 320px, 420px and wide panels.
+
+## Native Obsidian capsule composer — 2026-10-15
+
+**Design thinking:**
+- Observe: the two-row default composer consumes unnecessary vertical space;
+  model labels truncate in the sidebar; the user needs both direct file upload
+  and a short, recognizable action/model trigger.
+- Define: a compact single capsule that expands only when content demands it,
+  with distinct and predictable file, action, and model responsibilities.
+- Implement: `NoxComposer` owns layout measurements and semantic controls;
+  `ChatView` routes trusted file picker click and preserves existing context,
+  command and model state; `styles.css` owns geometry.
+- Verify: test the collapsed and multiline composition, narrow panels,
+  keyboard navigation, actual text attachments, model disclosure, file cancel,
+  dark mode, focus and selection restoration.
+
+```text
+Composer
+├── collapsed:  [+]  [Ask Nox…             ]  [@] [bot] [↑]
+└── expanded:   [context chips / attachments / text ↵   ]
+                [+]                         [@] [bot] [↑]
+```
+
+Rounded-full applies specifically to header icon buttons and the capsule
+controls; existing functional cards and settings preserve their compact
+rectangular shape. Keyboard focus stays visible as a flat in-surface color
+change. No new learning state or model registry is created.
