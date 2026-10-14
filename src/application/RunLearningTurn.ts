@@ -79,7 +79,8 @@ export class RunLearningTurn {
     private readonly learningState: LearningStatePort,
     options: { turnTimeoutMs?: number; programStore?: ProgramStorePort } = {},
   ) {
-    this.turnTimeoutMs = options.turnTimeoutMs ?? 60_000;
+    // Hard turn deadline: long reasoning/streaming must not fail at the former 60s cutoff.
+    this.turnTimeoutMs = options.turnTimeoutMs ?? 300_000;
     this.programStore = options.programStore;
   }
 
@@ -975,6 +976,15 @@ export class RunLearningTurn {
       }
     } catch (error) {
       rollbackPractice();
+      if (activeTurn.cancelReason === "timeout") {
+        yield { type: "failed", failure: { code: "timeout",
+          message: `AI request exceeded the ${Math.ceil(this.turnTimeoutMs / 1000)}s hard deadline. Retry or choose a faster model.` } };
+        return;
+      }
+      if (activeTurn.cancelReason === "user" || activeTurn.cancelReason === "dispose") {
+        yield { type: "cancelled" };
+        return;
+      }
 
       const persistenceFailed = error instanceof PersistenceError;
       const failure: AgentFailure = {
