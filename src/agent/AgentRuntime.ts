@@ -98,7 +98,8 @@ export class AgentRuntime implements AgentRuntimePort {
       if (event.type === "usage") {
         if (this.onUsage) {
           try {
-            await this.onUsage(event.usage, event.model ?? opts.model, {
+            await this.onUsage(event.usage, event.model ??
+              (opts.model ? "requested: " + opts.model : undefined), {
               conversationId: event.conversationId,
               cumulative: event.cumulative,
               turnCount: event.turnCount,
