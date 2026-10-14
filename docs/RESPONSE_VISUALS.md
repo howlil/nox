@@ -186,3 +186,46 @@ MarkdownRenderer -> response-visuals -> native Mermaid viewport or code sandbox.
 Acceptance: 320/390/768/1440 widths, no page-level horizontal scrollbar,
 Mermaid zoom/fit/fullscreen, keyboard and aria labels, sandbox behavior,
 restart and stale-write regression tests, pnpm verify, manual Obsidian check.
+
+
+## Content-sized response surfaces (2026-10-15)
+
+Problem evidence: a restored thinking row aligned differently in wide panes,
+HTML quizzes were locked inside 240-480px frames with nested vertical scrolling,
+and native Mermaid always stretched to 100% regardless of intrinsic graph width.
+Layered nox-flow previously sorted by rank but still placed one node per row.
+
+Ownership graph:
+ChatView/thread -> thinking column (shared 768px) ->
+  MarkdownRenderer -> response-visuals ->
+  [Mermaid natural SVG with fit/zoom; sandbox preview height bridge;
+   nox-flow intrinsic bounded layout].
+
+- Thinking inherits the centered 768px response column; only inner trace is
+  compact. Do not center a separate 380px thinking block.
+- HTML/JavaScript sandbox emits no more than one ResizeObserver update per
+  animation frame. The one host listener accepts messages only from the
+  registered iframe contentWindow, opaque origin "null", matching preview ID,
+  finite height, and a bounded update cadence. Heights are limited to 12,000px
+  to prevent unbounded resource usage. Beyond this safety limit, internal
+  overflow is allowed as an explicit fallback. Preview restore remains Code,
+  never auto-executed. Switching Code/Reset/Stop unregisters the frame.
+- Keep CSP prohibiting fetch, top-level navigation, nested frames, forms and
+  remote assets; never enable allow-same-origin. SVG preview remains scriptless,
+  so it uses its static fallback sizing.
+- Native Mermaid's viewBox gives intrinsic size, with optional whitespace
+  cropping based on actual SVG graphics bounds. Small graphs do not enlarge
+  to fill the entire chat. Wide graphs fit to the local viewport and zoom
+  changes only their inner width. Diagram height is not fixed and uses the
+  ordinary transcript scroll.
+- nox-flow vertical-stack preserves the existing 360px canvas contract.
+  The layered variant groups by topological depth, applies four bounded
+  barycentric sweeps, places <=3 siblings per row, and renders at most 638px
+  wide. It is deterministic and uses O(V+E) storage on <=24 nodes/48 edges.
+- Prompt guidance separates boot/startup topology and HTTP-request lifecycle,
+  uses short node labels, and avoids unnecessary cross-links.
+
+Verification: test native Mermaid at 2, 10, 24 nodes; preview quiz expand and
+reset; repeated history load; 320/390/768/1440 pane widths; keyboard fit/zoom
+controls; and bounds-check malicious iframe resize messages. Native Obsidian
+visual smoke test is still required after CI.
