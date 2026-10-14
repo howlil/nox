@@ -331,10 +331,17 @@ export class ChatGptAuth {
       if (this.record.credentials && this.record.credentials.subject !== identity.subject) {
         throw new Error("This registration belongs to a different ChatGPT account.");
       }
+      stage = "token-exchange"; // Validate the returned credential shape.
       const nextCredentials = this.credentialFrom(response, result.clientId, identity.subject, identity.email, idToken);
       stage = "credentials-storage";
+      const priorCredentials = this.record.credentials;
       this.record.credentials = nextCredentials;
-      this.save();
+      try { this.save(); }
+      catch (error) {
+        // A failed disk write must not make NOX report a connected account.
+        this.record.credentials = priorCredentials;
+        throw error;
+      }
       this.lastFailure = undefined;
       finishBrowser(true);
       return this.status();
