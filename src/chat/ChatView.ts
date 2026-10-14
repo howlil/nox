@@ -527,6 +527,7 @@ export class ChatView extends ItemView {
   }
 
   private closeHistoryMenu(): void {
+    this.historyList?.resetSwipe();
     this.historyMenuState.close();
     this.historyPopover?.close();
     this.syncHistoryTrigger();
