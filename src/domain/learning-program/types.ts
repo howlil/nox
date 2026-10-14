@@ -29,14 +29,17 @@ export interface LearningProgram {
   objectives: LearningObjective[];
   createdAt: number;
   planVersion: number;
+  creationOperationId?: string;
   session?: { startedAt: number; timeBudgetMinutes: number; };
+  sessionHistory?: Array<{ startedAt: number; endedAt: number; minutesSpent: number }>;
+  instructionEvents?: Array<{ objectiveId: string; afterEvidenceAt: number; taughtAt: number }>;
 }
 export interface ProgramCollection {
   version: 1;
   activeProgramId?: string;
   programs: LearningProgram[];
 }
-export type ActivityKind = "diagnostic" | "teach" | "recall" | "remediate" | "transfer" | "wait" | "timebox-ended";
+export type ActivityKind = "diagnostic" | "teach" | "guided-practice" | "recall" | "remediate" | "transfer" | "wait" | "timebox-ended";
 export interface LearningDecision {
   kind: ActivityKind;
   objective?: LearningObjective;
