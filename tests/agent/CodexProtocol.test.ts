@@ -52,3 +52,22 @@ test("context is encoded as JSON data and the original request stays on stdin", 
   assert.ok(encoded.includes(JSON.stringify(input.context)));
   assert.ok(encoded.includes(input.prompt));
 });
+
+test("streams cumulative assistant updates without duplicating item.completed", () => {
+  const current = state();
+  emit({ type: "thread.started", thread_id: thread }, current);
+  const update = (text: string, type = "item.updated") => emit({
+    type, item: { type: "agent_message", id: "a", text },
+  }, current);
+  assert.deepEqual(update("Hel"), [{ type: "text", content: "Hel" }]);
+  assert.deepEqual(update("Hello"), [{ type: "text", content: "lo" }]);
+  assert.deepEqual(update("Hello", "item.completed"), []);
+  emit({ type: "turn.completed" }, current);
+  assert.equal(current.completed, true);
+});
+test("rejects contradictory cumulative assistant updates", () => {
+  const current = state();
+  emit({ type: "item.updated", item: { type: "agent_message", id: "a", text: "Earlier" } }, current);
+  emit({ type: "item.completed", item: { type: "agent_message", id: "a", text: "Different" } }, current);
+  assert.equal(current.failure?.code, "protocol-invalid");
+});
