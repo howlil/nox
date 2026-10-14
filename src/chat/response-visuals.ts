@@ -9,6 +9,8 @@ import {
 } from "./response-spec";
 
 import { enhanceNoxMarkdownTables, renderNoxCard, renderNoxFlow, renderNoxHorizontalChart } from "./response-rich";
+import { setNoxIcon } from "./primitives";
+import type { IconName } from "obsidian";
 
 const SVG_NS = "http://www.w3.org/2000/svg";
 
@@ -18,10 +20,12 @@ function element<K extends keyof HTMLElementTagNameMap>(tag: K, cls?: string): H
   return node;
 }
 
-function button(label: string): HTMLButtonElement {
+function button(label: string, icon: IconName): HTMLButtonElement {
   const node = element("button", "nox-visual-action");
   node.type = "button";
-  node.textContent = label;
+  node.setAttribute("aria-label", label);
+  node.title = label;
+  setNoxIcon(node, icon);
   return node;
 }
 
@@ -126,16 +130,16 @@ function renderChart(spec: NoxChartSpec): HTMLElement {
 }
 
 function renderPreview(
-  kind: "html-preview" | "svg-preview", source: string, original: HTMLPreElement,
+  kind: "html-preview" | "svg-preview" | "js-preview", source: string, original: HTMLPreElement,
 ): HTMLElement {
   const root = element("section", "nox-visual nox-code-preview");
   const header = element("div", "nox-visual-header");
   const title = element("span", "nox-visual-title");
-  title.textContent = kind === "html-preview" ? "HTML playground" : "SVG preview";
+  title.textContent = kind === "svg-preview" ? "SVG preview" : kind === "js-preview" ? "JavaScript runner" : "HTML playground";
   const controls = element("div", "nox-visual-controls");
-  const preview = button("Run preview");
-  const code = button("Code");
-  const reset = button("Reset");
+  const preview = button("Run preview", "play");
+  const code = button("Show source", "code-2");
+  const reset = button("Restart preview", "rotate-ccw");
   code.setAttribute("aria-pressed", "true");
   preview.setAttribute("aria-pressed", "false");
   reset.hidden = true;
@@ -159,8 +163,8 @@ function renderPreview(
     // Destroy the former execution realm, rather than hiding running scripts.
     stage.replaceChildren();
     const iframe = element("iframe", "nox-visual-frame");
-    iframe.title = kind === "html-preview" ? "Isolated HTML preview" : "Isolated SVG preview";
-    iframe.setAttribute("sandbox", kind === "html-preview" ? "allow-scripts" : "");
+    iframe.title = kind === "svg-preview" ? "Isolated SVG preview" : "Isolated code preview";
+    iframe.setAttribute("sandbox", kind === "svg-preview" ? "" : "allow-scripts allow-forms");
     iframe.setAttribute("referrerpolicy", "no-referrer");
     iframe.setAttribute("loading", "lazy");
     iframe.srcdoc = documentText;
