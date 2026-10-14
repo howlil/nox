@@ -4,7 +4,8 @@ import type { NoxSettings } from "./NoxSettings";
 export interface NoxSettingsHost {
   getSettings(): NoxSettings;
   updateSettings(next: Partial<NoxSettings>): Promise<void>;
-  getChatGPTConnection(): { connected: boolean; sharing: boolean; email?: string; description: string };
+  getChatGPTConnection(): { connected: boolean; sharing: boolean; email?: string; description: string;
+    lastFailure?: { stage: string; code: string; message: string } };
   connectChatGPT(): Promise<void>;
   disconnectChatGPT(): Promise<void>;
 }
@@ -65,6 +66,21 @@ export class NoxSettingsTab extends PluginSettingTab {
             try { await this.nox.disconnectChatGPT(); this.display(); }
             catch (error) { new Notice(error instanceof Error ? error.message : "Unable to disconnect."); }
           }));
+      if (connection.lastFailure) {
+        new Setting(containerEl)
+          .setName("Last ChatGPT sign-in error")
+          .setDesc(connection.lastFailure.message)
+          .addButton((button) => button
+            .setButtonText("Copy diagnostic")
+            .onClick(() => {
+              const report = "NOX ChatGPT sign-in failure: stage=" +
+                connection.lastFailure!.stage + ", code=" + connection.lastFailure!.code;
+              void navigator.clipboard.writeText(report).then(
+                () => new Notice("Safe diagnostic copied."),
+                () => new Notice("Unable to copy diagnostic."),
+              );
+            }));
+      }
       new Setting(containerEl)
         .setName("Plan usage")
         .setDesc("Requires ChatGPT plan permission. Selected note context is sent to OpenAI when you submit a message. Uses the official Responses API, not your API billing key.");
