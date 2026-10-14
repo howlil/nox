@@ -1,4 +1,5 @@
 import type { LearningEvidence } from "../learning-state/types";
+import { sessionRemainingMs } from "./session-time";
 import type { CurriculumDraft, LearningDecision, LearningObjective, LearningProgram, ProgramConstraints } from "./types";
 
 const DAY = 86_400_000;
@@ -131,11 +132,14 @@ export function chooseNextActivity(program: LearningProgram, evidence: LearningE
       new Date(now).toLocaleDateString("en-CA") > program.constraints.deadline) {
     return { kind: "wait", reason: "The program deadline has passed. Replan or create a new program before continuing." };
   }
-  const remaining = program.session ?
-    Math.max(0, program.session.timeBudgetMinutes - Math.floor((now - program.session.startedAt) / 60_000)) :
-    program.constraints.minutesPerSession;
-  if (program.session && remaining === 0) {
+  const remainingMs = program.session ? sessionRemainingMs(program.session, now) :
+    program.constraints.minutesPerSession * 60_000;
+  const remaining = Math.ceil(remainingMs / 60_000);
+  if (program.session && remainingMs === 0) {
     return { kind: "timebox-ended", reason: "Session time budget is exhausted; progress is preserved.", minutesRemaining: 0 };
+  }
+  if (program.session?.timing?.pauseReasons.some(reason => reason === "manual" || reason === "recovery" || reason === "app-inactive")) {
+    return { kind: "wait", reason: "Learning session is paused. Use /resume-session to continue.", minutesRemaining: remaining };
   }
   const states = new Map(program.objectives.map(item =>
     [item.id, objectiveProgress(program, item.id, evidence, now)] as const));

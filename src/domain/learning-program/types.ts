@@ -7,6 +7,29 @@ export interface ProgramConstraints {
   sourceBound: boolean;
   excludedTopics: string[];
 }
+export type SessionPauseReason = "manual" | "ai-running" | "app-inactive" | "recovery";
+
+export interface SessionTiming {
+  version: 2;
+  /** Confirmed learning time, excluding AI execution and explicit pauses. */
+  activeMs: number;
+  /** Observed time spent waiting for an agent turn. */
+  aiWaitingMs: number;
+  /** Optional attribution, only after an explicit objective selection. */
+  focusObjectiveId?: string;
+  objectiveActiveMs?: Record<string, number>;
+  pauseReasons: SessionPauseReason[];
+  /** Local wall-clock checkpoint; never used to infer time across restarts. */
+  checkpointAt: number;
+}
+
+export interface LearningSession {
+  startedAt: number;
+  timeBudgetMinutes: number;
+  /** Missing on historical sessions; migrate without claiming wall-time was active study. */
+  timing?: SessionTiming;
+}
+
 export interface LearningObjective {
   id: string;
   title: string;
@@ -30,8 +53,8 @@ export interface LearningProgram {
   createdAt: number;
   planVersion: number;
   creationOperationId?: string;
-  session?: { startedAt: number; timeBudgetMinutes: number; };
-  sessionHistory?: Array<{ startedAt: number; endedAt: number; minutesSpent: number }>;
+  session?: LearningSession;
+  sessionHistory?: Array<{ startedAt: number; endedAt: number; minutesSpent: number; activeMinutes?: number; aiWaitingMinutes?: number; objectiveActiveMinutes?: Record<string, number> }>;
   instructionEvents?: Array<{ objectiveId: string; afterEvidenceAt: number; taughtAt: number }>;
 }
 export interface ProgramCollection {

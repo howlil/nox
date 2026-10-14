@@ -146,6 +146,12 @@ export class ChatView extends ItemView {
   private loadingElapsedEl: HTMLElement | null = null;
   private loadingStartedAt = 0;
   private loadingTimer: number | null = null;
+  private lastAgentActivityAt = 0;
+  private sessionClockEl: HTMLElement | null = null;
+  private sessionClockTextEl: HTMLElement | null = null;
+  private sessionClockButtonEl: HTMLButtonElement | null = null;
+  private sessionClockTimer: number | null = null;
+  private refreshingSessionClock = false;
   private thinkingToggleEl: HTMLButtonElement | null = null;
   private thinkingLabelEl: HTMLElement | null = null;
   private thinkingChevronEl: HTMLElement | null = null;
@@ -214,11 +220,15 @@ export class ChatView extends ItemView {
     // Local transcripts remain available even if the runtime is offline.
     await this.restoreRuntimeState();
     await this.ensureRuntimeReady();
+    void this.refreshSessionClock();
+    this.sessionClockTimer = window.setInterval(() => { void this.refreshSessionClock(); }, 2000);
   }
 
   async onClose(): Promise<void> {
     this.learning.cancel();
     this.stopLoadingTimer();
+    if (this.sessionClockTimer !== null) window.clearInterval(this.sessionClockTimer);
+    this.sessionClockTimer = null;
     if (this.quizDraftTimer !== null) window.clearTimeout(this.quizDraftTimer);
   }
 
@@ -373,6 +383,28 @@ export class ChatView extends ItemView {
     });
     moreBtn.addEventListener("click", () => this.openSettings());
 
+    this.sessionClockEl = this.headerEl.createDiv({ cls: "nox-session-clock nox-hidden" });
+    this.sessionClockEl.setAttribute("role", "group");
+    this.sessionClockEl.setAttribute("aria-label", "Learning session timer");
+    this.sessionClockTextEl = this.sessionClockEl.createSpan({ cls: "nox-session-clock-label" });
+    this.sessionClockButtonEl = this.sessionClockEl.createEl("button", {
+      cls: "nox-session-clock-button",
+      attr: { type: "button" },
+    });
+    this.sessionClockButtonEl.addEventListener("click", async () => {
+      if (!this.sessionClockButtonEl || this.sessionClockButtonEl.disabled) return;
+      const paused = this.sessionClockButtonEl.dataset.action === "pause";
+      this.sessionClockButtonEl.disabled = true;
+      try {
+        await this.learning.setSessionPaused(paused);
+        await this.refreshSessionClock();
+      } catch (error) {
+        new Notice(error instanceof Error ? error.message : "Could not update session time.");
+      } finally {
+        if (this.sessionClockButtonEl) this.sessionClockButtonEl.disabled = false;
+      }
+    });
+
     this.historyMenuEl = createNoxPopover(this.headerEl, {
       cls: "nox-history-menu",
       id: "nox-history-menu",
@@ -381,6 +413,36 @@ export class ChatView extends ItemView {
     });
     this.historyPopover = new NoxPopoverState(this.historyMenuEl);
     this.syncHistoryTrigger();
+  }
+
+  private async refreshSessionClock(): Promise<void> {
+    if (this.refreshingSessionClock || !this.sessionClockEl) return;
+    this.refreshingSessionClock = true;
+    try {
+      const timing = await this.learning.getSessionTime();
+      if (!this.sessionClockEl?.isConnected) return;
+      this.sessionClockEl.toggleClass("nox-hidden", !timing);
+      if (!timing || !this.sessionClockTextEl || !this.sessionClockButtonEl) return;
+      const minutes = Math.ceil(timing.remainingMs / 60_000);
+      const labels: Record<typeof timing.status, string> = {
+        active: "Learning", "waiting-ai": "AI running · time paused",
+        paused: "Paused", recovered: "Session recovered · paused",
+        exhausted: "Timebox complete",
+      };
+      this.sessionClockTextEl.textContent = `${labels[timing.status]} · ${minutes}m left`;
+      this.sessionClockEl.title =
+        `Active: ${Math.round(timing.activeMs / 1000)}s · AI waiting: ${Math.round(timing.aiWaitingMs / 1000)}s`;
+      const pause = timing.status === "active" || timing.status === "waiting-ai";
+      this.sessionClockButtonEl.dataset.action = pause ? "pause" : "resume";
+      this.sessionClockButtonEl.textContent = pause ? "Pause" : "Resume";
+      this.sessionClockButtonEl.title = pause ? "Pause learning budget" : "Resume learning budget";
+      this.sessionClockButtonEl.setAttribute("aria-label", this.sessionClockButtonEl.title);
+      this.sessionClockButtonEl.toggleClass("nox-hidden", timing.status === "exhausted");
+    } catch {
+      // A transient vault read must not block the chat interface.
+    } finally {
+      this.refreshingSessionClock = false;
+    }
   }
 
   private async toggleLearningMap(): Promise<void> {
@@ -1446,6 +1508,7 @@ export class ChatView extends ItemView {
     this.turnTerminal = false;
 
     this.runningAction = request.action;
+    this.lastAgentActivityAt = Date.now();
     this.turnContextSource = null;
     if (appendUserMessage) this.appendUserBubble(request.prompt);
     this.setUIState("RUNNING");
@@ -1470,10 +1533,12 @@ export class ChatView extends ItemView {
 
   private handleLearningEvent(event: LearningEvent): void {
     if (event.type === "tool-started") {
+      this.lastAgentActivityAt = Date.now();
       this.runInspector?.toolStarted(event.toolCallId, event.name);
       return;
     }
     if (event.type === "tool-completed") {
+      this.lastAgentActivityAt = Date.now();
       this.runInspector?.toolCompleted(event.toolCallId, event.outcome);
       return;
     }
@@ -1494,6 +1559,7 @@ export class ChatView extends ItemView {
     }
 
     if (event.type === "thought-delta") {
+      this.lastAgentActivityAt = Date.now();
       const shouldFollow = this.isNearThreadBottom();
       this.appendThoughtText(event.text);
       if (shouldFollow) this.scrollThread("auto");
@@ -1501,6 +1567,7 @@ export class ChatView extends ItemView {
     }
 
     if (event.type === "response-delta") {
+      this.lastAgentActivityAt = Date.now();
       const shouldFollow = this.isNearThreadBottom();
       this.setThinkingStage(2);
       this.appendToAgentBubble(event.text);
@@ -1562,6 +1629,7 @@ export class ChatView extends ItemView {
   ): void {
     if (this.turnTerminal) return;
     this.turnTerminal = true;
+    void this.refreshSessionClock();
     this.runInspector?.settle(outcome);
 
     const action = this.runningAction;
@@ -1678,6 +1746,11 @@ export class ChatView extends ItemView {
     const update = () => {
       const elapsed = this.formatElapsed(Date.now() - this.loadingStartedAt);
       if (this.loadingElapsedEl) this.loadingElapsedEl.textContent = elapsed;
+      if (this.thinkingLabelEl?.hasClass("nox-thinking-label--active")) {
+        const quietMs = Date.now() - this.lastAgentActivityAt;
+        this.thinkingLabelEl.textContent = quietMs >= 90_000
+          ? "No recent AI output · still working" : "Thinking";
+      }
     };
 
     this.loadingStartedAt = Date.now();
