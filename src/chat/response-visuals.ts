@@ -140,7 +140,6 @@ function renderPreview(
   root.appendChild(header);
   const stage = element("div", "nox-visual-stage");
   original.classList.add("nox-visual-source");
-  stage.appendChild(original);
   root.appendChild(stage);
 
   const documentText = createNoxPreviewDocument(kind, source);
@@ -208,7 +207,9 @@ export function enhanceNoxResponseVisuals(content: HTMLElement): number {
       pre.replaceWith(renderChart(chart));
       enhanced++;
     } else {
-      pre.replaceWith(renderPreview(kind, source, pre));
+      const visual = renderPreview(kind, source, pre);
+      pre.replaceWith(visual);
+      visual.querySelector(".nox-visual-stage")?.appendChild(pre);
       enhanced++;
     }
   }
