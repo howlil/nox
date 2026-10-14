@@ -3,6 +3,7 @@ import {
   LearningEvidence,
   LearningState,
 } from "../domain/learning-state/types";
+import { isRubricResults } from "../domain/practice/types";
 
 interface LearningEvidenceV1 {
   id: string;
@@ -39,7 +40,9 @@ function isKnowledgeGap(value: unknown): value is KnowledgeGap {
     isStringArray(gap.evidenceIds) &&
     (gap.status === "open" ||
       gap.status === "improving" ||
-      gap.status === "resolved")
+      gap.status === "resolved") &&
+    (gap.programId === undefined || typeof gap.programId === "string") &&
+    (gap.objectiveId === undefined || typeof gap.objectiveId === "string")
   );
 }
 
@@ -71,7 +74,12 @@ function isEvidenceV2(
     value as LearningEvidenceV1 & { scope?: unknown }
   ).scope;
 
-  return scope === "learner" || scope === "material";
+  if (scope !== "learner" && scope !== "material") return false;
+  const evidence = value as unknown as Record<string, unknown>;
+  return (evidence.programId === undefined || typeof evidence.programId === "string") &&
+    (evidence.objectiveId === undefined || typeof evidence.objectiveId === "string") &&
+    (evidence.assisted === undefined || typeof evidence.assisted === "boolean") &&
+    (evidence.rubricResults === undefined || isRubricResults(evidence.rubricResults));
 }
 
 function hasSharedShape(value: Record<string, unknown>): boolean {
