@@ -991,9 +991,11 @@ export class RunLearningTurn {
             await this.sessions.recordRegeneratedResponse(
               request.regenerate.messageIndex,
               request.regenerate.expectedContent,
-              { content: visibleText, sourcePath: snapshot.mutableFile },
+              { content: visibleText, sourcePath: snapshot.mutableFile,
+                thought: thoughtText.trim() || undefined, elapsedMs },
               turnSessionId,
               regeneratedConversationId,
+              metrics,
             );
           } else {
             await this.sessions.recordAssistantMessage(
