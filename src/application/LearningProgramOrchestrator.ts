@@ -39,6 +39,11 @@ export class LearningProgramOrchestrator {
     this.checkpointTimer = undefined;
   }
 
+  async flushTime(): Promise<void> {
+    await this.mutationTail;
+    await this.checkpointCurrentSession();
+  }
+
   private async checkpointCurrentSession(): Promise<void> {
     const current = await this.getActiveProgram();
     if (!current?.session) { this.stopCheckpointLoop(); return; }
@@ -143,16 +148,30 @@ export class LearningProgramOrchestrator {
   cancel() { this.currentAbort?.abort(); }
   async listPrograms(): Promise<ProgramCollection> { return this.store.load(); }
   async selectProgram(id: string): Promise<LearningProgram> {
-    if (this.isPlanning()) throw new Error("Another program operation is in progress.");
-    this.writing = true;
-    try {
-      const collection = await this.store.load();
-      const selected = collection.programs.find(p => p.id === id);
-      if (!selected) throw new Error("Unknown program ID. Run /programs to list saved plans.");
-      collection.activeProgramId = id;
-      await this.store.save(collection);
-      return selected;
-    } finally { this.writing = false; }
+    if (this.isPlanning() || this.activeAiTurnId) throw new Error("Finish the current learning operation before switching programs.");
+    const operation = this.mutationTail.then(async () => {
+      this.writing = true;
+      try {
+        const collection = await this.store.load();
+        const selected = collection.programs.find(p => p.id === id);
+        if (!selected) throw new Error("Unknown program ID. Run /programs to list saved plans.");
+        const previous = collection.programs.find(p => p.id === collection.activeProgramId);
+        const now = this.now();
+        if (previous?.session) {
+          previous.session = { ...previous.session, timing: recoverTiming(previous.session, now) };
+        }
+        if (selected.session) {
+          selected.session = { ...selected.session, timing: recoverTiming(selected.session, now) };
+        }
+        collection.activeProgramId = id;
+        await this.store.save(collection);
+        return selected;
+      } finally { this.writing = false; }
+    });
+    this.mutationTail = operation.then(() => {}, () => {});
+    const selected = await operation;
+    this.stopCheckpointLoop();
+    return selected;
   }
   async getActiveProgram(): Promise<LearningProgram | null> {
     const collection = await this.store.load();
