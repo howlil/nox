@@ -38,6 +38,7 @@ import {
 import { PracticeSessionRegistry } from "./PracticeSessionRegistry";
 import type { LearningProgram, LearningObjective } from "../domain/learning-program/types";
 import { chooseNextActivity } from "../domain/learning-program/rules";
+import { coversCriteria } from "../domain/learning-program/assessment-rubric";
 import {
   StructuredStreamEvent,
   StructuredStreamParser,
@@ -709,9 +710,12 @@ export class RunLearningTurn {
           }
 
           if (practiceAttempt && practiceBuffer.evaluation) {
-            if (practiceAttempt.programId && practiceBuffer.evaluation.outcome === "correct" &&
-                practiceBuffer.evaluation.rubricResults?.some(result => !result.met)) {
-              throw new InvalidLearningOutputError("Evaluation marked correct despite a failed rubric criterion.");
+            if (practiceAttempt.programId) {
+              const objective = program?.objectives.find(o => o.id === practiceAttempt.objectiveId);
+              if (!objective || !coversCriteria(objective.rubric, practiceBuffer.evaluation.rubricResults,
+                  practiceBuffer.evaluation.outcome)) {
+                throw new InvalidLearningOutputError("Evaluation did not fully and consistently assess the objective rubric.");
+              }
             }
             const evaluation = practiceAttempt.programId
               ? { ...practiceBuffer.evaluation, programId: practiceAttempt.programId,
