@@ -234,7 +234,7 @@ export class RunLearningTurn {
 
     try {
       const refs = [...request.explicitContext];
-      if (this.programStore && (request.action === "practice" || request.programActivity) && !lockedMode) {
+      if (this.programStore && (request.programActivity || (request.action === "practice" && !request.freePractice && (!activePracticeTurn || activePracticeTurn.programId))) && !lockedMode) {
         const collection = await this.programStore.load();
         program = collection.programs.find(item => item.id === collection.activeProgramId);
         if (request.programActivity && (request.programActivity.programId !== program?.id ||
