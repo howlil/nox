@@ -1950,6 +1950,7 @@ export class ChatView extends ItemView {
 
   private showEmpty(): void {
     this.transcriptRenderEpoch++;
+    this.restoringSession = false;
     this.transcriptSelection?.hide();
     this.stopLoadingTimer();
     this.thread.empty();
