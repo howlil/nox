@@ -1807,12 +1807,18 @@ export class ChatView extends ItemView {
     update(action);
     button.addEventListener("click", () => {
       if (this.uiState === "RUNNING" || !this.runtimeReady) return;
+      const draft = this.input.value.trim();
+      if (draft && (action.command?.trim() !== "/plan" || draft.startsWith("/"))) {
+        new Notice("Finish or clear your message before starting another learning action.");
+        this.focusComposer();
+        return;
+      }
       this.setAction("ask");
-      this.input.value = action.command ?? "";
+      this.input.value = draft ? `/plan ${draft}` : action.command ?? "";
       this.onInput();
       this.focusComposer();
-      // One click starts valid session commands; creating a plan needs a goal.
-      if (action.command && action.command.trim() !== "/plan") {
+      // Session commands are complete; /plan remains editable until the goal is ready.
+      if (!draft && action.command && action.command.trim() !== "/plan") {
         void this.doSend();
       }
     });
