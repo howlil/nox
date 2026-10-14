@@ -197,6 +197,7 @@ export class NoxComposer {
       text.createSpan({ cls: "nox-composer-reply-quote", text: reference.quote });
     }
     this.replyEl.toggleClass("nox-hidden", !reference);
+    this.composerBox.toggleClass("is-reply", Boolean(reference));
     this.syncInputLayout();
   }
 
