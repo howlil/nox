@@ -20,8 +20,8 @@ export function renderQuizCard(parent: HTMLElement, question: PracticeQuestion,
   card.createDiv({ cls: "nox-practice-label",
     text: "Practice · " + question.concept });
   card.createDiv({ cls: "nox-practice-question", text: question.question });
-  if (!question.input) return;
-  const input = question.input;
+  // Legacy practice questions render as interactive essay cards too.
+  const input = question.input ?? { type: "essay" as const };
   const disabled = !actions.active || !actions.questionId;
   const answerArea = card.createDiv({ cls: "nox-quiz-answer" });
   const status = card.createDiv({ cls: "nox-quiz-status", attr: { "aria-live": "polite" } });
