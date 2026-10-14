@@ -194,7 +194,26 @@ function renderPreview(
 }
 
 
-/** Enhance Obsidian-native Mermaid only after its SVG is available. */
+/** Return intrinsic graph bounds (not the parent chat width). Mermaid can have large whitespace. */
+function intrinsicMermaidWidth(svg: SVGSVGElement): number {
+  const box = svg.viewBox.baseVal;
+  let width = box.width || Number.parseFloat(svg.getAttribute("width") ?? "") || 480;
+  try {
+    const graphics = svg.getBBox();
+    if (graphics.width > 20 && graphics.height > 20 &&
+        box.width > graphics.width * 1.2 && box.height > graphics.height * 1.2) {
+      const margin = 16;
+      svg.setAttribute("viewBox", [
+        graphics.x - margin, graphics.y - margin,
+        graphics.width + margin * 2, graphics.height + margin * 2,
+      ].join(" "));
+      width = graphics.width + margin * 2;
+    }
+  } catch { /* Detached or browser-specific SVG: preserve native viewBox. */ }
+  return Math.max(160, Math.min(10000, width));
+}
+
+/** Obsidian owns Mermaid syntax/rendering; NOX owns responsive framing only. */
 export function enhanceNoxMermaidDiagrams(content: HTMLElement): number {
   let count = 0;
   for (const mermaid of Array.from(content.querySelectorAll<HTMLElement>(".mermaid"))) {
@@ -206,32 +225,42 @@ export function enhanceNoxMermaidDiagrams(content: HTMLElement): number {
     if (!svg.hasAttribute("viewBox") && width > 0 && height > 0) {
       svg.setAttribute("viewBox", "0 0 " + width + " " + height);
     }
+    const nativeWidth = intrinsicMermaidWidth(svg);
     const root = element("section", "nox-diagram");
     const toolbar = element("div", "nox-diagram-toolbar");
     const viewport = element("div", "nox-diagram-viewport");
     viewport.tabIndex = 0;
     viewport.setAttribute("role", "region");
-    viewport.setAttribute("aria-label", "Scrollable Mermaid diagram");
+    viewport.setAttribute("aria-label", "Mermaid diagram; zoom to inspect");
     const out = button("Zoom out", "minus");
-    const reset = button("Fit diagram", "scan");
+    const fit = button("Fit diagram", "scan");
     const zoomIn = button("Zoom in", "plus");
     const expand = button("Expand diagram", "maximize-2");
-    toolbar.append(out, reset, zoomIn, expand);
+    toolbar.append(out, fit, zoomIn, expand);
     mermaid.replaceWith(root);
     root.append(toolbar, viewport);
     viewport.append(mermaid);
-    let zoom = 100;
-    const applyZoom = () => {
-      mermaid.style.width = String(zoom) + "%";
-      out.disabled = zoom <= 100;
-      zoomIn.disabled = zoom >= 300;
-      reset.disabled = zoom === 100;
+    mermaid.dataset.noxSizing = "natural";
+    svg.setAttribute("preserveAspectRatio", "xMidYMid meet");
+
+    let zoom = 1;
+    const measure = () => {
+      // For tiny diagrams, use their natural size instead of stretching to 100%.
+      // For wide diagrams, fit the container; zoom activates local horizontal pan.
+      if (!root.isConnected) return;
+      const available = Math.max(160, viewport.clientWidth - 16);
+      const fittedWidth = Math.min(nativeWidth, available);
+      mermaid.style.width = Math.round(fittedWidth * zoom) + "px";
+      root.style.width = "min(100%, " + Math.ceil(nativeWidth + 16) + "px)";
+      out.disabled = zoom <= 0.75;
+      zoomIn.disabled = zoom >= 3;
+      fit.disabled = zoom === 1;
     };
-    out.addEventListener("click", () => { zoom = Math.max(100, zoom - 25); applyZoom(); });
-    zoomIn.addEventListener("click", () => { zoom = Math.min(300, zoom + 25); applyZoom(); });
-    reset.addEventListener("click", () => {
-      zoom = 100;
-      applyZoom();
+    out.addEventListener("click", () => { zoom = Math.max(0.75, zoom - 0.25); measure(); });
+    zoomIn.addEventListener("click", () => { zoom = Math.min(3, zoom + 0.25); measure(); });
+    fit.addEventListener("click", () => {
+      zoom = 1;
+      measure();
       viewport.scrollTo(0, 0);
     });
     const collapse = () => {
@@ -239,6 +268,7 @@ export function enhanceNoxMermaidDiagrams(content: HTMLElement): number {
       expand.setAttribute("aria-label", "Expand diagram");
       expand.title = "Expand diagram";
       setNoxIcon(expand, "maximize-2");
+      measure();
     };
     expand.addEventListener("click", () => {
       if (root.classList.contains("is-expanded")) collapse();
@@ -248,6 +278,7 @@ export function enhanceNoxMermaidDiagrams(content: HTMLElement): number {
         expand.title = "Close expanded diagram";
         setNoxIcon(expand, "minimize-2");
         expand.focus();
+        measure();
       }
     });
     root.addEventListener("keydown", event => {
@@ -256,7 +287,12 @@ export function enhanceNoxMermaidDiagrams(content: HTMLElement): number {
         collapse();
       }
     });
-    applyZoom();
+    const resize = new ResizeObserver(() => {
+      if (root.isConnected) measure();
+      else resize.disconnect();
+    });
+    resize.observe(viewport);
+    measure();
     count++;
   }
   return count;
