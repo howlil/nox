@@ -8,7 +8,7 @@ export function renderPracticeQuestionCard(parent: HTMLElement, question: Practi
   card.createDiv({ cls: "nox-practice-label", text: `Practice · ${question.concept}` });
   card.createDiv({ cls: "nox-practice-question", text: question.question });
   if (question.hint) {
-    card.createDiv({ cls: "nox-practice-hint", text: `Hint: ${question.hint}` });
+    card.createDiv({ cls: "nox-practice-hint", text: "Need a hint? Type /hint to reveal it." });
   }
 }
 
