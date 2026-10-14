@@ -21,6 +21,7 @@ export interface SessionPort {
   newSession(): Promise<ChatSession>;
   recordScopeChange(state: LearningScopeState, command: string, reply: string, sessionId: string): Promise<void>;
   recordUserMessage(content: string, sessionId?: string, action?: ChatMessage["action"]): Promise<void>;
+  recordPracticeHint(hint: string, sessionId: string): Promise<void>;
   savePracticeDraft(questionId: string, answer: PracticeAnswer, sessionId?: string): Promise<void>;
   setConversationId(conversationId?: string, sessionId?: string): Promise<void>;
   recordAssistantMessage(content: string, sourcePath?: string, sessionId?: string, thought?: string, elapsedMs?: number): Promise<void>;
