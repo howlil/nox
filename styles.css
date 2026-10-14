@@ -938,8 +938,8 @@
   right: auto;
   bottom: calc(100% + 8px);
   left: 0;
-  width: min(440px, 100%);
-  max-height: var(--nox-popover-max-height);
+  width: min(392px, 100%);
+  max-height: min(330px, calc(100vh - 120px));
   z-index: 20;
   overflow-y: auto;
   scrollbar-width: thin;
@@ -981,12 +981,12 @@
 .nox-prompt-menu-row {
   @apply grid w-full min-h-[34px] items-center gap-2 rounded-[6px] border-0 px-2 py-1.5 text-left;
   display: grid;
-  grid-template-columns: 22px minmax(0, auto) minmax(0, 1fr) auto;
+  grid-template-columns: 20px minmax(0, 1fr) auto;
   align-items: center;
   gap: 8px;
   width: 100%;
-  min-height: 34px;
-  padding: 6px 8px;
+  min-height: 40px;
+  padding: 6px 9px;
   border: 0;
   border-radius: var(--nox-radius-chip);
   background: transparent;
@@ -1010,6 +1010,46 @@
 
 .nox-prompt-menu-row.is-active .nox-prompt-menu-icon {
   color: var(--nox-accent-ink);
+}
+
+.nox-prompt-menu-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+  padding: 8px 9px 6px;
+  color: var(--nox-ink);
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.nox-prompt-menu-heading-hint {
+  color: var(--nox-ink-3);
+  font-size: 10px;
+  font-weight: 400;
+}
+
+.nox-prompt-menu-body {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  gap: 1px;
+}
+
+.nox-prompt-menu-body > .nox-prompt-menu-name,
+.nox-prompt-menu-body > .nox-prompt-menu-description {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+}
+
+.nox-prompt-menu-row .nox-prompt-menu-command {
+  justify-self: end;
+  max-width: 96px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .nox-prompt-menu-icon {
