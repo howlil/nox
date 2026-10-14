@@ -2,7 +2,7 @@ import type { AgentRuntimePort } from "../agent/AgentRuntime";
 import type { ContextPort, LearningStatePort, ProgramStorePort } from "./ports";
 import type { LearningProgram, ProgramCollection, ProgramConstraints, LearningDecision, SessionPauseReason } from "../domain/learning-program/types";
 import { chooseNextActivity, feasibility, validateConstraints, validateCurriculum } from "../domain/learning-program/rules";
-import { checkpointTiming, newSessionTiming, projectedTiming, recoverTiming, sessionRemainingMs, sessionTimeStatus, setTimingPause } from "../domain/learning-program/session-time";
+import { checkpointTiming, focusSessionObjective, newSessionTiming, projectedTiming, recoverTiming, sessionRemainingMs, sessionTimeStatus, setTimingPause } from "../domain/learning-program/session-time";
 
 /** Program planning and session selection. The model generates content, never transitions. */
 export class LearningProgramOrchestrator {
@@ -88,6 +88,23 @@ export class LearningProgramOrchestrator {
       return { ...program, session: { ...program.session,
         timing: setTimingPause(previous, reason, paused, now) } };
     });
+  }
+
+  async focusObjective(objectiveId: string): Promise<void> {
+    await this.updateActive(program => {
+      if (!program.session) throw new Error("Start a session before studying an objective.");
+      if (!program.objectives.some(o => o.id === objectiveId)) throw new Error("Unknown objective.");
+      const now = this.now();
+      const timing = program.session.timing ?? recoverTiming(program.session, now);
+      return { ...program, session: { ...program.session,
+        timing: focusSessionObjective(timing, objectiveId, now) } };
+    });
+  }
+
+  async setAppInactive(inactive: boolean): Promise<void> {
+    const program = await this.getActiveProgram();
+    if (!program?.session) return;
+    await this.setPause("app-inactive", inactive);
   }
 
   async pauseSession(): Promise<void> { await this.setPause("manual", true); }
@@ -193,6 +210,10 @@ export class LearningProgramOrchestrator {
           ...(finalTiming ? {
             activeMinutes: finalTiming.activeMs / 60_000,
             aiWaitingMinutes: finalTiming.aiWaitingMs / 60_000,
+            ...(finalTiming.objectiveActiveMs ? {
+              objectiveActiveMinutes: Object.fromEntries(Object.entries(finalTiming.objectiveActiveMs)
+                .map(([id, ms]) => [id, ms / 60_000])),
+            } : {}),
           } : {}),
         },
       ] };
