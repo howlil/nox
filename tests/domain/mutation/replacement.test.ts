@@ -74,6 +74,17 @@ test("supports multiline, CRLF, and unicode content", () => {
   );
 });
 
+test("overlapping matches are ambiguous rather than silently changing the first", () => {
+  assert.deepEqual(
+    planReplacement("aaaa", "aaa", "x"),
+    { ok: false, reason: "ambiguous" },
+  );
+  assert.deepEqual(
+    planReplacement("ababa", "aba", "x"),
+    { ok: false, reason: "ambiguous" },
+  );
+});
+
 test("empty originals are stale and non-overlapping duplicates are ambiguous", () => {
   assert.deepEqual(
     planReplacement("content", "", "x"),
