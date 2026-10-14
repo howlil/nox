@@ -320,6 +320,77 @@ export class SessionController {
     });
   }
 
+
+  /**
+   * Replace only the most recent plain assistant answer, atomically preserving
+   * up to eight alternatives. A failed model request never enters this writer.
+   */
+  async recordRegeneratedResponse(
+    messageIndex: number,
+    expectedContent: string,
+    replacement: import("../types").ResponseVersion,
+    sessionId: string,
+    conversationId?: string,
+  ): Promise<void> {
+    if (!replacement.content.trim()) throw new Error("Cannot save an empty regeneration.");
+    return this.serializeWrite(async () => {
+      await this.commitStoreTransaction(draft => {
+        const session = draft.getSession(sessionId);
+        if (!session) throw new Error("Regeneration session no longer exists.");
+        const message = session.messages[messageIndex];
+        const prompt = session.messages[messageIndex - 1];
+        if (messageIndex !== session.messages.length - 1 ||
+            message?.role !== "assistant" || message.content !== expectedContent ||
+            message.proposal || message.parts?.length ||
+            prompt?.role !== "user" ||
+            (prompt.action !== "ask" && prompt.action !== "explain")) {
+          throw new Error("Response changed during regeneration. Original answer preserved.");
+        }
+        const previous = message.responseVersions?.length
+          ? [...message.responseVersions]
+          : [{ content: message.content, sourcePath: message.sourcePath }];
+        const versions = [...previous, structuredClone(replacement)].slice(-8);
+        session.messages[messageIndex] = {
+          ...message,
+          content: replacement.content,
+          sourcePath: replacement.sourcePath,
+          responseVersions: versions,
+          responseVersionIndex: versions.length - 1,
+        };
+        // Opaque provider cursor is only valid for this newly generated branch.
+        session.conversationId = conversationId;
+        draft.updateSession(session);
+      });
+    });
+  }
+
+  /** Selection is persisted in the canonical transcript, never only in DOM. */
+  async selectResponseVersion(
+    messageIndex: number, versionIndex: number, sessionId: string,
+  ): Promise<void> {
+    return this.serializeWrite(async () => {
+      await this.commitStoreTransaction(draft => {
+        const session = draft.getSession(sessionId);
+        if (!session) throw new Error("Response session no longer exists.");
+        const message = session.messages[messageIndex];
+        const version = message?.responseVersions?.[versionIndex];
+        if (message?.role !== "assistant" || message.proposal || message.parts?.length ||
+            !version || !Number.isInteger(versionIndex)) {
+          throw new Error("Response version is unavailable.");
+        }
+        session.messages[messageIndex] = {
+          ...message,
+          content: version.content,
+          sourcePath: version.sourcePath,
+          responseVersionIndex: versionIndex,
+        };
+        // Switching branch invalidates opaque provider-owned conversation state.
+        session.conversationId = undefined;
+        draft.updateSession(session);
+      });
+    });
+  }
+
   async recordStructuredPart(
     part: TranscriptPart,
     sourcePath?: string,
