@@ -9,6 +9,7 @@ export interface NoxHistoryCallbacks {
   open(id: string): Promise<void>;
   mutate(ids: string[], action: HistoryAction): Promise<void>;
   confirmDelete(count: number): Promise<boolean>;
+  appearance(): "system" | "light" | "dark";
 }
 
 /**
@@ -188,13 +189,28 @@ export class NoxHistoryList {
     more.addEventListener("click", () => {
       if (this.selecting || this.busy) return;
       this.closeSwipe();
+      // Obsidian's Menu normally mounts on body, outside NOX's appearance scope.
+      // A temporary, fixed portal preserves native menu semantics without
+      // leaking the host theme when NOX explicitly selects Light or Dark.
+      const portal = document.body.createDiv({ cls: "nox-theme-portal nox-menu-portal" });
+      const appearance = this.callbacks.appearance();
+      portal.toggleClass("nox-force-light", appearance === "light");
+      portal.toggleClass("nox-force-dark", appearance === "dark");
       const menu = new Menu();
+      menu.setUseNativeMenu(false);
+      menu.setParentElement(portal);
+      menu.onHide(() => portal.remove());
       menu.addItem(entry => entry.setTitle(primaryLabel).setIcon(primaryIcon)
         .onClick(() => void this.run([session.id], primaryAction)));
-      menu.addItem(entry => entry.setTitle("Delete").setIcon("trash-2")
+      menu.addItem(entry => entry.setTitle("Delete").setIcon("trash-2").setWarning(true)
         .onClick(() => void this.run([session.id], "delete")));
       const bounds = more.getBoundingClientRect();
-      menu.showAtPosition({ x: Math.round(bounds.right), y: Math.round(bounds.bottom) });
+      try {
+        menu.showAtPosition({ x: Math.round(bounds.right), y: Math.round(bounds.bottom) });
+      } catch (error) {
+        portal.remove();
+        this.report(error);
+      }
     });
     if (this.selecting) more.addClass("nox-hidden");
 
