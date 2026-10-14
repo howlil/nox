@@ -69,7 +69,7 @@ a:focus-visible, button:focus-visible, input:focus-visible { outline: 2px solid 
 .floating-nav-shell.is-scrolled .capsule-link[aria-current] { color: #5636ae; }
 .capsule-link:hover:not([aria-current]) { background: rgba(255,255,255,.1); }
 .floating-nav-shell.is-scrolled .capsule-link:hover:not([aria-current]) { background: rgba(117,76,190,.08); }
-.capsule-actions { display: flex; align-items: center; gap: 7px; }
+.capsule-actions { display: flex; align-items: center; gap: 7px; margin-left: auto; }
 .capsule-github, .floating-capsule .capsule-sponsor { display: inline-flex; align-items: center; justify-content: center; gap: 7px; white-space: nowrap; min-height: 39px; padding: 9px 15px; border-radius: 9999px; font-size: 12px; font-weight: 650; line-height: 1; }
 .capsule-github { border: 1px solid rgba(255,255,255,.23); color: #f9f5ff; background: rgba(255,255,255,.1); }
 .floating-nav-shell.is-scrolled .capsule-github { border-color: rgba(80,52,123,.13); color: #302148; background: #f7f5fc; }
