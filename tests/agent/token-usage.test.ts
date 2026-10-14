@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { decodeTokenUsage, isAgentUsageRecord, summarizeUsage } from "../../src/agent/token-usage";
+import { decodeTokenUsage, isAgentUsageRecord, summarizeUsage } from "../../src/domain/telemetry/token-usage";
 
 test("provider usage decodes only validated non-negative integers", () => {
   assert.deepEqual(decodeTokenUsage({
