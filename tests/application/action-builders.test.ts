@@ -65,3 +65,11 @@ test("practice evaluation preserves the exact question and answer", () => {
   );
   assert.match(instruction, /correct\|partial\|incorrect/);
 });
+
+
+test("visual affordances are restricted to ordinary narrative output", () => {
+  assert.match(buildActionInstruction("ask"), /html-preview/);
+  assert.match(buildActionInstruction("explain"), /nox-chart/);
+  assert.doesNotMatch(buildActionInstruction("review"), /html-preview/);
+  assert.doesNotMatch(buildActionInstruction("edit"), /nox-chart/);
+});

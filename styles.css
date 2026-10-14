@@ -3206,3 +3206,94 @@
   .nox-evaluation-reveal-body { animation: none; }
   .nox-evaluation-reveal > summary::after { transition: none; }
 }
+
+
+/* Assistant response visuals: content-first, theme-aware, no floating nested cards. */
+.nox-root .nox-visual {
+  min-width: 0;
+  max-width: 100%;
+  margin: 12px 0;
+  border: 1px solid var(--nox-line);
+  border-radius: var(--nox-radius-card);
+  background: var(--nox-surface);
+  overflow: hidden;
+}
+.nox-visual-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 7px 10px;
+  border-bottom: 1px solid var(--nox-line);
+}
+.nox-visual-title { font-size: 12px; font-weight: 650; color: var(--nox-ink); }
+.nox-visual-controls { display: flex; flex-wrap: wrap; gap: 3px; }
+.nox-visual-action {
+  font: inherit;
+  font-size: 11px;
+  line-height: 1.4;
+  min-height: 28px;
+  padding: 4px 8px;
+  border-radius: var(--nox-radius-control);
+  background: transparent;
+  color: var(--nox-ink-2);
+  border: 1px solid transparent;
+  cursor: pointer;
+}
+.nox-visual-action:hover { background: var(--nox-hover); color: var(--nox-ink); }
+.nox-visual-action[aria-pressed="true"] {
+  color: var(--nox-ink);
+  background: var(--nox-inset);
+  border-color: var(--nox-line);
+}
+.nox-visual-action:disabled { opacity: .5; cursor: not-allowed; }
+.nox-visual-action[hidden] { display: none; }
+.nox-visual-stage { min-width: 0; background: var(--nox-inset); }
+.nox-root .nox-visual-source {
+  margin: 0;
+  max-height: 350px;
+  overflow: auto;
+  border: 0;
+  border-radius: 0;
+}
+.nox-root .nox-visual-frame {
+  display: block;
+  width: 100%;
+  height: 270px;
+  border: 0;
+  background: #fff;
+  color-scheme: light;
+}
+.nox-visual-warning { margin: 5px 0; color: var(--nox-orange); font-size: 11px; }
+.nox-visual .nox-visual-warning { padding: 8px 10px; }
+.nox-root .nox-chart-svg { display: block; width: 100%; height: auto; }
+.nox-chart-grid { stroke: var(--nox-line); stroke-width: 1; }
+.nox-chart-text { fill: var(--nox-ink-2); font-size: 9px; font-family: inherit; }
+.nox-chart-bar { fill: var(--nox-accent); opacity: .9; }
+.nox-chart-line { fill: none; stroke: var(--nox-accent); stroke-width: 2; stroke-linejoin: round; }
+.nox-chart-dot { fill: var(--nox-accent); stroke: var(--nox-surface); stroke-width: 1; }
+.nox-chart-data { border-top: 1px solid var(--nox-line); padding: 5px 10px; }
+.nox-chart-data summary { color: var(--nox-ink-2); font-size: 11px; cursor: pointer; padding: 3px 0; }
+.nox-chart-data table { margin: 8px 0 4px; width: 100%; }
+.nox-chart-data th, .nox-chart-data td { font-size: 11px; }
+
+
+/* Read-only prerequisite map; objective details below are still keyboard-accessible. */
+.nox-learning-map-scroll {
+  max-width: 100%;
+  max-height: 245px;
+  overflow: auto;
+  margin: 10px 0;
+  padding: 2px;
+  border: 1px solid var(--nox-line);
+  border-radius: var(--nox-radius-control);
+  background: var(--nox-page);
+}
+.nox-learning-map-svg { display: block; max-width: none; }
+.nox-learning-map-edge { fill: none; stroke: var(--nox-line-strong); stroke-width: 1.5; }
+.nox-learning-map-node rect { fill: var(--nox-surface); stroke: var(--nox-line-strong); stroke-width: 1; }
+.nox-learning-map-node[data-status="mastered"] rect { stroke: var(--nox-green); }
+.nox-learning-map-node[data-status="remediate"] rect { stroke: var(--nox-orange); }
+.nox-learning-map-title { fill: var(--nox-ink); font-size: 10px; font-weight: 600; }
+.nox-learning-map-status { fill: var(--nox-ink-2); font-size: 9px; }

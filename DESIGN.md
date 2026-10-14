@@ -460,3 +460,22 @@ The complete ownership/state graph, test cases, and failure policy live in
 - Animate only in-card disclosure (160ms opacity/position); reduced-motion
   removes nonessential animation. Use `NoxButton` and `NoxSurface`;
   do not create another CSS button or feedback-card design system.
+
+
+## Rich response visualization — 2026-10-14
+
+Plain Markdown remains the default response. Obsidian MarkdownRenderer owns headings,
+tables, links, mathematics, syntax highlighting, and Mermaid diagrams.
+
+Only opt-in fenced html-preview, svg-preview, and nox-chart blocks get a dedicated
+functional container. These use existing semantic tokens, compact 11–13px labels,
+small controls, keyboard focus and read-only source fallback. HTML/SVG begin on
+Code tab; running previews require explicit click and isolated sandbox iframes.
+Restored transcripts never auto-execute embedded code.
+
+The learning map displays a read-only prerequisite diagram plus existing accessible
+objective details. Overflow is scrollable; cycles and excessive node counts
+degrade to textual hierarchy. Geometry is derived from program state; graphs
+cannot change curriculum or mastery.
+
+See docs/RESPONSE_VISUALS.md for schema, safety and manual acceptance gates.

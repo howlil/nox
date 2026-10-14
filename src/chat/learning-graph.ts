@@ -1,5 +1,62 @@
 import type { NoxProgramOverview } from "../application/learning-types";
 import { createNoxButton, setNoxIcon } from "./primitives";
+import { layoutLearningMap, LEARNING_MAP_NODE_SIZE, type LearningMapLayout } from "./learning-graph-layout";
+
+const SVG_NS = "http://www.w3.org/2000/svg";
+
+/** Read-only spatial overview; the accessible details below remain the action surface. */
+function appendDependencyDiagram(parent: HTMLElement, layout: LearningMapLayout): void {
+  if (layout.problem) {
+    parent.createDiv({ cls: "nox-inspector-muted", text: layout.problem === "cycle"
+      ? "A prerequisite cycle was detected. Showing the objective details instead."
+      : "This plan is too large for the compact map. Browse the objectives below." });
+    return;
+  }
+  if (!layout.nodes.length) return;
+  const scroller = parent.createDiv({ cls: "nox-learning-map-scroll" });
+  scroller.setAttribute("tabindex", "0");
+  scroller.setAttribute("role", "region");
+  scroller.setAttribute("aria-label", "Prerequisite graph; scroll horizontally to explore");
+  const svg = document.createElementNS(SVG_NS, "svg");
+  svg.classList.add("nox-learning-map-svg");
+  svg.setAttribute("viewBox", "0 0 " + layout.width + " " + layout.height);
+  svg.setAttribute("width", String(layout.width));
+  svg.setAttribute("height", String(layout.height));
+  svg.setAttribute("role", "img");
+  svg.setAttribute("aria-label", layout.nodes.length + " objectives and " + layout.edges.length + " prerequisite connections");
+  for (const edge of layout.edges) {
+    const path = document.createElementNS(SVG_NS, "path");
+    const bend = Math.max(12, (edge.x2 - edge.x1) / 2);
+    path.setAttribute("d", "M" + edge.x1 + " " + edge.y1 + " C" + (edge.x1 + bend) + " " + edge.y1 + "," + (edge.x2 - bend) + " " + edge.y2 + "," + edge.x2 + " " + edge.y2);
+    path.classList.add("nox-learning-map-edge");
+    svg.appendChild(path);
+  }
+  for (const node of layout.nodes) {
+    const group = document.createElementNS(SVG_NS, "g");
+    group.classList.add("nox-learning-map-node");
+    group.setAttribute("data-status", node.status);
+    const rect = document.createElementNS(SVG_NS, "rect");
+    rect.setAttribute("x", String(node.x));
+    rect.setAttribute("y", String(node.y));
+    rect.setAttribute("rx", "7");
+    rect.setAttribute("width", String(LEARNING_MAP_NODE_SIZE.width));
+    rect.setAttribute("height", String(LEARNING_MAP_NODE_SIZE.height));
+    const title = document.createElementNS(SVG_NS, "title");
+    title.textContent = node.title + " · " + node.status;
+    group.append(rect, title);
+    for (const [index, line] of [node.title.length > 23 ? node.title.slice(0, 22) + "…" : node.title,
+      node.status].entries()) {
+      const text = document.createElementNS(SVG_NS, "text");
+      text.classList.add(index === 0 ? "nox-learning-map-title" : "nox-learning-map-status");
+      text.setAttribute("x", String(node.x + 10));
+      text.setAttribute("y", String(node.y + (index === 0 ? 17 : 31)));
+      text.textContent = line;
+      group.appendChild(text);
+    }
+    svg.appendChild(group);
+  }
+  scroller.appendChild(svg);
+}
 
 /** Accessible dependency-level navigator. The application owns every learning decision. */
 export function renderLearningGraph(
@@ -26,20 +83,16 @@ export function renderLearningGraph(
     "aria-valuemax": String(overview.objectives.length), "aria-valuenow": String(mastered) } });
   const fill = track.createDiv();
   fill.style.width = (overview.objectives.length ? (mastered / overview.objectives.length) * 100 : 0) + "%";
-  const levels = new Map<string, number>();
+  const layout = layoutLearningMap(overview.objectives.map(item => ({
+    id: item.objective.id, title: item.objective.title, status: item.status,
+    prerequisiteIds: item.objective.prerequisiteIds,
+  })));
+  appendDependencyDiagram(root, layout);
   const nodes = new Map(overview.objectives.map(item => [item.objective.id, item.objective]));
-  function depth(id: string): number {
-    if (levels.has(id)) return levels.get(id)!;
-    const node = nodes.get(id);
-    if (!node) return 0;
-    const value = node.prerequisiteIds.length
-      ? 1 + Math.max(...node.prerequisiteIds.map(depth)) : 0;
-    levels.set(id, value);
-    return value;
-  }
-  for (const item of overview.objectives) depth(item.objective.id);
+  const levels = new Map(layout.nodes.map(node => [node.id, node.level]));
   const ordered = [...overview.objectives].sort((a, b) =>
-    depth(a.objective.id) - depth(b.objective.id) || a.objective.title.localeCompare(b.objective.title));
+    (levels.get(a.objective.id) ?? 0) - (levels.get(b.objective.id) ?? 0) ||
+    a.objective.title.localeCompare(b.objective.title));
   for (const item of ordered) {
     const node = root.createEl("details", { cls: "nox-graph-node" });
     node.dataset.status = item.status;
