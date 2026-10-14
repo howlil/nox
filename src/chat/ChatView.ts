@@ -235,6 +235,10 @@ export class ChatView extends ItemView {
     this.transcriptSelection = new TranscriptSelectionController(root, this.thread, reference => {
       if (this.uiState === "RUNNING" ||
           reference.sourceSessionId !== this.learning.getSession().id) return;
+      if (isLockedLearningMode(this.learning.getSession().learningScope?.mode)) {
+        new Notice("Pause the assessment before asking about a chat quote.");
+        return;
+      }
       this.pendingReplyTo = reference;
       this.composerUi.setReplyReference(reference);
       this.setAction("ask");
@@ -1498,6 +1502,10 @@ export class ChatView extends ItemView {
   private async doSend(): Promise<void> {
     const prompt = this.input.value.trim() || "Review the attached context.";
     if (!this.canSend() || this.uiState === "RUNNING") return;
+    if (this.pendingReplyTo && prompt.startsWith("/")) {
+      new Notice("Remove the quoted response before running a command.");
+      return;
+    }
 
     this.closeModelMenu();
     const request: LearningRequest = {
