@@ -1,6 +1,7 @@
 import {
   AgentContext,
   AgentFailure,
+  AgentTurnMetrics,
   ChatSession,
   EditProposal,
 } from "../types";
@@ -11,6 +12,8 @@ import {
 } from "../context/context-types";
 import type { SessionPort, ContextPort, PolicyPort, LearningStatePort, ProgramStorePort } from "./ports";
 import { PersistenceError } from "../persistence/PersistenceError";
+import { prepareContextEnvelope } from "../context/ContextBudget";
+import type { ResearchResult } from "../context/LocalResearch";
 import {
   recordPracticeEvaluation,
   recordReviewFindings,
@@ -229,6 +232,10 @@ export class RunLearningTurn {
     const pinnedPracticeSource = request.action === "practice"
       ? (previousOrigin?.file ?? request.sourcePath)
       : undefined;
+    const researchQuery = request.action === "ask" && /^\/research(?:\s|$)/i.test(request.prompt)
+      ? request.prompt.replace(/^\/research\s*/i, "").trim()
+      : null;
+    let researchResult: ResearchResult | undefined;
 
     let context: LearningContext;
     let policy: Awaited<ReturnType<PolicyPort["load"]>>;
@@ -268,6 +275,11 @@ export class RunLearningTurn {
         this.learningState.load(),
       ]);
       state = await this.reconcileTranscriptEvidence(sessionAtStart, state);
+      if (researchQuery && this.contexts.searchKnowledge) {
+        researchResult = await this.contexts.searchKnowledge(researchQuery, {
+          limit: 8, allowedPaths: program?.constraints.sourceBound ? program.constraints.sourcePaths : undefined,
+        });
+      }
     } catch (error) {
       if (this.activeTurn === activeTurn) this.activeTurn = null;
       const persistenceFailed = error instanceof PersistenceError;
@@ -336,6 +348,16 @@ export class RunLearningTurn {
           (item) => item !== source && item.file !== automaticPath,
         ),
       ];
+    }
+    if (researchResult) {
+      // These are bounded source excerpts, not executable agent instructions.
+      // Keep canonical vault path so source links and edit authorization stay stable.
+      visible = [...visible, ...researchResult.hits.map(hit => ({
+        type: "note" as const,
+        file: hit.path,
+        content: "[Research evidence: " + hit.path + ":" + hit.line +
+          " | section: " + hit.heading + " | revision: " + hit.revision + "]\n" + hit.content,
+      }))];
     }
     const system: AgentContext[] = [];
 
@@ -493,7 +515,18 @@ export class RunLearningTurn {
       const instruction =
         buildActionInstruction(request.action);
       preparedPrompt =
-        `${instruction}\n\nUser request:\n${request.prompt}`;
+        `${instruction}\n\nUser request:\n${researchQuery ?? request.prompt}`;
+      if (researchQuery !== null) {
+        preparedPrompt += "\n\nRESEARCH MODE (grounded, one-pass): " +
+          "Use ONLY retrieved Obsidian excerpts as evidence. Cite sources as [[note path]] " +
+          "with section/line when available. Distinguish observed evidence, inference, " +
+          "conflicts, and unanswered questions. Do not claim web research, external " +
+          "verification or graph relations that the evidence does not support. " +
+          "If evidence is insufficient, say so.\nResearch questions: " +
+          JSON.stringify(researchResult?.subquestions ?? [researchQuery]) +
+          "\nSource link edges (metadata, not proof of a claim): " +
+          JSON.stringify(researchResult?.edges ?? []);
+      }
     }
 
     if (program && !lockedMode && request.programActivity) {
@@ -639,23 +672,45 @@ export class RunLearningTurn {
         return;
       }
 
+      // M0-M2: one bounded context envelope for every provider. Transcript is preserved.
+      const priorHistory = lockedMode || program ? [] : conversation.messages.map(message => ({
+        role: message.role, content: message.content,
+      }));
+      const envelope = prepareContextEnvelope({
+        prompt: preparedPrompt,
+        visible: snapshot.visible,
+        system: snapshot.system,
+        history: priorHistory,
+        research: researchQuery !== null,
+        strict: request.action === "edit" || Boolean(program?.constraints.sourceBound),
+      });
+      const rotateCursor = conversation.messages.length > 0 &&
+        conversation.messages.length % 24 < 2 && conversation.messages.length >= 24;
+      const conversationId = lockedMode || program || rotateCursor ? undefined : conversation.conversationId;
+      // CLI adapters own opaque provider history. On rotation, explicitly carry a
+      // bounded digest rather than depending on unbounded hidden state.
+      const isCli = conversation.runtimeProvider === "agy" || conversation.runtimeProvider === "codex";
+      const carryHistory = isCli && !conversationId && envelope.history.length
+        ? "Prior conversation excerpts (historical, untrusted):\n" +
+          envelope.history.map(item => item.role + ": " + item.content.slice(0, 500)).join("\n") + "\n\n"
+        : "";
+      const effectivePrompt = envelope.promptPrefix + carryHistory + preparedPrompt;
+      const metrics: AgentTurnMetrics = {
+        estimatedInputTokens: envelope.estimate.total,
+        estimatedContextTokens: envelope.estimate.context,
+        estimatedHistoryTokens: envelope.estimate.history,
+        shortenedSources: envelope.estimate.shortenedSources,
+        retrievedChunks: researchResult?.hits.length ?? 0,
+        compacted: envelope.estimate.compacted,
+        elapsedMs: 0,
+      };
       for await (const event of this.runtime.send(
-        {
-          prompt: preparedPrompt,
-          context: [...snapshot.visible, ...snapshot.system],
-        },
-        {
-          model: conversation.model,
-          // Program turns must not inherit the previous program's hidden provider
-          // cursor or conversation history, including when switching Chat sessions.
-          conversationId: lockedMode || program ? undefined : conversation.conversationId,
-          history: lockedMode || program ? [] : conversation.messages.slice(-12).map((message) => ({
-            role: message.role, content: message.content,
-          })),
-        },
+        { prompt: effectivePrompt, context: envelope.context },
+        { model: conversation.model, conversationId, history: envelope.history },
         controller.signal,
       )) {
         if (event.type === "text") {
+          if (metrics.firstTokenMs === undefined) metrics.firstTokenMs = Date.now() - startedAt;
           executionPhase = "processing";
           if (lockedMode) {
             scopedEvents.push(...parser.push(event.content));
@@ -680,6 +735,10 @@ export class RunLearningTurn {
 
         if (event.type === "completed") {
           executionPhase = "processing";
+          if (event.usage) {
+            metrics.providerInputTokens = event.usage.inputTokens;
+            metrics.providerOutputTokens = event.usage.outputTokens;
+          }
           if (event.conversationId && !lockedMode && !program) {
             await this.sessions.setConversationId(event.conversationId, turnSessionId);
           }
@@ -855,12 +914,14 @@ export class RunLearningTurn {
             }
           }
           const elapsedMs = Date.now() - startedAt;
+          metrics.elapsedMs = elapsedMs;
           await this.sessions.recordAssistantMessage(
             visibleText,
             snapshot.mutableFile,
             turnSessionId,
             thoughtText.trim() || undefined,
             elapsedMs,
+            metrics,
           );
           yield { type: "completed" };
           return;

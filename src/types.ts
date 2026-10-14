@@ -41,7 +41,7 @@ export type AgentHealth =
 
 export type AgentStreamEvent =
   | { type: "text"; content: string }
-  | { type: "completed"; conversationId?: string }
+  | { type: "completed"; conversationId?: string; usage?: { inputTokens: number; outputTokens: number } }
   | { type: "failed"; failure: AgentFailure }
   | { type: "cancelled" };
 
@@ -69,6 +69,20 @@ export type ApplyResult =
       message: string;
     };
 
+/** Provider-measured numbers are separate from budget estimates. */
+export interface AgentTurnMetrics {
+  estimatedInputTokens: number;
+  estimatedContextTokens: number;
+  estimatedHistoryTokens: number;
+  shortenedSources: number;
+  retrievedChunks: number;
+  compacted: boolean;
+  firstTokenMs?: number;
+  elapsedMs: number;
+  providerInputTokens?: number;
+  providerOutputTokens?: number;
+}
+
 // ── Session ─────────────────────────────────────────────────────────────────
 
 export interface ChatMessage {
@@ -84,6 +98,7 @@ export interface ChatMessage {
   proposalState?: "pending" | "applied" | "rejected" | "stale";
   thought?: string;
   elapsedMs?: number;
+  metrics?: AgentTurnMetrics;
 }
 
 export interface AgentModel {

@@ -240,6 +240,7 @@ export class SessionController {
     sessionId?: string,
     thought?: string,
     elapsedMs?: number,
+    metrics?: import("../types").AgentTurnMetrics,
   ): Promise<void> {
     if (!content.trim() && !thought?.trim()) return;
     return this.serializeWrite(async () => {
@@ -252,6 +253,7 @@ export class SessionController {
           sourcePath,
           ...(thought?.trim() ? { thought: thought.trim() } : {}),
           ...(typeof elapsedMs === "number" ? { elapsedMs } : {}),
+          ...(metrics ? { metrics: structuredClone(metrics) } : {}),
         });
         draft.updateSession(session);
       });

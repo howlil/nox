@@ -48,6 +48,22 @@ See `docs/LEARNING_ORCHESTRATOR.md` for the decision policy and limitations.
 - Persists sessions, model preferences, and structured learning cards in the plugin data.
 - Restores an unanswered practice question with its original note context after reopening the sidebar or switching sessions.
 
+## Context-bounded research
+
+Nox uses a bounded per-turn context envelope instead of sending entire local
+history and every attached note to the model. Ordinary chat remains single-call.
+Type `/research <question>` (or find **Research notes** by searching the
+Actions menu) for on-demand local Markdown content search and link-assisted
+research. Evidence points back to vault note paths. This is not web search,
+a remote embedding service, or a claim of external verification.
+
+Inference on the ChatGPT provider uses Node HTTPS incremental SSE on Obsidian
+desktop, while model discovery and authentication continue to use the Obsidian
+HTTP transport. Inference is never replayed automatically on a streaming failure.
+Node transport compatibility requires testing on the actual desktop installation.
+See [context/research engineering contract](docs/CONTEXT_RESEARCH_ENGINE.md)
+for budgets, telemetry, privacy/source restrictions and limitations.
+
 ## Requirements
 
 - Obsidian desktop `1.4.0` or newer.

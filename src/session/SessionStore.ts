@@ -186,6 +186,28 @@ export class SessionStore {
     if (typeof raw.elapsedMs === "number" && Number.isFinite(raw.elapsedMs) && raw.elapsedMs >= 0) {
       message.elapsedMs = raw.elapsedMs;
     }
+    if (raw.metrics && typeof raw.metrics === "object" && !Array.isArray(raw.metrics)) {
+      const item = raw.metrics as Record<string, unknown>;
+      const finite = (key: string) => typeof item[key] === "number" &&
+        Number.isFinite(item[key]) && (item[key] as number) >= 0;
+      const numbers = ["estimatedInputTokens", "estimatedContextTokens",
+        "estimatedHistoryTokens", "shortenedSources", "retrievedChunks", "elapsedMs"];
+      if (numbers.every(finite) && typeof item.compacted === "boolean") {
+        const metrics: NonNullable<ChatMessage["metrics"]> = {
+          estimatedInputTokens: item.estimatedInputTokens as number,
+          estimatedContextTokens: item.estimatedContextTokens as number,
+          estimatedHistoryTokens: item.estimatedHistoryTokens as number,
+          shortenedSources: item.shortenedSources as number,
+          retrievedChunks: item.retrievedChunks as number,
+          elapsedMs: item.elapsedMs as number,
+          compacted: item.compacted,
+        };
+        if (finite("firstTokenMs")) metrics.firstTokenMs = item.firstTokenMs as number;
+        if (finite("providerInputTokens")) metrics.providerInputTokens = item.providerInputTokens as number;
+        if (finite("providerOutputTokens")) metrics.providerOutputTokens = item.providerOutputTokens as number;
+        message.metrics = metrics;
+      }
+    }
 
     if (raw.role === "assistant" && raw.proposal && typeof raw.proposal === "object") {
       const proposal = raw.proposal as Record<string, unknown>;
