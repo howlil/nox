@@ -34,11 +34,29 @@ export function isPracticeInput(input: unknown): input is PracticeInput {
   return false;
 }
 
+function isInstructions(value: unknown): boolean {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const v = value as Record<string, unknown>;
+  const single = ["title", "brief"] as const;
+  const groups = ["tasks", "requirements", "given", "expectedOutput"] as const;
+  if (!single.every(key => v[key] === undefined ||
+    (typeof v[key] === "string" && (v[key] as string).trim().length > 0 &&
+      (v[key] as string).length <= (key === "title" ? 180 : 1800)))) return false;
+  if (!groups.every(key => v[key] === undefined ||
+    (Array.isArray(v[key]) && (v[key] as unknown[]).length > 0 &&
+      (v[key] as unknown[]).length <= 12 &&
+      (v[key] as unknown[]).every(item => text(item, 500))))) return false;
+  return v.referenceCode === undefined ||
+    (typeof v.referenceCode === "string" && v.referenceCode.length > 0 &&
+      v.referenceCode.length <= 12000);
+}
+
 export function isPracticeQuestion(input: unknown): input is PracticeQuestion {
   if (!input || typeof input !== "object" || Array.isArray(input)) return false;
   const x = input as Record<string, unknown>;
   return x.kind === "question" && text(x.concept, 300) && text(x.question, 12000) &&
     (x.hint === undefined || (typeof x.hint === "string" && x.hint.length <= 2000)) &&
+    (x.instructions === undefined || isInstructions(x.instructions)) &&
     (x.input === undefined || isPracticeInput(x.input)) &&
     (x.programId === undefined || text(x.programId, 250)) &&
     (x.objectiveId === undefined || text(x.objectiveId, 250));
