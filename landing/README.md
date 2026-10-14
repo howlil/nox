@@ -32,14 +32,14 @@ pnpm exec wrangler deploy
 Use `pnpm exec wrangler whoami` to confirm the target account before deploying.
 The first manual deploy creates the `nox` Worker; later deploys update it. Assign a custom domain in Cloudflare Dashboard → Workers & Pages → nox → Settings/Domains. Do not turn on Git integration or Workers Builds.
 
-The landing page exposes a single **Download plugin** action in the header and hero. Both use the free Arc UI Action Button component and open the official NOX GitHub Releases page. The button confirms opening the page, **not** successful downloading or installation. Publish and verify an installable Obsidian plugin release before advertising a direct artifact download.
+The header keeps **Star on GitHub** and **Sponsor** actions (no section-navigation links). Sponsor defaults to the same GitHub Sponsors destination used in Modu; `PUBLIC_SPONSOR_URL` can override it at build time. The hero alone contains **Download plugin**, implemented with the free Arc UI Action Button and pointing to NOX GitHub Releases. The button confirms opening the page, **not** downloading or installing a plugin. Verify installable release assets before describing this as a direct download.
 
 ## Architecture
 
 ```text
 landing/
   src/pages/index.astro       # SEO and static content
-  src/components/FloatingNav.tsx        # transparent-to-floating header; brand + one CTA
+  src/components/FloatingNav.tsx        # transparent-to-floating header; brand, Star, Sponsor
   src/components/DownloadPluginButton.tsx  # reusable Arc UI release CTA
   src/components/LearningDemo.tsx      # React island, Arc segmented control + Motion
   src/components/MascotMotion.tsx # lightweight Motion mascot entrance/idle
@@ -58,7 +58,7 @@ The logo and mascot represent original NOX branding; the interactive learning ex
 ## Verification checklist
 
 - `pnpm check && pnpm build`
-- Keyboard: tab to the logo and Download plugin CTA; activate via Enter/Space; test practice segmented control
+- Keyboard: tab through logo, navbar Star and Sponsor, hero Download plugin; activate using Enter/Space; test practice segmented control
 - Viewports: 390px, 768px, 1440px; no horizontal scrolling
 - Reduced motion: OS setting disables continuous motion
 - Smoke-test `wrangler deploy --dry-run` after build; only deploy after authenticating to your account
