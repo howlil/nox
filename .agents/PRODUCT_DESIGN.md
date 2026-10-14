@@ -27,8 +27,11 @@ The core promise is:
 > **Nox helps the user understand, test, review, and safely improve learning
 > material without leaving the note they are working on.**
 
-Nox is not primarily a chatbot dashboard, course builder, autonomous note
-rewriter, provider manager, or progress analytics product.
+Nox is not primarily a chatbot dashboard, autonomous note rewriter, provider
+manager, or progress analytics product. It additionally supports opt-in,
+goal-based **domain-neutral learning programs** with validated curricula,
+explicit constraints, objective-scoped evidence and timeboxed sessions.
+See `docs/LEARNING_ORCHESTRATOR.md` for the newer product contract.
 
 ---
 
@@ -291,6 +294,18 @@ start Practice
 ```
 
 ---
+
+### Domain-neutral learning programs (2026-10-14)
+
+General programs are created with `/plan`; they are NOT implicitly backend-scoped.
+Program objectives and prerequisites come from a validated curriculum, activity
+priority from deterministic domain rules, and learning evidence from evaluated
+Practice answers. A plan is not proof of competence. Explicit session timeboxes
+and source restrictions are enforced by the application. Users can inspect
+progress without starting an agent turn. Goal controls remain optional: Ask,
+Explain, Review, Edit and free Practice still work without a plan.
+
+The legacy opt-in backend scope lock below is retained for older sessions.
 
 ### Backend scope lock
 
@@ -606,14 +621,24 @@ Deferred until a concrete product need exists:
 - autonomous note mutation;
 - multi-agent orchestration;
 - progress dashboards;
-- course builders;
-- scheduling;
+- visual course dashboards;
+- background scheduling and notifications;
 - provider management UI;
 - generalized knowledge graph infrastructure.
 
 ---
 
 ## 16. Product acceptance criteria
+
+### Domain-neutral learning programs
+
+- A plan has measurable objectives, a valid acyclic dependency graph and explicit time/source constraints.
+- Source-bound objectives cite only approved material.
+- A scheduled session must start before new program Practice activities.
+- The model cannot directly establish mastery or override objective selection.
+- Due recall and remediation take precedence over new topics; timebox exhaustion stops new activities.
+- Program evidence includes program and objective IDs and survives restart.
+- Revealed hints do not count toward independent mastery.
 
 ### Default learning flow
 
