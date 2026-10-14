@@ -1,8 +1,7 @@
-import type { PracticeQuestion, PracticeEvaluation, PracticeOrigin } from "../domain/practice/types";
+import type { PracticeQuestion, PracticeEvaluation, PracticeOrigin, PracticeAnswer } from "../domain/practice/types";
 import type { ReviewFinding } from "../domain/review/types";
 import type { LearningScopeState } from "../domain/practice/learning-scope";
 import type { ChatMessage } from "../types";
-import type { PracticeAnswer } from "../domain/practice/types";
 
 export interface ChatSession {
   id: string;
