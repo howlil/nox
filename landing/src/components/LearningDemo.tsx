@@ -26,7 +26,7 @@ export default function LearningDemo() {
         <div className="demo-faux-line"/><div className="demo-faux-line short"/>
       </div>
       <div className="demo-chat">
-        <div className="demo-chat-heading"><img src="/nox.png" width={24} height={24} alt="" /><strong>NOX</strong><span>@ TCP Fundamentals.md</span></div>
+        <div className="demo-chat-heading"><img src="/nox-96.webp" width={24} height={24} alt="" /><strong>NOX</strong><span>@ TCP Fundamentals.md</span></div>
         <SegmentedControl label="Choose learning action" options={actions} value={action} onValueChange={switchAction} className="demo-segments"/>
         <AnimatePresence mode="wait" initial={false}>
           <motion.div key={action} className="demo-answer" initial={reduced ? false : { opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={reduced ? { opacity: 0 } : { opacity: 0, y: -8 }} transition={{ duration: 0.24 }}>

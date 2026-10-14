@@ -48,7 +48,7 @@ export default function FloatingNav({ sponsorUrl }: { sponsorUrl?: string }) {
     <div className="floating-nav-shell">
       <nav className="floating-capsule" aria-label="Primary navigation">
         <a className="brand" href="#home" aria-label="NOX, home" onClick={() => setActive("home")}>
-          <img src="/nox.png" width={31} height={31} alt="" />
+          <img src="/nox-96.webp" width={31} height={31} alt="" />
           <span>nox<span className="brand-dot">.</span></span>
         </a>
         <div className="nav-divider" aria-hidden="true" />

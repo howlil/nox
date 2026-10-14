@@ -49,7 +49,8 @@ landing/
   src/components/MascotMotion.tsx # lightweight Motion mascot entrance/idle
   src/components/arc/         # verbatim MIT Arc UI free component sources
   src/styles/global.css       # Tailwind CSS v4 + NOX theme override
-  public/nox.png              # original repo asset
+  public/nox.png              # original repo asset, retained for social image
+  public/nox-96.webp         # 96px optimized icon for initial load
   public/nox-mascot.svg       # optimized vector reconstruction
   public/noise.svg            # static SVG grain overlay
 ```
