@@ -11,6 +11,7 @@ import {
   TurnContextSnapshot,
 } from "../context/context-types";
 import type { SessionPort, ContextPort, PolicyPort, LearningStatePort, ProgramStorePort } from "./ports";
+import { formatReplyPrompt } from "./reply-context";
 import { PersistenceError } from "../persistence/PersistenceError";
 import { prepareContextEnvelope } from "../context/ContextBudget";
 import type { ResearchResult } from "../context/LocalResearch";
@@ -110,7 +111,8 @@ export class RunLearningTurn {
     const scoped = isLockedLearningMode(session.learningScope?.mode);
     const practice = this.practices.forSession(scoped ? `${session.id}:backend` : session.id);
     if (practice.snapshot()) return practice;
-    for (let i = session.messages.length - 1; i >= 0; i--) {
+    const inheritedCount = session.fork?.inheritedMessageCount ?? 0;
+    for (let i = session.messages.length - 1; i >= inheritedCount; i--) {
       const message = session.messages[i];
       // Only whitelisted informational commands preserve an unanswered question.
       // Ordinary Ask/Explain and explicit mode changes end free-Practice recovery.
@@ -354,7 +356,10 @@ export class RunLearningTurn {
         program.constraints.sourcePaths.includes(item.file));
     // A Review follow-up practices its originating material, even if the user
     // navigated to another note before sending. Other explicit refs remain additive.
-    let visible = resolvedContext;
+    // An Ask AI quote never implicitly attaches another editor's selection.
+    let visible = request.replyTo
+      ? context.explicit.map(item => ({ type: item.type, file: item.path, content: item.content }))
+      : resolvedContext;
     if (pinnedPracticeSource && request.action === "practice") {
       const source = resolvedContext.find((item) => item.file === pinnedPracticeSource);
       if (!source) {
@@ -647,7 +652,8 @@ export class RunLearningTurn {
 
     try {
       if (!request.retry && !request.regenerate) {
-        await this.sessions.recordUserMessage(request.prompt, turnSessionId, request.action);
+        await this.sessions.recordUserMessage(request.prompt, turnSessionId, request.action,
+          request.turnId, request.replyTo);
       }
 
       // A retry replays a durable edit decision instead of invoking the model.
@@ -720,6 +726,7 @@ export class RunLearningTurn {
         return;
       }
 
+      if (request.replyTo) preparedPrompt = formatReplyPrompt(preparedPrompt, request.replyTo);
       // M0-M2: one bounded context envelope for every provider. Transcript is preserved.
       // Exclude the old answer AND its user prompt: the regeneration prompt
       // itself represents that user turn and must not be duplicated in history.
@@ -727,7 +734,8 @@ export class RunLearningTurn {
         ? conversation.messages.slice(0, request.regenerate.messageIndex - 1)
         : conversation.messages;
       const priorHistory = lockedMode || program ? [] : historyMessages.map(message => ({
-        role: message.role, content: message.content,
+        role: message.role, content: message.role === "user" && message.replyTo
+          ? formatReplyPrompt(message.content, message.replyTo) : message.content,
       }));
       const envelope = prepareContextEnvelope({
         prompt: preparedPrompt,
@@ -1089,7 +1097,7 @@ export class RunLearningTurn {
   ): Promise<Awaited<ReturnType<LearningStatePort["load"]>>> {
     let state = initial;
     let changed = false;
-    for (const message of session.messages) {
+    for (const message of session.messages.slice(session.fork?.inheritedMessageCount ?? 0)) {
       for (const part of message.parts ?? []) {
         if (part.type === "practice-evaluation" && part.questionId) {
           const operationId = part.operationId ?? `practice:${session.id}:${part.questionId}`;
