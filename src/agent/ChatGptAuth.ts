@@ -87,6 +87,7 @@ export async function verifyChatGptIdToken(
       typeof claims.exp !== "number" || claims.exp * 1000 < now - 5000 ||
       (typeof claims.nbf === "number" && claims.nbf * 1000 > now + 5000) ||
       (typeof claims.iat === "number" && claims.iat * 1000 > now + 5000) ||
+      (Array.isArray(audience) && audience.length > 1 && claims.azp !== clientId) ||
       claims.nonce !== nonce || typeof claims.sub !== "string" || !claims.sub) {
     throw new Error("ChatGPT identity verification failed.");
   }
@@ -157,6 +158,7 @@ export class ChatGptAuth {
     this.activeLogin = true;
     const state = randomBase64Url(), nonce = randomBase64Url(), verifier = randomBase64Url();
     const server = createServer();
+    let callbackTimeout: ReturnType<typeof setTimeout> | undefined;
     this.listener = server;
     try {
       await new Promise<void>((resolve, reject) => {
@@ -180,16 +182,19 @@ export class ChatGptAuth {
       url.searchParams.set("nonce", nonce);
       url.searchParams.set("code_challenge_method", "S256");
       url.searchParams.set("code_challenge", createHash("sha256").update(verifier).digest("base64url"));
+      if (this.record.credentials && !this.record.credentials.scopes.includes(PERMISSION)) {
+        url.searchParams.set("prompt", "consent"); // Only when enabling a previously declined permission.
+      }
 
       const callback = new Promise<{ code: string; clientId: string }>((resolve, reject) => {
-        const timer = setTimeout(() => reject(new Error("ChatGPT sign-in timed out.")), 180000);
+        callbackTimeout = setTimeout(() => reject(new Error("ChatGPT sign-in timed out.")), 180000);
         server.on("request", (req, res) => {
           const target = new URL(req.url || "/", redirectUri);
           if (req.method !== "GET" || target.pathname !== "/auth/callback" ||
               !["127.0.0.1", "127.0.0.1:" + address.port].includes(req.headers.host || "")) {
             res.writeHead(404).end(); return;
           }
-          const rejectOnce = (message: string) => { clearTimeout(timer); reject(new Error(message)); };
+          const rejectOnce = (message: string) => { if (callbackTimeout) clearTimeout(callbackTimeout); reject(new Error(message)); };
           if (target.searchParams.get("state") !== state) {
             res.writeHead(400).end("Invalid sign-in state."); rejectOnce("ChatGPT sign-in state did not match."); return;
           }
@@ -201,7 +206,7 @@ export class ChatGptAuth {
             res.writeHead(400).end("ChatGPT sign-in was declined or invalid.");
             rejectOnce("ChatGPT sign-in was declined or returned an invalid client."); return;
           }
-          clearTimeout(timer);
+          if (callbackTimeout) clearTimeout(callbackTimeout);
           res.writeHead(200, { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" })
             .end("<!doctype html><title>Nox</title><p>Authentication received. Return to Obsidian.</p>");
           resolve({ code, clientId });
@@ -230,6 +235,7 @@ export class ChatGptAuth {
       this.save();
       return this.status();
     } finally {
+      if (callbackTimeout) clearTimeout(callbackTimeout);
       this.activeLogin = false;
       server.close();
       if (this.listener === server) this.listener = undefined;
