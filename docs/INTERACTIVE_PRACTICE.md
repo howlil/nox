@@ -58,8 +58,9 @@ Cancelled, truncated, malformed, duplicate-question, or failed turns cannot
 leave an active new question.
 
 The entry point is the existing **Practice** action and program session
-practice; there is no independent quiz command parser or automatic quiz in
-every Ask/Explain message.
+practice. A **Quiz me** action on generated Ask/Explain output requests one
+interactive question about that explanation. No duplicate quiz command parser
+or automatic quiz on every Ask/Explain turn is required.
 
 ## M2 — Interactive rendering
 
@@ -132,6 +133,6 @@ real authenticated account.
 
 MVP provides one active card at a time; a sequence comes from completing the
 current card and requesting the next Practice activity. A pooled multi-question
-exam interface, automatic Ask/Explain inline checks, secure sandboxed code
+exam interface, automatic (without clicking Quiz me) Ask/Explain inline checks, secure sandboxed code
 execution, syntax-aware editor integration, timer/leaderboard and numeric
 grading are follow-on features, not silently part of this release.
