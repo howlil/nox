@@ -16,8 +16,11 @@ user intent
 Target: calm, precise, compact, technical, functional, AI-native, and native
 beside Obsidian.
 
-Hierarchy: position → spacing → typography → surface → border → elevation →
-accent. Purple is semantic, not decorative.
+Hierarchy: position → spacing → typography → surface → border → accent.
+Purple is semantic, not decorative. NOX adopts the neutral-first foundation of
+`howlil-app`, while preserving the existing Obsidian Learning OS component graph.
+All color fills are flat; gradients, glows, shimmer text and decorative shadow
+are forbidden. The interaction state, not a card's category, controls purple.
 
 ## Root graph
 
@@ -129,23 +132,21 @@ so selection actions do not create a parallel streaming or result lifecycle.
 The same resolved selection remains visible in the composer context chip and
 is resolved again by the controller at send time.
 
-Capability cards use a mostly white surface with a restrained tone variant:
+Capability cards share one neutral, solid-fill design:
 
 ```text
-white surface
-  → low-contrast monochromatic wash
-  → asymmetric radial glow cropped by the right edge
+normal      → white surface + subtle neutral full border
+hover       → solid neutral inset + stronger neutral border
+selected    → solid soft purple fill + purple border
+icon        → purple semantic foreground (no per-card color wash)
+metadata    → solid inset neutral pill
 ```
 
-The four tone mappings are lavender/violet for Explain, pale sky blue for
-Practice, soft coral for Review, and muted mint for Improve note. The tone is
-ambient context, not selection. Selection remains a separate purple border
-state so the card's action state cannot be confused with its capability tone.
-
-Selection is state-driven: capability tone classes are neutral by default, and
-only the card matching the current `selectedAction` receives the purple border
-and tint. The intent chip, focused card, command menu selection, and prompt
-placeholder must describe the same action.
+The old `purple/blue/coral/green` capability tone identifiers remain metadata
+for compatibility with existing callers. They must not generate per-card
+colored fills. Selection is driven only by `selectedAction`: the intent chip,
+focused card, command-menu row and prompt placeholder must describe the
+same action. Choosing a card never sends an AI request.
 
 Source and command pickers are composer-owned popovers. They open from the
 composer, stay compact (`max-width: 440px`), and expose keyboard selection
@@ -159,9 +160,10 @@ outside-click close path.
 
 All composer pickers share one interaction recipe: the trigger exposes
 `aria-expanded` and `aria-controls`, the active option uses the same restrained
-accent tint, the popover uses the shared Nox shadow and bounded scrolling, and
-focus returns to the originating control after selection or dismissal. Command
-rows render the same command label and icon metadata as their capability cards.
+accent tint, the popover has a flat solid surface, complete subtle border,
+no shadow, and bounded scrolling. Focus returns to the originating control
+after selection or dismissal. Command rows render the same command label and
+icon metadata as their capability cards.
 
 ## Card decision
 
@@ -222,37 +224,48 @@ they do not simulate a second response stream or bypass context resolution.
 
 ## Visual system
 
-Use a deliberate light-mode token ratio:
+Adopt the `howlil-app` neutral-first foundation and retain NOX purple as the
+semantic AI identity. Light palette:
 
-```text
-80% white surfaces
-15% soft purple canvas / inset surfaces
-5% purple accent for active AI state and primary actions
-```
+| Token | Solid value | Responsibility |
+| --- | --- | --- |
+| `--nox-page` / `--nox-canvas` | `#FEFEFE` | main reading surface |
+| `--nox-surface` | `#FEFEFE` | cards, thread, popovers |
+| `--nox-inset` | `#F7F7F7` | composer, quiet grouping |
+| `--nox-hover` | `#F5F5F5` | neutral hover |
+| `--nox-ink` | `#121212` | primary text |
+| `--nox-ink-2` / `--nox-ink-3` | `#626262` / `#949494` | metadata |
+| `--nox-line` | `#EAEAEA` | subtle complete border |
+| `--nox-accent` / `--nox-accent-hover` | `#8653D5` / `#7541C4` | primary action |
+| `--nox-accent-ink` | `#7140BC` | active icon and copy |
+| `--nox-accent-soft` | `#F4EDFF` | selected surface |
+| `--nox-accent-border` | `#C9B0ED` | selection and focus |
+
+In dark mode, `styles.css` owns a corresponding flat ramp (`#080808`
+page, `#121212` surface, `#1B1B1B` inset), adjusted purple foreground
+contrast and semantic success/warning/error colors. Do not use transparent
+white washes that disappear against dark surfaces.
 
 Nox owns these semantic tokens instead of inheriting arbitrary Obsidian
 theme colors. Purple means active AI intent, focus, selection, or a primary AI
-action. It should not decorate every surface.
+action—not a purple-tinted canvas across the entire thread.
 
-Semantic tokens have one owner in the root token block. Composition sections may
-override layout for a surface, but must not redefine semantic colors, radii, or
-elevation tokens.
+Semantic tokens have one owner at the top of `styles.css`; layout blocks must
+not redefine color, radius or motion variables. Preserve the Howlil spacing
+rhythm `4 / 8 / 12 / 16 / 20 / 24 / 32px` and type weights
+`400 / 500 / 600` (compact sidebar metadata may stay 11–12px).
+Radius: 6 chip / 10 control + card / 14 composer / pill for actions.
+Controls: 28px compact where appropriate. Focus rings must be visible for
+keyboard users. Cards and popovers are flat, without shadows.
 
 Green = correct/success/applied.
 Orange = partial/warning/review.
 Red = failure/destructive/incorrect.
 
-Typography: 11 / 12 / 12.5 / 13 / 14 / exceptional 21px.
-Spacing: 4 / 6 / 8 / 10 / 12 / 16 / 24px.
-Radius: 6 chip / 8 control / 10 card / 14 composer-window / pill.
-Compact controls: 28px.
-Borders: crisp 1px.
-Shadows: tiny and structural. Popovers share one soft ambient shadow; rows do
-not receive individual borders or shadows.
-
-Text input focus keeps the composer border neutral. Purple focus treatment is
-reserved for active AI intent, selected capability, primary AI actions, and
-keyboard-focusable controls where a visible focus cue is required.
+An intent chip or selected card may use soft purple. A standard user bubble
+uses the same solid soft-purple fill. Quiz feedback stays semantically colored;
+purple never indicates correctness. Background gradients, text shimmers,
+glowing borders, glass effects and gradient scroll masks are disallowed.
 
 ## Thread rules
 
@@ -299,7 +312,7 @@ longer text moves onto its own line
 +                              Model ▾   send
 ```
 
-Composer radius 10px, input 13px, controls 28px. Model is visually secondary.
+Composer radius 14px, input 13px, controls 28px. The composer uses a solid neutral inset, without a decorative shadow. Model is visually secondary.
 The plus control owns context and file actions; do not duplicate it with a
 separate `No context` or context selector button.
 
@@ -310,7 +323,7 @@ Do not force a fixed-height expanded composer or create a second context bar.
 
 ## Motion
 
-100–150ms feedback, 150–200ms menus/controls, 220–300ms expansion. Motion only
+160ms feedback, 160–240ms menus/controls, 220–300ms expansion. Motion only
 communicates state or spatial relation. Respect reduced motion.
 
 Chat motion contract:
@@ -379,8 +392,9 @@ their corresponding feature components no longer render them.
 
 ## Avoid
 
-No saturated full-surface purple gradients, glassmorphism, glowing borders, broad SaaS shadows,
-decorative nested cards, giant icons/headings, arbitrary radii, native picker
+No gradients of any kind (including text shimmer and scroll masks), glassmorphism,
+glowing borders, broad SaaS shadows, decorative nested cards, giant icons/headings,
+arbitrary radii, native picker
 popups for product controls, focus rings around the text input, fake thinking
 stages, permanent animation, or hidden consequential actions.
 
