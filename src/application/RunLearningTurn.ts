@@ -36,7 +36,7 @@ import {
   PracticeStateMachine,
 } from "../domain/practice/PracticeStateMachine";
 import { PracticeSessionRegistry } from "./PracticeSessionRegistry";
-import type { ProgramStorePort } from "../persistence/VaultProgramStore";
+import type { ProgramStorePort } from "./ports";
 import type { LearningProgram, LearningObjective } from "../domain/learning-program/types";
 import { chooseNextActivity } from "../domain/learning-program/rules";
 import {
