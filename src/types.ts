@@ -52,7 +52,9 @@ export interface TokenUsage {
 
 export type AgentStreamEvent =
   | { type: "text"; content: string }
-  | { type: "usage"; usage: TokenUsage; model?: string }
+  | { type: "usage"; usage: TokenUsage; model?: string; conversationId?: string;
+      /** AGY reports cumulative conversation usage rather than per-turn deltas. */
+      cumulative?: boolean; turnCount?: number }
   | { type: "completed"; conversationId?: string }
   | { type: "failed"; failure: AgentFailure }
   | { type: "cancelled" };
