@@ -4,7 +4,7 @@ Nox is an AI learning companion for Obsidian. It keeps explanation,
 practice, review, and safe Markdown editing beside the note you are working on.
 
 Nox is agent-runtime agnostic at the product boundary. The current runtime
-adapters use the AGY CLI or local Codex CLI, while the UI and Learning OS flow depend on the
+adapters use AGY CLI, local Codex CLI, or the ChatGPT plan OAuth provider, while the UI and Learning OS flow depend on the
 normalized agent contract rather than provider-specific stream events.
 
 ## What Nox does
@@ -23,7 +23,7 @@ normalized agent contract rather than provider-specific stream events.
 
 - Obsidian desktop `1.4.0` or newer.
 - Node.js and `pnpm` for development.
-- A configured AGY or Codex CLI runtime, signed in locally, to be
+- For AGY or Codex: a configured CLI runtime, signed in locally, to be
   available on `PATH`, or at an absolute path configured in Nox settings.
 
 ## Setup
@@ -42,7 +42,7 @@ login; Nox does not store an API key. Run `codex login` externally if needed.
 Provider changes apply immediately while idle and refresh the model menu. Finish
 or stop an active turn before changing runtime settings. Transcript and learning state are preserved;
 runtime thread/model state is reset when it belongs to the previous provider.
-Codex runs read-only, and note changes still require a Nox proposal and Apply.
+Codex runs read-only, and note changes still require a Nox proposal and Apply.\n\n### ChatGPT plan (no API key)\n\nIn **Nox Settings → Agent provider**, select **ChatGPT plan**, then choose **Continue with ChatGPT**. Your default browser completes Sign in with ChatGPT using OAuth Authorization Code + PKCE. The local callback listens only on `127.0.0.1` and requires an exact matching `state`. Nox verifies the signed ID token and checks the granted `chatgpt.tokens.use.direct` scope. You must authorize plan use; identity-only sign-in does not enable inference.\n\nNox discovers models for the signed-in account, streams supported Responses requests with `store: false` and `stream: true`, and sends relevant local transcript history as input. ChatGPT plan inference has usage limits and may not support every Responses feature; no fallback to an API key or paid API billing is performed. Obsidian note selections/context are transmitted to OpenAI **only when you send a turn**. Nox still requires separate approval before applying any Markdown edit.\n\nThe issued client ID, host ID, tokens, and basic account profile are stored **outside the Obsidian vault** in the user-local Nox configuration folder (`LOCALAPPDATA\\nox` on Windows or `~/.config/nox` on Unix by default). Windows credentials are protected with current-user DPAPI; on Unix credential files use owner-only permissions (`0600`) and a private directory (`0700`). Do not sync or publish this directory. ChatGPT permission/token issues require **Reconnect ChatGPT**; **Disconnect ChatGPT** clears local tokens while retaining the original client registration. To check login without a browser, use the Codex CLI provider and run `codex login` once outside Obsidian.\n\nLive consent, account entitlement, Windows browser callback, and refresh-token behavior require desktop testing with an eligible ChatGPT account. CI uses mocked auth and SSE transports; it does not exercise OpenAI production token issuance.
 Codex model choices come from the local CLI's app-server catalog. Pick a model in
 the chat menu, leave **Runtime default**, or enter an ID in **Preferred model**.
 If discovery fails, the default and manual model remain available. Local Codex
