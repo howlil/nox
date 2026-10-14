@@ -23,7 +23,7 @@ export class NoxSettingsTab extends PluginSettingTab {
 
     new Setting(containerEl)
       .setName("Agent provider")
-      .setDesc("Choose the local CLI. Changes apply immediately while idle. Codex uses its existing local sign-in.")
+      .setDesc("Choose AGY or Codex CLI, or sign in directly with your ChatGPT plan.")
       .addDropdown((dropdown) => dropdown
         .addOption("agy", "AGY")
         .addOption("codex", "Codex")
@@ -44,8 +44,18 @@ export class NoxSettingsTab extends PluginSettingTab {
           .setCta()
           .onClick(async () => {
             button.setDisabled(true);
-            try { await this.nox.connectChatGPT(); this.display(); }
-            catch (error) { new Notice(error instanceof Error ? error.message : "ChatGPT sign-in failed."); button.setDisabled(false); }
+            button.setButtonText("Waiting for ChatGPT...");
+            try {
+              await this.nox.connectChatGPT();
+              const status = this.nox.getChatGPTConnection();
+              new Notice(status.sharing
+                ? "ChatGPT connected. You can now use Nox."
+                : "ChatGPT signed in, but plan permission is not enabled.");
+              this.display();
+            } catch (error) {
+              new Notice(error instanceof Error ? error.message : "ChatGPT sign-in failed.");
+              this.display(); // Restore the connect button on any failed attempt.
+            }
           }))
         .addExtraButton((button) => button
           .setIcon("log-out")
