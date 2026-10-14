@@ -35,6 +35,7 @@ export class AgentRuntime implements AgentRuntimePort {
   constructor(private adapter: AgentAdapter,
     private readonly onUsage?: (usage: TokenUsage, model: string | undefined, metadata: {
       conversationId?: string; cumulative?: boolean; turnCount?: number;
+      freshConversation?: boolean;
     }) => Promise<void>) {}
 
   async replaceAdapter(adapter: AgentAdapter): Promise<void> {
@@ -101,6 +102,7 @@ export class AgentRuntime implements AgentRuntimePort {
               conversationId: event.conversationId,
               cumulative: event.cumulative,
               turnCount: event.turnCount,
+              freshConversation: !opts.conversationId,
             });
             this.usageTrackingError = undefined;
           } catch {
