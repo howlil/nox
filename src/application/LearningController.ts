@@ -205,6 +205,11 @@ export class LearningController {
           }
           const selected = await this.programs.selectProgram(command.id);
           response = `Active program changed to: ${selected.goal}`;
+        } else if (command.kind === "free-practice") {
+          if (this.turns.hasActivePracticeQuestion()) throw new Error("Finish the active question before starting free practice.");
+          yield* this.turns.run({ ...request, action: "practice", freePractice: true,
+            prompt: "Ask me an independent practice question based on the current context." });
+          return;
         } else if (command.kind === "progress") {
           response = await this.programs.progressSummary();
         } else if (command.kind === "review-due") {
