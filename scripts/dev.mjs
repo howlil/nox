@@ -112,7 +112,7 @@ const cssWatcher = fs.watch(dist, (_event, filename) => {
 });
 
 const cssProcess = spawn(process.execPath, [
-  tailwind, "-i", "styles.css", "-o", path.join(dist, "styles.css"), "--watch",
+  tailwind, "-i", "styles.css", "-o", path.join(dist, "styles.css"), "--watch=always",
 ], { stdio: ["ignore", "pipe", "pipe"] });
 
 cssProcess.stdout.on("data", (chunk) => process.stdout.write("[TAILWIND] " + chunk.toString()));
