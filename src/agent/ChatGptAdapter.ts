@@ -1,4 +1,5 @@
 import type { AgentAdapter, AgentHealth, AgentInput, AgentModel, AgentStreamEvent, SendOptions } from "../types";
+import { decodeTokenUsage } from "./token-usage";
 import { ChatGptAuth } from "./ChatGptAuth";
 
 type SseMessage = { event?: string; data: string };
@@ -143,6 +144,9 @@ export class ChatGptAdapter implements AgentAdapter {
             if (type === "response.output_text.delta" && typeof value.delta === "string") {
               yield { type: "text", content: value.delta };
             } else if (type === "response.completed") {
+              const result = value.response as Record<string, unknown> | undefined;
+              const usage = decodeTokenUsage(result?.usage);
+              if (usage) yield { type: "usage", ...usage };
               completed = true; terminal = true; break;
             } else if (type === "response.failed" || type === "response.incomplete" || type === "error") {
               const detail = diagnostic(value.response || value);
