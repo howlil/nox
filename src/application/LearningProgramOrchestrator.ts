@@ -3,10 +3,11 @@ import type { ContextPort, LearningStatePort, ProgramStorePort } from "./ports";
 import type { LearningProgram, ProgramCollection, ProgramConstraints, LearningDecision, SessionPauseReason } from "../domain/learning-program/types";
 import { chooseNextActivity, feasibility, validateConstraints, validateCurriculum } from "../domain/learning-program/rules";
 import { estimateRemainingWork } from "../domain/learning-program/estimate";
-import { checkpointTiming, focusSessionObjective, newSessionTiming, projectedTiming, recoverTiming, sessionRemainingMs, sessionTimeStatus, setTimingPause } from "../domain/learning-program/session-time";
+import { checkpointTiming, focusSessionObjective, focusSessionMaterial, newSessionTiming, projectedTiming, recoverTiming, sessionRemainingMs, sessionTimeStatus, setTimingPause } from "../domain/learning-program/session-time";
 
 /** Program planning and session selection. The model generates content, never transitions. */
 export class LearningProgramOrchestrator {
+  private readonly preparedDrafts = new Map<string, LearningProgram>();
   private planning = false;
   private writing = false;
   private currentAbort?: AbortController;
@@ -23,6 +24,7 @@ export class LearningProgramOrchestrator {
     if (this.checkpointTimer !== undefined) clearInterval(this.checkpointTimer);
     this.checkpointTimer = undefined;
     this.cancel();
+    this.preparedDrafts.clear();
   }
 
   private startCheckpointLoop(): void {
@@ -105,6 +107,55 @@ export class LearningProgramOrchestrator {
       return { ...program, session: { ...program.session,
         timing: focusSessionObjective(timing, objectiveId, now) } };
     });
+  }
+
+  async setIdle(idle: boolean): Promise<void> {
+    const program = await this.getActiveProgram();
+    if (!program?.session) return;
+    if (Boolean(program.session.timing?.pauseReasons.includes("idle")) === idle) return;
+    await this.setPause("idle", idle);
+  }
+
+  async focusMaterial(path: string): Promise<void> {
+    const program = await this.getActiveProgram();
+    if (!program?.session || !path || !path.toLowerCase().endsWith(".md")) return;
+    if (program.session.timing?.focusMaterialPath === path) return;
+    await this.updateActive(current => {
+      if (!current.session?.timing) return current;
+      return { ...current, session: { ...current.session,
+        timing: focusSessionMaterial(current.session.timing, path, this.now()) } };
+    });
+  }
+
+  /** Preserve per-material attribution after an Obsidian note rename. */
+  async renameMaterial(oldPath: string, newPath: string): Promise<void> {
+    const op = this.mutationTail.then(async () => {
+      this.writing = true;
+      try {
+        const collection = await this.store.load();
+        let dirty = false;
+        for (const program of collection.programs) {
+          if (program.session?.timing) {
+            const t = program.session.timing;
+            if (t.focusMaterialPath === oldPath) { t.focusMaterialPath = newPath; dirty = true; }
+            if (t.materialActiveMs?.[oldPath] !== undefined) {
+              t.materialActiveMs[newPath] = (t.materialActiveMs[newPath] ?? 0) + t.materialActiveMs[oldPath];
+              delete t.materialActiveMs[oldPath]; dirty = true;
+            }
+          }
+          for (const history of program.sessionHistory ?? []) {
+            if (history.materialActiveMinutes?.[oldPath] !== undefined) {
+              history.materialActiveMinutes[newPath] =
+                (history.materialActiveMinutes[newPath] ?? 0) + history.materialActiveMinutes[oldPath];
+              delete history.materialActiveMinutes[oldPath]; dirty = true;
+            }
+          }
+        }
+        if (dirty) await this.store.save(collection);
+      } finally { this.writing = false; }
+    });
+    this.mutationTail = op.then(() => {}, () => {});
+    return op;
   }
 
   async setAppInactive(inactive: boolean): Promise<void> {
@@ -204,6 +255,8 @@ export class LearningProgramOrchestrator {
           timing: newSessionTiming(now) } };
     });
     this.startCheckpointLoop();
+    const context = await this.contexts.resolve().catch(() => null);
+    if (context?.activeNote?.path) await this.focusMaterial(context.activeNote.path);
     return result;
   }
   async extendSession(minutes: number): Promise<LearningProgram> {
@@ -230,6 +283,11 @@ export class LearningProgramOrchestrator {
           ...(finalTiming ? {
             activeMinutes: finalTiming.activeMs / 60_000,
             aiWaitingMinutes: finalTiming.aiWaitingMs / 60_000,
+            ...(finalTiming.dailyActiveMs ? { dailyActiveMs: finalTiming.dailyActiveMs } : {}),
+            ...(finalTiming.materialActiveMs ? {
+              materialActiveMinutes: Object.fromEntries(Object.entries(finalTiming.materialActiveMs)
+                .map(([path, ms]) => [path, ms / 60_000])),
+            } : {}),
             ...(finalTiming.objectiveActiveMs ? {
               objectiveActiveMinutes: Object.fromEntries(Object.entries(finalTiming.objectiveActiveMs)
                 .map(([id, ms]) => [id, ms / 60_000])),
@@ -307,12 +365,10 @@ export class LearningProgramOrchestrator {
     ].join("\n");
   }
 
-  async createProgram(goal: string, requested: ProgramConstraints, operationId?: string): Promise<LearningProgram> {
+  /** Preview only; no program is persisted until the learner approves. */
+  async prepareProgram(goal: string, requested: ProgramConstraints): Promise<LearningProgram> {
     if (this.isPlanning()) throw new Error("Another learning program operation is in progress.");
-    if (operationId) {
-      const previous = (await this.store.load()).programs.find(p => p.creationOperationId === operationId);
-      if (previous) return previous;
-    }
+    if (!goal.trim()) throw new Error("Learning goal is required.");
     this.planning = true;
     const abort = this.currentAbort = new AbortController();
     const timeout = setTimeout(() => abort.abort(), 300_000);
@@ -324,6 +380,9 @@ export class LearningProgramOrchestrator {
       const constraints: ProgramConstraints = structuredClone(requested);
       if (constraints.sourceBound) {
         if (!source) throw new Error("Open or select a source note before using sources=active.");
+        if (constraints.sourcePaths.length > 0 && !constraints.sourcePaths.includes(source.file)) {
+          throw new Error("Source note changed during onboarding. Reopen the approved note and retry.");
+        }
         constraints.sourcePaths = [source.file];
       }
       validateConstraints(constraints);
@@ -372,17 +431,91 @@ export class LearningProgramOrchestrator {
       const draft = validateCurriculum(value, constraints);
       const program: LearningProgram = {
         version: 1, id: crypto.randomUUID(), goal: goal.trim(), constraints,
-        objectives: draft.objectives, createdAt: Date.now(), planVersion: 1,
-        ...(operationId ? { creationOperationId: operationId } : {}),
+        objectives: draft.objectives, createdAt: this.now(), planVersion: 1,
       };
-      const collection: ProgramCollection = await this.store.load();
-      const previous = operationId && collection.programs.find(p => p.creationOperationId === operationId);
-      if (previous) return previous;
-      if (abort.signal.aborted) throw new Error("Curriculum generation cancelled before save.");
-      collection.programs.push(program);
-      collection.activeProgramId = program.id;
-      await this.store.save(collection);
-      return program;
+      if (abort.signal.aborted) throw new Error("Curriculum generation cancelled before preview.");
+      this.preparedDrafts.clear();
+      this.preparedDrafts.set(program.id, structuredClone(program));
+      return structuredClone(program);
+    } finally { clearTimeout(timeout); this.planning = false; this.currentAbort = undefined; }
+  }
+
+  /** Commit a specific validated preview; retries with one operationId never duplicate programs. */
+  async commitPrepared(draftId: string, operationId: string, workspaceApproved = false): Promise<LearningProgram> {
+    if (!operationId.trim()) throw new Error("Operation ID is required.");
+    if (this.isPlanning()) throw new Error("Finish preparing the curriculum before approval.");
+    const op = this.mutationTail.then(async () => {
+      this.writing = true;
+      try {
+        const collection = await this.store.load();
+        const previous = collection.programs.find(p => p.creationOperationId === operationId);
+        if (previous) return previous;
+        const proposed = this.preparedDrafts.get(draftId);
+        if (!proposed) throw new Error("The preview expired. Generate a fresh learning blueprint.");
+        if (this.now() - proposed.createdAt > 15 * 60_000) {
+          this.preparedDrafts.delete(draftId);
+          throw new Error("The preview expired. Generate a fresh learning blueprint.");
+        }
+        const program: LearningProgram = {
+          ...structuredClone(proposed), creationOperationId: operationId,
+          ...(workspaceApproved ? { workspaceApproved: true } : {}),
+        };
+        collection.programs.push(program);
+        collection.activeProgramId = program.id;
+        await this.store.save(collection);
+        this.preparedDrafts.delete(draftId);
+        return program;
+      } finally { this.writing = false; }
+    });
+    this.mutationTail = op.then(() => {}, () => {});
+    return op;
+  }
+
+  /** Preserve the existing explicit /plan command behavior. */
+  async createProgram(goal: string, requested: ProgramConstraints, operationId?: string): Promise<LearningProgram> {
+    if (operationId) {
+      const existing = (await this.store.load()).programs.find(p => p.creationOperationId === operationId);
+      if (existing) return existing;
+    }
+    const draft = await this.prepareProgram(goal, requested);
+    return this.commitPrepared(draft.id, operationId ?? crypto.randomUUID());
+  }
+
+  /** Domain-neutral discovery uses one bounded provider call; suggestions never become learning evidence. */
+  async discoverGoals(interests: string[], purpose: string): Promise<Array<{ title: string; outcome: string }>> {
+    if (this.isPlanning()) throw new Error("Another learning operation is in progress.");
+    this.planning = true;
+    const abort = this.currentAbort = new AbortController();
+    const timeout = setTimeout(() => abort.abort(), 90_000);
+    try {
+      const instruction = [
+        "Recommend three distinct realistic learning directions for a user who has not chosen a goal.",
+        "Domain neutral. No invented personal traits, experience or skill claims.",
+        'Return ONLY one JSON object: {"directions":[{"title":"imperative learning goal","outcome":"testable practical outcome"}]}',
+        "Interests: " + JSON.stringify(interests.slice(0, 6)),
+        "Motivation: " + purpose.slice(0, 80),
+      ].join("\n");
+      let output = "", completed = false;
+      for await (const event of this.runtime.send({ prompt: instruction, context: [] }, { model: this.currentModel() }, abort.signal)) {
+        if (event.type === "failed") throw new Error(event.failure.message);
+        if (event.type === "cancelled") throw new Error("Discovery cancelled.");
+        if (event.type === "text") {
+          output += event.content;
+          if (output.length > 20_000) throw new Error("Discovery output exceeded limit.");
+        }
+        if (event.type === "completed") { completed = true; break; }
+      }
+      if (!completed || abort.signal.aborted) throw new Error("Discovery request did not complete.");
+      const parsed: unknown = JSON.parse(output.trim());
+      const value = parsed as { directions?: unknown };
+      if (!Array.isArray(value?.directions) || value.directions.length !== 3 ||
+          !value.directions.every((d: unknown) => {
+            const item = d as { title?: unknown; outcome?: unknown };
+            return typeof item?.title === "string" && item.title.trim().length >= 5 &&
+              item.title.length <= 140 && typeof item.outcome === "string" &&
+              item.outcome.trim().length >= 5 && item.outcome.length <= 300;
+          })) throw new Error("Invalid discovery result.");
+      return value.directions as Array<{ title: string; outcome: string }>;
     } finally { clearTimeout(timeout); this.planning = false; this.currentAbort = undefined; }
   }
 }

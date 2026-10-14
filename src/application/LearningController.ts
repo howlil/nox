@@ -1,6 +1,7 @@
+import { summarizeActivity } from "../domain/activity/aggregation";
 import type { AgentAdapter, AgentHealth, AgentModel, ApplyResult, ChatSession, ChatMessage } from "../types";
 import type { ExplicitContextRef, LearningContext } from "../context/context-types";
-import type { SessionPort, ContextPort, PolicyPort, MutationPort, LearningStatePort, RuntimeSettingsWrite, ProgramStorePort } from "./ports";
+import type { SessionPort, ContextPort, PolicyPort, MutationPort, LearningStatePort, RuntimeSettingsWrite, ProgramStorePort, WorkspaceWriterPort } from "./ports";
 import type { AgentRuntimePort } from "../agent/AgentRuntime";
 import type { LearningEvent, LearningRequest, NoxProgramOverview } from "./learning-types";
 import type { PracticeOrigin, PracticeAnswer } from "../domain/practice/types";
@@ -13,6 +14,8 @@ import type { LearningProgramOrchestrator } from "./LearningProgramOrchestrator"
 export interface LearningControllerOptions {
   turnTimeoutMs?: number;
   programStore?: ProgramStorePort;
+  workspaceWriter?: WorkspaceWriterPort;
+  onboardingState?: import("./ports").OnboardingStatePort;
 }
 
 /**
@@ -31,6 +34,8 @@ export class LearningController {
   private readonly turns: RunLearningTurn;
   private readonly applyingProposals = new Set<string>();
   private configuringRuntime = false;
+  private readonly workspaceWriter?: WorkspaceWriterPort;
+  private readonly onboardingState?: import("./ports").OnboardingStatePort;
   // Short-lived receipt: editor mutation succeeded, but the durable applied
   // status has not been confirmed. Never use this as a session state authority.
   private readonly appliedButUnsynced = new Map<string, string>();
@@ -52,6 +57,8 @@ export class LearningController {
     private readonly programs?: LearningProgramOrchestrator,
   ) {
     this.turns = new RunLearningTurn(sessions, runtime, contexts, policies, learningState, options);
+    this.workspaceWriter = options.workspaceWriter;
+    this.onboardingState = options.onboardingState;
   }
 
   checkRuntime(): Promise<AgentHealth> {
@@ -83,6 +90,12 @@ export class LearningController {
     return this.runtime.getModels();
   }
 
+  async getActivitySummary(programId?: string) {
+    if (!this.programs) return summarizeActivity([]);
+    const all = await this.programs.listPrograms();
+    return summarizeActivity(all.programs.filter(program => !programId || program.id === programId));
+  }
+
   async getProgramMenuState(): Promise<{
     activeProgramId?: string;
     sessionActive: boolean;
@@ -96,6 +109,56 @@ export class LearningController {
       sessionActive: Boolean(active?.session),
       programs: collection.programs.map(item => ({ id: item.id, goal: item.goal })),
     };
+  }
+
+
+  async getOnboardingContext(): Promise<{ hasProgram: boolean; activeNote?: string; dismissed: boolean;
+    draft?: import("../domain/onboarding/types").OnboardingDraft }> {
+    const programs = await this.getProgramMenuState();
+    const context = await this.contexts.resolve();
+    const state = await this.onboardingState?.load();
+    return { hasProgram: programs.programs.length > 0, activeNote: context.activeNote?.path,
+      dismissed: state?.dismissed ?? false, draft: state?.draft };
+  }
+
+  async saveOnboardingDraft(draft: import("../domain/onboarding/types").OnboardingDraft): Promise<void> {
+    await this.onboardingState?.saveDraft(draft);
+  }
+
+  async dismissOnboarding(): Promise<void> {
+    await this.onboardingState?.dismiss();
+  }
+
+  async reopenOnboarding(): Promise<void> {
+    await this.onboardingState?.reopen();
+  }
+
+  async discoverLearningDirections(interests: string[], purpose: string) {
+    if (!this.programs) throw new Error("Learning programs are unavailable.");
+    this.assertRuntimeIdle();
+    return this.programs.discoverGoals(interests, purpose);
+  }
+
+  async previewLearningProgram(goal: string, constraints: import("../domain/learning-program/types").ProgramConstraints) {
+    if (!this.programs) throw new Error("Learning programs are unavailable.");
+    this.assertRuntimeIdle();
+    return this.programs.prepareProgram(goal, constraints);
+  }
+
+  async approveLearningWorkspace(draftId: string, operationId: string) {
+    if (!this.programs || !this.workspaceWriter) throw new Error("Learning workspace is unavailable.");
+    this.assertRuntimeIdle();
+    const program = await this.programs.commitPrepared(draftId, operationId, true);
+    await this.workspaceWriter.ensure(program);
+    return program;
+  }
+
+  async recoverLearningWorkspaces(): Promise<void> {
+    if (!this.programs || !this.workspaceWriter) return;
+    const programs = await this.programs.listPrograms();
+    for (const program of programs.programs) {
+      if (program.workspaceApproved) await this.workspaceWriter.ensure(program);
+    }
   }
 
   /** Read-only learning projection; never recompute mastery in the UI. */
@@ -383,6 +446,15 @@ export class LearningController {
             const selected = await this.programs.getDecision();
             if (selected?.program?.session && selected.decision.objective) {
               await this.programs.focusObjective(selected.decision.objective.id);
+              if (selected.program.workspaceApproved) {
+                try {
+                  await this.workspaceWriter?.ensureObjective?.(
+                    selected.program, selected.decision.objective.id);
+                } catch (error) {
+                  // Materialization is ancillary; a filesystem conflict must not lose learning progress.
+                  console.warn("[Nox] Lesson outline could not be materialized", error);
+                }
+              }
             }
             if (selected?.program && !selected.program.session) {
               response = "Start a timeboxed session first with /start-session.";

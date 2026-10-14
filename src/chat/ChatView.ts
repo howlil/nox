@@ -1,3 +1,5 @@
+import { renderLearningActivity } from "./activity-heatmap";
+import { OnboardingFlow } from "./onboarding-flow";
 import {
   ItemView,
   Notice,
@@ -174,6 +176,7 @@ export class ChatView extends ItemView {
   private streamingTextNode: Text | null = null;
   private runInspector: NoxRunInspector | null = null;
   private learningGraphEl: HTMLElement | null = null;
+  private learningActivityEl: HTMLElement | null = null;
   private thinkingManualExpanded: boolean | null = null;
   private streamedThoughtText = "";
   private streamedResponseText = "";
@@ -333,6 +336,16 @@ export class ChatView extends ItemView {
     this.input?.focus();
   }
 
+  /** Explicit command-palette entry to revisit guided discovery after skipping. */
+  async beginGuidedOnboarding(): Promise<void> {
+    await this.learning.newSession();
+    await this.learning.reopenOnboarding();
+    this.clearReplyReference();
+    this.input.value = "";
+    this.setAction("ask");
+    this.showEmpty();
+  }
+
   private buildHeader(root: HTMLElement): void {
     this.headerEl = root.createDiv({ cls: "nox-header" });
     const top = this.headerEl.createDiv({ cls: "nox-header-top" });
@@ -351,6 +364,11 @@ export class ChatView extends ItemView {
     const right = top.createDiv({ cls: "nox-header-right" });
     const mapBtn = createNoxIconButton(right, { cls: "nox-map-btn", icon: "git-branch", label: "Open learning map", title: "Learning map" });
     mapBtn.addEventListener("click", () => void this.toggleLearningMap());
+    const activityBtn = createNoxIconButton(right, {
+      cls: "nox-activity-btn", icon: "chart-no-axes-column",
+      label: "Open learning activity", title: "Learning activity",
+    });
+    activityBtn.addEventListener("click", () => void this.toggleLearningActivity());
 
     this.historyBtn = createNoxIconButton(right, {
       cls: "nox-history-btn",
@@ -504,6 +522,34 @@ export class ChatView extends ItemView {
       // A transient vault read must not block the chat interface.
     } finally {
       this.refreshingSessionClock = false;
+    }
+  }
+
+  private async toggleLearningActivity(scope: "active" | "all" = "active"): Promise<void> {
+    if (this.learningActivityEl?.isConnected && scope === "active") {
+      this.learningActivityEl.remove();
+      this.learningActivityEl = null;
+      return;
+    }
+    try {
+      const state = await this.learning.getProgramMenuState();
+      const id = scope === "active" ? state.activeProgramId : undefined;
+      const summary = await this.learning.getActivitySummary(id);
+      this.learningActivityEl?.remove();
+      this.learningActivityEl = renderLearningActivity(this.thread, summary, {
+        scope,
+        onClose: () => { this.learningActivityEl?.remove(); this.learningActivityEl = null; },
+        onScopeChange: next => {
+          // Do not treat scope switching as a toggle-close operation.
+          this.learningActivityEl?.remove();
+          this.learningActivityEl = null;
+          void this.toggleLearningActivity(next);
+        },
+      });
+      this.thread.prepend(this.learningActivityEl);
+      this.learningActivityEl.scrollIntoView({ block: "start", behavior: "smooth" });
+    } catch (error) {
+      new Notice(error instanceof Error ? error.message : "Learning activity unavailable.");
     }
   }
 
@@ -1949,6 +1995,28 @@ export class ChatView extends ItemView {
 
     const slate = this.thread.createDiv({
       cls: "nox-empty-slate",
+    });
+    // First-run welcome uses the same sidebar, header and composer.
+    // A damaged program index must NOT be treated as an empty vault.
+    void this.learning.getOnboardingContext().then(state => {
+      if (!slate.isConnected || state.hasProgram || state.dismissed ||
+          this.learning.getSession().messages.length > 0) return;
+      new OnboardingFlow(slate, this.learning, {
+        onSkip: () => {
+          void this.learning.dismissOnboarding().then(() => this.showEmpty())
+            .catch(error => this.appendInlineStatus(this.thread, "failed",
+              error instanceof Error ? error.message : "Could not save onboarding choice."));
+        },
+        onCreated: () => {
+          this.showEmpty();
+        },
+        onStart: () => {
+          this.input.value = "/start-session";
+          void this.doSend();
+        },
+      }, state.draft);
+    }).catch(error => {
+      console.warn("[Nox] Onboarding detection failed", error);
     });
 
     this.renderEmptyContext(slate);

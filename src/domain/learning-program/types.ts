@@ -6,8 +6,10 @@ export interface ProgramConstraints {
   sourcePaths: string[];
   sourceBound: boolean;
   excludedTopics: string[];
+  /** Self-reported entry level; never evidence of mastery. */
+  startingLevel?: "beginner" | "intermediate" | "advanced";
 }
-export type SessionPauseReason = "manual" | "ai-running" | "app-inactive" | "recovery";
+export type SessionPauseReason = "manual" | "ai-running" | "app-inactive" | "recovery" | "idle";
 
 export interface SessionTiming {
   version: 2;
@@ -15,6 +17,10 @@ export interface SessionTiming {
   activeMs: number;
   /** Observed time spent waiting for an agent turn. */
   aiWaitingMs: number;
+  /** Activity-only attribution. This does not establish mastery. */
+  dailyActiveMs?: Record<string, number>;
+  focusMaterialPath?: string;
+  materialActiveMs?: Record<string, number>;
   /** Optional attribution, only after an explicit objective selection. */
   focusObjectiveId?: string;
   objectiveActiveMs?: Record<string, number>;
@@ -53,8 +59,9 @@ export interface LearningProgram {
   createdAt: number;
   planVersion: number;
   creationOperationId?: string;
+  workspaceApproved?: boolean;
   session?: LearningSession;
-  sessionHistory?: Array<{ startedAt: number; endedAt: number; minutesSpent: number; activeMinutes?: number; aiWaitingMinutes?: number; objectiveActiveMinutes?: Record<string, number> }>;
+  sessionHistory?: Array<{ startedAt: number; endedAt: number; minutesSpent: number; activeMinutes?: number; aiWaitingMinutes?: number; objectiveActiveMinutes?: Record<string, number>; dailyActiveMs?: Record<string, number>; materialActiveMinutes?: Record<string, number> }>;
   instructionEvents?: Array<{ objectiveId: string; afterEvidenceAt: number; taughtAt: number }>;
 }
 export interface ProgramCollection {

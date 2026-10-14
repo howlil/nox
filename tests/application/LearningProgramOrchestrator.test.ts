@@ -146,3 +146,22 @@ test("session mutations serialize full read-modify-write and keep pause reasons"
   await orchestrator.endSession();
   orchestrator.dispose();
 });
+
+test("preview never persists before approval; repeated commit uses one operation ID", async () => {
+  const { orchestrator, stored, writes } = rig();
+  const pending = await orchestrator.prepareProgram("Learn conversational Spanish", base);
+  assert.equal(writes(), 0);
+  assert.equal(stored().programs.length, 0);
+  const approved = await orchestrator.commitPrepared(pending.id, "onboarding:1", true);
+  const repeated = await orchestrator.commitPrepared(pending.id, "onboarding:1", true);
+  assert.equal(approved.id, repeated.id);
+  assert.equal(approved.workspaceApproved, true);
+  assert.equal(writes(), 1);
+  assert.equal(stored().programs.length, 1);
+  orchestrator.dispose();
+});
+test("cancelled or invalid preview never writes a program", async () => {
+  const { orchestrator, writes } = rig({ kind: "curriculum", objectives: [] });
+  await assert.rejects(orchestrator.prepareProgram("Learn something", base), /1–60/);
+  assert.equal(writes(), 0);
+});
