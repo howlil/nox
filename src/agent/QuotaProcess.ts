@@ -15,7 +15,7 @@ type QuotaChild = {
 };
 export type QuotaSpawn = (
   binary: string, args: string[],
-  options: { cwd?: string; windowsHide?: boolean; stdio: string[] },
+  options: { cwd?: string; windowsHide?: boolean; stdio: ["ignore", "pipe", "pipe"] | ["pipe", "pipe", "pipe"] },
 ) => QuotaChild;
 const MAX_BYTES = 256 * 1024;
 const safeError = (message: string) => new Error(message);
@@ -93,9 +93,9 @@ export async function runAgyQuotaCommands(binary: string, cwd: string | undefine
 
 /** Read-only JSON-RPC app-server session. Does not create a thread or inference turn. */
 export async function runCodexQuotaRead(binary: string, cwd: string | undefined,
-  signal?: AbortSignal, spawnFn: QuotaSpawn = spawn): Promise<QuotaReading[]> {
+  signal: AbortSignal | undefined, spawnFn: QuotaSpawn): Promise<QuotaReading[]> {
   return new Promise((resolve,reject) => {
-    let child: ChildProcess;
+    let child: QuotaChild;
     try {
       child = spawnFn(binary, ["app-server","--listen","stdio://"], {
         cwd, windowsHide: true, stdio: ["pipe","pipe","pipe"],
