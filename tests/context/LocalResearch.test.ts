@@ -44,10 +44,10 @@ test("revision changes update the index and deletions remove evidence", () => {
 });
 
 test("long research chunks point to their actual source line", () => {
-  const content = "# Networking\\n" + Array.from({ length: 50 }, (_, i) => "Line " + i + " high throughput and latency").join("\\n");
+  const content = "# Networking\n" + Array.from({ length: 50 }, (_, i) => "Line " + i + " high throughput and latency").join("\n");
   const chunks = splitNote("network.md", content);
   assert.ok(chunks.length > 1);
   assert.ok(chunks[1].line > chunks[0].line);
-  const sourceLine = content.split("\\n")[chunks[1].line - 1];
+  const sourceLine = content.split("\n")[chunks[1].line - 1];
   assert.ok(sourceLine);
 });
