@@ -95,27 +95,27 @@ export class LearningController {
 
   private assertRuntimeIdle(): void {
     if (this.configuringRuntime) throw new Error("Wait for runtime settings to finish saving.");
-    if (this.turns.isRunning() || this.applyingProposals.size > 0) {
-      throw new Error("Finish or stop the active turn or note edit before changing runtime settings.");
+    if (this.turns.isRunning() || this.applyingProposals.size > 0 || this.programs?.isPlanning()) {
+      throw new Error("Finish the active turn, plan or note edit before changing runtime settings.");
     }
     if (this.appliedButUnsynced.size > 0) throw new Error("Retry saving applied edit status before changing runtime settings.");
   }
 
   setModel(modelId?: string): Promise<void> {
-    if (this.configuringRuntime) throw new Error("Wait for runtime settings to finish saving.");
+    this.assertRuntimeIdle();
     return this.sessions.setModel(modelId);
   }
 
   async newSession(): Promise<ChatSession> {
     if (this.configuringRuntime) throw new Error("Wait for runtime settings to finish saving.");
-    if (this.turns.isRunning() || this.applyingProposals.size > 0) throw new Error("Finish the active turn or note edit before creating a session.");
+    if (this.turns.isRunning() || this.applyingProposals.size > 0 || this.programs?.isPlanning()) throw new Error("Finish the active turn or note edit or learning plan before creating a session.");
     if (this.appliedButUnsynced.size > 0) throw new Error("Retry saving applied edit status before changing sessions.");
     return this.sessions.newSession();
   }
 
   async selectSession(id: string): Promise<ChatSession | null> {
     if (this.configuringRuntime) throw new Error("Wait for runtime settings to finish saving.");
-    if (this.turns.isRunning() || this.applyingProposals.size > 0) throw new Error("Finish the active turn or note edit before switching sessions.");
+    if (this.turns.isRunning() || this.applyingProposals.size > 0 || this.programs?.isPlanning()) throw new Error("Finish the active turn or note edit or learning plan before switching sessions.");
     if (this.appliedButUnsynced.size > 0) throw new Error("Retry saving applied edit status before changing sessions.");
     return this.sessions.selectSession(id);
   }
@@ -184,12 +184,12 @@ export class LearningController {
         return;
       }
       try {
-        let response: string;
+        let response = "";
         if (command.kind === "plan") {
           if (this.turns.hasActivePracticeQuestion()) {
             throw new Error("Finish or exit the active Practice question before replacing the learning plan.");
           }
-          const program = await this.programs.createProgram(command.goal, command.constraints);
+          const program = await this.programs.createProgram(command.goal, command.constraints, request.turnId);
           const f = feasibility(program);
           response = [
             `Created learning program: **${program.goal}**`,
@@ -213,14 +213,24 @@ export class LearningController {
           }
           const selected = await this.programs.selectProgram(command.id);
           response = `Active program changed to: ${selected.goal}`;
-        } else if (command.kind === "progress" || command.kind === "review-due") {
+        } else if (command.kind === "free-practice") {
+          if (this.turns.hasActivePracticeQuestion()) throw new Error("Finish the active question before starting free practice.");
+          yield* this.turns.run({ ...request, action: "practice", freePractice: true,
+            prompt: "Ask me an independent practice question based on the current context." });
+          return;
+        } else if (command.kind === "progress") {
           response = await this.programs.progressSummary();
+        } else if (command.kind === "review-due") {
+          response = await this.programs.reviewDueSummary();
         } else if (command.kind === "start-session") {
           const program = await this.programs.startSession();
           response = `Learning session started. Timebox: ${program.constraints.minutesPerSession} min. Use /next to begin.`;
         } else if (command.kind === "end-session") {
           await this.programs.endSession();
           response = "Session ended. Program progress remains saved. Use /start-session when ready.";
+        } else if (command.kind === "extend-session") {
+          const program = await this.programs.extendSession(command.minutes);
+          response = "Session timebox extended to " + program.session!.timeBudgetMinutes + " minutes.";
         } else {
           if (this.turns.hasActivePracticeQuestion()) {
             response = "Answer the active question first, or use /hint for a small nudge.";
@@ -228,11 +238,31 @@ export class LearningController {
             const selected = await this.programs.getDecision();
             if (selected?.program && !selected.program.session) {
               response = "Start a timeboxed session first with /start-session.";
+            } else if (selected?.decision.kind === "teach" && selected.decision.objective) {
+              const objective = selected.decision.objective;
+              const state = await this.learningState.load();
+              const last = state.evidence.filter(item =>
+                item.programId === selected.program.id && item.objectiveId === objective.id &&
+                item.scope === "learner" && item.type === "practice").at(-1);
+              const activity = this.turns.run({
+                ...request, action: "explain",
+                programActivity: { kind: "teach", programId: selected.program.id, objectiveId: objective.id },
+                prompt: "Teach the objective after my difficulty: " + objective.outcome,
+              });
+              for await (const event of activity) {
+                if (event.type === "completed" && last) {
+                  await this.programs.markTaught(objective.id, last.createdAt);
+                }
+                yield event;
+              }
+              return;
             } else if (selected?.decision.objective) {
               yield* this.turns.run({ ...request, action: "practice" });
               return;
             }
-            response = selected?.decision.reason ?? "No active program. Use /plan <goal> first.";
+            if (!selected?.program || selected.program.session) {
+              response = selected?.decision.reason ?? "No active program. Use /plan <goal> first.";
+            }
           }
         }
         if (!request.retry) await this.sessions.recordUserMessage(request.prompt, this.sessions.getSession().id, "ask");

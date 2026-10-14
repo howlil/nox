@@ -740,7 +740,8 @@ test("hint usage survives restart and cannot count as independent mastery", asyn
   const restored = await rig.createLearning();
   assert.equal(restored.learning.hasActivePracticeQuestion(), true);
   rig.queue(practice({ kind: "evaluation", concept: "Atomicity", outcome: "correct",
-    feedback: "Good", misconceptions: [] }));
+    feedback: "Good", misconceptions: [],
+    rubricResults: [{ criterion: "Explain rollback", met: true, evidence: "All or nothing" }] }));
   await collectEvents(restored.learning.run({
     prompt: "All or nothing", action: "practice", explicitContext: [],
   }));
@@ -765,4 +766,17 @@ test("program evaluator cannot claim correct when its rubric shows a missed crit
   assert.ok(failure.some(event => event.type === "failed" && event.failure.code === "protocol-invalid"));
   assert.equal((await learningState.load()).evidence.length, 0);
   assert.equal(learning.hasActivePracticeQuestion(), true);
+});
+
+test("informational progress message cannot hide an unanswered Practice question on restart", async () => {
+  const rig = makeRig(true);
+  const initial = await rig.createLearning();
+  rig.queue(practice({ kind: "question", concept: "Atomicity", question: "Explain atomicity." }));
+  await collectEvents(initial.learning.run({ prompt: "Practice", action: "practice", explicitContext: [] }));
+  assert.equal(initial.learning.hasActivePracticeQuestion(), true);
+  await initial.sessions.recordUserMessage("/progress", initial.sessions.getSession().id, "ask");
+  await initial.sessions.recordAssistantMessage("Still learning", undefined, initial.sessions.getSession().id);
+  initial.learning.dispose();
+  const restored = await rig.createLearning();
+  assert.equal(restored.learning.hasActivePracticeQuestion(), true);
 });

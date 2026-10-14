@@ -784,6 +784,8 @@ export class ChatView extends ItemView {
     if (this.promptMenu === "command") {
       const scopeCommands: PromptMenuItem[] = [
         { key: "program-plan", name: "Create learning plan", description: "Goal, constraints, and curriculum. Add your goal after /plan.", icon: "route", command: "/plan ", action: { type: "scope", command: "/plan " } },
+        { key: "program-free", name: "Free Practice", description: "A question outside your active curriculum.", icon: "pencil-line", command: "/free-practice", action: { type: "scope", command: "/free-practice" } },
+        { key: "program-extend", name: "Extend study session", description: "Add time without restarting the session.", icon: "clock-plus", command: "/extend-session 15", action: { type: "scope", command: "/extend-session 15" } },
         { key: "program-next", name: "Next learning activity", description: "Adaptive question from your active objective.", icon: "arrow-right-circle", command: "/next", action: { type: "scope", command: "/next" } },
         { key: "programs-list", name: "Saved learning programs", description: "Show stored goals and program IDs.", icon: "library", command: "/programs", action: { type: "scope", command: "/programs" } },
         { key: "program-switch", name: "Switch learning program", description: "Choose an ID from /programs.", icon: "list-restart", command: "/use-program ", action: { type: "scope", command: "/use-program " } },

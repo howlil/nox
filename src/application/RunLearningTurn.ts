@@ -38,6 +38,7 @@ import {
 import { PracticeSessionRegistry } from "./PracticeSessionRegistry";
 import type { LearningProgram, LearningObjective } from "../domain/learning-program/types";
 import { chooseNextActivity } from "../domain/learning-program/rules";
+import { coversCriteria } from "../domain/learning-program/assessment-rubric";
 import {
   StructuredStreamEvent,
   StructuredStreamParser,
@@ -102,7 +103,11 @@ export class RunLearningTurn {
     if (practice.snapshot()) return practice;
     for (let i = session.messages.length - 1; i >= 0; i--) {
       const message = session.messages[i];
-      if (!scoped && message.role === "user" && message.action && message.action !== "practice") break;
+      // Only whitelisted informational commands preserve an unanswered question.
+      // Ordinary Ask/Explain and explicit mode changes end free-Practice recovery.
+      if (!scoped && message.role === "user" && message.action && message.action !== "practice" &&
+          !["/progress", "/review-due", "/programs", "/extend-session"].some(command =>
+            message.content.trim().toLowerCase().startsWith(command))) break;
       const parts = message.parts ?? [];
       for (let j = parts.length - 1; j >= 0; j--) {
         const part = parts[j];
@@ -219,6 +224,7 @@ export class RunLearningTurn {
     const previousOrigin = existingPractice?.isWaitingForAnswer()
       ? existingPractice.snapshot()?.origin
       : undefined;
+    const activePracticeTurn = existingPractice?.snapshot()?.turns.at(-1);
     const pinnedPracticeSource = request.action === "practice"
       ? (previousOrigin?.file ?? request.sourcePath)
       : undefined;
@@ -230,9 +236,19 @@ export class RunLearningTurn {
 
     try {
       const refs = [...request.explicitContext];
-      if (this.programStore && request.action === "practice" && !lockedMode) {
+      if (this.programStore && (request.programActivity || (request.action === "practice" && !request.freePractice && (!activePracticeTurn || activePracticeTurn.programId))) && !lockedMode) {
         const collection = await this.programStore.load();
         program = collection.programs.find(item => item.id === collection.activeProgramId);
+        if (request.programActivity && (request.programActivity.programId !== program?.id ||
+            !program.objectives.some(o => o.id === request.programActivity?.objectiveId))) {
+          throw new Error("Teaching task does not match the active program.");
+        }
+        if (activePracticeTurn?.programId && activePracticeTurn.programId !== program?.id) {
+          throw new Error("The active question belongs to another learning program. Switch back to that program before answering.");
+        }
+        if (program?.constraints.sourceBound && sessionAtStart.runtimeProvider !== "chatgpt") {
+          throw new Error("Strict source-bound learning requires the ChatGPT provider without vault filesystem tools. Local CLI agents can read beyond selected notes.");
+        }
         if (program?.constraints.sourceBound) {
           for (const path of program.constraints.sourcePaths) {
             if (!refs.some(ref => ref.kind === "vault-note" && ref.path === path)) {
@@ -322,7 +338,7 @@ export class RunLearningTurn {
     }
     const system: AgentContext[] = [];
 
-    if (policy.rawInstructions) {
+    if (policy.rawInstructions && !program?.constraints.sourceBound) {
       const alreadyIncluded = visible.some(
         (item) =>
           item.type === "note" &&
@@ -338,7 +354,7 @@ export class RunLearningTurn {
       }
     }
 
-    system.push({
+    if (!program?.constraints.sourceBound) system.push({
       type: "note",
       file: "00-learning-os/progress.json",
       content: JSON.stringify(
@@ -446,6 +462,13 @@ export class RunLearningTurn {
         `${instruction}\n\nUser request:\n${request.prompt}`;
     }
 
+    if (program && !lockedMode && request.programActivity) {
+      const topic = program.objectives.find(item => item.id === request.programActivity?.objectiveId);
+      if (!topic) throw new Error("The teaching objective no longer exists.");
+      preparedPrompt += "\n\nTeach this objective: " + topic.outcome +
+        ". Rubric: " + JSON.stringify(topic.rubric) +
+        ". Give a mental model, one worked example, and a guided check. Do not grade or claim mastery.";
+    }
     if (program && !lockedMode && request.action === "practice") {
       const activeObjective = practiceAttempt?.objectiveId
         ? program.objectives.find(item => item.id === practiceAttempt.objectiveId)
@@ -460,6 +483,7 @@ export class RunLearningTurn {
           `Objective ID: ${activeObjective.id}. Outcome: ${activeObjective.outcome}`,
           `Required rubric: ${JSON.stringify(activeObjective.rubric)}`,
           `Activity: ${practiceAttempt ? "evaluate current answer" : decision?.kind}`,
+          "For guided practice use appropriate scaffolding; for transfer test application in a new context.",
           `Previously failed rubric criteria: ${JSON.stringify(missed)}. If remedial practice, target these first.`,
           `Source constraint: ${program.constraints.sourceBound
             ? "Only the explicitly selected source note(s), do not claim external facts were verified."
@@ -564,8 +588,10 @@ export class RunLearningTurn {
         },
         {
           model: conversation.model,
-          conversationId: lockedMode ? undefined : conversation.conversationId,
-          history: lockedMode ? [] : conversation.messages.slice(-12).map((message) => ({
+          // Program turns must not inherit the previous program's hidden provider
+          // cursor or conversation history, including when switching Chat sessions.
+          conversationId: lockedMode || program ? undefined : conversation.conversationId,
+          history: lockedMode || program ? [] : conversation.messages.slice(-12).map((message) => ({
             role: message.role, content: message.content,
           })),
         },
@@ -596,7 +622,7 @@ export class RunLearningTurn {
 
         if (event.type === "completed") {
           executionPhase = "processing";
-          if (event.conversationId && !lockedMode) {
+          if (event.conversationId && !lockedMode && !program) {
             await this.sessions.setConversationId(event.conversationId, turnSessionId);
           }
 
@@ -683,7 +709,9 @@ export class RunLearningTurn {
           // Never leave a durable or visible unanswered question after failure.
           if (practiceBuffer.question) {
             practiceBuffer.question = program && objective
-              ? { ...practiceBuffer.question, concept: objective.title, programId: program.id, objectiveId: objective.id }
+              ? { ...practiceBuffer.question, concept: objective.title, programId: program.id,
+                  objectiveId: objective.id, taskKind: decision?.kind === "transfer" || decision?.kind === "recall" ||
+                    decision?.kind === "guided-practice" ? decision.kind : "diagnostic" as const }
               : { ...practiceBuffer.question, programId: undefined, objectiveId: undefined };
             const questionId = crypto.randomUUID();
             await this.sessions.recordStructuredPart(
@@ -698,14 +726,17 @@ export class RunLearningTurn {
           }
 
           if (practiceAttempt && practiceBuffer.evaluation) {
-            if (practiceAttempt.programId && practiceBuffer.evaluation.outcome === "correct" &&
-                practiceBuffer.evaluation.rubricResults?.some(result => !result.met)) {
-              throw new InvalidLearningOutputError("Evaluation marked correct despite a failed rubric criterion.");
+            if (practiceAttempt.programId) {
+              const objective = program?.objectives.find(o => o.id === practiceAttempt.objectiveId);
+              if (!objective || !coversCriteria(objective.rubric, practiceBuffer.evaluation.rubricResults,
+                  practiceBuffer.evaluation.outcome)) {
+                throw new InvalidLearningOutputError("Evaluation did not fully and consistently assess the objective rubric.");
+              }
             }
             const evaluation = practiceAttempt.programId
               ? { ...practiceBuffer.evaluation, programId: practiceAttempt.programId,
                   objectiveId: practiceAttempt.objectiveId, nextQuestion: undefined,
-                  assisted: Boolean(practiceAttempt.assisted) }
+                  assisted: Boolean(practiceAttempt.assisted), taskKind: practiceAttempt.taskKind }
               : { ...practiceBuffer.evaluation,
                   programId: undefined, objectiveId: undefined, assisted: Boolean(practiceAttempt.assisted) };
             for await (const mapped of this.commitPracticeOutcome(
