@@ -7,6 +7,17 @@ import path from "path";
 
 const prod = process.argv[2] === "production";
 
+// Embed the exact git revision into the compiled plugin so Settings can prove
+// which main.js was actually loaded by Obsidian.
+let buildRevision = "unknown";
+try {
+  buildRevision = execFileSync("git", ["rev-parse", "--short=12", "HEAD"], {
+    encoding: "utf8", stdio: ["ignore", "pipe", "ignore"],
+  }).trim();
+} catch { /* Builds outside a git checkout remain identifiable by timestamp. */ }
+const buildTimestamp = new Date().toISOString();
+const buildTransport = "NOX_RUNTIME_TRANSPORT_V2:obsidian-requesturl";
+
 // Plugin to compile the Tailwind CSS entry and copy plugin assets into dist/.
 const copyAssetsPlugin = {
   name: "copy-assets",
@@ -49,6 +60,11 @@ const copyAssetsPlugin = {
 
 const context = await esbuild.context({
   entryPoints: ["src/main.ts"],
+  define: {
+    __NOX_BUILD_REVISION__: JSON.stringify(buildRevision),
+    __NOX_BUILD_TIMESTAMP__: JSON.stringify(buildTimestamp),
+    __NOX_BUILD_TRANSPORT__: JSON.stringify(buildTransport),
+  },
   bundle: true,
   external: [
     "obsidian",
