@@ -101,17 +101,31 @@ export async function verifyChatGptIdToken(
  */
 function credentialFileText(value: string, encrypt: boolean): string {
   if (process.platform !== "win32") return value;
-  const script = encrypt
+  // Windows PowerShell 5.1 doesn't automatically load System.Security.dll,
+  // which contains ProtectedData on .NET Framework. Without this line the
+  // first sign-in fails before the browser can open.
+  const setup = "$ErrorActionPreference='Stop';Add-Type -AssemblyName System.Security -ErrorAction Stop;";
+  const script = setup + (encrypt
     ? '$bytes=[Text.Encoding]::UTF8.GetBytes([Console]::In.ReadToEnd());' +
       '$secret=[Security.Cryptography.ProtectedData]::Protect($bytes,$null,[Security.Cryptography.DataProtectionScope]::CurrentUser);' +
       '[Console]::Out.Write([Convert]::ToBase64String($secret))'
     : '$data=[Convert]::FromBase64String([Console]::In.ReadToEnd().Trim());' +
       '$plain=[Security.Cryptography.ProtectedData]::Unprotect($data,$null,[Security.Cryptography.DataProtectionScope]::CurrentUser);' +
-      '[Console]::Out.Write([Text.Encoding]::UTF8.GetString($plain))';
+      '[Console]::Out.Write([Text.Encoding]::UTF8.GetString($plain))');
   const encoded = Buffer.from(script, "utf16le").toString("base64");
-  return execFileSync("powershell.exe", ["-NoProfile", "-NonInteractive", "-EncodedCommand", encoded], {
-    input: value, encoding: "utf8", maxBuffer: 1024 * 1024, windowsHide: true,
-  }).trim();
+  try {
+    return execFileSync("powershell.exe", ["-NoProfile", "-NonInteractive", "-EncodedCommand", encoded], {
+      input: value, encoding: "utf8", maxBuffer: 1024 * 1024, windowsHide: true,
+    }).trim();
+  } catch {
+    // execFileSync errors echo the whole encoded PowerShell command. Never
+    // expose that diagnostic (or stdin payload) in an Obsidian notice.
+    throw new Error(
+      "Nox could not " + (encrypt ? "encrypt" : "decrypt") +
+      " ChatGPT credentials with Windows DPAPI. Check Windows PowerShell " +
+      "and the .NET Framework System.Security assembly.",
+    );
+  }
 }
 
 /** Local OSS OAuth public client. No ChatGPT tokens are stored in the Obsidian vault. */
