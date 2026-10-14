@@ -2,7 +2,7 @@ import { createHash, createPublicKey, randomBytes, randomUUID, verify } from "cr
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "fs";
 import { createServer, type Server } from "http";
 import { homedir } from "os";
-import { join } from "path";
+import { dirname, join } from "path";
 
 const ISSUER = "https://auth.openai.com";
 const RESOURCE = "https://api.openai.com/v1";
@@ -77,7 +77,7 @@ export async function verifyChatGptIdToken(
   });
   if (!key) throw new Error("Unknown ChatGPT identity signing key.");
   const valid = verify("RSA-SHA256", Buffer.from(parts[0] + "." + parts[1]),
-    createPublicKey({ key, format: "jwk" }), Buffer.from(parts[2], "base64url"));
+    createPublicKey({ key: key as JsonWebKey, format: "jwk" }), Buffer.from(parts[2], "base64url"));
   if (!valid) throw new Error("Invalid ChatGPT identity signature.");
   const claims = object(JSON.parse(Buffer.from(parts[1], "base64url").toString("utf8")));
   const audience = claims.aud;
@@ -116,7 +116,6 @@ export class ChatGptAuth {
 
   private save(): void {
     const file = this.deps.storageFile;
-    const { dirname } = require("path") as typeof import("path");
     mkdirSync(dirname(file), { recursive: true, mode: 0o700 });
     const temp = file + "." + randomBytes(8).toString("hex") + ".tmp";
     writeFileSync(temp, JSON.stringify(this.record), { encoding: "utf8", mode: 0o600 });
@@ -186,7 +185,8 @@ export class ChatGptAuth {
           resolve({ code, clientId });
         });
       });
-      // A rejected callback promise must always have a consumer before opening the browser.
+      // Keep the rejection observed even if opening the browser itself fails.
+      void callback.catch(() => {});
       await openBrowser(url.toString());
       const result = await callback;
       if (this.record.clientId && this.record.clientId !== result.clientId) {
