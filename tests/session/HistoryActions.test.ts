@@ -10,6 +10,7 @@ test("archive is durable, filters active history, and restore recovers the trans
   const first = store.createSession();
   const second = store.createSession();
   first.messages.push({ role: "user", content: "Keep my work" });
+  first.messages.push({ role: "assistant", content: "Draft edit", proposalState: "pending" });
   store.updateSession(first);
 
   assert.equal(store.archiveSessions([first.id, first.id], true), 1);
@@ -19,6 +20,7 @@ test("archive is durable, filters active history, and restore recovers the trans
   await revived.load(store.serialize());
   assert.equal(revived.getSession(first.id)?.messages[0].content, "Keep my work");
   assert.ok(revived.getSession(first.id)?.archivedAt);
+  assert.equal(revived.getSession(first.id)?.messages[1].proposalState, "stale");
   assert.equal(revived.archiveSessions([first.id], false), 1);
   assert.equal(revived.getSession(first.id)?.archivedAt, undefined);
   assert.equal(revived.listSessions().length, 2);
