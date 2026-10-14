@@ -1,15 +1,11 @@
 import { App, TFile } from "obsidian";
 import type { LearningProgram, ProgramCollection } from "../domain/learning-program/types";
+import type { ProgramStorePort } from "../application/ports";
 import { validateConstraints, validateCurriculum } from "../domain/learning-program/rules";
 import { PersistenceError } from "./PersistenceError";
 
 const PATH = "00-learning-os/programs.json";
 const EMPTY: ProgramCollection = { version: 1, programs: [] };
-
-export interface ProgramStorePort {
-  load(): Promise<ProgramCollection>;
-  save(next: ProgramCollection): Promise<void>;
-}
 
 /** One durable collection per vault; writes are serialized and validated before I/O. */
 export class VaultProgramStore implements ProgramStorePort {
