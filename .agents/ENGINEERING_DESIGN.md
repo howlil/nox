@@ -2069,3 +2069,16 @@ AI content → StructuredStreamParser → PracticeQuestion candidate
 - Refer to `docs/INTERACTIVE_PRACTICE.md` for test cases and manual Obsidian
   acceptance. Automated tests do not certify renderer behavior in the user's
   actual vault/theme/account.
+
+---
+
+
+## Token usage telemetry ownership
+
+`AgentRuntime` consumes the normalized `usage` transport event and
+persists it via a composition-root callback, never through LearningController
+or transcript evidence. `TokenUsageRepository` owns daily immutable-on-read
+aggregates via the existing serialized `PluginDataRepository` writer.
+AGY cumulative counters require checkpoint deltas to avoid double counting.
+Settings reads a snapshot through the plugin host boundary. See
+`docs/TOKEN_USAGE.md`.

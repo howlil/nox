@@ -425,3 +425,14 @@ without structured instructions, present the original sentences in readable
 paragraphs without inventing requirements. Both live and historical questions
 must use the same renderer and remain theme-responsive. Details and decisions:
 docs/READABLE_PRACTICE_INSTRUCTIONS.md.
+
+---
+
+## Settings: provider token usage
+
+Settings has a compact, read-only Token usage section. Provider / Model /
+Period dropdowns filter daily recorded totals; 3-column numeric metrics and
+a flat table use the Nox 11–13px type scale, minimal rules and Obsidian theme
+variables. No usage telemetry is rendered in the active learning sidebar.
+Account quota/remaining credits are visibly unavailable when the provider
+does not expose a supported source of truth. See `docs/TOKEN_USAGE.md`.

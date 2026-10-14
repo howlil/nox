@@ -1,4 +1,5 @@
 import type { AgentFailure, AgentModel, AgentStreamEvent } from "../types";
+import { parseCodexUsage } from "./token-usage";
 
 /** Project the app-server catalog to executable model slugs, not catalog row IDs. */
 export function parseCodexModelPage(value: unknown): { models: AgentModel[]; nextCursor: string | null } {
@@ -83,7 +84,12 @@ export function parseCodexLine(line: string, state: CodexProtocolState): AgentSt
   } else if (event.type === "turn.completed") {
     if (!state.conversationId || state.messages.size === 0) {
       state.failure = codexFailure("Agent completed without a thread or answer.", "protocol-invalid");
-    } else state.completed = true;
+    } else {
+      state.completed = true;
+      const usage = parseCodexUsage(event);
+      if (usage) return [{ type: "usage", usage,
+        model: typeof event.model === "string" ? event.model : undefined }];
+    }
   } else if (event.type === "turn.failed" || event.type === "error") {
     const error = event.error as Record<string, unknown> | undefined;
     const diagnostic = typeof error?.message === "string" ? error.message
