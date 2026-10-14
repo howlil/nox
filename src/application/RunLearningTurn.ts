@@ -36,6 +36,9 @@ import {
   PracticeStateMachine,
 } from "../domain/practice/PracticeStateMachine";
 import { PracticeSessionRegistry } from "./PracticeSessionRegistry";
+import type { ProgramStorePort } from "../persistence/VaultProgramStore";
+import type { LearningProgram, LearningObjective } from "../domain/learning-program/types";
+import { chooseNextActivity } from "../domain/learning-program/rules";
 import {
   StructuredStreamEvent,
   StructuredStreamParser,
@@ -62,6 +65,7 @@ export class RunLearningTurn {
     cancelReason?: "user" | "timeout" | "dispose";
   } | null = null;
   private readonly turnTimeoutMs: number;
+  private readonly programStore?: ProgramStorePort;
 
   constructor(
     private readonly sessions: SessionPort,
@@ -69,9 +73,10 @@ export class RunLearningTurn {
     private readonly contexts: ContextPort,
     private readonly policies: PolicyPort,
     private readonly learningState: LearningStatePort,
-    options: { turnTimeoutMs?: number } = {},
+    options: { turnTimeoutMs?: number; programStore?: ProgramStorePort } = {},
   ) {
     this.turnTimeoutMs = options.turnTimeoutMs ?? 60_000;
+    this.programStore = options.programStore;
   }
 
   isRunning(): boolean {
@@ -80,6 +85,10 @@ export class RunLearningTurn {
 
   hasActivePracticeQuestion(): boolean {
     return this.practiceForSession(this.sessions.getSession()).isWaitingForAnswer();
+  }
+
+  getPracticeHint(): string | undefined {
+    return this.practiceForSession(this.sessions.getSession()).markHintUsed();
   }
 
   getActivePracticeOrigin(): PracticeOrigin | undefined {
@@ -103,6 +112,8 @@ export class RunLearningTurn {
         if (part.type === "practice-question") {
           practice.start(part.origin);
           practice.acceptQuestion(part.question, part.questionId);
+          if (session.messages.slice(i + 1).some(item => item.role === "user" &&
+              item.content.trim().toLowerCase() === "/hint")) practice.markHintUsed();
           return practice;
         }
       }
@@ -216,9 +227,21 @@ export class RunLearningTurn {
     let context: LearningContext;
     let policy: Awaited<ReturnType<PolicyPort["load"]>>;
     let state: Awaited<ReturnType<LearningStatePort["load"]>>;
+    let program: LearningProgram | undefined;
 
     try {
       const refs = [...request.explicitContext];
+      if (this.programStore && request.action === "practice" && !lockedMode) {
+        const collection = await this.programStore.load();
+        program = collection.programs.find(item => item.id === collection.activeProgramId);
+        if (program?.constraints.sourceBound) {
+          for (const path of program.constraints.sourcePaths) {
+            if (!refs.some(ref => ref.kind === "vault-note" && ref.path === path)) {
+              refs.push({ kind: "vault-note", path });
+            }
+          }
+        }
+      }
       const sourceRef = pinnedPracticeSource ?? request.sourcePath;
       if (sourceRef && !refs.some((ref) => ref.kind === "vault-note" && ref.path === sourceRef)) {
         refs.push({ kind: "vault-note", path: sourceRef });
@@ -269,7 +292,9 @@ export class RunLearningTurn {
       }
     }
 
-    const resolvedContext = this.contexts.toAgentContext(context);
+    const resolvedContext = this.contexts.toAgentContext(context)
+      .filter(item => !program?.constraints.sourceBound ||
+        program.constraints.sourcePaths.includes(item.file));
     // A Review follow-up practices its originating material, even if the user
     // navigated to another note before sending. Other explicit refs remain additive.
     let visible = resolvedContext;
@@ -353,6 +378,16 @@ export class RunLearningTurn {
     const conversation = this.sessions.getSession();
     const turnSessionId = conversation.id;
     const practice = this.practiceForSession(conversation);
+    const decision = program && request.action === "practice" && !practice.isWaitingForAnswer()
+      ? chooseNextActivity(program, state.evidence)
+      : undefined;
+    const objective: LearningObjective | undefined = decision?.objective;
+    if (decision && (!objective || decision.kind === "timebox-ended")) {
+      if (this.activeTurn === activeTurn) this.activeTurn = null;
+      yield { type: "failed", failure: { code: "busy",
+        message: decision.reason + " Use /progress to inspect the current plan." } };
+      return;
+    }
 
     let preparedPrompt: string;
     let practiceAttempt:
@@ -406,6 +441,26 @@ export class RunLearningTurn {
         `${instruction}\n\nUser request:\n${request.prompt}`;
     }
 
+    if (program && !lockedMode && request.action === "practice") {
+      const activeObjective = practiceAttempt?.objectiveId
+        ? program.objectives.find(item => item.id === practiceAttempt.objectiveId)
+        : objective;
+      if (activeObjective) {
+        preparedPrompt += [
+          "\n\nLEARNING PROGRAM CONTRACT (set by the application, not user-provided notes):",
+          `Program ID: ${program.id}. Goal: ${program.goal}`,
+          `Objective ID: ${activeObjective.id}. Outcome: ${activeObjective.outcome}`,
+          `Required rubric: ${JSON.stringify(activeObjective.rubric)}`,
+          `Activity: ${practiceAttempt ? "evaluate current answer" : decision?.kind}`,
+          `Source constraint: ${program.constraints.sourceBound
+            ? "Only the explicitly selected source note(s), do not claim external facts were verified."
+            : "Use provided material where available and distinguish assumptions."}`,
+          "Evaluate the specific objective only. Do not change topics or declare mastery.",
+          "When generating, ask exactly one question and avoid revealing its answer.",
+          "When evaluating, give specific rubric feedback and no follow-up nextQuestion; the application chooses the next objective.",
+        ].join("\n");
+      }
+    }
     if (lockedMode) {
       preparedPrompt = buildScopedPracticeInstruction(lockedMode, preparedPrompt, Boolean(practiceAttempt));
     }
@@ -617,6 +672,9 @@ export class RunLearningTurn {
           // A parsed question is only a candidate until the agent completes.
           // Never leave a durable or visible unanswered question after failure.
           if (practiceBuffer.question) {
+            if (program && objective) {
+              practiceBuffer.question = { ...practiceBuffer.question, programId: program.id, objectiveId: objective.id };
+            }
             const questionId = crypto.randomUUID();
             await this.sessions.recordStructuredPart(
               { type: "practice-question", question: practiceBuffer.question,
@@ -630,8 +688,12 @@ export class RunLearningTurn {
           }
 
           if (practiceAttempt && practiceBuffer.evaluation) {
+            const evaluation = practiceAttempt.programId
+              ? { ...practiceBuffer.evaluation, programId: practiceAttempt.programId,
+                  objectiveId: practiceAttempt.objectiveId, nextQuestion: undefined }
+              : practiceBuffer.evaluation;
             for await (const mapped of this.commitPracticeOutcome(
-              practiceBuffer.evaluation,
+              evaluation,
               snapshot,
               turnSessionId,
               practice,
@@ -773,6 +835,8 @@ export class RunLearningTurn {
             evaluation: part.evaluation,
             source: part.sourcePath ?? message.sourcePath ?? "learning-session",
             evidenceId: operationId,
+            programId: part.evaluation.programId,
+            objectiveId: part.evaluation.objectiveId,
           });
           if (next.evidence.length !== state.evidence.length) {
             changed = true;
@@ -856,6 +920,9 @@ export class RunLearningTurn {
           evaluation: evaluationPart.evaluation,
           source: evaluationPart.sourcePath ?? source,
           evidenceId: operationId,
+          programId: evaluationPart.evaluation.programId,
+          objectiveId: evaluationPart.evaluation.objectiveId,
+          assisted: practiceAttempt.assisted,
         });
         if (nextState.evidence.length !== currentState.evidence.length) {
           await this.learningState.save(nextState);
