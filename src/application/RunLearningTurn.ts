@@ -718,6 +718,10 @@ export class RunLearningTurn {
         { model: conversation.model, conversationId, history: envelope.history },
         controller.signal,
       )) {
+        if (event.type === "tool-started" || event.type === "tool-completed") {
+          if (!lockedMode) yield event;
+          continue;
+        }
         if (event.type === "text") {
           if (metrics.firstTokenMs === undefined) metrics.firstTokenMs = Date.now() - startedAt;
           executionPhase = "processing";
