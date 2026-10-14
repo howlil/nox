@@ -139,7 +139,7 @@ normal      → white surface + subtle neutral full border
 hover       → solid neutral inset + stronger neutral border
 selected    → solid soft purple fill + purple border
 icon        → purple semantic foreground (no per-card color wash)
-metadata    → solid inset neutral pill
+metadata    → small, plain muted text (no decorative pill)
 ```
 
 The old `purple/blue/coral/green` capability tone identifiers remain metadata
@@ -258,7 +258,7 @@ semantic AI identity. Light palette:
 | `--nox-surface` | `#FEFEFE` | cards, thread, popovers |
 | `--nox-inset` | `#F7F7F7` | composer, quiet grouping |
 | `--nox-hover` | `#F5F5F5` | neutral hover |
-| `--nox-ink` | `#121212` | primary text |
+| `--nox-ink` | `#161616` | primary text |
 | `--nox-ink-2` / `--nox-ink-3` | `#626262` / `#949494` | metadata |
 | `--nox-line` | `#EAEAEA` | subtle complete border |
 | `--nox-accent` / `--nox-accent-hover` | `#8653D5` / `#7541C4` | primary action |
@@ -279,9 +279,12 @@ Semantic tokens have one owner at the top of `styles.css`; layout blocks must
 not redefine color, radius or motion variables. Preserve the Howlil spacing
 rhythm `4 / 8 / 12 / 16 / 20 / 24 / 32px` and type weights
 `400 / 500 / 600` (compact sidebar metadata may stay 11–12px).
-Radius: 6 chip / 10 control + card / 14 composer / pill for actions.
-Controls: 28px compact where appropriate. Focus rings must be visible for
-keyboard users. Cards and popovers are flat, without shadows.
+Radius: 6 chip / 8 control + card / 10 composer. Pills are limited to
+non-interactive status markers, not ordinary controls.
+Controls: 30px for icon actions, compact 28–30px for textual controls.
+Keyboard focus has **no outer outline/ring**: the focused surface must change
+to a solid purple-tinted fill, border, or text treatment that remains visible.
+Cards, controls, and popovers have no shadows.
 
 Green = correct/success/applied.
 Orange = partial/warning/review.
@@ -337,7 +340,13 @@ longer text moves onto its own line
 +                              Model ▾   send
 ```
 
-Composer radius 14px, input 13px, controls 28px. The composer uses a solid neutral inset, without a decorative shadow. Model is visually secondary.
+Composer uses one **flat white** 10px-radius bordered surface with two rows:
+a full-width prompt line above a compact + / Actions / Model / Send toolbar.
+The composer has no nested input field, halo, or shadow. Its textarea stays
+transparent during hover, focus, active and typing states (Obsidian must not
+inject a white hover rectangle). Controls use 8px radius and 30px height.
+The send action is solid purple when enabled, muted otherwise. Model selection
+is visually secondary, truncated in the available sidebar width.
 The plus control owns context and file actions; do not duplicate it with a
 separate `No context` or context selector button.
 
@@ -436,7 +445,10 @@ stages, permanent animation, or hidden consequential actions.
 9. UI feels like Obsidian, not a generic AI dashboard.
 10. Capability cards and command rows use the same icon metadata.
 11. Command and model popovers use one Nox surface rule with no per-row shadow.
-12. Text input focus does not create a purple ring.
+12. No control creates an outer focus ring or decorative shadow.
+13. Keyboard focus is visible via an in-surface border/fill/text state.
+14. Textarea hover/focus never introduces an internal white rectangle.
+15. Capability cards and Token Usage fit the compact Obsidian sidebar.
 
 
 ## Interactive Practice Cards
@@ -564,3 +576,36 @@ reduced-motion-safe shimmer. While waiting for provider output, communicate
 the lack of updates honestly; rich animations cannot make model inference
 faster. Reference interaction pattern:
 https://beui.dev/components/agents/agent-activity .
+
+## Compact flat visual audit — 2026-10-15
+
+The latest source refines the Howlil × NOX design after real Obsidian
+screenshots revealed inconsistent native hover, pill overuse and excessive
+card/settings whitespace. Product behavior remains unchanged.
+
+```text
+Root UI tokens (styles.css)
+├── chrome → Header: transparent icon controls and compact timer row
+├── welcome → neutral Continue row + four compact capability cards
+├── composer → flat single surface → prompt row + 30px toolbar
+├── learning → quiz, review, proposal use semantic state colors
+├── settings → native Setting controls + compact Token Usage
+└── focus → interior fill/border treatment (no outer ring)
+```
+
+- All actionable icons use the same Obsidian/Lucide outline family,
+  normalized to 16px and consistent stroke weight; logo is an image.
+- Hover never uses lift, halo, drop shadow or a contrasting rectangular
+  patch within the textarea.
+- Plain capability metadata is muted text, not a chip. Selected intent alone
+  carries a purple-tinted surface.
+- Continue Learning is a neutral functional row, not a framed hero.
+- Token Usage places Refresh next to the section title; filters are full-width
+  aligned selects, statistics are compact and tables use 6px row padding.
+- Preserve source ownership: typography/colors/shapes in `styles.css`,
+  icon primitive in `src/chat/primitives.ts`, capability glyph metadata in
+  `src/chat/capabilities.ts`, native settings layout in
+  `src/settings/TokenUsageSection.ts`. No shadow/ring overrides appended
+  to the end to fight legacy declarations.
+- Regression gates: lint/typecheck/unit/integration/build, source design
+  assertions, and manual Obsidian light/dark at 320px, 420px and wide panels.
