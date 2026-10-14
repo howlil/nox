@@ -52,7 +52,7 @@ test("capability icons remain the shared visual source of truth", () => {
       ["explain", "circle-help"],
       ["practice", "list-checks"],
       ["review", "search"],
-      ["edit", "pencil"],
+      ["edit", "pencil-line"],
     ],
   );
 });
