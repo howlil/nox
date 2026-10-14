@@ -19,6 +19,7 @@ const draft = (refs: string[] = []) => ({
   ],
 });
 function rig(payload: unknown = draft(), success = true) {
+  let currentTime = Date.now();
   let stored: ProgramCollection = { version: 1, programs: [] };
   let writes = 0;
   const context = { activeNote: { path: "notes/spanish.md", content: "Hola means hello." }, explicit: [] };
@@ -38,8 +39,10 @@ function rig(payload: unknown = draft(), success = true) {
       save: async (next: ProgramCollection) => { stored = structuredClone(next); writes++; } } as never,
     () => undefined,
     () => "chatgpt",
+    () => currentTime,
   );
-  return { orchestrator, stored: () => structuredClone(stored), writes: () => writes };
+  return { orchestrator, stored: () => structuredClone(stored), writes: () => writes,
+    advance: (ms: number) => { currentTime += ms; } };
 }
 test("plan creation persists validated objectives, updates active identity and feasibility", async () => {
   const { orchestrator, stored, writes } = rig();
@@ -100,4 +103,46 @@ test("teaching markers are idempotent and apply to the matching objective", asyn
   await orchestrator.markTaught("basic", 1000);
   assert.equal(stored().programs[0].instructionEvents?.length, 1);
   await assert.rejects(orchestrator.markTaught("unknown", 1000), /unknown/);
+});
+
+test("active budget excludes AI requests and survives crash-style recovery", async () => {
+  const { orchestrator, advance } = rig();
+  await orchestrator.createProgram("SQL practice", base);
+  await orchestrator.startSession();
+
+  advance(30_000);
+  await orchestrator.flushTime();
+  assert.equal((await orchestrator.getSessionTime())?.activeMs, 30_000);
+
+  assert.equal(await orchestrator.beginAiWait("run-one"), true);
+  advance(30_000);
+  await orchestrator.flushTime();
+  await orchestrator.finishAiWait("run-one");
+  assert.equal((await orchestrator.getSessionTime())?.aiWaitingMs, 30_000);
+  assert.equal((await orchestrator.getSessionTime())?.remainingMs, 44 * 60_000 + 30_000);
+
+  await orchestrator.recoverSessions();
+  advance(180_000);
+  assert.equal((await orchestrator.getSessionTime())?.status, "recovered");
+  assert.equal((await orchestrator.getSessionTime())?.remainingMs, 44 * 60_000 + 30_000);
+  await orchestrator.resumeSession();
+  await orchestrator.endSession();
+  orchestrator.dispose();
+});
+
+test("session mutations serialize full read-modify-write and keep pause reasons", async () => {
+  const { orchestrator, stored } = rig();
+  await orchestrator.createProgram("SQL practice", base);
+  await orchestrator.startSession();
+  await Promise.all([
+    orchestrator.extendSession(15),
+    orchestrator.focusObjective("basic"),
+    orchestrator.pauseSession(),
+  ]);
+  const session = stored().programs[0].session;
+  assert.equal(session?.timeBudgetMinutes, 60);
+  assert.equal(session?.timing?.focusObjectiveId, "basic");
+  assert.deepEqual(session?.timing?.pauseReasons, ["manual"]);
+  await orchestrator.endSession();
+  orchestrator.dispose();
 });
