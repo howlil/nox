@@ -187,7 +187,7 @@ export function enhanceNoxResponseVisuals(content: HTMLElement): number {
   for (const code of Array.from(content.querySelectorAll<HTMLElement>("pre > code"))) {
     const pre = code.parentElement;
     if (!(pre instanceof HTMLPreElement)) continue;
-    const kind = visualKindFromClasses([...code.classList, ...pre.classList]);
+    const kind = visualKindFromClasses([...Array.from(code.classList), ...Array.from(pre.classList)]);
     if (!kind) continue;
     const source = code.textContent ?? "";
     if (source.length > MAX_VISUAL_SOURCE_CHARS) {
