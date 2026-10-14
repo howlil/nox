@@ -34,6 +34,7 @@ export interface PracticeTurn {
   programId?: string;
   objectiveId?: string;
   hint?: string;
+  assisted?: boolean;
   answer?: string;
   evaluation?: PracticeEvaluation;
 }
