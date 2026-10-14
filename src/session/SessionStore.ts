@@ -1,5 +1,6 @@
 import { ChatSession, ChatMessage, EditProposal } from "../types";
 import { isTranscriptPart } from "./transcript-schema";
+import { isAgentUsageRecord } from "../agent/token-usage";
 import { isPracticeAnswer } from "../domain/practice/question-schema";
 import { isLockedLearningMode } from "../domain/practice/learning-scope";
 
@@ -243,6 +244,9 @@ export class SessionStore {
         !Array.isArray(session.practiceDrafts)
         ? Object.fromEntries(Object.entries(session.practiceDrafts)
             .filter(([key, value]) => key.length > 0 && key.length <= 200 && isPracticeAnswer(value)))
+        : undefined,
+      usageRecords: Array.isArray(session.usageRecords)
+        ? session.usageRecords.filter(isAgentUsageRecord).slice(-5000).map(item => structuredClone(item))
         : undefined,
       messages: session.messages
         .map((message) => this.decodeMessage(message))
