@@ -7,6 +7,7 @@ import { LearningState } from "../domain/learning-state/types";
 import {
   PracticeEvaluation,
   PracticeQuestion,
+  PracticeAnswer,
 } from "../domain/practice/types";
 import { ReviewFinding } from "../domain/review/types";
 
@@ -29,6 +30,8 @@ export interface LearningRequest {
   turnId?: string;
   programActivity?: { programId: string; objectiveId: string; kind: "teach" };
   freePractice?: boolean;
+  /** Typed submit from an interactive card, validated against the active question. */
+  practiceSubmission?: { questionId: string; answer: PracticeAnswer };
 }
 
 export interface ProposedEdit {
