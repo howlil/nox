@@ -12,11 +12,16 @@ export class VaultProgramStore {
   private tail: Promise<void> = Promise.resolve();
   constructor(private readonly app: App) {}
   async load(): Promise<ProgramCollection> {
+    // Avoid reading a partially written local snapshot during an in-flight save.
+    await this.tail;
     const file = this.app.vault.getFileByPath(PATH);
     if (!file || !(file instanceof TFile)) return structuredClone(EMPTY);
-    const text = await this.app.vault.cachedRead(file);
+    // A program read may be followed by a mutation; do not trust a stale cache.
+    const text = await this.app.vault.read(file);
     let data: unknown;
-    try { data = JSON.parse(text); } catch { throw new Error("Invalid NOX programs JSON."); }
+    try { data = JSON.parse(text); } catch {
+      throw new Error(`Invalid NOX programs JSON at ${PATH}. Back up the file and restore valid JSON before using learning programs.`);
+    }
     if (!data || typeof data !== "object") throw new Error("Invalid NOX program collection.");
     const state = data as ProgramCollection;
     if (state.version !== 1 || !Array.isArray(state.programs) ||

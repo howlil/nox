@@ -33,6 +33,7 @@ function createHarness(
     agentContexts?: AgentContext[];
     learningSaveFailures?: number;
     evaluationTranscriptFailures?: number;
+    programTimer?: { beginAiWait(id: string): Promise<boolean>; isPlanning(): boolean };
   } = {},
 ) {
   let session: ChatSession = {
@@ -255,6 +256,7 @@ function createHarness(
     mutations,
     learningState,
     { turnTimeoutMs: 50 },
+    options.programTimer as never,
   );
 
   return {
@@ -1176,4 +1178,38 @@ test("typed code answer keeps review-only constraints and criteria through the m
   assert.match(h.prompts[1] ?? "", /Review only; do not claim code execution/);
   assert.match(h.prompts[1] ?? "", /Constructor injection/);
   assert.equal(h.getEvidence().length, 1);
+});
+
+test("malformed learning program data cannot prevent an unrelated chat turn", async () => {
+  const harness = createHarness(async function* () {
+    yield { type: "text", content: "Hello from the agent." };
+    yield { type: "completed" };
+  }, {
+    programTimer: {
+      beginAiWait: async () => { throw new Error("Invalid NOX programs JSON."); },
+      isPlanning: () => false,
+    },
+  });
+  const events = await collectEvents(harness.controller.run({
+    prompt: "Explain Java Spring", action: "ask", explicitContext: [],
+  }));
+  assert.equal(events.at(-1)?.type, "completed");
+  assert.equal(harness.prompts.length, 1);
+});
+
+test("learning-specific practice remains blocked when program storage is invalid", async () => {
+  const harness = createHarness(async function* () {
+    yield { type: "text", content: "Should not invoke agent" };
+    yield { type: "completed" };
+  }, {
+    programTimer: {
+      beginAiWait: async () => { throw new Error("Invalid NOX programs JSON."); },
+      isPlanning: () => false,
+    },
+  });
+  const events = await collectEvents(harness.controller.run({
+    prompt: "Practice my curriculum", action: "practice", explicitContext: [],
+  }));
+  assert.ok(events.some(event => event.type === "failed"));
+  assert.equal(harness.prompts.length, 0);
 });
