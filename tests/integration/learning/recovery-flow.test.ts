@@ -602,3 +602,74 @@ test("restart after unsaved Apply status never silently reactivates proposal", a
   assert.equal(result.ok, false);
   assert.equal(rig.editorMutationCount(), 1);
 });
+
+
+test("completed Practice and Review turns require their structured result", async () => {
+  for (const action of ["practice", "review"] as const) {
+    const rig = makeRig();
+    const { learning, sessions, learningState } = await rig.createLearning();
+    rig.queue([{ type: "text", content: "Here is an unstructured answer." }, { type: "completed" }]);
+    const events = await collectEvents(learning.run({
+      prompt: "Start", action, explicitContext: [],
+    }));
+    assert.ok(events.some((event) => event.type === "failed" &&
+      event.failure.code === "protocol-invalid"), action);
+    assert.equal(events.some((event) => event.type === "completed"), false);
+    assert.equal(sessions.getSession().messages.flatMap((message) => message.parts ?? []).length, 0);
+    assert.equal((await learningState.load()).evidence.length, 0);
+    assert.equal(learning.hasActivePracticeQuestion(), false);
+  }
+});
+
+test("structured agent output must match the selected action", async () => {
+  const question = { kind: "question", concept: "ACID", question: "What is atomicity?" };
+  const reviewResult = { kind: "review", findings: [] };
+  const cases = [
+    { action: "ask" as const, response: practice(question) },
+    { action: "explain" as const, response: review(reviewResult) },
+    { action: "edit" as const, response: practice(question) },
+    { action: "practice" as const, response: review(reviewResult) },
+    { action: "review" as const, response: practice(question) },
+  ];
+  for (const { action, response } of cases) {
+    const rig = makeRig();
+    const { learning, sessions, learningState } = await rig.createLearning();
+    rig.queue(response);
+    const events = await collectEvents(learning.run({
+      prompt: "Test invalid output", action, explicitContext: [],
+    }));
+    assert.ok(events.some((event) => event.type === "failed" &&
+      event.failure.code === "protocol-invalid"), action);
+    assert.equal(events.some((event) => event.type === "completed"), false);
+    assert.equal(events.some((event) => event.type === "practice-question" ||
+      event.type === "review-findings"), false);
+    assert.equal(sessions.getSession().messages.flatMap((message) => message.parts ?? []).length, 0);
+    assert.equal((await learningState.load()).evidence.length, 0);
+  }
+});
+
+test("duplicate Review payloads fail without committing partial findings", async () => {
+  const rig = makeRig();
+  const { learning, sessions, learningState } = await rig.createLearning();
+  const finding = { kind: "factual-error", concept: "ACID", title: "Wrong", detail: "Incorrect explanation." };
+  rig.queue([
+    { type: "text", content: "```learning-review\n" + JSON.stringify({ kind: "review", findings: [finding] }) + "\n```" },
+    { type: "text", content: "```learning-review\n" + JSON.stringify({ kind: "review", findings: [] }) + "\n```" },
+    { type: "completed" },
+  ]);
+  const events = await collectEvents(learning.run({ prompt: "Review", action: "review", explicitContext: [] }));
+  assert.ok(events.some((event) => event.type === "failed" && event.failure.code === "protocol-invalid"));
+  assert.equal(sessions.getSession().messages.flatMap((message) => message.parts ?? []).length, 0);
+  assert.equal((await learningState.load()).evidence.length, 0);
+});
+
+test("an empty but well-formed Review payload is successful", async () => {
+  const rig = makeRig();
+  const { learning, sessions } = await rig.createLearning();
+  rig.queue(review({ kind: "review", findings: [] }));
+  const events = await collectEvents(learning.run({ prompt: "Review", action: "review", explicitContext: [] }));
+  assert.ok(events.some((event) => event.type === "completed"));
+  assert.ok(events.some((event) => event.type === "review-findings" && event.findings.length === 0));
+  assert.equal(sessions.getSession().messages.flatMap((message) => message.parts ?? [])
+    .filter((part) => part.type === "review-findings").length, 1);
+});
