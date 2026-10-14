@@ -6,7 +6,7 @@ import { ChatGptAuth, type ChatGptConnection } from "./agent/ChatGptAuth";
 import { createObsidianOAuthFetch } from "./agent/ObsidianOAuthTransport";
 import { createObsidianInferenceFetch } from "./agent/ObsidianInferenceTransport";
 import { AgentRuntime } from "./agent/AgentRuntime";
-import type { AgentUsageRecord } from "./agent/token-usage";
+import type { AgentUsageRecord } from "./domain/telemetry/token-usage";
 import { ChatView, NOX_VIEW_TYPE } from "./chat/ChatView";
 import { ContextResolver } from "./context/ContextResolver";
 import { ObsidianContext } from "./context/ObsidianContext";
