@@ -13,7 +13,7 @@ export const MAX_PREVIEW_HEIGHT = 12000;
 export function normalizePreviewHeight(value: unknown): number | null {
   if (typeof value !== "number" || !Number.isFinite(value) ||
       value < 0 || value > 1_000_000) return null;
-  return Math.max(MIN_HEIGHT, Math.min(MAX_PREVIEW_HEIGHT, Math.ceil(value) + 2));
+  return Math.max(MIN_HEIGHT, Math.min(MAX_PREVIEW_HEIGHT, Math.ceil(value)));
 }
 
 function handlePreviewResize(event: MessageEvent): void {
