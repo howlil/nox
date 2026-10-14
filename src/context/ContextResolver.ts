@@ -5,6 +5,7 @@ import {
   ExplicitContextRef,
   LearningContext,
 } from "./context-types";
+import type { ResearchResult } from "./LocalResearch";
 
 /**
  * Single source of truth for context shown in the UI and sent to the agent.
@@ -59,6 +60,10 @@ export class ContextResolver {
         : undefined,
       explicit: explicitDocs,
     };
+  }
+
+  searchKnowledge(query: string, options?: { allowedPaths?: string[]; limit?: number }): Promise<ResearchResult> {
+    return this.obsidian.searchKnowledge(query, options);
   }
 
   searchNotes(

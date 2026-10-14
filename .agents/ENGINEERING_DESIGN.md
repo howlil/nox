@@ -8,6 +8,16 @@ Last updated: 2026-10-13
 
 ---
 
+## Context + research incremental extension — 2026-10-14
+
+Optional `/research` uses `ContextResolver` and `ObsidianContext` to query
+derived, on-demand `LocalResearchIndex` from Markdown notes and resolvedLinks.
+`ContextBudget` is a pure, provider-neutral envelope invoked by `RunLearningTurn`.
+`NodeInferenceTransport` sends progressive SSE over Node HTTPS; OAuth and
+catalog discovery remain on Obsidian requestUrl. Source truth remains with
+SessionController, VaultLearningStore and the existing token usage ledger.
+See `docs/CONTEXT_RESEARCH_ENGINE.md` for limits and smoke-test gates.
+
 ## Implementation checkpoint — 2026-10-13
 
 The migration discussions in sections 2 and 22 include historical September

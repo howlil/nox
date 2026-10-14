@@ -82,3 +82,10 @@ test("search results are bounded and deterministic", () => {
   assert.ok(buildActionMenu(state, "learn").length <= 8);
   assert.deepEqual(buildActionMenu(state, "learn"), buildActionMenu(state, "learn"));
 });
+
+test("research command is discoverable but does not bloat the default menu", () => {
+  assert.deepEqual(buildActionMenu(empty, "research").map(item => item.key), ["research"]);
+  assert.deepEqual(buildActionMenu(empty).map(item => item.key),
+    ["plan", "explain", "practice", "review", "edit"]);
+  assert.deepEqual(buildActionMenu({ ...empty, legacyMode: "locked" }, "research"), []);
+});

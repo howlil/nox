@@ -39,6 +39,9 @@ interface AdvancedEntry extends ActionMenuEntry {
 }
 
 const advanced: AdvancedEntry[] = [
+  { key: "research", name: "Research notes", description: "Search note content and linked concepts",
+    icon: "network", command: "/research ", action: { type: "scope", command: "/research " },
+    keywords: ["graph", "investigate", "evidence", "sources"], visible: context => noQuestion(context) && context.legacyMode !== "locked" },
   { key: "free-practice", name: "Free practice", description: "Practice outside your learning plan",
     icon: "pencil-line", command: "/free-practice", action: { type: "scope", command: "/free-practice" },
     keywords: ["independent", "quiz"], visible: noQuestion },

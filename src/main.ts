@@ -5,6 +5,7 @@ import { ChatGptAdapter } from "./agent/ChatGptAdapter";
 import { ChatGptAuth, type ChatGptConnection } from "./agent/ChatGptAuth";
 import { createObsidianOAuthFetch } from "./agent/ObsidianOAuthTransport";
 import { createObsidianInferenceFetch } from "./agent/ObsidianInferenceTransport";
+import { createNodeInferenceFetch } from "./agent/NodeInferenceTransport";
 import { AgentRuntime } from "./agent/AgentRuntime";
 import { ChatView, NOX_VIEW_TYPE } from "./chat/ChatView";
 import { ContextResolver } from "./context/ContextResolver";
@@ -266,7 +267,7 @@ export default class NoxPlugin extends Plugin {
 
   private createAdapter(settings: NoxSettings): AgyAdapter | CodexAdapter | ChatGptAdapter {
     return settings.provider === "chatgpt"
-      ? new ChatGptAdapter(this.chatGptAuth, { fetch: createObsidianInferenceFetch(requestUrl) })
+      ? new ChatGptAdapter(this.chatGptAuth, { fetch: createNodeInferenceFetch(createObsidianInferenceFetch(requestUrl)) })
       : settings.provider === "codex"
       ? new CodexAdapter(this.vaultPath, () => ({ executablePath: settings.codexExecutablePath }))
       : new AgyAdapter(this.vaultPath, () => ({ executablePath: settings.executablePath }));

@@ -616,8 +616,8 @@ Current product scope:
 
 Deferred until a concrete product need exists:
 
-- RAG and embeddings;
-- background indexing;
+- external and embedding-based RAG;
+- always-on background indexing;
 - autonomous note mutation;
 - multi-agent orchestration;
 - progress dashboards;
