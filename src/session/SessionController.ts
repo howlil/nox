@@ -72,13 +72,21 @@ export class SessionController {
         ? { conversationId: undefined, model: this.store.getDefaultModel() } : {}) };
   }
 
+
   async newSession(): Promise<ChatSession> {
     return this.serializeWrite(async () => {
-      this.stalePendingProposals(this.currentSession);
-      const model = this.currentSession?.model ?? this.store.getDefaultModel();
-      this.currentSession = this.forRuntime(this.store.createSession(model));
-      this.commitSession(this.currentSession);
-      await this.save();
+      await this.commitStoreTransaction((draft) => {
+        const previous = this.currentSession && draft.getSession(this.currentSession.id);
+        if (previous) {
+          for (const message of previous.messages) {
+            if (message.proposalState === "pending") message.proposalState = "stale";
+          }
+          draft.updateSession(previous);
+        }
+        const model = previous?.model ?? draft.getDefaultModel();
+        const next = this.forRuntime(draft.createSession(model));
+        draft.updateSession(next);
+      });
       return this.getSession();
     });
   }
@@ -87,33 +95,56 @@ export class SessionController {
     return this.store.listSessions();
   }
 
+
   async selectSession(id: string): Promise<ChatSession | null> {
     return this.serializeWrite(async () => {
-      const stored = this.store.getSession(id);
-      if (!stored) return null;
-      const session = this.forRuntime(stored);
-
-      this.stalePendingProposals(this.currentSession);
-      this.currentSession = session;
-      if (session.runtimeProvider !== stored.runtimeProvider) this.commitSession(session);
-      this.store.setCurrentSession(id);
-      await this.save();
+      if (!this.store.getSession(id)) return null;
+      await this.commitStoreTransaction((draft) => {
+        const previous = this.currentSession && draft.getSession(this.currentSession.id);
+        if (previous) {
+          for (const message of previous.messages) {
+            if (message.proposalState === "pending") message.proposalState = "stale";
+          }
+          draft.updateSession(previous);
+        }
+        const stored = draft.getSession(id);
+        if (!stored) throw new Error(`Session ${id} no longer exists`);
+        const selected = this.forRuntime(stored);
+        if (selected.runtimeProvider !== stored.runtimeProvider ||
+            selected.conversationId !== stored.conversationId ||
+            selected.model !== stored.model) draft.updateSession(selected);
+        draft.setCurrentSession(id);
+      });
       return this.getSession();
     });
   }
 
+
   async setModel(modelId?: string): Promise<void> {
     return this.serializeWrite(async () => {
-      const normalized = modelId || undefined;
-      this.store.setDefaultModel(normalized);
-
-      if (this.currentSession) {
-        this.currentSession.model = normalized;
-        this.commitSession(this.currentSession);
-      }
-
-      await this.save();
+      await this.commitStoreTransaction((draft) => {
+        const normalized = modelId || undefined;
+        draft.setDefaultModel(normalized);
+        const active = draft.getCurrentSession();
+        if (active) {
+          active.model = normalized;
+          draft.updateSession(active);
+        }
+      });
     });
+  }
+
+  /** Save a whole isolated session draft before publishing any of its state. */
+  private async commitStoreTransaction<T>(mutate: (draft: SessionStore) => T): Promise<T> {
+    const staged = this.store.stageTransaction(mutate);
+    try {
+      await this.pluginData.update((current) => ({ ...current, ...staged.serialized }));
+    } catch (error) {
+      throw new PersistenceError("Unable to persist Nox session", error);
+    }
+    staged.publish();
+    this.currentSession = this.store.getCurrentSession();
+    return staged.result;
   }
 
   /** The only path for applying session mutations to the store. */
@@ -130,20 +161,19 @@ export class SessionController {
     return session;
   }
 
+
   async recordUserMessage(
     content: string,
     sessionId?: string,
     action?: "ask" | "explain" | "practice" | "review" | "edit",
   ): Promise<void> {
     return this.serializeWrite(async () => {
-      const session = this.sessionForWrite(sessionId);
-      session.messages.push({
-        role: "user",
-        content,
-        action,
+      await this.commitStoreTransaction((draft) => {
+        const session = sessionId ? draft.getSession(sessionId) : draft.getCurrentSession();
+        if (!session) throw new Error(`Session ${sessionId} no longer exists`);
+        session.messages.push({ role: "user", content, action });
+        draft.updateSession(session);
       });
-      this.commitSession(session);
-      await this.save();
     });
   }
 
@@ -172,12 +202,15 @@ export class SessionController {
     });
   }
 
+
   async setConversationId(conversationId?: string, sessionId?: string): Promise<void> {
     return this.serializeWrite(async () => {
-      const session = this.sessionForWrite(sessionId);
-      session.conversationId = conversationId;
-      this.commitSession(session);
-      await this.save();
+      await this.commitStoreTransaction((draft) => {
+        const session = sessionId ? draft.getSession(sessionId) : draft.getCurrentSession();
+        if (!session) throw new Error(`Session ${sessionId} no longer exists`);
+        session.conversationId = conversationId;
+        draft.updateSession(session);
+      });
     });
   }
 
@@ -186,16 +219,14 @@ export class SessionController {
     sourcePath?: string,
     sessionId?: string,
   ): Promise<void> {
+    if (!content.trim()) return;
     return this.serializeWrite(async () => {
-      if (!content.trim()) return;
-      const session = this.sessionForWrite(sessionId);
-      session.messages.push({
-        role: "assistant",
-        content,
-        sourcePath,
+      await this.commitStoreTransaction((draft) => {
+        const session = sessionId ? draft.getSession(sessionId) : draft.getCurrentSession();
+        if (!session) throw new Error(`Session ${sessionId} no longer exists`);
+        session.messages.push({ role: "assistant", content, sourcePath });
+        draft.updateSession(session);
       });
-      this.commitSession(session);
-      await this.save();
     });
   }
 
@@ -299,6 +330,7 @@ export class SessionController {
     }
   }
 
+
   async recordProposal(
     proposalId: string,
     proposal: EditProposal,
@@ -306,17 +338,15 @@ export class SessionController {
     sessionId?: string,
   ): Promise<void> {
     return this.serializeWrite(async () => {
-      const session = this.sessionForWrite(sessionId);
-      session.messages.push({
-        role: "assistant",
-        content: "",
-        proposalId,
-        proposal,
-        proposalMutableFile: mutableFile,
-        proposalState: "pending",
+      await this.commitStoreTransaction((draft) => {
+        const session = sessionId ? draft.getSession(sessionId) : draft.getCurrentSession();
+        if (!session) throw new Error(`Session ${sessionId} no longer exists`);
+        session.messages.push({
+          role: "assistant", content: "", proposalId, proposal,
+          proposalMutableFile: mutableFile, proposalState: "pending",
+        });
+        draft.updateSession(session);
       });
-      this.commitSession(session);
-      await this.save();
     });
   }
 
@@ -420,21 +450,6 @@ export class SessionController {
         this.currentSession = this.store.getSession(session.id);
       }
     });
-  }
-
-  private stalePendingProposals(session: ChatSession | null): void {
-    if (!session) return;
-
-    let changed = false;
-    for (const message of session.messages) {
-      if (message.proposalState !== "pending") continue;
-      message.proposalState = "stale";
-      changed = true;
-    }
-
-    if (changed) {
-      this.commitSession(session);
-    }
   }
 
   private async save(): Promise<void> {
