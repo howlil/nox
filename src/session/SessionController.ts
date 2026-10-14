@@ -131,9 +131,20 @@ export class SessionController {
   }> {
     return this.serializeWrite(async () => {
       const before = this.currentSession?.id;
-      const affected = await this.commitStoreTransaction(draft =>
-        action === "delete" ? draft.deleteSessions(ids)
-          : draft.archiveSessions(ids, action === "archive"));
+      const affected = await this.commitStoreTransaction(draft => {
+        const count = action === "delete" ? draft.deleteSessions(ids)
+          : draft.archiveSessions(ids, action === "archive");
+        // A fallback selected implicitly by archive/delete must use the
+        // configured runtime, just like an explicit selectSession call.
+        const fallback = draft.getCurrentSession();
+        if (fallback && fallback.id !== before) {
+          for (const message of fallback.messages) {
+            if (message.proposalState === "pending") message.proposalState = "stale";
+          }
+          draft.updateSession(this.forRuntime(fallback));
+        }
+        return count;
+      });
       return { affected, activeSessionChanged: before !== this.currentSession?.id };
     });
   }
