@@ -118,3 +118,19 @@ test("legacy message IDs are deterministic without an eager storage migration", 
   await store.load(raw);
   assert.equal(store.getCurrentSession()?.messages[0].id, "legacy:0");
 });
+
+test("fork never inherits an actionable pending note edit", async () => {
+  const db = harness();
+  const sessions = db.makeController();
+  await sessions.init();
+  const parentId = sessions.getSession().id;
+  const proposal = { file: "note.md", original: "before", replacement: "after" };
+  await sessions.recordEditOutcome("edit:1", proposal, "", "note.md", parentId);
+  const anchor = sessions.getSession().messages.at(-1)!.id!;
+  const child = (await sessions.forkSession(parentId, anchor)).session;
+  assert.equal(child.messages.at(-1)?.proposalState, "stale");
+  assert.equal(sessions.listSessions().find(x => x.id === parentId)?.messages.at(-1)?.proposalState, "stale");
+  const restored = db.makeController();
+  await restored.init();
+  assert.equal(restored.getSession().messages.at(-1)?.proposalState, "stale");
+});
