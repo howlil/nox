@@ -127,7 +127,6 @@ export class ChatView extends ItemView {
   private models: AgentModel[] = [];
   private quizDraftTimer: number | null = null;
   private fileInput!: HTMLInputElement;
-  private promptPlusBtn!: HTMLButtonElement;
   private actionMenuBtn!: HTMLButtonElement;
   private commandHintBtn: HTMLButtonElement | null = null;
   private promptMenuEl: HTMLElement | null = null;
@@ -787,16 +786,12 @@ export class ChatView extends ItemView {
       onInput: () => this.onInput(),
       onKeyDown: (event) => this.onKey(event),
       onFiles: (files) => void this.handleFiles(files),
-      onOpenSourceMenu: () => {
+      onOpenFilePicker: () => {
+        // The + control attaches real user-selected text files. Keep typed
+        // @note source search and / slash commands on their existing paths.
         this.closeModelMenu();
-        if (this.promptMenu === "source") {
-          this.closePromptMenu();
-        } else {
-          this.promptMenu = "source";
-          this.promptMenuState.openAt(this.getPromptMenuStartIndex("source"));
-          void this.renderPromptMenu();
-        }
-        this.composerUi.focus();
+        this.closePromptMenu();
+        this.fileInput.click();
       },
       onOpenCommandMenu: () => {
         this.closeModelMenu();
@@ -825,7 +820,6 @@ export class ChatView extends ItemView {
     this.modelPopover = this.composerUi.modelPopover;
     this.input = this.composerUi.input;
     this.fileInput = this.composerUi.fileInput;
-    this.promptPlusBtn = this.composerUi.promptPlusBtn;
     this.actionMenuBtn = this.composerUi.actionMenuBtn;
     this.modelTrigger = this.composerUi.modelTrigger;
     this.cancelBtn = this.composerUi.cancelBtn;
@@ -1087,10 +1081,8 @@ export class ChatView extends ItemView {
   }
 
   private syncPromptMenuControls(): void {
-    const sourceOpen = this.promptMenu === "source";
     const commandOpen = this.promptMenu === "command";
 
-    this.promptPlusBtn?.setAttribute("aria-expanded", String(sourceOpen));
     this.actionMenuBtn?.setAttribute("aria-expanded", String(commandOpen));
     this.commandHintBtn?.setAttribute("aria-expanded", String(commandOpen));
     this.commandHintBtn?.setAttribute("aria-controls", "nox-prompt-menu");
