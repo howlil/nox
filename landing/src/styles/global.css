@@ -72,12 +72,6 @@ a:focus-visible, button:focus-visible, input:focus-visible { outline: 2px solid 
 .mobile-nav-panel { pointer-events: auto; display: none; color: #2a1b4b; background: #fefefe; border: 1px solid #e7def8; border-radius: 18px; width: min(360px, 100%); padding: 8px; box-shadow: 0 12px 32px #110a2952; }
 .mobile-nav-panel a { display: flex; align-items: center; gap: 10px; border-radius: 10px; padding: 12px 13px; font-size: 14px; font-weight: 600; }
 .mobile-nav-panel a:hover { background: #f4edff; }
-.dialog-backdrop { position: fixed; inset: 0; z-index: 90; background: rgba(9,4,25,.63); display: grid; place-items: center; padding: 20px; pointer-events: auto; }
-.sponsor-dialog { width: min(390px, 100%); background: #fefefe; color: #251647; border-radius: 18px; border: 1px solid #ddd0fa; padding: 23px; box-shadow: 0 20px 75px #09032188; }
-.sponsor-dialog-header { display: flex; align-items: center; justify-content: space-between; color: #8653d5; }
-.sponsor-dialog-header button { border: none; background: #f6f0ff; width: 32px; height: 32px; display: grid; place-items: center; border-radius: 9px; }
-.sponsor-dialog h2 { font-size: 23px; letter-spacing: -.03em; margin: 15px 0 8px; }
-.sponsor-dialog p { font-size: 14px; line-height: 1.65; color: #695e7e; }
 .dialog-action { margin-top: 21px; display: inline-flex; align-items: center; gap: 9px; padding: 11px 15px; border-radius: 9px; background: #8653d5; color: #fff; font-size: 13px; font-weight: 600; }
 
 .hero { min-height: max(790px, 100svh); width: 100%; position: relative; background: radial-gradient(ellipse 62% 50% at 50% -20%, #5331a9 0%, transparent 75%), radial-gradient(ellipse 66% 56% at 105% 70%, #462485 0%, transparent 76%), linear-gradient(150deg, #190e40, #100827 60%, #170c3c); }

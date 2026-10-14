@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { AnimatePresence, LayoutGroup, motion, useReducedMotion } from "motion/react";
 import { ArrowUpRight, Heart, Menu, Star, X, Github } from "lucide-react";
 import { Button } from "./arc/button/button";
+import { Dialog, DialogContent, DialogTrigger } from "./arc/dialog/dialog";
 
 const navigation = [
   { id: "home", title: "Home", href: "#home" },
@@ -12,7 +13,6 @@ const navigation = [
 export default function FloatingNav({ sponsorUrl }: { sponsorUrl?: string }) {
   const [active, setActive] = useState<string>("home");
   const [menuOpen, setMenuOpen] = useState(false);
-  const [showSponsorMessage, setShowSponsorMessage] = useState(false);
   const reducedMotion = useReducedMotion();
 
   useEffect(() => {
@@ -30,14 +30,6 @@ export default function FloatingNav({ sponsorUrl }: { sponsorUrl?: string }) {
     return () => observer.disconnect();
   }, []);
 
-  useEffect(() => {
-    if (!showSponsorMessage) return;
-    const onEsc = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setShowSponsorMessage(false);
-    };
-    window.addEventListener("keydown", onEsc);
-    return () => window.removeEventListener("keydown", onEsc);
-  }, [showSponsorMessage]);
 
   const navLinks = navigation.map(item => (
     <a
@@ -71,9 +63,12 @@ export default function FloatingNav({ sponsorUrl }: { sponsorUrl?: string }) {
           {sponsorUrl ? (
             <a className="capsule-sponsor" href={sponsorUrl} target="_blank" rel="noopener noreferrer"><Heart size={15} aria-hidden="true" /> <span>Sponsor</span></a>
           ) : (
-            <Button className="capsule-sponsor" variant="primary" size="sm" onClick={() => setShowSponsorMessage(true)}>
-              <Heart size={15} aria-hidden="true" /> <span>Sponsor</span>
-            </Button>
+            <Dialog>
+              <DialogTrigger asChild><Button className="capsule-sponsor" variant="primary" size="sm"><Heart size={15} aria-hidden="true" /> <span>Sponsor</span></Button></DialogTrigger>
+              <DialogContent title="Support NOX" description="Sponsorship is not configured yet. You can support the project by starring it on GitHub.">
+                <a className="dialog-action" href="https://github.com/howlil/nox" target="_blank" rel="noopener noreferrer"><Star size={16} /> Visit GitHub <ArrowUpRight size={14} /></a>
+              </DialogContent>
+            </Dialog>
           )}
           <button type="button" className="capsule-menu-toggle" aria-expanded={menuOpen} aria-controls="mobile-nox-menu" aria-label={menuOpen ? "Close menu" : "Open menu"} onClick={() => setMenuOpen(!menuOpen)}>
             {menuOpen ? <X size={18} /> : <Menu size={18} />}
@@ -87,15 +82,5 @@ export default function FloatingNav({ sponsorUrl }: { sponsorUrl?: string }) {
         </motion.div>}
       </AnimatePresence>
     </div>
-    <AnimatePresence>
-      {showSponsorMessage && <motion.div className="dialog-backdrop" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setShowSponsorMessage(false)}>
-        <motion.section role="dialog" aria-modal="true" aria-labelledby="sponsor-dialog-title" className="sponsor-dialog" initial={reducedMotion ? false : { opacity: 0, scale: 0.97, y: 8 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.22 }} onClick={event => event.stopPropagation()}>
-          <div className="sponsor-dialog-header"><Heart size={18} /><button autoFocus type="button" aria-label="Close sponsor information" onClick={() => setShowSponsorMessage(false)}><X size={18} /></button></div>
-          <h2 id="sponsor-dialog-title">Support NOX</h2>
-          <p>A verified sponsorship page is not configured yet. You can support the project by starring it on GitHub.</p>
-          <a className="dialog-action" href="https://github.com/howlil/nox" target="_blank" rel="noopener noreferrer"><Star size={16} /> Visit GitHub <ArrowUpRight size={14} /></a>
-        </motion.section>
-      </motion.div>}
-    </AnimatePresence>
   </>;
 }
