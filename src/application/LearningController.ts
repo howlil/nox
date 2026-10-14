@@ -200,8 +200,7 @@ export class LearningController {
           } else {
             const selected = await this.programs.getDecision();
             if (selected?.decision.objective) {
-              yield* this.turns.run({ ...request, action: "practice",
-                prompt: `Assess objective: ${selected.decision.objective.outcome}` });
+              yield* this.turns.run({ ...request, action: "practice" });
               return;
             }
             response = selected?.decision.reason ?? "No active program. Use /plan <goal> first.";
