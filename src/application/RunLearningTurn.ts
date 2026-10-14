@@ -470,6 +470,7 @@ export class RunLearningTurn {
           `Objective ID: ${activeObjective.id}. Outcome: ${activeObjective.outcome}`,
           `Required rubric: ${JSON.stringify(activeObjective.rubric)}`,
           `Activity: ${practiceAttempt ? "evaluate current answer" : decision?.kind}`,
+          "For guided practice use appropriate scaffolding; for transfer test application in a new context.",
           `Previously failed rubric criteria: ${JSON.stringify(missed)}. If remedial practice, target these first.`,
           `Source constraint: ${program.constraints.sourceBound
             ? "Only the explicitly selected source note(s), do not claim external facts were verified."
@@ -695,7 +696,9 @@ export class RunLearningTurn {
           // Never leave a durable or visible unanswered question after failure.
           if (practiceBuffer.question) {
             practiceBuffer.question = program && objective
-              ? { ...practiceBuffer.question, concept: objective.title, programId: program.id, objectiveId: objective.id }
+              ? { ...practiceBuffer.question, concept: objective.title, programId: program.id,
+                  objectiveId: objective.id, taskKind: decision?.kind === "transfer" || decision?.kind === "recall" ||
+                    decision?.kind === "guided-practice" ? decision.kind : "diagnostic" as const }
               : { ...practiceBuffer.question, programId: undefined, objectiveId: undefined };
             const questionId = crypto.randomUUID();
             await this.sessions.recordStructuredPart(
@@ -720,7 +723,7 @@ export class RunLearningTurn {
             const evaluation = practiceAttempt.programId
               ? { ...practiceBuffer.evaluation, programId: practiceAttempt.programId,
                   objectiveId: practiceAttempt.objectiveId, nextQuestion: undefined,
-                  assisted: Boolean(practiceAttempt.assisted) }
+                  assisted: Boolean(practiceAttempt.assisted), taskKind: practiceAttempt.taskKind }
               : { ...practiceBuffer.evaluation,
                   programId: undefined, objectiveId: undefined, assisted: Boolean(practiceAttempt.assisted) };
             for await (const mapped of this.commitPracticeOutcome(
