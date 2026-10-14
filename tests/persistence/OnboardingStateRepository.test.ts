@@ -18,4 +18,7 @@ test("onboarding draft persists via serialized plugin data and skip removes draf
   assert.equal((await state.load()).dismissed, true);
   assert.equal((await state.load()).draft, undefined);
   assert.deepEqual(current["nox-settings"], { provider: "agy" });
+  await state.reopen();
+  assert.equal((await state.load()).dismissed, false);
+  assert.equal((await state.load()).draft, undefined);
 });

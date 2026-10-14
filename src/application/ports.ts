@@ -11,6 +11,7 @@ export interface OnboardingStatePort {
   load(): Promise<{ dismissed?: boolean; draft?: import("../domain/onboarding/types").OnboardingDraft }>;
   saveDraft(draft: import("../domain/onboarding/types").OnboardingDraft): Promise<void>;
   dismiss(): Promise<void>;
+  reopen(): Promise<void>;
 }
 export interface WorkspaceWriterPort {
   ensureObjective?(program: import("../domain/learning-program/types").LearningProgram, objectiveId: string): Promise<void>;

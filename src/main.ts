@@ -180,6 +180,20 @@ export default class NoxPlugin extends Plugin {
     });
 
     this.addCommand({
+      id: "guided-learning-setup",
+      name: "Open guided learning setup",
+      callback: async () => {
+        try {
+          await this.activateView();
+          const view = this.app.workspace.getLeavesOfType(NOX_VIEW_TYPE)[0]?.view as ChatView | undefined;
+          await view?.beginGuidedOnboarding();
+        } catch (error) {
+          console.warn("[Nox] Guided learning setup unavailable", error);
+        }
+      },
+    });
+
+    this.addCommand({
       id: "focus-nox-composer",
       name: "Focus Nox composer",
       hotkeys: [{ modifiers: ["Mod"], key: "l" }],

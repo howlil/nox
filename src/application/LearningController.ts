@@ -129,6 +129,10 @@ export class LearningController {
     await this.onboardingState?.dismiss();
   }
 
+  async reopenOnboarding(): Promise<void> {
+    await this.onboardingState?.reopen();
+  }
+
   async discoverLearningDirections(interests: string[], purpose: string) {
     if (!this.programs) throw new Error("Learning programs are unavailable.");
     this.assertRuntimeIdle();

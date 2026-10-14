@@ -336,6 +336,16 @@ export class ChatView extends ItemView {
     this.input?.focus();
   }
 
+  /** Explicit command-palette entry to revisit guided discovery after skipping. */
+  async beginGuidedOnboarding(): Promise<void> {
+    await this.learning.newSession();
+    await this.learning.reopenOnboarding();
+    this.clearReplyReference();
+    this.input.value = "";
+    this.setAction("ask");
+    this.showEmpty();
+  }
+
   private buildHeader(root: HTMLElement): void {
     this.headerEl = root.createDiv({ cls: "nox-header" });
     const top = this.headerEl.createDiv({ cls: "nox-header-top" });

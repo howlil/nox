@@ -29,6 +29,9 @@ export class OnboardingStateRepository {
       ...((data[KEY] ?? {}) as Stored), draft: structuredClone(draft),
     } }));
   }
+  async reopen(): Promise<void> {
+    await this.data.update(data => ({ ...data, [KEY]: { dismissed: false } }));
+  }
   async dismiss(): Promise<void> {
     await this.data.update(data => ({ ...data, [KEY]: {
       dismissed: true,
