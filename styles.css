@@ -240,13 +240,13 @@
 
 .nox-empty-slate {
   display: flex;
-  width: min(590px, 100%);
+  width: min(520px, 100%);
   flex: 0 0 auto;
   min-height: 0;
   flex-direction: column;
   align-items: stretch;
   justify-content: flex-start;
-  gap: 14px;
+  gap: 12px;
   margin: 18px auto 0;
   padding: 0;
   text-align: left;
@@ -1612,169 +1612,156 @@
   color: var(--nox-accent-ink);
 }
 
-.nox-capability-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
-}
-
-.nox-capability-card {
-  --nox-card-wash: #ffffff;
-  --nox-card-wash-end: #fcfbff;
-  --nox-card-glow: rgba(125, 98, 236, 0.11);
-  --nox-card-line: #e8e2fb;
-  --nox-card-meta-ink: #7869a8;
-  position: relative;
-  display: block !important;
+.nox-learning-start {
+  display: flex;
   width: 100%;
   min-width: 0;
-  min-height: 98px;
-  overflow: hidden;
-  padding: 12px;
-  border: 1px solid var(--nox-card-line);
+  min-height: 68px;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 13px;
+  border: 1px solid var(--nox-line-strong);
   border-radius: var(--nox-radius-card);
+  background: var(--nox-surface);
+  color: var(--nox-ink);
+  box-shadow: none !important;
   cursor: pointer;
-  text-align: left;
-  appearance: none;
   font: inherit;
-  line-height: inherit;
-  background:
-    radial-gradient(220px 150px at 114% 28%, var(--nox-card-glow) 0%, transparent 68%),
-    linear-gradient(135deg, var(--nox-card-wash) 0%, var(--nox-card-wash-end) 100%);
-  box-shadow: none;
-  transition:
-    border-color 120ms ease,
-    background 120ms ease;
+  text-align: left;
+  transition: background-color 120ms ease, border-color 120ms ease;
 }
 
-.nox-capability-card:hover,
-.nox-capability-card:focus-visible {
-  border-color: var(--nox-card-line);
-}
-
-.nox-capability-card::before {
-  display: none;
-}
-
-.nox-capability-card--purple {
-  --nox-card-wash-end: #faf8ff;
-  --nox-card-glow: rgba(125, 98, 236, 0.12);
-  --nox-card-line: #e5dcff;
-  --nox-card-meta-ink: #7869a8;
-}
-
-.nox-capability-card--blue {
-  --nox-card-wash-end: #f8fbff;
-  --nox-card-glow: rgba(102, 161, 224, 0.11);
-  --nox-card-line: #dfeaf7;
-  --nox-card-meta-ink: #66809b;
-}
-
-.nox-capability-card--coral {
-  --nox-card-wash-end: #fff9f7;
-  --nox-card-glow: rgba(226, 130, 111, 0.1);
-  --nox-card-line: #f0e1dd;
-  --nox-card-meta-ink: #9b7168;
-}
-
-.nox-capability-card--green {
-  --nox-card-wash-end: #f7fcf9;
-  --nox-card-glow: rgba(101, 178, 128, 0.1);
-  --nox-card-line: #dfede2;
-  --nox-card-meta-ink: #6b8c75;
-}
-
-.nox-capability-card.is-selected {
+.nox-learning-start:hover,
+.nox-learning-start:focus-visible {
   border-color: var(--nox-accent-border);
-  background:
-    radial-gradient(220px 150px at 114% 28%, var(--nox-card-glow) 0%, transparent 68%),
-    linear-gradient(
-      135deg,
-      color-mix(in oklch, var(--nox-card-wash) 76%, var(--nox-accent-tint)) 0%,
-      color-mix(in oklch, var(--nox-card-wash-end) 76%, var(--nox-accent-tint)) 100%
-    );
+  background: var(--nox-accent-tint);
 }
 
-.nox-capability-card-top {
-  position: relative;
-  z-index: 1;
-  display: flex;
-  width: 100%;
-  min-width: 0;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  margin-bottom: 7px;
+.nox-learning-start:focus-visible,
+.nox-capability-card:focus-visible {
+  outline: 2px solid var(--nox-accent);
+  outline-offset: 2px;
 }
 
-.nox-capability-name {
-  display: flex;
-  min-width: 0;
-  overflow: hidden;
-  align-items: center;
-  gap: 7px;
-}
-
-.nox-capability-icon {
+.nox-learning-start-icon {
   display: inline-flex;
+  width: 32px;
+  height: 32px;
+  flex: 0 0 32px;
   align-items: center;
   justify-content: center;
-  color: var(--nox-ink-2);
+  border-radius: var(--nox-radius-control);
+  background: var(--nox-inset);
+  color: var(--nox-accent-ink);
 }
 
-.nox-capability-icon svg {
-  width: 14px;
-  height: 14px;
+.nox-learning-start-icon .svg-icon {
+  width: 16px;
+  height: 16px;
 }
 
-.nox-capability-title {
+.nox-learning-start-body {
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.nox-learning-start-title {
   overflow: hidden;
   color: var(--nox-ink);
   font-size: 13px;
   font-weight: 650;
+  line-height: 1.3;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.nox-learning-start-description {
+  color: var(--nox-ink-2);
+  font-size: 11px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.nox-learning-start-arrow {
+  display: inline-flex;
+  flex: 0 0 auto;
+  color: var(--nox-ink-3);
+}
+
+.nox-learning-start-arrow .svg-icon {
+  width: 15px;
+  height: 15px;
+}
+
+.nox-capability-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 7px;
+}
+
+.nox-capability-card {
+  display: flex !important;
+  width: 100%;
+  min-width: 0;
+  min-height: 42px;
+  align-items: center;
+  padding: 9px 11px;
+  border: 1px solid var(--nox-line);
+  border-radius: var(--nox-radius-control);
+  background: var(--nox-surface);
+  color: var(--nox-ink);
+  box-shadow: none !important;
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+  transition: background-color 120ms ease, border-color 120ms ease;
+}
+
+.nox-capability-card:hover {
+  background: var(--nox-hover);
+  border-color: var(--nox-line-strong);
+}
+
+.nox-capability-card.is-selected {
+  background: var(--nox-accent-tint);
+  border-color: var(--nox-accent-border);
+}
+
+.nox-capability-card-top,
+.nox-capability-name {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+}
+
+.nox-capability-icon {
+  display: inline-flex;
+  flex: 0 0 auto;
+  color: var(--nox-ink-2);
+}
+
+.nox-capability-icon .svg-icon {
+  width: 15px;
+  height: 15px;
+}
+
+.nox-capability-title {
+  color: var(--nox-ink);
+  font-size: 12px;
+  font-weight: 550;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .nox-prompt-menu-command {
   flex: 0 0 auto;
   color: var(--nox-ink-3);
   font-family: var(--font-monospace), ui-monospace, monospace;
-  font-size: 10px;
-}
-
-.nox-capability-command {
-  flex: 0 0 auto;
-  color: var(--nox-ink-3);
-  font-family: var(--font-monospace), ui-monospace, monospace;
-  font-size: 10px;
-}
-
-.nox-capability-description {
-  display: block;
-  width: 100%;
-  position: relative;
-  z-index: 1;
-  max-width: none;
-  overflow-wrap: anywhere;
-  color: var(--nox-ink-2);
-  font-size: 11px;
-  line-height: 1.45;
-  white-space: normal;
-}
-
-.nox-capability-meta {
-  position: relative;
-  z-index: 1;
-  display: inline-flex;
-  height: 20px;
-  align-items: center;
-  margin-top: 11px;
-  padding: 0 7px;
-  border: 1px solid rgba(255, 255, 255, 0.8);
-  border-radius: var(--nox-radius-pill);
-  background: rgba(255, 255, 255, 0.64);
-  color: var(--nox-card-meta-ink);
   font-size: 10px;
 }
 
