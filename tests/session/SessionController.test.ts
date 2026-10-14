@@ -684,3 +684,20 @@ test("quiz draft write failure does not mutate the in-memory canonical session",
   await writer.savePracticeDraft("q", { type: "essay", text: "My draft" });
   assert.equal(writer.getSession().practiceDrafts?.q?.type, "essay");
 });
+
+test("usage receipts survive restart, are session-scoped, and deduplicate a receipt ID", async () => {
+  const harness = pluginHarness();
+  const controller = createController(harness);
+  await controller.init();
+  const id = controller.getSession().id;
+  const receipt = { id: "invocation-1", at: 100, provider: "chatgpt",
+    model: "example-model", inputTokens: 400, outputTokens: 90, cachedInputTokens: 50 };
+  await controller.recordUsage(receipt, id);
+  await controller.recordUsage(receipt, id);
+  assert.equal(controller.getSession().usageRecords?.length, 1);
+  const restarted = createController(harness);
+  await restarted.init();
+  assert.deepEqual(restarted.getSession().usageRecords, [receipt]);
+  await assert.rejects(restarted.recordUsage({ ...receipt, id: "invalid", inputTokens: -2 }, id));
+  assert.equal(restarted.getSession().usageRecords?.length, 1);
+});
