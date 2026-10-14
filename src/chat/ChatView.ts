@@ -56,6 +56,7 @@ import { createNoxPopover, NoxPopoverState } from "./popover";
 import { NoxComposer, type NoxComposerContext } from "./composer";
 import { NoxRunInspector } from "./run-inspector";
 import { renderLearningGraph } from "./learning-graph";
+import { enhanceNoxResponseVisuals } from "./response-visuals";
 import {
   NoxSelectionActions,
   type NoxSelectionAction,
@@ -1979,6 +1980,7 @@ export class ChatView extends ItemView {
       this,
     );
     this.wireMarkdownLinks(content, sourcePath);
+    enhanceNoxResponseVisuals(content);
   }
 
   private appendRestoredStructuredParts(message: ChatMessage): void {
@@ -2274,7 +2276,10 @@ export class ChatView extends ItemView {
     content.addClass("nox-markdown");
 
     void MarkdownRenderer.render(this.app, markdown, content, sourcePath, this)
-      .then(() => this.wireMarkdownLinks(content, sourcePath))
+      .then(() => {
+        this.wireMarkdownLinks(content, sourcePath);
+        enhanceNoxResponseVisuals(content);
+      })
       .catch(() => {
         content.empty();
         content.removeClass("nox-markdown");
