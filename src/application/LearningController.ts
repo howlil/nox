@@ -347,6 +347,9 @@ export class LearningController {
             response = "Answer the active question first, or use /hint for a small nudge.";
           } else {
             const selected = await this.programs.getDecision();
+            if (selected?.program?.session && selected.decision.objective) {
+              await this.programs.focusObjective(selected.decision.objective.id);
+            }
             if (selected?.program && !selected.program.session) {
               response = "Start a timeboxed session first with /start-session.";
             } else if (selected?.decision.kind === "teach" && selected.decision.objective) {
