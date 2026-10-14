@@ -25,16 +25,27 @@ export class NoxRunInspector {
   setContext(snapshot: TurnContextSnapshot): void {
     this.context.empty();
     this.context.createDiv({ cls: "nox-inspector-heading", text: "Context supplied" });
-    const sources = [...snapshot.visible.map(item => ({ file: item.file, chars: item.content.length })),
-      ...snapshot.system.map(item => ({ file: item.file, chars: item.content.length }))];
+    const sources = [...snapshot.visible.map(item => ({
+      file: item.file, chars: item.content.length, excerpt: item.content.slice(0, 320), system: false })),
+      ...snapshot.system.map(item => ({
+        file: item.file, chars: item.content.length, excerpt: "", system: true }))];
     if (sources.length === 0) {
       this.context.createDiv({ cls: "nox-inspector-placeholder", text: "No note context included." });
       return;
     }
     for (const item of sources.slice(0, 24)) {
-      const row = this.context.createDiv({ cls: "nox-inspector-row" });
-      row.createSpan({ text: item.file });
-      row.createSpan({ cls: "nox-inspector-muted", text: item.chars.toLocaleString() + " chars" });
+      // Explicit, real passages only. System instructions are never previewed.
+      const card = this.context.createEl("details", { cls: "nox-source-card" });
+      const summary = card.createEl("summary");
+      summary.createSpan({ text: item.file });
+      summary.createSpan({ cls: "nox-inspector-muted",
+        text: item.chars.toLocaleString() + " chars" + (item.system ? " · system" : "") });
+      if (!item.system) {
+        const preview = card.createDiv({ cls: "nox-source-preview" });
+        preview.setText(item.excerpt + (item.chars > 320 ? "…" : ""));
+      } else {
+        card.createDiv({ cls: "nox-inspector-muted", text: "System context preview is restricted." });
+      }
     }
     if (sources.length > 24) {
       this.context.createDiv({ cls: "nox-inspector-muted", text: `+${sources.length - 24} additional sources` });
