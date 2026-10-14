@@ -1,6 +1,6 @@
 import type { AgentRuntimePort } from "../agent/AgentRuntime";
 import type { ContextPort, LearningStatePort } from "./ports";
-import type { ProgramStorePort } from "../persistence/VaultProgramStore";
+import type { ProgramStorePort } from "./ports";
 import type { LearningProgram, ProgramCollection, ProgramConstraints, LearningDecision } from "../domain/learning-program/types";
 import { chooseNextActivity, feasibility, validateConstraints, validateCurriculum } from "../domain/learning-program/rules";
 
