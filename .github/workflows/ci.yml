@@ -42,6 +42,11 @@ jobs:
       - name: Integration tests
         run: pnpm test:integration
 
+      # Diagnostic microbenchmark only; never assert a machine-dependent
+      # duration threshold in shared CI.
+      - name: Synthetic research benchmark
+        run: NOX_BENCH_FILES=200 pnpm bench:research
+
       - name: Build
         run: pnpm build
 
