@@ -10,6 +10,10 @@ export class TFile {
   }
 }
 
+export class TFolder {
+  constructor(public path: string) {}
+}
+
 export class MarkdownView {
   constructor(
     public file: TFile | null,
