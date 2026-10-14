@@ -102,3 +102,20 @@ test("isolated JavaScript runner keeps source inside an opaque-origin frame", ()
     'console.log("</script><img src=x onerror=alert(1)>");');
   assert.ok(!escaped?.includes('console.log("</script>'));
 });
+
+
+test("sandbox preview reports dynamic height only for opted-in opaque frames", () => {
+  const id = "nox-8b29a64a";
+  const html = createNoxPreviewDocument("html-preview", "<p>Quiz</p>", id);
+  assert.ok(html?.includes("ResizeObserver"));
+  assert.ok(html?.includes("nox-preview-resize"));
+  assert.ok(html?.includes(id));
+  assert.ok(html?.includes("connect-src 'none'"));
+  assert.ok(html?.includes("form-action 'none'"));
+  const code = createNoxPreviewDocument("js-preview", "console.log(1)", id);
+  assert.ok(code?.includes("ResizeObserver"));
+  const svg = createNoxPreviewDocument("svg-preview", "<svg/>", id);
+  assert.ok(!svg?.includes("ResizeObserver"));
+  const invalid = createNoxPreviewDocument("html-preview", "<p>Quiz</p>", "<script>");
+  assert.ok(!invalid?.includes("nox-preview-resize"));
+});

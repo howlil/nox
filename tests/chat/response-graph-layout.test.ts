@@ -51,3 +51,51 @@ test("layered graph ordering is deterministic with disconnected roots", () => {
   assert.ok(layout.edges.every(edge => edge.path.startsWith("M ")));
   assert.ok(layout.nodes[2].rank > layout.nodes[1].rank);
 });
+
+
+test("layered branch siblings share a row without stretching past reading width", () => {
+  const spec = parseNoxFlow(JSON.stringify({
+    version: 1, direction: "TB", layout: "layered",
+    nodes: [
+      { id: "start", label: "Start" },
+      { id: "a", label: "Controller" },
+      { id: "b", label: "Service" },
+      { id: "c", label: "Repository" },
+      { id: "finish", label: "Done" },
+    ],
+    edges: [
+      { from: "start", to: "a" }, { from: "start", to: "b" },
+      { from: "start", to: "c" },
+      { from: "a", to: "finish" }, { from: "b", to: "finish" },
+      { from: "c", to: "finish" },
+    ],
+  }));
+  assert.ok(spec);
+  const layout = layoutNoxFlow(spec);
+  const nodes = new Map(layout.nodes.map(node => [node.id, node]));
+  assert.ok(layout.width <= 768);
+  assert.equal(nodes.get("a")?.y, nodes.get("b")?.y);
+  assert.equal(nodes.get("b")?.y, nodes.get("c")?.y);
+  assert.ok(nodes.get("a")!.x < nodes.get("b")!.x);
+  assert.ok(nodes.get("b")!.x < nodes.get("c")!.x);
+  assert.ok(layout.edges.every(edge => !edge.path.includes("NaN")));
+  assert.deepEqual(layoutNoxFlow(spec), layout);
+});
+
+test("wide levels wrap after three siblings; all 24 nodes stay in bounds", () => {
+  const nodes = [{ id: "root", label: "Root" },
+    ...Array.from({ length: 23 }, (_, i) => ({ id: "leaf" + i, label: "Leaf " + i }))];
+  const spec = parseNoxFlow(JSON.stringify({
+    version: 1, direction: "TB", layout: "layered", nodes,
+    edges: nodes.slice(1).map(node => ({ from: "root", to: node.id })),
+  }));
+  assert.ok(spec);
+  const layout = layoutNoxFlow(spec);
+  assert.equal(layout.nodes.length, 24);
+  assert.ok(layout.width <= 768);
+  assert.ok(layout.nodes.every(node => node.x >= 0 &&
+    node.x + node.width <= layout.width &&
+    node.y >= 0 && node.y + node.height <= layout.height));
+  assert.ok(new Set(layout.nodes.slice(1).map(node => node.y)).size > 1);
+  assert.ok(layout.edges.every(edge => edge.path.startsWith("M ")));
+});
