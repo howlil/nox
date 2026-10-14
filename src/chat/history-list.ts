@@ -24,6 +24,7 @@ export class NoxHistoryList {
   private expanded: { id: string; side: "leading" | "trailing" } | null = null;
   private busy = false;
   private readonly rowRefs = new Map<string, { item: HTMLElement; front: HTMLElement }>();
+  private revealedId: string | null = null;
   private sessions: ChatSession[] = [];
   private currentId = "";
 
@@ -37,6 +38,7 @@ export class NoxHistoryList {
     for (const id of this.selected) if (!eligible.has(id)) this.selected.delete(id);
     this.parent.empty();
     this.rowRefs.clear();
+    this.revealedId = null;
 
     const header = this.parent.createDiv({ cls: "nox-history-header" });
     header.createSpan({ cls: "nox-history-title", text: "Chat history" });
@@ -244,6 +246,7 @@ export class NoxHistoryList {
       lastX = event.clientX;
       lastAt = event.timeStamp;
       const offset = swipeOffset(dx, startOffset);
+      this.revealedId = session.id;
       this.revealDirection(item, offset >= 0 ? "leading" : "trailing", false);
       front.style.transform = `translate3d(${offset}px, 0, 0)`;
       event.preventDefault();
@@ -286,9 +289,9 @@ export class NoxHistoryList {
   }
 
   private closeSwipe(exceptId?: string): void {
-    for (const [id] of this.rowRefs) {
-      if (id !== exceptId) this.positionRow(id, null);
-    }
+    // O(1) on scroll: do not repaint every history row for each wheel event.
+    const id = this.revealedId ?? this.expanded?.id;
+    if (id && id !== exceptId) this.positionRow(id, null);
     if (this.expanded?.id !== exceptId) this.expanded = null;
   }
 
@@ -313,6 +316,8 @@ export class NoxHistoryList {
     row.front.style.transition = "";
     row.front.style.transform = `translate3d(${offset}px, 0, 0)`;
     this.revealDirection(row.item, side, true);
+    if (side) this.revealedId = id;
+    else if (this.revealedId === id) this.revealedId = null;
   }
 
   private toggleSelected(id: string): void {
