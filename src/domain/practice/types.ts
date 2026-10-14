@@ -17,11 +17,26 @@ export interface PracticeOrigin {
   selectedText?: string;
 }
 
+/** Quiz input belongs to the existing Practice aggregate; old questions remain essays. */
+export type PracticeInput =
+  | { type: "multiple-choice"; options: Array<{ id: string; text: string }>;
+      correctOptionId: string; explanation: string }
+  | { type: "essay"; criteria?: string[]; minWords?: number }
+  | { type: "code"; language: string; starterCode?: string; criteria?: string[];
+      executionMode: "review-only" };
+
+export type PracticeAnswer =
+  | { type: "multiple-choice"; optionId: string }
+  | { type: "essay"; text: string }
+  | { type: "code"; language: string; source: string };
+
 export interface PracticeQuestion {
   kind: "question";
   concept: string;
   question: string;
   hint?: string;
+  /** Optional for backward-compatible question cards. */
+  input?: PracticeInput;
   programId?: string;
   objectiveId?: string;
   taskKind?: "diagnostic" | "guided-practice" | "recall" | "transfer";
@@ -53,6 +68,7 @@ export interface PracticeTurn {
   objectiveId?: string;
   taskKind?: "diagnostic" | "guided-practice" | "recall" | "transfer";
   hint?: string;
+  questionSpec?: PracticeQuestion;
   assisted?: boolean;
   answer?: string;
   evaluation?: PracticeEvaluation;
