@@ -19,7 +19,6 @@ import { VaultProgramStore } from "./persistence/VaultProgramStore";
 import { LearningProgramOrchestrator } from "./application/LearningProgramOrchestrator";
 import { PluginDataRepository } from "./persistence/PluginDataRepository";
 import { TokenUsageRepository } from "./persistence/TokenUsageRepository";
-import { CreditBalanceRepository, type CreditBalanceInput, type CreditProvider } from "./persistence/CreditBalanceRepository";
 import { SessionController } from "./session/SessionController";
 import { SessionStore } from "./session/SessionStore";
 import {
@@ -48,7 +47,6 @@ export default class NoxPlugin extends Plugin {
   private noxSettings!: NoxSettings;
   private pluginData!: PluginDataRepository;
   private tokenUsage!: TokenUsageRepository;
-  private creditBalances!: CreditBalanceRepository;
   private quotaSync!: QuotaSync;
   private vaultPath?: string;
   private runtime?: AgentRuntime;
@@ -64,7 +62,6 @@ export default class NoxPlugin extends Plugin {
 
     this.pluginData = new PluginDataRepository(this);
     this.tokenUsage = new TokenUsageRepository(this.pluginData);
-    this.creditBalances = new CreditBalanceRepository(this.pluginData);
     this.noxSettings = decodeNoxSettings(await this.pluginData.read());
     this.quotaSync = this.createQuotaSync(this.noxSettings);
     const adapter = this.createAdapter(this.noxSettings);
@@ -252,14 +249,6 @@ export default class NoxPlugin extends Plugin {
   }
 
   getProviderQuotas(force = false) { return this.quotaSync.read(force); }
-
-  getCreditBalances() { return this.creditBalances.list(); }
-
-  saveCreditBalance(input: CreditBalanceInput): Promise<void> { return this.creditBalances.upsert(input); }
-
-  removeCreditBalance(provider: CreditProvider, model: string | null): Promise<void> {
-    return this.creditBalances.remove(provider, model);
-  }
 
   getTokenUsageError(): string | undefined {
     return this.runtime?.getUsageTrackingError();

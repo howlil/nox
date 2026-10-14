@@ -3104,98 +3104,27 @@
   background: var(--nox-accent);
   border-radius: var(--nox-radius-pill);
 }
-.nox-credits { margin-top: 16px; padding-top: 2px; border-top: 1px solid var(--nox-line); }
-.nox-credits > .nox-usage-description { margin: 0 0 10px; }
-.nox-usage-section-head button, .nox-credit-actions button, .nox-credit-editor-actions button {
-  border: 1px solid var(--nox-line);
-  border-radius: var(--nox-radius-control);
-  background: var(--nox-surface);
-  color: var(--nox-ink-2);
-  padding: 5px 9px;
-  min-height: 28px;
-  box-shadow: none;
-  font-size: 11px;
-  cursor: pointer;
-}
-.nox-usage-section-head button:hover,
-.nox-credit-actions button:hover,
-.nox-credit-editor-actions button:hover { background: var(--nox-hover); }
-.nox-credit-row {
-  padding: 11px 0;
-  border-bottom: 1px solid var(--nox-line);
-  min-width: 0;
-}
-.nox-credit-title { display: flex; gap: 8px; align-items: center; justify-content: space-between; }
-.nox-credit-names { min-width: 0; flex: 1; }
-.nox-credit-names strong {
-  display: block;
-  font-size: 12px;
-  font-weight: 600;
-  overflow-wrap: anywhere;
-}
-.nox-credit-actions { display: flex; gap: 4px; flex-shrink: 0; }
-.nox-credit-values {
-  font-size: 12px;
-  color: var(--nox-ink);
-  font-variant-numeric: tabular-nums;
-  margin-top: 8px;
-}
-.nox-credit-progress {
-  width: 100%;
-  height: 7px;
-  border-radius: var(--nox-radius-pill);
-  background: var(--nox-inset);
-  overflow: hidden;
-  margin: 7px 0 5px;
-}
-.nox-credit-progress-fill {
-  height: 100%;
-  border-radius: var(--nox-radius-pill);
-  background: var(--nox-accent);
-}
-.nox-credit-progress-fill.is-warning { background: var(--nox-orange); }
-.nox-credit-progress-fill.is-low { background: var(--nox-red); }
-.nox-credit-updated { font-size: 10px; color: var(--nox-ink-3); }
-.nox-credit-editor {
-  padding: 12px;
-  margin: 10px 0;
-  border: 1px solid var(--nox-line);
-  border-radius: var(--nox-radius-control);
-  background: var(--nox-inset);
-}
-.nox-credit-editor > strong { font-size: 12px; font-weight: 600; }
-.nox-credit-fields {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px 10px;
-}
-.nox-credit-fields .setting-item {
-  min-width: 0;
-  border: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  gap: 4px;
-}
-.nox-credit-fields .setting-item-name { font-size: 11px; }
-.nox-credit-fields .setting-item-control { width: 100%; min-width: 0; }
-.nox-credit-fields :is(input, select) {
-  width: 100%;
-  min-width: 0;
-  max-width: 100%;
-  height: 30px;
-  border-radius: var(--nox-radius-chip);
-  background: var(--nox-surface);
-  border: 1px solid var(--nox-line);
-}
-.nox-credit-editor-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 12px; }
 .nox-usage-warning { font-size: 12px; color: var(--nox-red); }
 @media (max-width: 620px) {
   .nox-usage-overview { grid-template-columns: 1fr; }
   .nox-usage-filters { grid-template-columns: 1fr; }
 }
-@media (max-width: 430px) { .nox-credit-fields { grid-template-columns: 1fr; } }
+.nox-quota-title { display:flex;gap:8px;align-items:center;justify-content:space-between; }
+.nox-quota-names { min-width:0;flex:1; }
+.nox-quota-names strong { display:block;font-size:12px;font-weight:600;overflow-wrap:anywhere; }
+.nox-quota-values {
+  color:var(--nox-ink);font-size:12px;font-variant-numeric:tabular-nums;margin-top:7px;
+}
+.nox-quota-progress {
+  width:100%;height:7px;border-radius:var(--nox-radius-pill);
+  background:var(--nox-inset);overflow:hidden;margin:7px 0 5px;
+}
+.nox-quota-progress-fill {
+  height:100%;border-radius:var(--nox-radius-pill);background:var(--nox-accent);
+}
+.nox-quota-progress-fill.is-warning { background:var(--nox-orange); }
+.nox-quota-progress-fill.is-low { background:var(--nox-red); }
+.nox-quota-updated { display:block;color:var(--nox-ink-3);font-size:10px;margin-top:5px; }
 
 /* Read-only live quota grouping belongs to the compact Settings analytics.
    The same flat light theme and no-shadow interaction grammar apply. */
@@ -3220,7 +3149,7 @@
   margin-bottom: 7px;
 }
 .nox-provider-quota-label strong,
-.nox-provider-quota-row .nox-credit-names strong {
+.nox-provider-quota-row .nox-quota-names strong {
   font-size: 12px;
   font-weight: 600;
 }
@@ -3236,13 +3165,13 @@
   white-space: nowrap;
   margin-left: auto;
 }
-.nox-provider-quota-row .nox-credit-progress {
+.nox-provider-quota-row .nox-quota-progress {
   margin-top: 6px;
 }
 .nox-provider-quota-group .nox-usage-subtitle {
   margin: 3px 0;
 }
-.nox-provider-quota-row .nox-credit-values {
+.nox-provider-quota-row .nox-quota-values {
   margin: 4px 0;
 }
 /* Agentic inspector (Beautiful UI information density × Arc motion discipline).
@@ -3909,6 +3838,54 @@
   font-weight: 500;
   letter-spacing: -0.03em;
 }
+/* NOX Settings navigation: one active tab, flat/compact, no shadows or rings. */
+.nox-settings-tabs {
+  display:flex;
+  gap:3px;
+  padding:3px;
+  margin:0 0 14px;
+  border:1px solid var(--nox-line);
+  border-radius:var(--nox-radius-control);
+  background:var(--nox-inset);
+  max-width:420px;
+}
+.nox-settings .nox-settings-tab {
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  min-width:0;
+  flex:1 1 0;
+  min-height:34px;
+  padding:6px 10px;
+  font-size:12px;
+  font-weight:500;
+  border:1px solid transparent;
+  border-radius:var(--nox-radius-chip);
+  background:transparent;
+  color:var(--nox-ink-2);
+  box-shadow:none;
+  cursor:pointer;
+}
+.nox-settings .nox-settings-tab:is(:hover,:focus-visible) {
+  background:var(--nox-hover);
+  color:var(--nox-ink);
+}
+.nox-settings .nox-settings-tab[aria-selected="true"],
+.nox-settings .nox-settings-tab[aria-selected="true"]:focus-visible {
+  background:var(--nox-surface);
+  color:var(--nox-accent-ink);
+  border-color:var(--nox-line);
+}
+.nox-settings-page { min-width:0; }
+.nox-settings-page > .nox-usage { margin-top:0; }
+.nox-provider-filter { grid-template-columns:minmax(0,260px); }
+.nox-provider-usage .nox-provider-quota-group:last-child { border-bottom:0; }
+@media (max-width:420px) {
+  .nox-settings-tabs { max-width:100%; }
+  .nox-settings .nox-settings-tab { padding:6px; }
+  .nox-provider-filter { grid-template-columns:1fr; }
+}
+
 .nox-settings .setting-item { border-color: var(--nox-line); }
 .nox-settings .setting-item-name { color: var(--nox-ink); font-weight: 500; }
 .nox-settings .setting-item-description { color: var(--nox-ink-2); }

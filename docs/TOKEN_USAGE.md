@@ -76,60 +76,45 @@ This conservative choice can undercount the first observed resumed turn.
    the ledger error, and no fabricated counts appear.
 7. Verify the light-only NOX theme inside light and dark Obsidian hosts, narrow setting panels, keyboard navigation.
 
-## Compact visualization and manual balances (2026-10-15)
+## Three settings tabs — 2026-10-15
 
-- Token usage uses a compact total hero, input/output proportional split,
-  four small supporting metrics, and model rows with relative bar lengths.
-- A separate `nox-credit-balances-v1` key stores **manual snapshots only**,
-  via the existing serialized `PluginDataRepository` writer. It never writes
-  inferred or fabricated account/provider values.
-- Inputs: provider, model or shared provider scope, unit, total limit, remaining
-  amount, timestamp. Model-specific snapshots override shared pools.
-- A shared provider pool appears once as a canonical editable entry and can
-  be echoed under member models with a Shared label. This is one pool, not
-  multiple credits available to sum. No automatic debit from token usage.
-- Unsupported provider account balances render **Unavailable**, not zero.
-- Current transports still cannot verify provider quota, account limits,
-  allowance resets or pricing. No claim of real-time remaining capacity.
-- Persistence: entries are validated, malformed records ignored, deletion
-  removes only the requested scope, and independent token ledger remains.
-- Light-only NOX removes the Appearance selector; host Obsidian theme is
-  not modified.
+Nox Settings now exposes three native, flat, accessible tabs:
 
-## Provider-reported quotas (2026-10-15)
+| Tab | Responsibility | Data source |
+|---|---|---|
+| **Settings** | Agent provider, CLI paths, ChatGPT connection, preferred model and build details | NoxSettings / runtime |
+| **Usage** | Live/stale/unavailable AGY and Codex quotas, per-window percentage and reset | Read-only provider CLI / QuotaSync |
+| **Token** | NOX-recorded token counts, model breakdown, input/output/cached/reasoning | TokenUsageRepository |
 
-Settings > Nox > Token Usage now keeps **Provider quotas** distinct from
-**Manual balances**. NOX reads provider quota data only through local,
-installed CLIs. It does not call private subscription HTTP endpoints, read
-credentials directly, consume reset credits, start agent threads or infer
-billing amounts from token counts.
+Tabs are lazily mounted, with arrow-key navigation and an accessible tablist.
+Only the active tab requests its own data. Switching tabs removes the inactive
+component and its render callbacks, without resetting provider quota cache or
+token usage ledger.
 
-- **AGY**: `agy --version` must confirm version >= 1.2.15; only then execute
-  `agy --output-format json -p /usage` and optional `-p /credits`.
-  The first command must have `status: SUCCESS`, `num_turns: 0`, empty
-  `conversation_id`, and `command.name: usage`. A mismatched response is
-  rejected. Parse quota *groups and windows*; Gemini quotas may be shared,
-  not individual Flash/Pro credits. Unexpected credit shape = unknown.
-- **Codex**: use a short-lived `codex app-server --listen stdio://`
-  initialize/initialized/read sequence with `account/rateLimits/read`.
-  Convert `usedPercent` to remaining percentage, preserve window reset
-  and `normalModelSlug` if explicitly supplied. No `thread/start`.
-- **ChatGPT plan**: still explicitly unavailable; no unsupported private
-  quota interface is scraped.
-- **Caching**: one application-owned ephemeral cache per provider, 90 seconds,
-  30-second backoff after failures, inflight request coalescing, cancellation
-  on unload or runtime path change. A failed refresh retains a *stale*-labeled
-  snapshot rather than falsely marking it live.
-- **Refresh credits** triggers a fresh provider read; **Refresh usage**
-  reloads the NOX token ledger. These are different user intents.
-- **Manual balances** remain separate in plugin data, with their own source,
-  timestamps and explicit units. The fallback `requested: model-id` is
-  normalized for manual lookup, without mutating the usage ledger.
-- Never total quotas from multiple shared windows into one credit balance,
-  nor assume a pooled bucket is owned uniquely by a model.
-- CLI output is bounded, timed out, and auth stderr is discarded (not saved
-  into settings/errors). Unsupported CLI versions fail closed.
+## Removal of Manual Balances
 
-Desktop smoke test: AGY old/new version; signed-out, authenticated and missing
-CLI; Codex local sign-in and app-server version; fresh/stale/unavailable;
-requested-prefixed models, manual shared pools, light-only in a dark host.
+The **Manual Balances** feature, its form and persistence adapter are removed.
+The obsolete `nox-credit-balances-v1` storage key, if previously written, is
+left **untouched and inert** to avoid irreversible deletion of user-authored
+data. NOX no longer reads, updates or displays that key. Its original token
+ledger and rate-limit cache continue to work unchanged. A dedicated cleanup
+migration would require separate explicit authorization.
+
+## Provider usage — read-only contracts
+
+- AGY: CLI 1.2.15+ with an explicitly verified no-turn `/usage` command
+  and an optional `/credits` command; failure yields Unavailable/Stale.
+- Codex: app-server `account/rateLimits/read`; no inference thread.
+- ChatGPT plan direct: unavailable in current transport, never guess.
+- Separate quota windows and shared pools remain separate, not combined or
+  attributed as unique credits to individual models.
+- Cache: in-memory TTL 90s, backoff 30s, stale snapshots preserved on failure.
+- **Refresh credits** only lives in the Usage tab and fetches provider limits.
+- **Refresh usage** only lives in the Token tab and reads the NOX token ledger.
+- No gradient, shadows, dark mode or focus halo in the settings UI.
+
+## Verification
+
+Run `pnpm verify`, then manual Obsidian smoke (both host themes, 320px/420px
+panels, three keyboard-navigable tabs, AGY and Codex signed-in/out states,
+usage period/model filters, obsolete balances never resurfacing).
