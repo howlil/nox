@@ -554,7 +554,9 @@ export class RunLearningTurn {
       const instruction =
         buildActionInstruction(request.action);
       preparedPrompt =
-        `${instruction}\n\nUser request:\n${researchQuery ?? request.prompt}`;
+        `${instruction}\n\nUser request:\n${request.replyTo
+          ? formatReplyPrompt(researchQuery ?? request.prompt, request.replyTo)
+          : researchQuery ?? request.prompt}`;
       if (request.action === "ask" || request.action === "explain") {
         preparedPrompt += "\n\nPRESENTATION: Use short semantic Markdown headings without numeric prefixes unless specifically requested. Prefer compact Markdown tables for comparisons. Avoid emoji as status icons. Do not invent metrics or display a chart for unknown data.";
         if (/diagram|flowchart|arsitektur|architecture|dependency graph|peta konsep|visualisasi alur/i.test(request.prompt) && !/mermaid/i.test(request.prompt)) {
@@ -726,7 +728,6 @@ export class RunLearningTurn {
         return;
       }
 
-      if (request.replyTo) preparedPrompt = formatReplyPrompt(preparedPrompt, request.replyTo);
       // M0-M2: one bounded context envelope for every provider. Transcript is preserved.
       // Exclude the old answer AND its user prompt: the regeneration prompt
       // itself represents that user turn and must not be duplicated in history.
