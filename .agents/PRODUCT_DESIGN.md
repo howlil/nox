@@ -712,18 +712,19 @@ not present usage totals as account-wide credit or plan quota consumption.
 Account limits and reset times are unavailable until a trusted provider-specific
 integration exists. See `docs/TOKEN_USAGE.md`.
 
-## Remaining credits
+## Settings navigation — Settings / Usage / Token
 
-NOX can persist explicitly user-entered quota snapshots for model-specific
-limits or a shared provider pool. It must label them Manual, never Verified;
-display Unavailable when no balance exists; and never subtract token usage from
-a manual credit balance. The UI is Settings-only, compact and light-only.
+Three distinct pages within the native Obsidian settings tab:
+Settings contains runtime and account configuration; Usage contains only
+provider-reported quota windows; Token contains only NOX token telemetry.
+All screens are compact and light-only. The former Manual Balances feature
+has been removed (legacy saved key left inert, not erased).
 
 ## Provider quota reads
 
-Token Usage separates provider-reported quota windows from manually entered
-balance snapshots. An explicit Refresh credits action only performs bounded,
+Usage displays read-only provider-reported quota windows separately from
+the Token tab's NOX-recorded token counts. An explicit Refresh credits action only performs bounded,
 authenticated CLI read-only operations, never an AI inference turn, credit
-consumption or quota bypass. The settings view is truthful when no data is
-available, when stale, or when pools are shared. ChatGPT direct-plan quota
+consumption or quota bypass. The Usage tab is truthful when data is
+unavailable, stale, or shared. ChatGPT direct-plan quota
 remains unavailable.
