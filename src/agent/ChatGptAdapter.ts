@@ -150,7 +150,7 @@ export class ChatGptAdapter implements AgentAdapter {
                 const details = responseData && typeof responseData === "object"
                   ? responseData as Record<string, unknown> : {};
                 yield { type: "usage", usage,
-                  model: typeof details.model === "string" ? details.model : model };
+                  model: typeof details.model === "string" ? details.model : undefined };
               }
               completed = true; terminal = true; break;
             } else if (type === "response.failed" || type === "response.incomplete" || type === "error") {
