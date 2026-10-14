@@ -277,14 +277,14 @@ export class SessionController {
   }
 
   /** Commit both hint messages before the caller marks the attempt assisted. */
-  async recordPracticeHint(hint: string, sessionId: string): Promise<void> {
+  async recordPracticeHint(hint: string, sessionId: string, messageId?: string): Promise<void> {
     if (!hint.trim()) throw new Error("Cannot persist an empty practice hint.");
     return this.serializeWrite(async () => {
       await this.commitStoreTransaction((draft) => {
         const session = draft.getSession(sessionId);
         if (!session) throw new Error("Practice session no longer exists.");
         session.messages.push(
-          { role: "user", content: "/hint", action: "practice" },
+          { role: "user", content: "/hint", action: "practice", id: messageId },
           { role: "assistant", content: "Hint: " + hint },
         );
         draft.updateSession(session);
@@ -312,7 +312,7 @@ export class SessionController {
 
   /** Publish the lock and its acknowledgement only after one durable write. */
   async recordScopeChange(
-    state: LearningScopeState, command: string, reply: string, sessionId: string,
+    state: LearningScopeState, command: string, reply: string, sessionId: string, messageId?: string,
   ): Promise<void> {
     return this.serializeWrite(async () => {
       const session = this.sessionForWrite(sessionId);
@@ -321,7 +321,7 @@ export class SessionController {
         // Provider conversations may contain instructions from the previous mode.
         conversationId: undefined,
         messages: [...session.messages,
-          { role: "user", content: command, action: "ask" },
+          { role: "user", content: command, action: "ask", id: messageId },
           { role: "assistant", content: reply }],
       };
       const staged = this.store.stageSessionUpdate(next);
