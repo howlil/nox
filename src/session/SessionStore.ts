@@ -149,8 +149,13 @@ export class SessionStore {
     for (const id of new Set(ids)) {
       const session = this.data.sessions[id];
       if (!session || Boolean(session.archivedAt) === archived) continue;
-      if (archived) session.archivedAt = now;
-      else delete session.archivedAt;
+      if (archived) {
+        session.archivedAt = now;
+        // An archived thread must never keep an actionable pending note edit.
+        for (const message of session.messages) {
+          if (message.proposalState === "pending") message.proposalState = "stale";
+        }
+      } else delete session.archivedAt;
       changed++;
     }
     this.ensureActiveSession();
