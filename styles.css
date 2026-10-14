@@ -35,6 +35,7 @@
   --nox-surface: #FEFEFE;
   --nox-inset: #F7F7F7;
   --nox-hover: #F5F5F5;
+  --nox-card-hover: #FAFAFA;
   --nox-hover-2: #ECECEC;
   --nox-ink: #161616;
   --nox-ink-2: #626262;
@@ -98,6 +99,7 @@
   --nox-surface: #121212;
   --nox-inset: #1B1B1B;
   --nox-hover: #202020;
+  --nox-card-hover: #191919;
   --nox-hover-2: #262626;
   --nox-ink: #FEFEFE;
   --nox-ink-2: #BFBFBF;
@@ -1010,7 +1012,7 @@
 .nox-btn-apply {
   flex: 1;
   min-height: 28px;
-  border-radius: var(--nox-radius-pill);
+  border-radius: var(--nox-radius-control);
 }
 
 .nox-result-badge {
@@ -1094,8 +1096,9 @@
 }
 
 .nox-menu-row:focus-visible {
-  outline: 2px solid var(--nox-accent);
-  outline-offset: -2px;
+  outline: none;
+  background: var(--nox-accent-soft);
+  color: var(--nox-accent-ink);
 }
 
 .nox-prompt-menu-row {
@@ -1724,13 +1727,13 @@
   display: flex;
   width: 100%;
   min-width: 0;
-  min-height: 68px;
+  min-height: 58px;
   align-items: center;
-  gap: 12px;
-  padding: 11px 13px;
-  border: 1px solid var(--nox-accent-border);
+  gap: 8px;
+  padding: 9px 10px;
+  border: 1px solid var(--nox-line);
   border-radius: var(--nox-radius-card);
-  background: var(--nox-accent-soft);
+  background: var(--nox-surface);
   color: var(--nox-ink);
   box-shadow: none !important;
   cursor: pointer;
@@ -1739,26 +1742,28 @@
   transition: background-color 120ms ease, border-color 120ms ease;
 }
 
-.nox-learning-start:hover,
+.nox-learning-start:hover {
+  border-color: var(--nox-line-strong);
+  background: var(--nox-card-hover);
+}
 .nox-learning-start:focus-visible {
   border-color: var(--nox-accent-border);
   background: var(--nox-accent-soft);
 }
 
-.nox-learning-start:focus-visible,
 .nox-capability-card:focus-visible {
-  outline: 2px solid var(--nox-accent);
-  outline-offset: 2px;
+  border-color: var(--nox-accent-border);
+  background: var(--nox-accent-soft);
 }
 
 .nox-learning-start-icon {
   display: inline-flex;
-  width: 32px;
-  height: 32px;
-  flex: 0 0 32px;
+  width: 28px;
+  height: 28px;
+  flex: 0 0 28px;
   align-items: center;
   justify-content: center;
-  border-radius: var(--nox-radius-control);
+  border-radius: var(--nox-radius-chip);
   background: var(--nox-inset);
   color: var(--nox-accent-ink);
 }
@@ -1815,9 +1820,9 @@
   position: relative;
   width: 100%;
   min-width: 0;
-  min-height: 98px;
+  min-height: 90px;
   overflow: hidden;
-  padding: var(--nox-space-3);
+  padding: 10px;
   border: 1px solid var(--nox-line);
   border-radius: var(--nox-radius-card);
   background: var(--nox-surface);
@@ -1833,7 +1838,7 @@
 }
 
 .nox-capability-card:hover {
-  background: var(--nox-inset);
+  background: var(--nox-card-hover);
   border-color: var(--nox-line-strong);
 }
 
@@ -1854,8 +1859,8 @@
   min-width: 0;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
-  margin-bottom: 7px;
+  gap: 6px;
+  margin-bottom: 5px;
 }
 
 .nox-capability-name {
@@ -1918,14 +1923,15 @@
   position: relative;
   z-index: 1;
   display: inline-flex;
-  height: 20px;
+  min-height: 16px;
+  height: auto;
   align-items: center;
-  margin-top: 11px;
-  padding: 0 7px;
-  border: 1px solid transparent;
-  border-radius: var(--nox-radius-pill);
-  background: var(--nox-inset);
-  color: var(--nox-ink-2);
+  margin-top: 8px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--nox-ink-3);
   font-size: 10px;
 }
 
@@ -2108,8 +2114,9 @@
 }
 
 .nox-model-menu-row:focus-visible {
-  outline: 2px solid var(--nox-accent);
-  outline-offset: -2px;
+  outline: none;
+  background: var(--nox-accent-soft);
+  color: var(--nox-accent-ink);
 }
 
 .nox-model-menu-name {
@@ -2769,7 +2776,9 @@
 }
 .nox-quiz-editor:focus-visible,
 .nox-quiz-option:focus-within {
-  outline: 2px solid var(--nox-accent); outline-offset: 1px;
+  outline: none;
+  border-color: var(--nox-accent-border);
+  background: var(--nox-accent-soft);
 }
 .nox-quiz-code-editor {
   font-family: var(--font-monospace);
@@ -2889,8 +2898,9 @@
   list-style-position: inside;
 }
 .nox-quiz-context summary:focus-visible {
-  outline: 2px solid var(--nox-accent);
-  outline-offset: 2px;
+  outline: none;
+  background: var(--nox-accent-soft);
+  color: var(--nox-accent-ink);
 }
 .nox-quiz-context[open] summary { color: var(--nox-ink); }
 .nox-quiz-reference-code {
@@ -2919,15 +2929,29 @@
 
 /* Settings > Token usage. Calm, compact, theme-adaptive and deliberately flat. */
 .nox-usage {
-  margin-top: 28px;
-  color: var(--text-normal);
-  font-size: 13px;
+  margin-top: 16px;
+  color: var(--nox-ink);
+  font-size: 12px;
 }
-.nox-usage h3 { margin: 0 0 4px; font-size: 16px; font-weight: 600; }
+.nox-usage-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.nox-usage-header .nox-usage-toolbar .setting-item {
+  border: 0;
+  padding: 0;
+}
+.nox-usage-header .nox-usage-toolbar button {
+  min-height: 28px;
+  padding: 4px 9px;
+}
+.nox-usage h3 { margin: 0; font-size: 16px; font-weight: 600; }
 .nox-usage h4 { margin: 18px 0 6px; font-size: 13px; font-weight: 600; }
 .nox-usage-description {
-  margin: 2px 0 12px;
-  color: var(--text-muted);
+  margin: 4px 0 10px;
+  color: var(--nox-ink-2);
   font-size: 12px;
   line-height: 1.5;
 }
@@ -2935,40 +2959,51 @@
 .nox-usage-filters {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 10px;
-  margin-bottom: 16px;
+  gap: 8px;
+  margin-bottom: 12px;
 }
 .nox-usage-filters .setting-item {
   display: flex;
   flex-direction: column;
   align-items: stretch;
-  gap: 6px;
+  gap: 4px;
+  min-width: 0;
   border: 0;
   padding: 0;
 }
-.nox-usage-filters .setting-item-name { font-size: 11px; color: var(--text-muted); }
-.nox-usage-filters .setting-item-control { width: 100%; }
-.nox-usage-filters select { width: 100%; max-width: 100%; height: 30px; font-size: 12px; }
+.nox-usage-filters .setting-item-name { font-size: 11px; color: var(--nox-ink-2); }
+.nox-usage-filters .setting-item-control { width: 100%; justify-content: stretch; }
+.nox-usage-filters select {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  height: 30px;
+  font-size: 12px;
+  border: 1px solid var(--nox-line);
+  border-radius: var(--nox-radius-chip);
+  background: var(--nox-surface);
+}
 .nox-usage-metrics {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 12px 18px;
-  margin: 2px 0 14px;
+  gap: 10px 14px;
+  margin: 2px 0 10px;
 }
 .nox-usage-metric { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .nox-usage-metric span { font-size: 11px; color: var(--text-muted); }
 .nox-usage-metric strong {
-  font-size: 20px;
+  font-size: 17px;
   font-weight: 600;
-  letter-spacing: -0.035em;
+  letter-spacing: -0.02em;
   font-variant-numeric: tabular-nums;
   overflow-wrap: anywhere;
 }
 .nox-usage-table { width: 100%; border-collapse: collapse; font-size: 12px; }
 .nox-usage-table th, .nox-usage-table td {
-  padding: 8px 6px;
+  padding: 6px 5px;
   text-align: left;
-  border-bottom: 1px solid var(--background-modifier-border);
+  border-bottom: 1px solid var(--nox-line);
   overflow-wrap: anywhere;
 }
 .nox-usage-table th { color: var(--text-muted); font-size: 11px; font-weight: 500; }
@@ -2977,9 +3012,9 @@
   font-variant-numeric: tabular-nums;
 }
 .nox-usage-limit {
-  margin-top: 20px;
-  padding-top: 12px;
-  border-top: 1px solid var(--background-modifier-border);
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--nox-line);
 }
 .nox-usage-limit strong { font-size: 12px; }
 .nox-usage-limit p { margin: 5px 0 0; font-size: 12px; color: var(--text-muted); line-height: 1.55; }
@@ -3212,9 +3247,10 @@
 }
 .nox-evaluation-reveal[open] > summary::after { transform: rotate(-90deg); }
 .nox-evaluation-reveal > summary:focus-visible {
-  outline: 2px solid var(--nox-accent);
-  outline-offset: 2px;
+  outline: none;
   border-radius: var(--nox-radius-chip);
+  background: var(--nox-accent-soft);
+  color: var(--nox-accent-ink);
 }
 .nox-evaluation-reveal-body {
   display: flex;
@@ -3515,12 +3551,12 @@
 }
 .nox-settings :is(select, input[type="text"], input:not([type])):focus-visible {
   border-color: var(--nox-accent-border);
-  outline: 2px solid var(--nox-accent);
-  outline-offset: 2px;
+  outline: none;
+  background: var(--nox-accent-soft);
 }
 .nox-settings .setting-item-control button {
   border: 1px solid transparent;
-  border-radius: var(--nox-radius-pill);
+  border-radius: var(--nox-radius-control);
   background: var(--nox-inset);
   color: var(--nox-ink);
   box-shadow: none;
