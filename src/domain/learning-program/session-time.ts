@@ -17,7 +17,11 @@ export function isValidSessionTiming(value: unknown): value is SessionTiming {
     Number.isFinite(t.checkpointAt) && t.checkpointAt >= 0 &&
     Array.isArray(t.pauseReasons) &&
     new Set(t.pauseReasons).size === t.pauseReasons.length &&
-    t.pauseReasons.every(reason => REASONS.includes(reason));
+    t.pauseReasons.every(reason => REASONS.includes(reason)) &&
+    (t.focusObjectiveId === undefined || (typeof t.focusObjectiveId === "string" && t.focusObjectiveId.length > 0)) &&
+    (t.objectiveActiveMs === undefined || (typeof t.objectiveActiveMs === "object" &&
+      t.objectiveActiveMs !== null && !Array.isArray(t.objectiveActiveMs) &&
+      Object.values(t.objectiveActiveMs).every(ms => Number.isFinite(ms) && ms >= 0)));
 }
 
 /** Pure, deterministic checkpoint; no Date.now, Obsidian, provider or persistence. */
@@ -29,6 +33,10 @@ export function checkpointTiming(timing: SessionTiming, now: number): SessionTim
     ...timing,
     activeMs: timing.activeMs + (timing.pauseReasons.length === 0 ? observed : 0),
     aiWaitingMs: timing.aiWaitingMs + (timing.pauseReasons.includes("ai-running") ? observed : 0),
+    ...(timing.focusObjectiveId && timing.pauseReasons.length === 0 ? {
+      objectiveActiveMs: { ...timing.objectiveActiveMs,
+        [timing.focusObjectiveId]: (timing.objectiveActiveMs?.[timing.focusObjectiveId] ?? 0) + observed },
+    } : {}),
     checkpointAt: now,
   };
 }
@@ -44,6 +52,11 @@ export function setTimingPause(
   if (paused) reasons.add(reason);
   else reasons.delete(reason);
   return { ...updated, pauseReasons: [...reasons] };
+}
+
+/** Explicit objective focus; a model cannot assign itself credit for learning time. */
+export function focusSessionObjective(timing: SessionTiming, objectiveId: string, now: number): SessionTiming {
+  return { ...checkpointTiming(timing, now), focusObjectiveId: objectiveId };
 }
 
 /** Legacy active sessions recover PAUSED; no old wall time is reclassified as learning. */
