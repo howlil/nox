@@ -107,6 +107,10 @@ export class LearningController {
     };
   }
 
+  async flushSessionTime(): Promise<void> {
+    await this.programs?.flushTime();
+  }
+
   getSessionTime(): ReturnType<LearningProgramOrchestrator["getSessionTime"]> {
     return this.programs?.getSessionTime() ?? Promise.resolve(null);
   }
