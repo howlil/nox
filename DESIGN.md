@@ -242,10 +242,10 @@ swipe open state are presentation-only; no second history store is permitted.
 - UIArc Swipe Actions interaction semantics are adapted to Obsidian native DOM,
   not installed as a React runtime dependency.
 
-Appearance is a persisted system/light/dark preference for NOX only. System
-follows Obsidian theme. Explicit choices override NOX's root and Settings
-token scope without changing Obsidian globally. All three themes use flat
-colors, existing NOX semantic tokens and reduced-motion support.
+NOX uses a single flat light palette for the sidebar, Settings and owned
+modal/menu portals. NOX has no Appearance selector or dark theme override.
+Obsidian's theme setting remains untouched; NOX surfaces keep their own
+light-scoped tokens even if the host uses dark mode.
 
 ## Visual system
 
@@ -266,264 +266,12 @@ semantic AI identity. Light palette:
 | `--nox-accent-soft` | `#F4EDFF` | selected surface |
 | `--nox-accent-border` | `#C9B0ED` | selection and focus |
 
-### Scoped NOX appearance — 2026-10-15
+### Light-only NOX surfaces — 2026-10-15
 
-The appearance setting has four effective combinations: Obsidian Light/System →
-NOX Light; Obsidian Dark/System → NOX Dark; Obsidian Dark/forced Light →
-NOX Light; Obsidian Light/forced Dark → NOX Dark. The host app's theme must
-never be mutated.
-
-One light/dark palette is declared at the top of `styles.css` on
-`.nox-root`, `.nox-settings`, and temporary `.nox-theme-portal` surfaces.
-Dark selectors exclude `.nox-force-light`; explicit `.nox-force-dark` takes
-precedence independently of the host theme. The same scope sets
-`color-scheme`, scrollbar/accent colors, and a narrow bridge for Obsidian's
-rendered text, form, link and code variables. Component rules should read
-`--nox-*`, never host-specific color variables.
-
-The history native DOM action menu mounts into a temporary NOX-owned theme
-portal outside clipped scrolling lists. Archive/delete confirmation dialogs
-receive the same NOX appearance class. Portals are disposed on close; neither
-portal nor theme token scope applies to the global Obsidian body.
-
-The interactive HTML iframe remains intentionally isolated and light by
-default: its untrusted document owns its presentation, not the NOX theme.
-Other native NOX components do not get an implicit white background.
-
-Metadata and semantic badges must meet readable text contrast in both
-palettes. The base palette is neutral and flat; state color is semantic.
-
-In dark mode, `styles.css` owns a corresponding flat ramp (`#080808`
-page, `#121212` surface, `#1B1B1B` inset), adjusted purple foreground
-contrast and semantic success/warning/error colors. Do not use transparent
-white washes that disappear against dark surfaces.
-
-Nox owns these semantic tokens instead of inheriting arbitrary Obsidian
-theme colors. Purple means active AI intent, focus, selection, or a primary AI
-action—not a purple-tinted canvas across the entire thread.
-
-Semantic tokens have one owner at the top of `styles.css`; layout blocks must
-not redefine color, radius or motion variables. Preserve the Howlil spacing
-rhythm `4 / 8 / 12 / 16 / 20 / 24 / 32px` and type weights
-`400 / 500 / 600` (compact sidebar metadata may stay 11–12px).
-Radius: 6 chip / 8 control + card / 10 composer. Pills are limited to
-non-interactive status markers, not ordinary controls.
-Controls: 30px for icon actions, compact 28–30px for textual controls.
-Keyboard focus has **no outer outline/ring**: the focused surface must change
-to a solid purple-tinted fill, border, or text treatment that remains visible.
-Cards, controls, and popovers have no shadows.
-
-Green = correct/success/applied.
-Orange = partial/warning/review.
-Red = failure/destructive/incorrect.
-
-An intent chip or selected card may use soft purple. A standard user bubble
-uses the same solid soft-purple fill. Quiz feedback stays semantically colored;
-purple never indicates correctness. Background gradients, text shimmers,
-glowing borders, glass effects and gradient scroll masks are disallowed.
-
-## Thread rules
-
-UserBubble: compact purple tint, max ~84%, no broad shadow.
-
-PlainResponse: transparent outer surface, no border, 13–14px rendered Markdown.
-
-Assistant response text is natively selectable and copyable, including streamed
-text, restored Markdown, Practice/Review content, and proposal diffs. Response
-surfaces explicitly allow text selection instead of inheriting panel-level
-selection restrictions. Links and action buttons retain their normal behavior.
-
-Rendered Markdown links use Obsidian workspace navigation. Internal `.md`
-links and heading anchors open through `workspace.openLinkText` with the
-rendering note as the source path; external URLs remain browser-owned. Cmd/Ctrl
-click preserves the native new-leaf affordance.
-
-Assistant messages persist their rendering `sourcePath` so restored history
-keeps relative Markdown links anchored to the note that produced the answer.
-
-StatusTrace: show real operational facts only. Default `Thinking · 2.4s`;
-completion `Completed in 2.4s`. The trace owns the only live timer; do not
-simulate tool execution with timers.
-
-PracticeCard: neutral card with small purple concept label and inset hint.
-
-PracticeEvaluation: green / orange / red by outcome. Purple never means
-correctness.
-
-ReviewFindingCard: one material gap per card. Finding kinds are misconception,
-missing relationship, factual error, and weak explanation. Actions: Practice,
-Fix.
-
-ProposalCard: proposed → Reject or Apply → applied/stale. Never style a proposal
-as already executed.
-
-## Composer
-
-```text
-[context chip] prompt text...
-
-longer text moves onto its own line
-
-+                              Model ▾   send
-```
-
-Composer uses a single flat bordered **capsule** on its default one-line state,
-with input and four controls in one row: `+ Attach file`, prompt input,
-`@ Actions`, `bot Model`, and `Send`. The plus opens the native
-file picker on a trusted user click (real text attachment, using the existing
-size/type policies), not the source menu. Typing `@name` continues to search
-vault notes, and slash commands continue to use the action menu. The agent
-button is icon-only, but preserves the complete selected model in its
-`aria-label` and tooltip.
-
-When the input wraps, contains a newline, or displays chips, the **same**
-capsule expands upwards to a soft 16px-radius two-row layout: context/intent/
-attachments and prompt above, tools below. Measure wrapping at the
-**collapsed** input width before switching layout to avoid oscillation.
-Text height caps at 120px with internal scrolling beyond that. All controls
-are 32px circles; header icons share the same visual shape and native
-Obsidian/Lucide outline family. No gradients, nested text-field rectangles,
-shadow, halo, or outer focus ring.
-The plus control owns context and file actions; do not duplicate it with a
-separate `No context` or context selector button.
-
-When context exists, its chip is embedded at the leading edge of the prompt
-line. Keep the compact one-line layout while the input fits; when the textarea
-wraps, move the text below the chip and place controls on the following row.
-Do not force a fixed-height expanded composer or create a second context bar.
-
-## Motion
-
-160ms feedback, 160–240ms menus/controls, 220–300ms expansion. Motion only
-communicates state or spatial relation. Respect reduced motion.
-
-Chat motion contract:
-
-```text
-send       → user message enters
-running    → thinking trace enters and remains readable
-streaming  → response resolves progressively
-completed  → actions appear after the response settles
-menu open  → compact popover enters from the composer edge
-```
-
-Thinking trace contract:
-
-- The thinking trace owns the only live elapsed timer for a turn.
-- The response meta row may identify the action, but must not repeat the live
-  timer while the turn is running.
-- The response bubble is created only after a response delta or a structured
-  result needs a rendered surface.
-- Trace rows represent observable milestones from normalized events; they must
-  not advance from decorative delays or simulated reasoning.
-- The streaming cursor appears only while response text is actively arriving,
-  and disappears before terminal actions or failure status are rendered.
-
-Use Motion for interruptible runtime transitions and layout-adjacent entry
-states. Keep simple loops and hover feedback in CSS. Do not animate every token
-as a separate layout shift, move the whole thread while streaming, or use
-spring/bounce motion for ordinary chat content. Reduced motion removes
-transform motion while preserving readable state changes.
-
-Action and model triggers expose their open state through the same visible
-surface treatment as their popovers. A menu that is open must look connected to
-the trigger; a native browser popup is not an accepted substitute.
-
-## Runtime and recovery contracts
-
-- Settings exposes the local provider choice with immediate changes while idle,
-  separate executable paths, and the existing Preferred model field. Provider
-  names belong in configuration; protocol events and diagnostics stay out of chat.
-  Model menus refresh after a provider change, retaining Runtime default and any
-  manually selected model ID belonging to the current provider. Codex catalog
-  entries use their display names; hidden entries stay out of the picker.
-  Discovery failure retains default/manual choices. A busy or failed
-  settings save shows a notice and restores the persisted selection.
-
-- Transcript and history are local capabilities; they remain readable if the
-  external AGY runtime is unavailable. Only actions requiring AGY are blocked.
-- New/switch session is unavailable during an active turn. Async writes are
-  scoped to the originating conversation ID, never the currently visible tab.
-- Retry is another attempt at the same logical user message; do not append a
-  second user bubble or durable message.
-- Review follow-up Practice/Fix actions carry their source note path. A Fix
-  cannot silently retarget a different active document.
-- Failed Apply due to a missing open editor is recoverable: keep the proposal
-  pending and expose Retry Apply. Stale/ambiguous source text requires a new
-  proposal.
-- Selection or active note is the primary visible context, not both. Supporting
-  attachments and system progress remain distinguishable.
-
-## CSS ownership
-
-The compact composer layout has one canonical rule for its outer surface,
-grid container, and footer. Do not append versioned blocks that override these
-same structural declarations. Remove dead legacy selectors after verifying
-their corresponding feature components no longer render them.
-
-## Avoid
-
-No gradients of any kind (including text shimmer and scroll masks), glassmorphism,
-glowing borders, broad SaaS shadows, decorative nested cards, giant icons/headings,
-arbitrary radii, native picker
-popups for product controls, focus rings around the text input, fake thinking
-stages, permanent animation, or hidden consequential actions.
-
-## Acceptance
-
-1. Primary information and next action are obvious.
-2. Every card owns state/lifecycle/action.
-3. Every non-neutral color has meaning.
-4. Context is inspectable.
-5. Running/proposed/applied/failed/evaluation states are distinct.
-6. One-shot intents reset.
-7. Practice remains coherent across question → answer → evaluation.
-8. Keyboard and reduced motion remain usable.
-9. UI feels like Obsidian, not a generic AI dashboard.
-10. Capability cards and command rows use the same icon metadata.
-11. Command and model popovers use one Nox surface rule with no per-row shadow.
-12. No control creates an outer focus ring or decorative shadow.
-13. Keyboard focus is visible via an in-surface border/fill/text state.
-14. Textarea hover/focus never introduces an internal white rectangle.
-15. Capability cards and Token Usage fit the compact Obsidian sidebar.
-
-
-## Interactive Practice Cards
-
-An active question must render inside the existing chat bubble with compact,
-native inputs and no competing floating panel. Choice options use radio inputs,
-essays use an autosizing-capable textarea, and code uses a monospace editable
-textarea. Hint is optional and does not submit an answer. A card is interactive
-only when its question identity is the current unanswered question; historical
-cards are read-only. Feedback is a separate nearby result, with explicit
-misconceptions and the existing progress/evidence workflow. Colors, spacing,
-typography and focus states reuse Nox tokens. No code execution in the
-Obsidian renderer.
-
-## Practice instruction reading order (2026-10-14)
-
-The existing in-thread Practice card must treat instructions as a reading
-problem before they become an input problem. In order: question type / concept,
-short title, one-sentence brief, ordered tasks, requirements, given context,
-expected output, optional collapsed reference code, then the editable answer.
-Use Nox tokens, compact headings, and calm list typography. A task item is not
-an interactive completion indicator or learning evidence. Long service API
-references are read-only; minimal starter code remains editable. For questions
-without structured instructions, present the original sentences in readable
-paragraphs without inventing requirements. Both live and historical questions
-must use the same renderer and remain theme-responsive. Details and decisions:
-docs/READABLE_PRACTICE_INSTRUCTIONS.md.
-
----
-
-## Settings: provider token usage
-
-Settings has a compact, read-only Token usage section. Provider / Model /
-Period dropdowns filter daily recorded totals; 3-column numeric metrics and
-a flat table use the Nox 11–13px type scale, minimal rules and Obsidian theme
-variables. No usage telemetry is rendered in the active learning sidebar.
-Account quota/remaining credits are visibly unavailable when the provider
-does not expose a supported source of truth. See `docs/TOKEN_USAGE.md`.
+One light palette lives in the top of `styles.css` and is shared across
+`.nox-root`, `.nox-settings`, and temporary `.nox-theme-portal` menus and dialogs.
+Dark-mode toggles and force-dark classes are removed. Never override the
+Obsidian global document styles.
 
 ### Hint, reveal, and feedback interaction contract (2026-10-14)
 
@@ -651,7 +399,7 @@ Root UI tokens (styles.css)
   `src/settings/TokenUsageSection.ts`. No shadow/ring overrides appended
   to the end to fight legacy declarations.
 - Regression gates: lint/typecheck/unit/integration/build, source design
-  assertions, and manual Obsidian light/dark at 320px, 420px and wide panels.
+  assertions, and manual light-only NOX at 320px, 420px and wide panels, including dark host Obsidian.
 
 ## Native Obsidian capsule composer — 2026-10-15
 
@@ -666,7 +414,7 @@ Root UI tokens (styles.css)
   command and model state; `styles.css` owns geometry.
 - Verify: test the collapsed and multiline composition, narrow panels,
   keyboard navigation, actual text attachments, model disclosure, file cancel,
-  dark mode, focus and selection restoration.
+  focus and selection restoration in light-only NOX.
 
 ```text
 Composer
@@ -694,3 +442,28 @@ Regenerate is distinct from retry. Only the latest Ask/Explain answer can be
 regenerated; alternatives are durable (maximum eight). A failed generation
 leaves canonical transcript state unchanged; selections go through the existing
 serialized SessionController writer and invalidate provider cursor state.
+
+## Token Usage Compact + Remaining Credits — 2026-10-15
+
+Design thinking: observe the existing six-number wall and lack of account
+credit support; define quick answers to usage/traffic/remaining; prioritize
+flat light-only compact surfaces, visual relative bars, and truthful provenance.
+
+```text
+Usage record → daily buckets → filtered totals
+             → Total hero + input/output split
+             → compact metrics + model ranking
+Manual snapshot → serialized plugin-data repository → model or shared-provider pool
+                → visible Remaining Credits row, status, progress
+```
+
+- All amounts are reported NOX-local usage; cached and reasoning are not added.
+- No inference from tokens to credits, no account-availability percentages.
+- Manual entries always show the manual provenance and snapshot time.
+- Model-specific entries supersede shared-provider pools. Provider pools have
+  exactly one canonical editable/deletable row and may be echoed under models,
+  explicitly labeled Shared. Never sum model echoes as separate balances.
+- Each pool has a unit (credits/USD/requests), total, remaining and timestamp.
+  Validate finite, positive limits and remaining between zero and limit.
+- NOX is light-only, regardless of Obsidian host theme. No Appearance switch,
+  shadow, gradient or outer keyboard focus ring.
