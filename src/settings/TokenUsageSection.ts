@@ -15,7 +15,7 @@ const providerLabel = (provider: string): string =>
   provider === "chatgpt" ? "ChatGPT plan" : provider.toUpperCase();
 
 /** Token tab owns NOX-recorded usage only. No CLI queries or manual balances. */
-export function mountTokenUsageSection(container: HTMLElement, host: TokenUsageHost): void {
+export function mountTokenUsageSection(container: HTMLElement, host: TokenUsageHost): () => void {
   const section = container.createDiv({ cls: "nox-usage" });
   const header = section.createDiv({ cls: "nox-usage-header" });
   header.createEl("h3", { text: "Token usage" });
