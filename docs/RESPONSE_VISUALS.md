@@ -1,6 +1,6 @@
 # NOX Rich Response Visuals — implementation contract
 
-Status: feature branch; CI and Obsidian smoke tests required before merge.
+Status: current response renderer contract. CI validation and manual Obsidian smoke tests are separate release gates.
 Scope: Ask/Explain response rendering and read-only program map. No new provider, storage, runtime protocol or learning-state authority.
 
 ## Design thinking: problem → acceptance
@@ -9,9 +9,9 @@ Scope: Ask/Explain response rendering and read-only program map. No new provider
 
 **Define** — improve legibility and interactive previews without converting prose into cards, executing model code in the plugin origin, introducing a competing session store, or loading large graph libraries for every turn.
 
-**Ideate / choose** — keep Obsidian Markdown and Mermaid native. Enhance only opt-in response code fences after native rendering. A bounded chart spec and prerequisite layout avoid new runtime dependencies. Session rehydration derives UI from stored source text.
+**Ideate / choose** — keep Obsidian Markdown and Mermaid native. Enhance only opt-in response code fences after native rendering. Native Markdown tables receive NOX-scoped styling and exact status icons. Bounded chart/card/flow specs add no runtime dependencies. Session rehydration derives UI from stored source text.
 
-**Prototype** — implemented by src/chat/response-spec.ts, response-visuals.ts, learning-graph-layout.ts, and existing ChatView.ts / learning-graph.ts.
+**Prototype** — implemented by src/chat/response-spec.ts, response-visuals.ts, response-rich.ts, response-graph-layout.ts, learning-graph-layout.ts, and existing ChatView.ts / learning-graph.ts.
 
 **Verify** — unit tests cover schemas, security document policy, graph layout, cycles, size limits. Runtime browser/Obsidian verification remains manual.
 
@@ -21,7 +21,7 @@ model text → existing StructuredStreamParser (learning protocol unchanged)
 → existing SessionController (persists original text)
 → ChatView (stream text → native Markdown at terminal)
 → response-visuals (post-process opt-in code fences)
-→ chart SVG OR click-to-run sandbox iframe OR original Markdown
+→ Markdown tables/status icons OR chart/card/top-down SVG OR click-to-run sandbox iframe OR original Markdown
 
 For history: persisted assistant Markdown → native MarkdownRenderer → same enhancer.
 
@@ -53,7 +53,78 @@ A chart uses fenced nox-chart JSON:
 {"type":"line","title":"Latency (ms)","labels":["Mon","Tue","Wed"],"values":[120,80,65]}
 ~~~
 
-Chart constraints: 1–16 points; nonnegative finite values <= 1e9; labels <= 80 chars; title <= 120 chars. Unsupported/invalid JSON preserves source.
+Chart constraints: 1–16 points; nonnegative finite values <= 1e9; labels <= 80 chars; title <= 120 chars. Horizontal bar charts use `type: "horizontal-bar"` with the same schema. Unsupported/invalid JSON preserves source.
+
+## Rich response formats (2026-10-15)
+
+Default answers remain plain Markdown. Renderer-owned typography differentiates
+h1/h2/h3/h4 by font size without rewriting user-authored headings. The
+application requests unnumbered headings for normal Ask/Explain but never
+strips meaningful numeric prefixes. Native Markdown tables receive a compact,
+horizontal-divider style inside a scrollable, keyboard-focusable region. The
+last column gets native Obsidian status icons **only** for an exact allowlist
+of status strings (e.g. Completed, Pending, Failed); text remains unchanged.
+
+Optional read-only comparison, metrics and status-table cards use fenced
+`nox-card` JSON:
+
+~~~nox-card
+{
+  "version": 1,
+  "kind": "comparison",
+  "title": "AGENTS.md",
+  "description": "Measured source lengths",
+  "items": [
+    {"label": "Before", "value": 9479, "unit": "chars"},
+    {"label": "After", "value": 2438, "unit": "chars"}
+  ]
+}
+~~~
+
+Allowed kinds: `metrics`, `comparison`, `status-table`. Up to 12 items.
+Each item has label, string/finite number value and optional unit, detail,
+semantic status (success/pending/warning/error). All values are textContent,
+never HTML. Status icons come exclusively from `setNoxIcon` in NOX primitives.
+
+For compact top-down diagrams, use fenced `nox-flow` JSON:
+
+~~~nox-flow
+{
+  "version": 1,
+  "title": "NOX request flow",
+  "direction": "TB",
+  "layout": "vertical-stack",
+  "nodes": [
+    {"id": "sidebar", "label": "NOX Sidebar"},
+    {"id": "composer", "label": "Composer", "kind": "focus"},
+    {"id": "run", "label": "Run agent"},
+    {"id": "result", "label": "Response", "kind": "result"}
+  ],
+  "edges": [
+    {"from": "sidebar", "to": "composer"},
+    {"from": "composer", "to": "run"},
+    {"from": "run", "to": "result"}
+  ]
+}
+~~~
+
+Valid layouts: `vertical-stack` or `layered`, both top-down and one column
+at narrow sidebar width (layered improves sibling order, not horizontal sprawl).
+Nodes have stable ID, text label and optional semantic kind:
+default/decision/focus/result. Max 24 nodes, 48 edges, no cycles, duplicate IDs,
+missing endpoints or self-loops. Invalid specs retain source with warning.
+The renderer positions nodes by longest-path rank, uses vertical arrows and
+side rails for cross-level connections, and supplies keyboard-accessible
+textual step/connection details. Diagram scrolling stays vertical. Mermaid
+remains the fallback for cyclic or unsupported graph formats.
+
+The existing learning prerequisite graph now follows the same top-down
+principle: one centered column, vertical scrolling, bounded 40 objectives,
+explicit cycle/oversize fallback and native program authority.
+
+No fabricated analytics: charts and cards display only supplied data; the
+model must not invent token counts, benchmarks, percentages or status evidence.
+Model format hints are injected only where relevant, to limit prompt size.
 
 ## Sandbox and failure policy
 
@@ -75,7 +146,7 @@ Chart constraints: 1–16 points; nonnegative finite values <= 1e9; labels <= 80
 5. Render invalid and oversize blocks; verify source fallback.
 6. Reload/switch sessions; verify raw code persists but iframe never autostarts.
 7. Open learning program map; verify arrows and accessible details. Cycles and >40 objectives show text fallback.
-8. Verify Practice hints/evaluation, Review, Edit Apply, internal Markdown links and streaming still work.
+8. Verify Practice hints/evaluation, Review, Edit Apply, internal Markdown links and streaming still work.\n9. Verify native Markdown tables (320/400/500px), semantic last-column status icons, no global heading numbering, dark/light themes.\n10. Verify valid/invalid nox-card and nox-flow fences, >4 branches in one column, cross-rank connections, keyboard-readable fallbacks, restore parity and source safety.\n11. Verify learning prerequisite map scrolls down rather than right with no changes to program state or practice progression.
 
 ## Out of scope
 
