@@ -25,12 +25,12 @@ export interface ActionMenuEntry {
 }
 
 type Visibility = (context: ActionMenuContext) => boolean;
-const always: Visibility = () => true;
+const noQuestion: Visibility = context => !context.hasPracticeQuestion;
 const hasProgram: Visibility = context => Boolean(context.activeProgramId);
 const hasSession: Visibility = context => hasProgram(context) && context.hasActiveSession;
-const hasNoSession: Visibility = context => hasProgram(context) && !context.hasActiveSession;
+const hasNoSession: Visibility = context => hasProgram(context) && !context.hasActiveSession && !context.hasPracticeQuestion;
 const hasQuestion: Visibility = context => context.hasPracticeQuestion;
-const hasSavedPrograms: Visibility = context => context.savedProgramCount > 0;
+const hasSavedPrograms: Visibility = context => context.savedProgramCount > 0 && !context.hasPracticeQuestion;
 const locked: Visibility = context => context.legacyMode === "locked";
 const paused: Visibility = context => context.legacyMode === "paused";
 
@@ -41,10 +41,10 @@ interface AdvancedEntry extends ActionMenuEntry {
 const advanced: AdvancedEntry[] = [
   { key: "free-practice", name: "Free practice", description: "Practice outside your learning plan",
     icon: "pencil-line", command: "/free-practice", action: { type: "scope", command: "/free-practice" },
-    keywords: ["independent", "quiz"], visible: always },
+    keywords: ["independent", "quiz"], visible: noQuestion },
   { key: "plan", name: "Create a learning plan", description: "Set a new goal and time budget",
     icon: "route", command: "/plan ", action: { type: "scope", command: "/plan " },
-    keywords: ["curriculum", "goal", "create"], visible: always },
+    keywords: ["curriculum", "goal", "create"], visible: noQuestion },
   { key: "next", name: "Continue learning", description: "Your next scheduled activity",
     icon: "play", command: "/next", action: { type: "scope", command: "/next" },
     keywords: ["next", "study", "learn"], visible: hasSession },
@@ -69,18 +69,6 @@ const advanced: AdvancedEntry[] = [
   { key: "programs", name: "Learning programs", description: "Browse and switch your saved plans",
     icon: "library", command: "/programs", action: { type: "programs" },
     keywords: ["switch", "saved", "curriculum", "program"], visible: hasSavedPrograms },
-  { key: "programs-command", name: "List program IDs", description: "Print all saved program IDs in chat",
-    icon: "list", command: "/programs", action: { type: "scope", command: "/programs" },
-    keywords: ["ids", "programs"], visible: hasSavedPrograms },
-  { key: "use-program", name: "Switch program by ID", description: "Use /use-program followed by the saved ID",
-    icon: "list-restart", command: "/use-program ", action: { type: "scope", command: "/use-program " },
-    keywords: ["change", "select"], visible: hasSavedPrograms },
-  { key: "assessment", name: "Backend baseline assessment", description: "Legacy backend-only learning mode",
-    icon: "list-checks", command: "/mode assessment", action: { type: "scope", command: "/mode assessment" },
-    keywords: ["legacy", "mode", "backend"], visible: always },
-  { key: "focused", name: "Backend focused learning", description: "Legacy backend-only focused mode",
-    icon: "focus", command: "/mode focused", action: { type: "scope", command: "/mode focused" },
-    keywords: ["legacy", "mode", "backend"], visible: always },
   { key: "pause", name: "Pause backend mode", description: "Return to free chat temporarily",
     icon: "pause", command: "/pause", action: { type: "scope", command: "/pause" },
     keywords: ["legacy", "mode"], visible: locked },
@@ -90,56 +78,60 @@ const advanced: AdvancedEntry[] = [
 ];
 
 /** Stable overview is intentionally short. Search reveals eligible advanced commands. */
-export function buildActionMenu(
-  context: ActionMenuContext,
-  rawQuery = "",
-): ActionMenuEntry[] {
-  const query = rawQuery.trim().toLocaleLowerCase();
-  let primary: ActionMenuEntry;
-  if (context.hasPracticeQuestion) {
-    primary = { ...advanced.find(item => item.key === "hint")! };
-  } else if (context.legacyMode === "locked") {
-    primary = { ...advanced.find(item => item.key === "pause")! };
-  } else if (context.legacyMode === "paused") {
-    primary = { ...advanced.find(item => item.key === "resume")! };
-  } else if (hasSession(context)) {
-    primary = { ...advanced.find(item => item.key === "next")! };
-  } else if (hasProgram(context)) {
-    primary = { ...advanced.find(item => item.key === "start-session")! };
-  } else {
-    primary = { ...advanced.find(item => item.key === "plan")! };
-  }
+/** Prefer one clear next action; retain old slash commands at the controller boundary. */
+export function getPrimaryAction(context: ActionMenuContext): ActionMenuEntry {
+  const key = context.hasPracticeQuestion ? "hint"
+    : context.legacyMode === "locked" ? "pause"
+    : context.legacyMode === "paused" ? "resume"
+    : hasSession(context) ? "next"
+    : hasProgram(context) ? "start-session"
+    : "plan";
+  return advanced.find(item => item.key === key)!;
+}
 
+function scoreAction(item: ActionMenuEntry, query: string): number | null {
+  const command = item.command?.trim().replace(/^\\//, "").toLowerCase() ?? "";
+  const name = item.name.toLowerCase();
+  if (command.startsWith(query) || name.startsWith(query)) return 0;
+
+  // A single character must not match arbitrary text like "s" in "session".
+  if (query.length < 2) return null;
+  if (name.split(/\\s+/).some(word => word.startsWith(query))) return 1;
+
+  // Keywords are intentional synonyms, never broad matches in descriptions.
+  if (query.length >= 3 && item.keywords?.some(word =>
+    word.toLowerCase().split(/\\s+/).some(part => part.startsWith(query)))) return 2;
+  if (query.length >= 3 && (command.includes(query) || name.includes(query))) return 3;
+  return null;
+}
+
+/** Compact defaults. Search is a command palette, never a fuzzy description index. */
+export function buildActionMenu(context: ActionMenuContext, rawQuery = ""): ActionMenuEntry[] {
+  const query = rawQuery.trim().replace(/^\\//, "").toLowerCase();
   const capabilities: ActionMenuEntry[] = NOX_CAPABILITIES.map(item => ({
     key: item.action, name: item.title, description: item.description,
-    icon: item.icon, command: item.command, action: { type: "learning", kind: item.action },
-    keywords: [item.meta, "note"],
+    icon: item.icon, command: item.command,
+    action: { type: "learning", kind: item.action },
+    keywords: [item.meta],
   }));
-  const programNav = advanced.find(item => item.key === "programs")!;
   const visibleCapabilities = context.legacyMode === "locked"
     ? capabilities.filter(item => item.key === "practice")
     : capabilities;
-  const defaults: ActionMenuEntry[] = [primary, ...visibleCapabilities,
-    ...(hasSavedPrograms(context) && context.legacyMode !== "locked" ? [programNav] : [])];
-  if (!query) return defaults;
+  const primary = getPrimaryAction(context);
+  const programNav = advanced.find(item => item.key === "programs")!;
+  if (!query) {
+    return [primary, ...visibleCapabilities,
+      ...(hasSavedPrograms(context) && context.legacyMode !== "locked" ? [programNav] : [])];
+  }
 
-  const entries = [...visibleCapabilities, ...advanced.filter(item =>
+  const allowedAdvanced = advanced.filter(item =>
     item.visible(context) && (context.legacyMode !== "locked" ||
-      ["pause", "hint", "assessment", "focused"].includes(item.key)))];
-  const unique = new Map<string, ActionMenuEntry>();
-  for (const item of entries) unique.set(item.key, item);
-  return [...unique.values()]
-    .map((item, position) => {
-      const name = item.name.toLocaleLowerCase();
-      const command = item.command?.toLocaleLowerCase() ?? "";
-      const keywords = item.keywords?.join(" ").toLocaleLowerCase() ?? "";
-      const description = item.description.toLocaleLowerCase();
-      const score = command.replace(/^\//, "").startsWith(query) || name.startsWith(query) ? 0 :
-        name.includes(query) || command.includes(query) ? 1 :
-        keywords.includes(query) ? 2 : description.includes(query) ? 3 : 99;
-      return { item, score, position };
-    })
-    .filter(row => row.score < 99)
-    .sort((a, b) => a.score - b.score || a.position - b.position)
-    .slice(0, 8).map(row => row.item);
+      ["pause", "hint"].includes(item.key)));
+  return [...visibleCapabilities, ...allowedAdvanced]
+    .map((item, order) => ({ item, order, score: scoreAction(item, query) }))
+    .filter((entry): entry is { item: ActionMenuEntry; order: number; score: number } =>
+      entry.score !== null)
+    .sort((a, b) => a.score - b.score || a.order - b.order)
+    .slice(0, 8)
+    .map(({ item }) => item);
 }
