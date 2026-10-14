@@ -105,8 +105,8 @@ export function objectiveProgress(program: LearningProgram, objectiveId: string,
   const attempts = objectiveEvidence(program, objectiveId, evidence);
   if (!attempts.length) return { status: "unseen" as const, dueAt: null, attempts: 0 };
   const last = attempts[attempts.length - 1];
-  if (last.outcome !== "correct") return { status: "remediate" as const, dueAt: null, attempts: attempts.length };
-  const correct = attempts.filter(e => e.outcome === "correct");
+  if (last.outcome !== "correct" || last.assisted) return { status: "remediate" as const, dueAt: null, attempts: attempts.length };
+  const correct = attempts.filter(e => e.outcome === "correct" && !e.assisted);
   const independent = correct.some(a => correct.some(b => b.createdAt - a.createdAt >= 12 * 3_600_000));
   const dueAt = last.createdAt + (independent ? 3 : 1) * DAY;
   return { status: independent ? "mastered" as const : "provisional" as const,
