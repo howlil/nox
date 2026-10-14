@@ -9,6 +9,35 @@ normalized agent contract rather than provider-specific stream events.
 
 ## What Nox does
 
+Nox also supports opt-in **goal-based learning programs** across domains—not
+just backend engineering. Create a validated curriculum from a goal, inspect
+time-budget feasibility, practice objective-specific questions, and let the
+application prioritize due retrieval and targeted remediation. Learning
+programs are stored in `00-learning-os/programs.json`; assessed evidence
+remains in `progress.json`.
+
+### Learning program commands
+
+```text
+/plan Learn conversational Japanese | deadline=2026-12-01 | minutes=45 | sessions=3
+/plan Understand this note | sources=active | minutes=30
+/start-session
+/next
+/hint
+/progress
+/review-due
+/end-session
+```
+
+If you omit time settings, Nox uses explicit application defaults of 45
+minutes/session and 3 sessions/week. No deadline is invented.
+`/plan` requires a configured and available agent runtime, and existing
+Ask/Explain/Practice/Review/Edit workflows remain usable without a program.
+
+See `docs/LEARNING_ORCHESTRATOR.md` for the decision policy and limitations.
+
+
+
 - Uses the current selection or active note as explicit context.
 - Streams answers into an Obsidian sidebar.
 - Supports Ask, Explain, Practice, Review, and Edit learning actions.
