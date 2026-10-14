@@ -40,6 +40,12 @@ at most every 30 seconds while activity is observed. Unobserved delays above
 120 seconds are conservatively discarded rather than charged as focused study.
 Legacy sessions without timing metadata recover paused, and their historical
 wall-clock `minutesSpent` is not counted as confirmed active learning.
+An explicit /next activity sets objective focus, allowing active minutes to be
+attributed to that objective. The remaining-work estimate is calibrated using
+the median observed/estimated ratio of at least three mastered, measured
+objectives (each with >=5 minutes of attributed study). Below that evidence
+threshold the plan retains the initial LLM estimate. Neither timer nor
+calibration can establish mastery; evidence remains authoritative.
 
 Commands: `/pause-session`, `/resume-session`, and `/session-time`.
 These are separate from legacy backend-scope `/pause` and `/resume`.
