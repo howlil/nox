@@ -73,5 +73,8 @@ jobs:
       - name: Build ChatGPT provider regression tests
         run: pnpm exec esbuild tests/agent/ChatGptProvider.test.ts --bundle --platform=node --format=esm --target=node22 --outfile=chatgpt-provider-test.mjs
 
-      - name: Windows PowerShell DPAPI encryption and OAuth roundtrip
-        run: node --test chatgpt-provider-test.mjs
+      - name: Build Obsidian OAuth transport regression tests
+        run: pnpm exec esbuild tests/agent/ObsidianOAuthTransport.test.ts --bundle --platform=node --format=esm --target=node22 --outfile=obsidian-oauth-test.mjs
+
+      - name: Windows PowerShell DPAPI and OAuth transport regressions
+        run: node --test chatgpt-provider-test.mjs obsidian-oauth-test.mjs
