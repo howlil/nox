@@ -33,6 +33,7 @@ import {
   stripPromptToken,
 } from "./prompt-token";
 import { NOX_CAPABILITIES } from "./capabilities";
+import { buildActionMenu, type ActionMenuContext } from "./action-menu";
 import { isLockedLearningMode, parseScopeCommand } from "../domain/practice/learning-scope";
 import { animateNoxEnter, animateNoxPopover } from "./motion";
 import { resolveNoxMarkdownLink } from "./markdown-links";
@@ -86,7 +87,10 @@ type PromptMenuAction =
   | { type: "info" }
   | { type: "vault-note"; path: string }
   | { type: "scope"; command: string }
-  | { type: "learning"; kind: Exclude<LearningActionKind, "ask"> };
+  | { type: "learning"; kind: Exclude<LearningActionKind, "ask"> }
+  | { type: "programs" }
+  | { type: "menu-back" }
+  | { type: "switch-program"; id: string };
 
 interface PromptMenuItem {
   key: string;
@@ -124,6 +128,8 @@ export class ChatView extends ItemView {
   private promptMenuEl: HTMLElement | null = null;
   private promptPopover!: NoxPopoverState;
   private promptMenu: PromptMenuKind | null = null;
+  private commandPage: "actions" | "programs" = "actions";
+  private lastCommandQuery = "";
   private readonly promptMenuState = new NoxMenuState();
   private promptMenuRequest = 0;
   private attachments: Array<{
@@ -699,7 +705,8 @@ export class ChatView extends ItemView {
           this.closePromptMenu();
         } else {
           this.promptMenu = "command";
-          this.promptMenuState.openAt(this.getPromptMenuStartIndex("command"));
+          this.commandPage = "actions";
+          this.promptMenuState.openAt(0);
           void this.renderPromptMenu();
         }
         this.composerUi.focus();
@@ -782,30 +789,50 @@ export class ChatView extends ItemView {
 
   private async getPromptMenuItems(): Promise<PromptMenuItem[]> {
     if (this.promptMenu === "command") {
-      const scopeCommands: PromptMenuItem[] = [
-        { key: "program-plan", name: "Create learning plan", description: "Goal, constraints, and curriculum. Add your goal after /plan.", icon: "route", command: "/plan ", action: { type: "scope", command: "/plan " } },
-        { key: "program-free", name: "Free Practice", description: "A question outside your active curriculum.", icon: "pencil-line", command: "/free-practice", action: { type: "scope", command: "/free-practice" } },
-        { key: "program-extend", name: "Extend study session", description: "Add time without restarting the session.", icon: "clock-plus", command: "/extend-session 15", action: { type: "scope", command: "/extend-session 15" } },
-        { key: "program-next", name: "Next learning activity", description: "Adaptive question from your active objective.", icon: "arrow-right-circle", command: "/next", action: { type: "scope", command: "/next" } },
-        { key: "programs-list", name: "Saved learning programs", description: "Show stored goals and program IDs.", icon: "library", command: "/programs", action: { type: "scope", command: "/programs" } },
-        { key: "program-switch", name: "Switch learning program", description: "Choose an ID from /programs.", icon: "list-restart", command: "/use-program ", action: { type: "scope", command: "/use-program " } },
-        { key: "program-progress", name: "Program progress", description: "Mastery, review due, feasibility, and next activity.", icon: "chart-no-axes-column", command: "/progress", action: { type: "scope", command: "/progress" } },
-        { key: "program-session", name: "Start timeboxed session", description: "Begin a session with your configured time budget.", icon: "clock", command: "/start-session", action: { type: "scope", command: "/start-session" } },
-        { key: "program-end", name: "End learning session", description: "Save progress and close the current timebox.", icon: "square", command: "/end-session", action: { type: "scope", command: "/end-session" } },
-        { key: "program-hint", name: "Request hint", description: "Get a hint without submitting the answer.", icon: "lightbulb", command: "/hint", action: { type: "scope", command: "/hint" } },
-        { key: "assessment", name: "Baseline Assessment", description: "Assess backend fundamentals with a locked scope.", icon: "list-checks", command: "/mode assessment", action: { type: "scope", command: "/mode assessment" } },
-        { key: "focused", name: "Focused Learning", description: "Learn the active backend concept with a locked scope.", icon: "focus", command: "/mode focused", action: { type: "scope", command: "/mode focused" } },
-        { key: "pause", name: "Pause learning", description: "Discuss freely and keep the backend question for later.", icon: "pause", command: "/pause", action: { type: "scope", command: "/pause" } },
-        { key: "resume", name: "Resume learning", description: "Return to the saved backend question.", icon: "play", command: "/resume", action: { type: "scope", command: "/resume" } },
-      ];
-      return [...PROMPT_COMMANDS.map((command) => ({
-        key: command.action,
-        name: command.title,
-        description: command.description,
-        icon: command.icon,
-        command: command.command,
-        action: { type: "learning" as const, kind: command.action },
-      })), ...scopeCommands];
+      let programState: Awaited<ReturnType<LearningController["getProgramMenuState"]>>;
+      try {
+        programState = await this.learning.getProgramMenuState();
+      } catch {
+        // The ordinary note actions remain usable when the vault program index is unavailable.
+        programState = { sessionActive: false, programs: [] };
+      }
+
+      if (this.commandPage === "programs") {
+        return [
+          { key: "back", name: "Back to actions", description: "Return to the main menu",
+            icon: "arrow-left", action: { type: "menu-back" } },
+          ...programState.programs.map(item => ({
+            key: `program:${item.id}`,
+            name: item.goal,
+            description: item.id === programState.activeProgramId
+              ? "Current learning program" : "Switch to this program",
+            icon: "book-open" as IconName,
+            action: { type: "switch-program" as const, id: item.id },
+          })),
+          { key: "new-plan", name: "Create another plan", description: "Set a new learning goal",
+            icon: "plus", command: "/plan ", action: { type: "scope", command: "/plan " } },
+        ];
+      }
+
+      const scope = this.learning.getSession().learningScope;
+      const context: ActionMenuContext = {
+        activeProgramId: programState.activeProgramId,
+        hasActiveSession: programState.sessionActive,
+        savedProgramCount: programState.programs.length,
+        hasPracticeQuestion: this.learning.hasActivePracticeQuestion(),
+        legacyMode: isLockedLearningMode(scope?.mode) ? "locked"
+          : scope?.resumeMode ? "paused" : "free",
+      };
+      const token = parsePromptToken(this.input.value);
+      const query = token?.kind === "command" ? token.query : "";
+      return buildActionMenu(context, query).map(item => ({
+        key: item.key,
+        name: item.name,
+        description: item.description,
+        icon: item.icon,
+        command: item.command,
+        action: item.action,
+      }));
     }
 
     const items: PromptMenuItem[] = [];
