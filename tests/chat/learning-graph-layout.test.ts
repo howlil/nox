@@ -14,7 +14,10 @@ test("builds deterministic prerequisite arrows from earlier to later levels", ()
   assert.equal(map.edges.length, 4);
   const levels = Object.fromEntries(map.nodes.map(n => [n.id, n.level]));
   assert.deepEqual(levels, { net: 0, db: 1, api: 1, scale: 2 });
-  assert.ok(map.edges.every(edge => edge.x1 < edge.x2));
+  assert.ok(map.edges.every(edge => edge.y1 < edge.y2));
+  assert.ok(map.width <= 300);
+  assert.ok(map.height > map.width);
+  assert.ok(map.nodes.every(node => node.x === map.nodes[0].x));
 });
 
 test("cycles and large graphs have safe textual fallbacks", () => {
