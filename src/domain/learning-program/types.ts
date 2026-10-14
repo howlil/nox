@@ -15,6 +15,9 @@ export interface SessionTiming {
   activeMs: number;
   /** Observed time spent waiting for an agent turn. */
   aiWaitingMs: number;
+  /** Optional attribution, only after an explicit objective selection. */
+  focusObjectiveId?: string;
+  objectiveActiveMs?: Record<string, number>;
   pauseReasons: SessionPauseReason[];
   /** Local wall-clock checkpoint; never used to infer time across restarts. */
   checkpointAt: number;
@@ -51,7 +54,7 @@ export interface LearningProgram {
   planVersion: number;
   creationOperationId?: string;
   session?: LearningSession;
-  sessionHistory?: Array<{ startedAt: number; endedAt: number; minutesSpent: number; activeMinutes?: number; aiWaitingMinutes?: number }>;
+  sessionHistory?: Array<{ startedAt: number; endedAt: number; minutesSpent: number; activeMinutes?: number; aiWaitingMinutes?: number; objectiveActiveMinutes?: Record<string, number> }>;
   instructionEvents?: Array<{ objectiveId: string; afterEvidenceAt: number; taughtAt: number }>;
 }
 export interface ProgramCollection {
