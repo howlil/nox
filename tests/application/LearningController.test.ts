@@ -1136,7 +1136,7 @@ test("typed code answer keeps review-only constraints and criteria through the m
       answer: { type: "code", language: "java", source: "class Service { Service(Repo r) {} }" } },
   }));
   assert.equal(completed.find(e => e.type === "practice-evaluation")?.evaluation.outcome, "correct");
-  assert.match(h.prompts[1] ?? "", /Review code; do not claim execution/);
+  assert.match(h.prompts[1] ?? "", /Review only; do not claim code execution/);
   assert.match(h.prompts[1] ?? "", /Constructor injection/);
   assert.equal(h.getEvidence().length, 1);
 });
