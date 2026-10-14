@@ -9,7 +9,7 @@ import { isLockedLearningMode, parseScopeCommand } from "../domain/practice/lear
 import { parseProgramCommand } from "../domain/learning-program/commands";
 import { feasibility } from "../domain/learning-program/rules";
 import type { LearningProgramOrchestrator } from "./LearningProgramOrchestrator";
-import type { ProgramStorePort } from "../persistence/VaultProgramStore";
+import type { ProgramStorePort } from "./ports";
 
 export interface LearningControllerOptions {
   turnTimeoutMs?: number;
