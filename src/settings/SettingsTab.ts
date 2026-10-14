@@ -1,8 +1,10 @@
 import { App, Notice, PluginSettingTab, Setting } from "obsidian";
 import type { NoxSettings } from "./NoxSettings";
+import { summarizeUsage, type AgentUsageRecord } from "../agent/token-usage";
 
 export interface NoxSettingsHost {
   getSettings(): NoxSettings;
+  getUsageRecords(): AgentUsageRecord[];
   updateSettings(next: Partial<NoxSettings>): Promise<void>;
   getChatGPTConnection(): { connected: boolean; sharing: boolean; email?: string; description: string;
     lastFailure?: { stage: string; code: string; message: string } };
@@ -14,6 +16,8 @@ export interface NoxSettingsHost {
 
 export class NoxSettingsTab extends PluginSettingTab {
   private settingsTail: Promise<void> = Promise.resolve();
+  private usageProvider = "all";
+  private usageModel = "all";
   constructor(app: App, private readonly nox: NoxSettingsHost & import("obsidian").Plugin) {
     super(app, nox);
   }
@@ -99,6 +103,8 @@ export class NoxSettingsTab extends PluginSettingTab {
           }),
       );
 
+    this.renderUsage(containerEl);
+
     const build = this.nox.getBuildDiagnostics();
     new Setting(containerEl)
       .setName("Loaded plugin build")
@@ -129,6 +135,45 @@ export class NoxSettingsTab extends PluginSettingTab {
             await this.saveSettings({ preferredModel: value.trim() });
           }),
       );
+  }
+
+  /** Provider-reported tokens, not quota, credits, spend or ChatGPT plan balance. */
+  private renderUsage(parent: HTMLElement): void {
+    parent.createEl("h3", { text: "Token usage" });
+    const records = this.nox.getUsageRecords();
+    const filters = parent.createDiv({ cls: "nox-settings-usage-filters" });
+    const providers = ["all", ...new Set(records.map(r => r.provider))];
+    const models = ["all", ...new Set(records
+      .filter(r => this.usageProvider === "all" || r.provider === this.usageProvider)
+      .map(r => r.model))];
+    if (!models.includes(this.usageModel)) this.usageModel = "all";
+    const providerSelect = filters.createEl("select", { attr: { "aria-label": "Filter usage by provider" } });
+    for (const value of providers) providerSelect.createEl("option", { value, text: value === "all" ? "All providers" : value });
+    providerSelect.value = this.usageProvider;
+    providerSelect.addEventListener("change", () => {
+      this.usageProvider = providerSelect.value; this.usageModel = "all"; this.display();
+    });
+    const modelSelect = filters.createEl("select", { attr: { "aria-label": "Filter usage by model" } });
+    for (const value of models) modelSelect.createEl("option", { value, text: value === "all" ? "All models" : value });
+    modelSelect.value = this.usageModel;
+    modelSelect.addEventListener("change", () => { this.usageModel = modelSelect.value; this.display(); });
+    const selected = records.filter(r =>
+      (this.usageProvider === "all" || r.provider === this.usageProvider) &&
+      (this.usageModel === "all" || r.model === this.usageModel));
+    const usage = summarizeUsage(selected);
+    const summary = parent.createDiv({ cls: "nox-settings-usage-summary" });
+    const values: Array<[string, number]> = [
+      ["Recorded requests", usage.requests], ["Input tokens", usage.inputTokens],
+      ["Output tokens", usage.outputTokens], ["Cached input", usage.cachedInputTokens],
+    ];
+    for (const [label, value] of values) {
+      const row = summary.createDiv({ cls: "nox-inspector-row" });
+      row.createSpan({ text: label });
+      row.createSpan({ cls: "nox-inspector-count", text: value.toLocaleString() });
+    }
+    parent.createEl("p", { cls: "setting-item-description",
+      text: records.length ? "Recorded provider usage only. Missing reports are not estimated; no plan quota or billing balance is available." :
+        "No usage receipts yet. Providers without usage reporting cannot be measured here." });
   }
 
   private async saveSettings(update: Partial<NoxSettings>): Promise<void> {
