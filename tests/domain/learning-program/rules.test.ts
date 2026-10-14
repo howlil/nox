@@ -102,7 +102,9 @@ test("hint-assisted answers never qualify as independent mastery", () => {
 });
 
 test("timebox expiry blocks new activity without erasing progress", () => {
-  const p = program({ session: { startedAt: now - 50 * 60_000, timeBudgetMinutes: 45 } });
+  const p = program({ session: { startedAt: now - 50 * 60_000, timeBudgetMinutes: 45,
+    timing: { version: 2, activeMs: 45 * 60_000, aiWaitingMs: 5 * 60_000,
+      pauseReasons: [], checkpointAt: now } } });
   assert.equal(chooseNextActivity(p, [], now).kind, "timebox-ended");
   assert.equal(chooseNextActivity(p, [], now).minutesRemaining, 0);
 });
