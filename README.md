@@ -137,6 +137,37 @@ pnpm run verify            # complete local verification gate
 
 `dist/` is generated output. Do not edit it directly.
 
+## Diagnose a stale Obsidian plugin runtime
+
+If Nox still reports `Failed to execute 'fetch' on 'Window': Illegal invocation`
+after updating source, verify the **running build** before debugging OpenAI or
+switching network transports again. The current ChatGPT provider uses Obsidian
+`requestUrl`; the old renderer `window.fetch` error may mean an older
+`main.js` is still loaded.
+
+1. In Obsidian open **Settings → Nox → Loaded plugin build** and note the
+   **Git revision**, **built time**, **transport marker**, and **vault/plugin path**.
+   If this section is absent, Obsidian is definitely running an older plugin.
+2. In the local Nox checkout run `git pull origin master` and
+   `git rev-parse --short=12 HEAD`. Build + deploy to the exact vault path
+   shown in the running Obsidian instance:
+   `pnpm run deploy "C:\\Actual\\Vault\\Path"`.
+   Deployment now **refuses non-vault directories**, verifies the compiled
+   `main.js` SHA256 after copying, and prints the installed path and hash.
+3. **Fully reload** the installed Nox plugin in Obsidian (toggle the plugin
+   off/on under Community plugins, use **Reload app without saving**, or
+   restart Obsidian). Reopen Settings and confirm the embedded Git revision,
+   build time, and `NOX_RUNTIME_TRANSPORT_V2:obsidian-requesturl` marker.
+   Copy the *build diagnostic* if the values do not match the deployment.
+4. Only after the loaded build is confirmed should you retry ChatGPT model
+   discovery and a short inference prompt. If those fail, share the safe
+   model picker/runtime error without any access token or OAuth callback URL.
+
+The plugin `manifest.json` version is currently `0.0.1` across multiple
+commits, so **manifest version alone cannot prove which code was loaded**.
+A successful CI run or a successful deployment to some vault does not prove
+the currently open Obsidian window has reloaded that bundle.
+
 ## Deploy to a local vault
 
 Build and copy the generated plugin into an Obsidian vault with:
