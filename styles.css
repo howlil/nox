@@ -16,7 +16,7 @@
   --color-nox-accent: var(--nox-accent);
   --color-nox-accent-tint: var(--nox-accent-tint);
   --radius-nox-chip: 6px;
-  --radius-nox-control: 8px;
+  --radius-nox-control: 10px;
   --radius-nox-card: 10px;
   --radius-nox-window: 14px;
 }
@@ -26,8 +26,9 @@
   box-sizing: border-box;
 }
 
-.nox-root {
-  @apply flex h-full min-h-0 flex-col overflow-hidden;
+.nox-root,
+.nox-settings {
+  /* Shared flat tokens for the Nox sidebar and Obsidian settings. */
   /* Howlil neutral ramp × Nox purple. Every fill is a solid color. */
   --nox-page: #FEFEFE;
   --nox-canvas: #FEFEFE;
@@ -72,6 +73,10 @@
   --nox-popover-shadow: none;
   --nox-popover-max-height: min(360px, calc(100vh - 120px));
   --nox-composer-shadow: none;
+}
+
+.nox-root {
+  @apply flex h-full min-h-0 flex-col overflow-hidden;
   display: flex;
   flex-direction: column;
   height: 100%;
@@ -84,7 +89,8 @@
   letter-spacing: -0.01em;
 }
 
-.theme-dark .nox-root {
+.theme-dark .nox-root,
+.theme-dark .nox-settings {
   --nox-page: #080808;
   --nox-canvas: #080808;
   --nox-surface: #121212;
@@ -3453,3 +3459,53 @@
   }
   .nox-thinking-viewport .nox-thinking-row { animation: none; }
 }
+
+/* Native PluginSettingTab inherits Nox tokens. No second palette owner,
+   new navigation, or changes to Obsidian's settings behavior. */
+.nox-settings {
+  color: var(--nox-ink);
+  background: var(--nox-page);
+  font-family: var(--font-interface, ui-sans-serif, system-ui, sans-serif);
+}
+.nox-settings > h2 {
+  color: var(--nox-ink);
+  font-size: 20px;
+  line-height: 28px;
+  font-weight: 500;
+  letter-spacing: -0.03em;
+}
+.nox-settings .setting-item { border-color: var(--nox-line); }
+.nox-settings .setting-item-name { color: var(--nox-ink); font-weight: 500; }
+.nox-settings .setting-item-description { color: var(--nox-ink-2); }
+.nox-settings :is(select, input[type="text"], input:not([type])) {
+  background: var(--nox-inset);
+  color: var(--nox-ink);
+  border: 1px solid var(--nox-line);
+  border-radius: var(--nox-radius-control);
+  box-shadow: none;
+}
+.nox-settings :is(select, input[type="text"], input:not([type])):focus-visible {
+  border-color: var(--nox-accent-border);
+  outline: 2px solid var(--nox-accent);
+  outline-offset: 2px;
+}
+.nox-settings .setting-item-control button {
+  border: 1px solid transparent;
+  border-radius: var(--nox-radius-pill);
+  background: var(--nox-inset);
+  color: var(--nox-ink);
+  box-shadow: none;
+}
+.nox-settings .setting-item-control button:hover {
+  background: var(--nox-hover);
+}
+.nox-settings .setting-item-control button.mod-cta {
+  background: var(--nox-accent);
+  color: var(--nox-on-accent);
+}
+.nox-settings .setting-item-control button.mod-cta:hover {
+  background: var(--nox-accent-hover);
+}
+.nox-settings .nox-usage-metric strong { color: var(--nox-ink); }
+.nox-settings .nox-usage-description { color: var(--nox-ink-2); }
+.nox-settings .nox-usage-table :is(td, th) { border-color: var(--nox-line); }
