@@ -77,7 +77,7 @@ export async function verifyChatGptIdToken(
   });
   if (!key) throw new Error("Unknown ChatGPT identity signing key.");
   const valid = verify("RSA-SHA256", Buffer.from(parts[0] + "." + parts[1]),
-    createPublicKey({ key: key as JsonWebKey, format: "jwk" }), Buffer.from(parts[2], "base64url"));
+    createPublicKey({ key: key as import("crypto").JsonWebKey, format: "jwk" }), Buffer.from(parts[2], "base64url"));
   if (!valid) throw new Error("Invalid ChatGPT identity signature.");
   const claims = object(JSON.parse(Buffer.from(parts[1], "base64url").toString("utf8")));
   const audience = claims.aud;
