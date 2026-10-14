@@ -1,5 +1,5 @@
 /** Presentation-only visual formats. Never grants model output vault or plugin authority. */
-export type NoxVisualKind = "html-preview" | "svg-preview" | "nox-chart" | "nox-flow" | "nox-card";
+export type NoxVisualKind = "html-preview" | "svg-preview" | "js-preview" | "nox-chart" | "nox-flow" | "nox-card";
 
 export interface NoxChartSpec {
   type: "bar" | "line" | "horizontal-bar";
@@ -12,7 +12,7 @@ export interface NoxChartSpec {
 export function visualKindFromClasses(classes: readonly string[]): NoxVisualKind | null {
   for (const name of classes) {
     const language = name.startsWith("language-") ? name.slice(9) : "";
-    if (language === "html-preview" || language === "svg-preview" ||
+    if (language === "html-preview" || language === "svg-preview" || language === "js-preview" ||
         language === "nox-chart" || language === "nox-flow" || language === "nox-card") return language;
   }
   return null;
@@ -161,10 +161,10 @@ export function parseNoxCard(raw: string): NoxCardSpec | null {
  * No model-controlled attributes or values are interpolated into host DOM.
  */
 export function createNoxPreviewDocument(
-  kind: "html-preview" | "svg-preview", source: string,
+  kind: "html-preview" | "svg-preview" | "js-preview", source: string,
 ): string | null {
   if (!source.trim() || source.length > MAX_VISUAL_SOURCE_CHARS) return null;
-  const script = kind === "html-preview" ? "'unsafe-inline'" : "'none'";
+  const script = kind === "svg-preview" ? "'none'" : "'unsafe-inline'";
   const csp = [
     "default-src 'none'",
     "base-uri 'none'",
@@ -177,8 +177,25 @@ export function createNoxPreviewDocument(
     "style-src 'unsafe-inline'",
     "script-src " + script,
   ].join("; ");
+  // JavaScript has no access to the host: it runs only after an explicit click
+  // in an opaque-origin iframe with network and parent access denied.
+  const safeJs = source.replace(/<\\/script/gi, "<\\\\/script");
+  const jsBody = '<pre id="nox-output" style="white-space:pre-wrap;overflow-wrap:anywhere;' +
+    'font:13px/1.6 ui-monospace,monospace;margin:14px"></pre>' +
+    '<script>' +
+    'const output=document.getElementById("nox-output");' +
+    'const print=(...args)=>{output.textContent+=args.map(x=>' +
+    'typeof x==="string"?x:JSON.stringify(x)).join(" ")+"\\n"};' +
+    'console.log=print;console.info=print;console.warn=print;console.error=print;' +
+    'addEventListener("error",e=>print(e.message));' +
+    'addEventListener("unhandledrejection",e=>print(String(e.reason)));' +
+    '</script><script>' + safeJs + '</script>';
   return '<!doctype html><html><head><meta charset="utf-8">' +
+    '<meta name="viewport" content="width=device-width, initial-scale=1">' +
     '<meta http-equiv="Content-Security-Policy" content="' + csp + '">' +
     '<meta name="referrer" content="no-referrer">' +
-    '</head><body>' + source + '</body></html>';
+    '<style>*,*::before,*::after{box-sizing:border-box}body{margin:12px;' +
+    'font:14px/1.5 system-ui;overflow-wrap:anywhere}img,svg{max-width:100%;height:auto}' +
+    '</style></head><body>' + (kind === "js-preview" ? jsBody : source) +
+    '</body></html>';
 }
