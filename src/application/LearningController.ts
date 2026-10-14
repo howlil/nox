@@ -186,6 +186,18 @@ export class LearningController {
               `**Estimated work including review:** ${f.estimatedMinutes} min.`,
             "Use /start-session, then /next. Use /progress to inspect your plan.",
           ].join("\n\n");
+        } else if (command.kind === "programs") {
+          const collection = await this.programs.listPrograms();
+          response = collection.programs.length
+            ? collection.programs.map(p =>
+                `${p.id === collection.activeProgramId ? "**Active** " : ""}${p.goal} (ID: ${p.id})`).join("\n\n")
+            : "No saved learning programs yet. Use /plan <goal>.";
+        } else if (command.kind === "use-program") {
+          if (this.turns.hasActivePracticeQuestion()) {
+            throw new Error("Finish the current practice question before switching programs.");
+          }
+          const selected = await this.programs.selectProgram(command.id);
+          response = `Active program changed to: ${selected.goal}`;
         } else if (command.kind === "progress" || command.kind === "review-due") {
           response = await this.programs.progressSummary();
         } else if (command.kind === "start-session") {
@@ -345,6 +357,7 @@ export class LearningController {
 
   cancel(): void {
     this.turns.cancel();
+    this.programs?.cancel();
   }
 
   dispose(): void {
