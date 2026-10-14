@@ -109,3 +109,93 @@ test("essay and code use stored draft, never execute any program", () => {
       draft.type === "essay" ? draft.text : draft.source);
   }
 });
+
+test("hint is hidden until durable /hint acknowledgement and then toggles locally", async () => {
+  const root = new FakeElement();
+  let resolveHint: ((saved: boolean) => void) | undefined;
+  let requests = 0;
+  renderQuizCard(dom(root), question, {
+    questionId: "q-hint", active: true,
+    onHint: () => { requests++; return new Promise<boolean>(resolve => { resolveHint = resolve; }); },
+    onDraft: () => {}, onSubmit: async () => false,
+  });
+  const panel = root.findClass("nox-quiz-hint-panel")! as FakeElement & { hidden: boolean };
+  const hint = root.findClass("nox-quiz-hint")!;
+  assert.equal(panel.hidden, true);
+  hint.trigger("click");
+  assert.equal(requests, 1);
+  assert.equal(panel.hidden, true, "never expose hint before persistence");
+  resolveHint?.(true);
+  await new Promise<void>(resolve => setImmediate(resolve));
+  assert.equal(panel.hidden, false);
+  assert.equal(hint.text, "Hide hint");
+  hint.trigger("click");
+  assert.equal(panel.hidden, true);
+  hint.trigger("click");
+  assert.equal(panel.hidden, false);
+  assert.equal(requests, 1, "repeat disclosure never re-records /hint");
+});
+
+test("hint failures are retryable and do not reveal the hint", async () => {
+  const root = new FakeElement();
+  let count = 0;
+  renderQuizCard(dom(root), question, {
+    questionId: "q-hint-fail", active: true,
+    onHint: async () => ++count > 1,
+    onDraft: () => {}, onSubmit: async () => false,
+  });
+  const panel = root.findClass("nox-quiz-hint-panel")! as FakeElement & { hidden: boolean };
+  const hint = root.findClass("nox-quiz-hint")!;
+  hint.trigger("click");
+  await new Promise<void>(resolve => setImmediate(resolve));
+  assert.equal(panel.hidden, true);
+  assert.equal(hint.disabled, false);
+  hint.trigger("click");
+  await new Promise<void>(resolve => setImmediate(resolve));
+  assert.equal(panel.hidden, false);
+  assert.equal(count, 2);
+});
+
+test("previously persisted hint is available locally without new command", () => {
+  const root = new FakeElement();
+  let requests = 0;
+  renderQuizCard(dom(root), question, {
+    questionId: "q-restored", active: true, hintUsed: true,
+    onHint: () => { requests++; return true; },
+    onDraft: () => {}, onSubmit: async () => false,
+  });
+  root.findClass("nox-quiz-hint")?.trigger("click");
+  assert.equal((root.findClass("nox-quiz-hint-panel")! as FakeElement & { hidden: boolean }).hidden, false);
+  assert.equal(requests, 0);
+});
+
+test("a failed evaluation remains retryable, and code Tab is not trapped", async () => {
+  const root = new FakeElement();
+  let submits = 0;
+  renderQuizCard(dom(root), { ...question, hint: undefined }, {
+    questionId: "q-retry", active: true,
+    onHint: () => false, onDraft: () => {},
+    onSubmit: async () => ++submits > 1,
+  });
+  const radios = root.findAll("input");
+  radios[0].checked = true;
+  radios[0].trigger("change");
+  const submit = root.findClass("nox-quiz-submit")!;
+  submit.trigger("click");
+  await new Promise<void>(resolve => setImmediate(resolve));
+  assert.equal(submit.disabled, false);
+  assert.equal(submit.text, "Retry evaluation");
+  submit.trigger("click");
+  await new Promise<void>(resolve => setImmediate(resolve));
+  assert.equal(submit.disabled, true);
+  assert.equal(submits, 2);
+
+  const code = new FakeElement();
+  renderQuizCard(dom(code), { kind: "question", concept: "concurrency",
+    question: "Fix this race", input: { type: "code", language: "ts",
+      executionMode: "review-only" } }, {
+      questionId: "q-code", active: true, onHint: () => false, onDraft: () => {},
+      onSubmit: async () => false,
+    });
+  assert.equal(code.findAll("textarea")[0].handlers.has("keydown"), false);
+});
