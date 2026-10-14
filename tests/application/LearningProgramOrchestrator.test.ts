@@ -70,3 +70,33 @@ test("bad provider output and failed runtime never create a program", async () =
   await assert.rejects(failed.createProgram("Bad", base), /crash/);
   assert.equal(failedWrites(), 0);
 });
+
+test("repeated creation operation is idempotent after the program was persisted", async () => {
+  const { orchestrator, stored, writes } = rig();
+  const first = await orchestrator.createProgram("Spanish", base, "create:one");
+  const second = await orchestrator.createProgram("Spanish", base, "create:one");
+  assert.equal(first.id, second.id);
+  assert.equal(stored().programs.length, 1);
+  assert.equal(writes(), 1);
+});
+test("timeboxed sessions require explicit extension and have a durable ledger", async () => {
+  const { orchestrator, stored } = rig();
+  await orchestrator.createProgram("Spanish", base);
+  await orchestrator.startSession();
+  await assert.rejects(orchestrator.startSession(), /already active/);
+  const extended = await orchestrator.extendSession(15);
+  assert.equal(extended.session?.timeBudgetMinutes, 60);
+  await assert.rejects(orchestrator.extendSession(200), /240/);
+  await orchestrator.endSession();
+  assert.equal(stored().programs[0].session, undefined);
+  assert.equal(stored().programs[0].sessionHistory?.length, 1);
+  await assert.rejects(orchestrator.endSession(), /No active session/);
+});
+test("teaching markers are idempotent and apply to the matching objective", async () => {
+  const { orchestrator, stored } = rig();
+  await orchestrator.createProgram("Spanish", base);
+  await orchestrator.markTaught("basic", 1000);
+  await orchestrator.markTaught("basic", 1000);
+  assert.equal(stored().programs[0].instructionEvents?.length, 1);
+  await assert.rejects(orchestrator.markTaught("unknown", 1000), /unknown/);
+});
