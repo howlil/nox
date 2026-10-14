@@ -1,4 +1,5 @@
 import type { TranscriptPart } from "./session/transcript-types";
+import type { AgentUsageRecord } from "./agent/token-usage";
 export type { ChatSession } from "./session/transcript-types";
 
 // Shared transport/session types.
@@ -43,7 +44,10 @@ export type AgentStreamEvent =
   | { type: "text"; content: string }
   | { type: "completed"; conversationId?: string }
   | { type: "failed"; failure: AgentFailure }
-  | { type: "cancelled" };
+  | { type: "cancelled" }
+  | { type: "tool-started"; toolCallId: string; name: string }
+  | { type: "tool-completed"; toolCallId: string; outcome: "completed" | "failed" }
+  | { type: "usage"; inputTokens: number; outputTokens: number; cachedInputTokens?: number };
 
 // ── Mutation proposal ───────────────────────────────────────────────────────
 
