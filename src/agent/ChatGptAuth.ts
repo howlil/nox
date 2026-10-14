@@ -26,12 +26,57 @@ type Credentials = {
 
 type RecordOnDisk = { hostId: string; clientId?: string; credentials?: Credentials };
 
+export type ChatGptAuthStage = "registration-storage" | "browser-launch" | "callback" |
+  "token-exchange" | "identity-validation" | "credentials-storage";
+
+export type ChatGptAuthFailure = {
+  stage: ChatGptAuthStage;
+  code: string;
+  message: string;
+};
+
 export type ChatGptConnection = {
   connected: boolean;
   sharing: boolean;
   email?: string;
   description: string;
+  lastFailure?: ChatGptAuthFailure;
 };
+
+/**
+ * Never persist raw exceptions, request URLs, authorization codes, or tokens.
+ * Only a bounded, preapproved error category may enter the UI/browser.
+ */
+function signInFailure(stage: ChatGptAuthStage, cause: unknown): ChatGptAuthFailure {
+  const text = cause instanceof Error ? cause.message : "";
+  const oauth = /^ChatGPT OAuth failed: ([a-z][a-z0-9_]{0,47})$/.exec(text)?.[1];
+  const known = new Set(["invalid_grant", "invalid_request", "invalid_client", "unauthorized_client",
+    "access_denied", "invalid_scope", "unsupported_grant_type", "server_error",
+    "temporarily_unavailable", "interaction_required", "consent_required"]);
+  const code = oauth && known.has(oauth) ? oauth
+    : /DPAPI|System.Security|encrypt|decrypt/i.test(text) ? "credential_protection_failed"
+    : /timed out|AbortError|aborted/i.test(text) ? "timeout"
+    : /fetch failed|network|ECONN|ENOTFOUND/i.test(text) ? "network_error"
+    : stage === "identity-validation" ? "identity_verification_failed"
+    : stage === "callback" ? "callback_rejected"
+    : "request_failed";
+  const labels: Record<ChatGptAuthStage, string> = {
+    "registration-storage": "Saving the ChatGPT client registration",
+    "browser-launch": "Opening ChatGPT sign-in in the browser",
+    "callback": "Receiving the ChatGPT authorization callback",
+    "token-exchange": "Exchanging the authorization code for tokens",
+    "identity-validation": "Verifying the ChatGPT account identity",
+    "credentials-storage": "Saving the verified ChatGPT credentials",
+  };
+  const advice = code === "invalid_grant"
+    ? "Start a new sign-in; authorization codes can expire or be used only once."
+    : code === "credential_protection_failed"
+      ? "Check Windows DPAPI and local credential storage."
+      : code === "network_error" || code === "timeout"
+        ? "Check connectivity and retry with a new sign-in."
+        : "Retry sign-in; if it persists, report this stage and code only.";
+  return { stage, code, message: labels[stage] + " failed (" + code + "). " + advice };
+}
 
 export interface ChatGptAuthDeps {
   fetch: typeof fetch;
@@ -135,6 +180,7 @@ export class ChatGptAuth {
   private listener?: Server;
   private activeLogin = false;
   private refreshPending?: Promise<string>;
+  private lastFailure?: ChatGptAuthFailure;
 
   constructor(deps: Partial<ChatGptAuthDeps> = {}) {
     this.deps = { fetch, now: Date.now, storageFile: storagePath(), ...deps };
@@ -160,11 +206,13 @@ export class ChatGptAuth {
 
   status(): ChatGptConnection {
     const c = this.record.credentials;
-    if (!c) return { connected: false, sharing: false, description: "Sign in with ChatGPT to use your plan." };
+    if (!c) return { connected: false, sharing: false,
+      description: "Sign in with ChatGPT to use your plan.", lastFailure: this.lastFailure };
     const sharing = c.scopes.includes(PERMISSION);
     return { connected: true, sharing, email: c.email,
       description: sharing ? "Connected with ChatGPT plan access."
-        : "Connected, but ChatGPT plan access was not granted. Reauthorize." };
+        : "Connected, but ChatGPT plan access was not granted. Reauthorize.",
+      lastFailure: this.lastFailure };
   }
 
   async signIn(openBrowser: (url: string) => Promise<void>): Promise<ChatGptConnection> {
@@ -174,15 +222,18 @@ export class ChatGptAuth {
     const server = createServer();
     let callbackTimeout: ReturnType<typeof setTimeout> | undefined;
     let pendingResponse: ServerResponse | undefined;
+    let stage: ChatGptAuthStage = "registration-storage";
     // The browser may display success only once the code has been exchanged,
     // the OIDC identity validated, and the credentials durably persisted.
     const finishBrowser = (success: boolean) => {
       const res = pendingResponse;
       if (!res || res.writableEnded) return;
       const title = success ? "ChatGPT connected to Nox" : "ChatGPT connection failed";
+      const diagnostic = this.lastFailure;
       const message = success
         ? "Authentication is complete. You can close this tab and return to Obsidian."
-        : "The callback was received, but Nox could not complete sign-in. Return to Obsidian to see the error, then try again.";
+        : "Sign-in could not finish. " +
+          (diagnostic ? diagnostic.message : "Return to Nox Settings and try again.");
       const html = '<!doctype html><html lang="en"><head><meta charset="utf-8">' +
         '<meta name="viewport" content="width=device-width,initial-scale=1">' +
         '<title>Nox — ChatGPT sign-in</title><style>' +
@@ -258,32 +309,41 @@ export class ChatGptAuth {
       });
       // Keep the rejection observed even if opening the browser itself fails.
       void callback.catch(() => {});
+      stage = "browser-launch";
       await openBrowser(url.toString());
+      stage = "callback";
       const result = await callback;
       if (this.record.clientId && this.record.clientId !== result.clientId) {
         throw new Error("ChatGPT returned a different registration.");
       }
       this.record.clientId = result.clientId;
+      stage = "registration-storage";
       this.save(); // Issued client ID survives a later expired authorization code.
+      stage = "token-exchange";
       const response = await this.tokenRequest(new URLSearchParams({
         grant_type: "authorization_code", client_id: result.clientId,
         code: result.code, code_verifier: verifier, redirect_uri: redirectUri, resource: RESOURCE,
       }));
       const idToken = typeof response.id_token === "string" ? response.id_token : "";
       if (!idToken) throw new Error("ChatGPT did not issue an ID token.");
+      stage = "identity-validation";
       const identity = await verifyChatGptIdToken(idToken, result.clientId, nonce, this.deps.fetch, this.deps.now());
       if (this.record.credentials && this.record.credentials.subject !== identity.subject) {
         throw new Error("This registration belongs to a different ChatGPT account.");
       }
-      this.record.credentials = this.credentialFrom(response, result.clientId, identity.subject, identity.email, idToken);
+      const nextCredentials = this.credentialFrom(response, result.clientId, identity.subject, identity.email, idToken);
+      stage = "credentials-storage";
+      this.record.credentials = nextCredentials;
       this.save();
+      this.lastFailure = undefined;
       finishBrowser(true);
       return this.status();
     } catch (error) {
-      // A callback is not successful until the exchange/verification/save succeeds.
-      // Never reflect OAuth tokens, codes, or server diagnostics into browser HTML.
+      // Only approved, low-entropy diagnostic codes are exposed. Raw URL/token
+      // request or HTTP exception bodies are never shown or logged.
+      this.lastFailure = signInFailure(stage, error);
       finishBrowser(false);
-      throw error;
+      throw new Error(this.lastFailure.message);
     } finally {
       if (callbackTimeout) clearTimeout(callbackTimeout);
       this.activeLogin = false;
@@ -298,8 +358,9 @@ export class ChatGptAuth {
       body: body.toString(), signal: AbortSignal.timeout(30000) });
     const data = object(await result.json());
     if (!result.ok) {
-      const error = typeof data.error === "string" ? data.error : "token_request_failed";
-      throw new Error("ChatGPT OAuth failed: " + error);
+      const rawCode = typeof data.error === "string" ? data.error : "";
+      const code = /^[a-z][a-z0-9_]{0,47}$/.test(rawCode) ? rawCode : "oauth_error";
+      throw new Error("ChatGPT OAuth failed: " + code);
     }
     return data;
   }
