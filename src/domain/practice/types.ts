@@ -24,6 +24,7 @@ export interface PracticeQuestion {
   hint?: string;
   programId?: string;
   objectiveId?: string;
+  taskKind?: "diagnostic" | "guided-practice" | "recall" | "transfer";
 }
 
 export interface PracticeEvaluation {
@@ -35,6 +36,7 @@ export interface PracticeEvaluation {
   nextQuestion?: string;
   assisted?: boolean;
   rubricResults?: RubricResult[];
+  taskKind?: "diagnostic" | "guided-practice" | "recall" | "transfer";
   programId?: string;
   objectiveId?: string;
 }
@@ -49,6 +51,7 @@ export interface PracticeTurn {
   question: string;
   programId?: string;
   objectiveId?: string;
+  taskKind?: "diagnostic" | "guided-practice" | "recall" | "transfer";
   hint?: string;
   assisted?: boolean;
   answer?: string;
