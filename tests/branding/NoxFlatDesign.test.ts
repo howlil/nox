@@ -18,9 +18,9 @@ test("Nox uses Howlil neutral foundations and a solid purple accent", () => {
     assert.ok(css.includes(`${token}: ${value};`), `missing flat token ${token}`);
   }
   assert.match(css, /\.theme-dark \.nox-settings:not\(\.nox-force-light\)/);
-  assert.match(css, /\.nox-settings\.nox-force-dark\s*\{[^}]*--nox-page:\s*#080808;/s);
-  assert.match(css, /\.nox-settings\.nox-force-dark\s*\{[^}]*--nox-accent:\s*#AD82EA;/s);
-  assert.match(css, /\.nox-root,\s*\.nox-settings\s*\{/);
+  assert.match(css, /\.nox-root\.nox-force-dark,\s*\.nox-settings\.nox-force-dark,\s*\.nox-theme-portal\.nox-force-dark\s*\{[^}]*--nox-page:\s*#080808;/s);
+  assert.match(css, /\.nox-root\.nox-force-dark,\s*\.nox-settings\.nox-force-dark,\s*\.nox-theme-portal\.nox-force-dark\s*\{[^}]*--nox-accent:\s*#AD82EA;/s);
+  assert.match(css, /\.nox-root,\s*\.nox-settings,\s*\.nox-theme-portal\s*\{/);
 });
 
 test("Nox presentation contains no decorative gradients or shimmer", () => {
