@@ -452,6 +452,7 @@ export class ChatView extends ItemView {
         );
       },
       confirmDelete: count => this.confirmHistoryDeletion(count),
+      appearance: () => this.getAppearance(),
     });
     this.historyMenuEl.addEventListener("keydown", event => {
       if (event.key === "Escape") {
