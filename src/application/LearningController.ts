@@ -8,7 +8,7 @@ import { RunLearningTurn } from "./RunLearningTurn";
 import { isLockedLearningMode, parseScopeCommand } from "../domain/practice/learning-scope";
 import { parseProgramCommand } from "../domain/learning-program/commands";
 import { feasibility, objectiveProgress } from "../domain/learning-program/rules";
-import type { NoxProgramOverview } from "../chat/learning-graph";
+import type { NoxProgramOverview } from "./learning-types";
 import type { LearningProgramOrchestrator } from "./LearningProgramOrchestrator";
 
 export interface LearningControllerOptions {
