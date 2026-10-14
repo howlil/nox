@@ -53,6 +53,12 @@ export function validateCurriculum(value: unknown, constraints: ProgramConstrain
         !["core", "supporting", "optional"].includes(String(o.priority))) {
       throw new Error(`Invalid objective contract: ${o.id}`);
     }
+    const titleAndOutcome = String(o.title) + " " + String(o.outcome) + " " + (o.rubric as string[]).join(" ");
+    for (const topic of constraints.excludedTopics) {
+      if (titleAndOutcome.toLowerCase().includes(topic.toLowerCase())) {
+        throw new Error("Objective includes excluded topic: " + topic);
+      }
+    }
     const sourceRefs = o.sourceRefs as string[];
     if (constraints.sourceBound && (sourceRefs.length === 0 ||
         sourceRefs.some(ref => !constraints.sourcePaths.includes(ref)))) {
