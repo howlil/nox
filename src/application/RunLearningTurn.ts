@@ -161,6 +161,8 @@ export class RunLearningTurn {
       return;
     }
 
+    // Capture the complete user-visible turn, including context and preflight work.
+    const runStartedAt = Date.now();
     // Lock before asynchronous context/policy preparation.
     const controller = new AbortController();
     const activeTurn = { controller } as {
@@ -420,6 +422,7 @@ export class RunLearningTurn {
       mutableFile,
     };
 
+    const contextMs = Date.now() - runStartedAt;
     yield { type: "context-ready", context: snapshot };
 
     const conversation = this.sessions.getSession();
@@ -595,7 +598,10 @@ export class RunLearningTurn {
     // Streamed text remains visible; a proposal cannot be actionable before
     // a successful terminal event and a durable transcript commit.
     const persistMappedEvent = (mapped: LearningEvent): void => {
-      if (mapped.type === "response-delta") visibleText += mapped.text;
+      if (mapped.type === "response-delta") {
+        visibleText += mapped.text;
+        if (metrics?.firstVisibleMs === undefined) metrics.firstVisibleMs = Date.now() - runStartedAt;
+      }
       if (mapped.type === "thought-delta") thoughtText += mapped.text;
     };
 
@@ -712,8 +718,14 @@ export class RunLearningTurn {
         shortenedSources: envelope.estimate.shortenedSources,
         retrievedChunks: researchResult?.hits.length ?? 0,
         compacted: envelope.estimate.compacted,
+        contextMs,
+        preparationMs: Date.now() - runStartedAt,
         elapsedMs: 0,
       };
+      // The runtime may still be authenticating or starting a CLI; do not claim
+      // the model has received the request until output is observed.
+      yield { type: "activity-phase", phase: "waiting-model", at: Date.now() };
+      let receivedModelOutput = false;
       for await (const event of this.runtime.send(
         { prompt: effectivePrompt, context: envelope.context },
         { model: conversation.model, conversationId, history: envelope.history },
@@ -724,6 +736,10 @@ export class RunLearningTurn {
           continue;
         }
         if (event.type === "text") {
+          if (!receivedModelOutput) {
+            receivedModelOutput = true;
+            yield { type: "activity-phase", phase: "receiving-output", at: Date.now() };
+          }
           if (metrics.firstTokenMs === undefined) metrics.firstTokenMs = Date.now() - startedAt;
           executionPhase = "processing";
           if (lockedMode) {
@@ -748,6 +764,7 @@ export class RunLearningTurn {
         }
 
         if (event.type === "completed") {
+          yield { type: "activity-phase", phase: "finalizing", at: Date.now() };
           executionPhase = "processing";
           if (event.usage) {
             metrics.providerInputTokens = event.usage.inputTokens;
@@ -927,7 +944,7 @@ export class RunLearningTurn {
                 edit: { id: editProposalId, proposal: committed.proposal } };
             }
           }
-          const elapsedMs = Date.now() - startedAt;
+          const elapsedMs = Date.now() - runStartedAt;
           metrics.elapsedMs = elapsedMs;
           await this.sessions.recordAssistantMessage(
             visibleText,
