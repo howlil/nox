@@ -177,6 +177,13 @@ export class LearningController {
     return this.sessions.newSession();
   }
 
+  async forkSession(parentId: string, anchorMessageId: string): Promise<{
+    session: ChatSession; draftUserPrompt?: string;
+  }> {
+    this.assertRuntimeIdle();
+    return this.sessions.forkSession(parentId, anchorMessageId);
+  }
+
   async selectSession(id: string): Promise<ChatSession | null> {
     if (this.configuringRuntime) throw new Error("Wait for runtime settings to finish saving.");
     if (this.turns.isRunning() || this.applyingProposals.size > 0 || this.programs?.isPlanning()) throw new Error("Finish the active turn or note edit or learning plan before switching sessions.");
