@@ -1,6 +1,7 @@
 import { App, TFile } from "obsidian";
 import type { LearningProgram, ProgramCollection } from "../domain/learning-program/types";
 import { validateConstraints, validateCurriculum } from "../domain/learning-program/rules";
+import { isValidSessionTiming } from "../domain/learning-program/session-time";
 import { PersistenceError } from "./PersistenceError";
 
 const PATH = "00-learning-os/programs.json";
@@ -32,9 +33,23 @@ export class VaultProgramStore {
     }
     validateConstraints(program.constraints, new Date(program.createdAt));
     validateCurriculum({ kind: "curriculum", objectives: program.objectives }, program.constraints);
-    if (program.session &&
-        (!Number.isFinite(program.session.startedAt) || !Number.isFinite(program.session.timeBudgetMinutes))) {
-      throw new Error("Invalid program session.");
+    if (program.session) {
+      const { startedAt, timeBudgetMinutes, timing } = program.session;
+      if (!Number.isFinite(startedAt) || startedAt < 0 ||
+          !Number.isInteger(timeBudgetMinutes) || timeBudgetMinutes < 10 ||
+          timeBudgetMinutes > 240 ||
+          (timing !== undefined && (!isValidSessionTiming(timing) || timing.checkpointAt < startedAt))) {
+        throw new Error("Invalid program session.");
+      }
+    }
+    for (const entry of program.sessionHistory ?? []) {
+      if (!Number.isFinite(entry.startedAt) || !Number.isFinite(entry.endedAt) ||
+          entry.endedAt < entry.startedAt || !Number.isFinite(entry.minutesSpent) ||
+          entry.minutesSpent < 0 ||
+          (entry.activeMinutes !== undefined && (!Number.isFinite(entry.activeMinutes) || entry.activeMinutes < 0)) ||
+          (entry.aiWaitingMinutes !== undefined && (!Number.isFinite(entry.aiWaitingMinutes) || entry.aiWaitingMinutes < 0))) {
+        throw new Error("Invalid program session history.");
+      }
     }
   }
   async save(next: ProgramCollection): Promise<void> {
