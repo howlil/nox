@@ -213,7 +213,17 @@ export class LearningController {
     const id = request.turnId ?? crypto.randomUUID();
     let timingStarted = false;
     try {
-      if (this.programs) timingStarted = await this.programs.beginAiWait(id);
+      if (this.programs) {
+        try {
+          timingStarted = await this.programs.beginAiWait(id);
+        } catch (error) {
+          // A damaged learning-program file must not make unrelated chat unusable.
+          // Program-specific work still fails closed to protect learning evidence.
+          if (request.programActivity ||
+              (request.action === "practice" && !request.freePractice)) throw error;
+          console.warn("[Nox] Learning session timing unavailable; continuing non-program turn.", error);
+        }
+      }
       for await (const event of this.turns.run(request)) {
         // Release the budget before publishing a terminal event to the view.
         if (timingStarted && (event.type === "completed" || event.type === "failed" ||
