@@ -64,6 +64,7 @@ export class TokenUsageRepository {
 
   async record(provider: string, model: string | undefined, usage: TokenUsage, options: {
     conversationId?: string; cumulative?: boolean; turnCount?: number;
+    freshConversation?: boolean;
   } = {}): Promise<void> {
     if (!["agy", "codex", "chatgpt"].includes(provider)) throw new Error("Invalid usage provider.");
     if (![usage.inputTokens, usage.outputTokens, usage.totalTokens].every(validCount) ||
@@ -77,18 +78,17 @@ export class TokenUsageRepository {
       const checkpoints = { ...snapshot.agyCheckpoints };
       if (provider === "agy" && options.cumulative) {
         // Don't attribute previously unobserved historical turns to Nox usage.
-        if (!options.conversationId) return current;
+        if (!options.conversationId || !/^[a-z0-9-]{8,128}$/i.test(options.conversationId)) return current;
         const previous = checkpoints[options.conversationId];
         const turnCount = Number.isSafeInteger(options.turnCount) && (options.turnCount ?? 0) > 0
           ? options.turnCount! : 0;
         checkpoints[options.conversationId] = { usage, turnCount };
-        if (!previous && turnCount !== 1) {
+        if (!previous && !options.freshConversation) {
           return { ...current, [KEY]: { ...snapshot, agyCheckpoints: checkpoints } };
         }
         if (previous) {
           // A repeated terminal report or a reset is not a new billable turn.
-          if (turnCount <= previous.turnCount ||
-            usage.totalTokens < previous.usage.totalTokens) return current;
+          if (usage.totalTokens <= previous.usage.totalTokens) return current;
           const subtract = (next: number | undefined, old: number | undefined) =>
             Math.max(0, (next ?? 0) - (old ?? 0));
           increment = {
