@@ -12,6 +12,14 @@ Important environment rules:
 - Stay focused on the user's current learning goal and material.
 `.trim();
 
+const VISUAL_RESPONSE_INSTRUCTION = [
+  "Presentation: use normal Markdown by default. Use Mermaid fences for useful diagrams.",
+  "For a requested runnable HTML demo, use a fenced html-preview block (the user must click Run preview).",
+  "For requested SVG visuals, use a fenced svg-preview block.",
+  'For compact quantitative charts use fenced nox-chart JSON: {"type":"bar|line","title":"...","labels":["..."],"values":[1,2]}.',
+  "Never imply a preview has been executed or tested. Do not emit these blocks unless useful.",
+].join("\n");
+
 const ACTION_INSTRUCTIONS: Record<Exclude<LearningActionKind, "practice">, string> = {
   ask: `
 Answer the request directly using the supplied learning context.
@@ -65,7 +73,7 @@ Rules:
 export function buildActionInstruction(
   action: Exclude<LearningActionKind, "practice">,
 ): string {
-  return `${BASE_INSTRUCTION}\n\nLearning mode: ${action}\n\n${ACTION_INSTRUCTIONS[action]}`;
+  return `${BASE_INSTRUCTION}\n\nLearning mode: ${action}\n\n${ACTION_INSTRUCTIONS[action]}` +\n    ((action === "ask" || action === "explain") ? `\n\n${VISUAL_RESPONSE_INSTRUCTION}` : "");
 }
 
 export function buildPracticeQuestionInstruction(
