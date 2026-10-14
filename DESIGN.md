@@ -436,3 +436,27 @@ a flat table use the Nox 11–13px type scale, minimal rules and Obsidian theme
 variables. No usage telemetry is rendered in the active learning sidebar.
 Account quota/remaining credits are visibly unavailable when the provider
 does not expose a supported source of truth. See `docs/TOKEN_USAGE.md`.
+
+### Hint, reveal, and feedback interaction contract (2026-10-14)
+
+The complete ownership/state graph, test cases, and failure policy live in
+`docs/QUIZ_INTERACTION_DESIGN.md`.
+
+- Every question keeps one in-thread answer surface. Get hint explicitly
+  records `/hint` through the canonical Practice controller and only then
+  reveals an inline, collapsible nudge. Its assisted flag is derived from
+  the canonical transcript, never stored in component-local persistence.
+- Reveal correct answer is post-evaluation disclosure only, keyed to the
+  committed question ID. MCQ may show the stored correct option; essay and
+  code never invent reference answers.
+- Feedback immediately shows the evaluation and learning gaps. Optional
+  rubric criteria use a keyboard-accessible native details control.
+  An assisted evaluation explicitly distinguishes correctness from
+  independent mastery.
+- Evaluating disables duplicate submission. Failure leaves the draft
+  intact and permits retry. A successful evaluation locks the input.
+- The next-activity affordance prepares an existing composer command
+  rather than bypassing the learner's consent or program constraints.
+- Animate only in-card disclosure (160ms opacity/position); reduced-motion
+  removes nonessential animation. Use `NoxButton` and `NoxSurface`;
+  do not create another CSS button or feedback-card design system.

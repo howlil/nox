@@ -114,3 +114,21 @@ test("a practice question retains its source and question id during evaluation",
   assert.equal(attempt?.origin?.selectedText, "isolation");
   assert.equal(attempt?.questionId, "durable-question");
 });
+
+test("hint inspection is pure; only acknowledged intent marks a practice attempt assisted", () => {
+  const machine = new PracticeStateMachine(ids());
+  machine.start();
+  machine.acceptQuestion({
+    kind: "question", concept: "isolation", question: "What is serializable?",
+    hint: "Consider every interleaving.",
+  }, "question-1");
+
+  assert.equal(machine.peekHint(), "Consider every interleaving.");
+  assert.equal(machine.peekHint(), "Consider every interleaving.");
+  assert.equal(machine.snapshot()?.turns[0].assisted, undefined);
+
+  assert.equal(machine.markHintUsed(), "Consider every interleaving.");
+  const attempt = machine.beginEvaluation("One serial order.");
+  assert.equal(attempt?.assisted, true);
+  assert.equal(machine.peekHint(), undefined, "no help can be requested while evaluating");
+});
