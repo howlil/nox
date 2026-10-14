@@ -625,6 +625,11 @@ export class ChatView extends ItemView {
     const originSessionId = this.learning.getSession().id;
     const result = await this.learning.forkSession(originSessionId, messageId);
     await this.selectHistorySession(result.session.id);
+    if (result.draftReplyTo) {
+      this.pendingReplyTo = result.draftReplyTo;
+      this.composerUi.setReplyReference(result.draftReplyTo);
+      this.setAction("ask");
+    }
     if (result.draftUserPrompt !== undefined) {
       this.input.value = result.draftUserPrompt;
       this.onInput();
