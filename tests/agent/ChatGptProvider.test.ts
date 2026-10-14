@@ -95,13 +95,21 @@ test("OAuth loopback PKCE authenticates a dynamically issued client and persists
     assert.equal(status.sharing, true);
     assert.equal(status.email, "user@example.com");
     assert.equal((await running.accessToken()), "access-1");
-    const saved = JSON.parse(readFileSync(file, "utf8"));
-    assert.equal(saved.clientId, clientId);
-    assert.match(saved.hostId, /^urn:uuid:/);
-    assert.ok(saved.credentials.refreshToken);
+    const savedFileText = readFileSync(file, "utf8");
+    if (process.platform === "win32") assert.equal(savedFileText.startsWith("{"), false);
+    else {
+      const saved = JSON.parse(savedFileText);
+      assert.equal(saved.clientId, clientId);
+      assert.match(saved.hostId, /^urn:uuid:/);
+      assert.ok(saved.credentials.refreshToken);
+    }
+    const reopened = new ChatGptAuth({ storageFile: file, fetch: dynamicFetch as typeof fetch, now: () => now });
+    assert.equal(reopened.status().sharing, true);
     running.signOut();
     assert.equal(running.status().connected, false);
-    assert.equal(JSON.parse(readFileSync(file, "utf8")).clientId, clientId);
+    const signedOut = new ChatGptAuth({ storageFile: file, fetch: dynamicFetch as typeof fetch, now: () => now });
+    assert.equal(signedOut.status().connected, false);
+    reopened.dispose(); signedOut.dispose();
     auth.dispose(); running.dispose();
   } finally { rmSync(dir, { force: true, recursive: true }); }
 });
