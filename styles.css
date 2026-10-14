@@ -27,7 +27,8 @@
 }
 
 .nox-root,
-.nox-settings {
+.nox-settings,
+.nox-theme-portal {
   /* Shared flat tokens for the Nox sidebar and Obsidian settings. */
   /* Howlil neutral ramp × Nox purple. Every fill is a solid color. */
   --nox-page: #FEFEFE;
@@ -54,6 +55,40 @@
   --nox-green: #27804D;
   --nox-orange: #A66920;
   --nox-red: #BF4242;
+  --nox-error-soft: #FFF0F0;
+  --nox-success-soft: #EFF8F1;
+
+  /* A NOX appearance must also control Obsidian-rendered content inside
+     its boundary. These variables are scoped, NEVER written to body. */
+  --background-primary: var(--nox-page);
+  --background-secondary: var(--nox-surface);
+  --background-secondary-alt: var(--nox-inset);
+  --background-modifier-border: var(--nox-line);
+  --background-modifier-hover: var(--nox-hover);
+  --text-normal: var(--nox-ink);
+  --text-muted: var(--nox-ink-2);
+  --text-faint: var(--nox-ink-3);
+  --text-accent: var(--nox-accent-ink);
+  --text-error: var(--nox-red);
+  --text-on-accent: var(--nox-on-accent);
+  --interactive-normal: var(--nox-inset);
+  --interactive-hover: var(--nox-hover);
+  --interactive-accent: var(--nox-accent);
+  --interactive-accent-hover: var(--nox-accent-hover);
+  --code-background: var(--nox-inset);
+  --code-normal: var(--nox-ink);
+  --code-comment: var(--nox-ink-3);
+  --code-keyword: var(--nox-accent-ink);
+  --code-function: var(--nox-ink);
+  --code-string: var(--nox-green);
+  --link-color: var(--nox-accent-ink);
+  --link-decoration-color: var(--nox-accent-border);
+
+  /* Browser-painted checkboxes, select menus and scrollbars follow NOX,
+     even when Obsidian's base appearance differs. */
+  color-scheme: light;
+  accent-color: var(--nox-accent);
+  scrollbar-color: var(--nox-line-strong) var(--nox-page);
   /* Howlil 4px spacing rhythm. */
   --nox-space-1: 4px;
   --nox-space-2: 8px;
@@ -92,8 +127,10 @@
 
 .theme-dark .nox-root:not(.nox-force-light),
 .theme-dark .nox-settings:not(.nox-force-light),
+.theme-dark .nox-theme-portal:not(.nox-force-light),
 .nox-root.nox-force-dark,
-.nox-settings.nox-force-dark {
+.nox-settings.nox-force-dark,
+.nox-theme-portal.nox-force-dark {
   --nox-page: #080808;
   --nox-canvas: #080808;
   --nox-surface: #121212;
@@ -117,7 +154,10 @@
   --nox-green: #7ED4A2;
   --nox-orange: #E6B96B;
   --nox-red: #EE8888;
+  --nox-error-soft: #311C22;
+  --nox-success-soft: #162A20;
   --nox-popover-shadow: none;
+  color-scheme: dark;
 
 }
 
@@ -552,7 +592,7 @@
   overflow-x: auto;
   border: 1px solid var(--nox-line);
   border-radius: var(--nox-radius-control);
-  background: var(--code-background, var(--nox-inset));
+  background: var(--nox-inset);
   padding: 10px;
   font-family: var(--font-monospace);
   font-size: 0.88em;
@@ -561,23 +601,25 @@
 }
 
 .nox-markdown code {
+  color: var(--nox-ink);
   border-radius: var(--nox-radius-chip);
-  background: var(--code-background, var(--nox-inset));
+  background: var(--nox-inset);
   padding: 0.12em 0.3em;
   font-family: var(--font-monospace);
   font-size: 0.9em;
 }
 
 .nox-markdown pre code {
+  color: var(--nox-ink);
   background: transparent;
   padding: 0;
   font-size: inherit;
 }
 
 .nox-markdown a {
-  color: var(--link-color);
+  color: var(--nox-accent-ink);
   text-decoration: underline;
-  text-decoration-color: var(--link-decoration-color);
+  text-decoration-color: var(--nox-accent-border);
   text-underline-offset: 2px;
 }
 
@@ -995,12 +1037,12 @@
 }
 
 .nox-diff-removed {
-  background: rgba(var(--color-red-rgb, 255, 59, 48), 0.06);
+  background: var(--nox-error-soft);
   color: var(--nox-red);
 }
 
 .nox-diff-added {
-  background: rgba(52, 199, 89, 0.07);
+  background: var(--nox-success-soft);
   color: var(--nox-green);
 }
 
@@ -1025,7 +1067,7 @@
 }
 
 .nox-badge--applied {
-  background: rgba(52, 199, 89, 0.08);
+  background: var(--nox-success-soft);
   color: var(--nox-green);
 }
 
@@ -2994,7 +3036,7 @@
   margin: 2px 0 10px;
 }
 .nox-usage-metric { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-.nox-usage-metric span { font-size: 11px; color: var(--text-muted); }
+.nox-usage-metric span { font-size: 11px; color: var(--nox-ink-2); }
 .nox-usage-metric strong {
   font-size: 17px;
   font-weight: 600;
@@ -3009,7 +3051,7 @@
   border-bottom: 1px solid var(--nox-line);
   overflow-wrap: anywhere;
 }
-.nox-usage-table th { color: var(--text-muted); font-size: 11px; font-weight: 500; }
+.nox-usage-table th { color: var(--nox-ink-2); font-size: 11px; font-weight: 500; }
 .nox-usage-table td:nth-child(n+3), .nox-usage-table th:nth-child(n+3) {
   text-align: right;
   font-variant-numeric: tabular-nums;
@@ -3020,8 +3062,8 @@
   border-top: 1px solid var(--nox-line);
 }
 .nox-usage-limit strong { font-size: 12px; }
-.nox-usage-limit p { margin: 5px 0 0; font-size: 12px; color: var(--text-muted); line-height: 1.55; }
-.nox-usage-warning { font-size: 12px; color: var(--text-error); }
+.nox-usage-limit p { margin: 5px 0 0; font-size: 12px; color: var(--nox-ink-2); line-height: 1.55; }
+.nox-usage-warning { font-size: 12px; color: var(--nox-red); }
 @media (max-width: 620px) {
   .nox-usage-filters { grid-template-columns: 1fr; }
   .nox-usage-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -3089,9 +3131,9 @@
   min-height: 32px;
   padding-inline: 8px;
   border-radius: var(--nox-radius-control);
-  border: 1px solid var(--background-modifier-border);
-  background: var(--background-primary);
-  color: var(--text-normal);
+  border: 1px solid var(--nox-line);
+  background: var(--nox-inset);
+  color: var(--nox-ink);
 }
 .nox-settings-usage-summary { max-width: 440px; font-size: 13px; }
 .nox-learning-graph {
@@ -3530,6 +3572,24 @@
 
 /* Native PluginSettingTab inherits Nox tokens. No second palette owner,
    new navigation, or changes to Obsidian's settings behavior. */
+/* Native confirmation dialogs are hosted outside the sidebar DOM. Give them
+   the same token boundary instead of letting the app theme leak through. */
+.nox-theme-portal {
+  background: var(--nox-surface);
+  color: var(--nox-ink);
+}
+.nox-theme-portal .modal-title,
+.nox-theme-portal .modal-content { color: var(--nox-ink); }
+.nox-theme-portal .nox-history-confirm-actions button:not(.mod-warning) {
+  background: var(--nox-inset);
+  color: var(--nox-ink);
+  border: 1px solid var(--nox-line);
+}
+.nox-theme-portal .nox-history-confirm-actions button.mod-warning {
+  background: var(--nox-red);
+  color: var(--nox-page);
+}
+
 .nox-settings {
   color: var(--nox-ink);
   background: var(--nox-page);
@@ -3724,8 +3784,8 @@
 .nox-history-confirm-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
 .nox-history-confirm-actions button { min-height: 32px; padding: 5px 12px; }
 .nox-history-confirm-actions .mod-warning {
-  background: var(--background-modifier-error);
-  color: var(--text-on-accent);
+  background: var(--nox-red);
+  color: var(--nox-page);
 }
 @media (prefers-reduced-motion: reduce) {
   .nox-history-swipe-front { transition: none; }
