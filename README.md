@@ -168,6 +168,17 @@ commits, so **manifest version alone cannot prove which code was loaded**.
 A successful CI run or a successful deployment to some vault does not prove
 the currently open Obsidian window has reloaded that bundle.
 
+## Interactive practice cards
+
+Nox Practice now supports typed AI-generated **multiple-choice, essay and code**
+questions directly inside the conversation. Answers are submitted from the
+question card, not the main composer. Multiple-choice grading uses the validated
+answer key; essays and code receive AI rubric review. Code is **never executed**
+in Obsidian. Unfinished drafts survive normal plugin/session reloads and
+evaluations are committed to the existing evidence log.
+
+See [Interactive Practice implementation, security and acceptance criteria](docs/INTERACTIVE_PRACTICE.md).
+
 ## Deploy to a local vault
 
 Build and copy the generated plugin into an Obsidian vault with:
