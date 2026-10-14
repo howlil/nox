@@ -56,3 +56,20 @@ test("capability icons remain the shared visual source of truth", () => {
     ],
   );
 });
+
+test("welcome shortcuts retain their original visual identity and supporting copy", () => {
+  assert.deepEqual(
+    NOX_CAPABILITIES.map(item => ({
+      action: item.action,
+      tone: item.tone,
+      meta: item.meta,
+    })),
+    [
+      { action: "explain", tone: "purple", meta: "Understanding" },
+      { action: "practice", tone: "blue", meta: "Recall" },
+      { action: "review", tone: "coral", meta: "Gaps" },
+      { action: "edit", tone: "green", meta: "Safe edit" },
+    ],
+  );
+  assert.ok(NOX_CAPABILITIES.every(item => item.description.length > 10));
+});

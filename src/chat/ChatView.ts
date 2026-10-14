@@ -1745,7 +1745,7 @@ export class ChatView extends ItemView {
     for (const capability of NOX_CAPABILITIES.filter(item =>
       !legacyLocked || item.action === "practice")) {
       const card = grid.createEl("button", {
-        cls: "nox-capability-card",
+        cls: `nox-capability-card nox-capability-card--${capability.tone}`,
         attr: {
           type: "button",
           "aria-label": capability.title + ": " + capability.description,
@@ -1767,6 +1767,18 @@ export class ChatView extends ItemView {
       name.createSpan({
         cls: "nox-capability-title",
         text: capability.title,
+      });
+      top.createSpan({
+        cls: "nox-capability-command",
+        text: capability.command,
+      });
+      card.createDiv({
+        cls: "nox-capability-description",
+        text: capability.description,
+      });
+      card.createSpan({
+        cls: "nox-capability-meta",
+        text: capability.meta,
       });
       card.addEventListener("click", () => {
         this.setAction(capability.action);
