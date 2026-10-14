@@ -73,7 +73,8 @@ Rules:
 export function buildActionInstruction(
   action: Exclude<LearningActionKind, "practice">,
 ): string {
-  return `${BASE_INSTRUCTION}\n\nLearning mode: ${action}\n\n${ACTION_INSTRUCTIONS[action]}` +\n    ((action === "ask" || action === "explain") ? `\n\n${VISUAL_RESPONSE_INSTRUCTION}` : "");
+  return `${BASE_INSTRUCTION}\n\nLearning mode: ${action}\n\n${ACTION_INSTRUCTIONS[action]}` +
+    ((action === "ask" || action === "explain") ? `\n\n${VISUAL_RESPONSE_INSTRUCTION}` : "");
 }
 
 export function buildPracticeQuestionInstruction(
