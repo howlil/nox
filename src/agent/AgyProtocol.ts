@@ -1,3 +1,4 @@
+import { parseAgyUsage } from "./token-usage";
 import type {
   AgentFailure,
   AgentFailureCode,
@@ -191,6 +192,15 @@ export function parseAgyLine(
     events.push({ type: "text", content: response });
     sawText = true;
   }
+
+  const usage = parseAgyUsage(result);
+  if (usage) events.push({
+    type: "usage", usage,
+    conversationId,
+    cumulative: true,
+    turnCount: typeof result?.["num_turns"] === "number" ? result["num_turns"] : undefined,
+    model: typeof result?.["model"] === "string" ? result["model"] : undefined,
+  });
 
   events.push({
     type: "completed",
