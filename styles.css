@@ -313,6 +313,8 @@
 }
 
 .nox-thread {
+  /* Single reading-column authority for streamed, restored, and activity UI. */
+  --nox-reading-width: 768px;
   @apply flex min-h-0 flex-1 flex-col overflow-y-auto;
   display: flex;
   flex: 1;
@@ -329,8 +331,8 @@
 
 /* One readable column regardless of Obsidian pane width. Visuals own their scroll. */
 .nox-thread > :not(.nox-bubble--user) {
-  width: min(100%, 768px);
-  max-width: 768px;
+  width: min(100%, var(--nox-reading-width));
+  max-width: var(--nox-reading-width);
   min-width: 0;
   margin-inline: auto;
 }
@@ -681,8 +683,7 @@
 }
 
 .nox-thinking {
-  width: min(100%, 768px);
-  max-width: 768px;
+  /* Width/alignment are owned by .nox-thread, not the activity panel. */
   min-width: 0;
   margin-inline: auto;
 }
@@ -3676,10 +3677,13 @@
 
 /* Adaptive observed agent activity — BeUI interaction pattern, NOX visual tokens.
    One grid child guarantees the *entire* disclosure (including inspector) closes. */
-.nox-root .nox-thinking {
-  width: min(100%, 430px);
-  max-width: 100%;
-  align-self: flex-start;
+.nox-root .nox-thread > .nox-thinking {
+  /* Match assistant messages exactly across narrow and wide Obsidian panes. */
+  width: min(100%, var(--nox-reading-width));
+  max-width: var(--nox-reading-width);
+  min-width: 0;
+  align-self: stretch;
+  margin-inline: auto;
 }
 .nox-root .nox-thinking-toggle {
   min-height: 28px;
@@ -3704,6 +3708,9 @@
   min-width: 0;
 }
 .nox-thinking-panel-inner {
+  /* Keep the activity details compact without centering their outer wrapper. */
+  width: min(100%, 430px);
+  max-width: 430px;
   min-width: 0;
   min-height: 0;
   overflow: hidden;
