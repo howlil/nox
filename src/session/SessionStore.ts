@@ -267,7 +267,10 @@ export class SessionStore {
         if (typeof item.content !== "string" || !item.content.trim()) return null;
         if (item.sourcePath !== undefined && typeof item.sourcePath !== "string") return null;
         return { content: item.content,
-          ...(typeof item.sourcePath === "string" ? { sourcePath: item.sourcePath } : {}) };
+          ...(typeof item.sourcePath === "string" ? { sourcePath: item.sourcePath } : {}),
+          ...(typeof item.thought === "string" ? { thought: item.thought } : {}),
+          ...(typeof item.elapsedMs === "number" && Number.isFinite(item.elapsedMs) &&
+              item.elapsedMs >= 0 ? { elapsedMs: item.elapsedMs } : {}) };
       });
       const index = raw.responseVersionIndex as number;
       if (versions.every(version => version !== null) && index >= 0 &&
