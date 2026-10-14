@@ -20,6 +20,7 @@ export interface LearningEvidence {
   programId?: string;
   objectiveId?: string;
   assisted?: boolean;
+  assessmentCoverage?: "single-item";
   taskKind?: "diagnostic" | "guided-practice" | "recall" | "transfer";
   rubricResults?: Array<{ criterion: string; met: boolean; evidence: string }>;
 }

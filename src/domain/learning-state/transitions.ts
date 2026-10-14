@@ -61,6 +61,7 @@ export function recordPracticeEvaluation(
     ...(input.programId ? { programId: input.programId } : {}),
     ...(input.objectiveId ? { objectiveId: input.objectiveId } : {}),
     ...(input.assisted ? { assisted: true } : {}),
+    ...(input.evaluation.assessmentCoverage ? { assessmentCoverage: input.evaluation.assessmentCoverage } : {}),
     ...(input.evaluation.taskKind ? { taskKind: input.evaluation.taskKind } : {}),
     ...(input.evaluation.rubricResults ? { rubricResults: input.evaluation.rubricResults } : {}),
   };

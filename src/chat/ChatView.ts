@@ -119,6 +119,7 @@ export class ChatView extends ItemView {
   private modelPopover!: NoxPopoverState;
   private readonly modelMenuState = new NoxMenuState();
   private models: AgentModel[] = [];
+  private quizDraftTimer: number | null = null;
   private fileInput!: HTMLInputElement;
   private promptPlusBtn!: HTMLButtonElement;
   private actionMenuBtn!: HTMLButtonElement;
@@ -213,6 +214,7 @@ export class ChatView extends ItemView {
   async onClose(): Promise<void> {
     this.learning.cancel();
     this.stopLoadingTimer();
+    if (this.quizDraftTimer !== null) window.clearTimeout(this.quizDraftTimer);
   }
 
   async refreshRuntime(recheckHealth = true): Promise<void> {
@@ -1467,7 +1469,7 @@ export class ChatView extends ItemView {
       this.setAction("practice");
       this.setThinkingStage(2);
       this.ensureAgentBubble();
-      this.appendPracticeQuestion(event.question);
+      this.appendPracticeQuestion(event.question, this.agentCursorEl, event.questionId);
       return;
     }
 
@@ -1890,7 +1892,7 @@ export class ChatView extends ItemView {
       const bubble = this.thread.createDiv({ cls: "nox-bubble nox-bubble--agent" });
       createNoxMessageMeta(bubble, { label: "Nox", sub: "Restored" });
       if (part.type === "practice-question") {
-        this.appendPracticeQuestion(part.question, bubble);
+        this.appendPracticeQuestion(part.question, bubble, part.questionId);
       } else if (part.type === "practice-evaluation") {
         this.appendPracticeEvaluation(part.evaluation, bubble);
       } else if (part.type === "review-findings") {
@@ -2224,6 +2226,26 @@ export class ChatView extends ItemView {
       text: "Copy",
     });
 
+    if ((this.runningAction === "ask" || this.runningAction === "explain") &&
+        !this.learning.hasActivePracticeQuestion()) {
+      const quickCheck = createNoxButton(actions, {
+        cls: "nox-stream-action",
+        variant: "quiet",
+        label: "Generate interactive practice from this explanation",
+        text: "Quiz me",
+      });
+      quickCheck.addEventListener("click", () => {
+        if (this.uiState === "RUNNING" || !this.runtimeReady) return;
+        this.setAction("practice");
+        // The generated explanation is task context, not trusted system policy.
+        this.input.value = "Generate one interactive knowledge-check question " +
+          "(MCQ, essay, or code if appropriate) about this explanation: " +
+          JSON.stringify(responseText.slice(0, 1600));
+        this.onInput();
+        void this.doSend();
+      });
+    }
+
     copyButton.addEventListener("click", async () => {
       try {
         await navigator.clipboard.writeText(responseText);
@@ -2241,9 +2263,58 @@ export class ChatView extends ItemView {
   private appendPracticeQuestion(
     question: PracticeQuestion,
     parent: HTMLElement | null = this.agentCursorEl,
+    questionId?: string,
   ): void {
     if (!parent) return;
-    renderPracticeQuestionCard(parent, question);
+    const session = this.learning.getSession();
+    const current = [...session.messages].reverse().flatMap(m =>
+      (m.parts ?? []).filter(p => p.type === "practice-question"));
+    const active = Boolean(questionId && current[0]?.questionId === questionId &&
+      this.learning.hasActivePracticeQuestion() &&
+      !session.messages.some(m => m.parts?.some(p =>
+        p.type === "practice-evaluation" && p.questionId === questionId)));
+    renderPracticeQuestionCard(parent, question, questionId ? {
+      questionId, active, draft: session.practiceDrafts?.[questionId],
+      onDraft: answer => {
+        if (!active) return;
+        if (this.quizDraftTimer !== null) window.clearTimeout(this.quizDraftTimer);
+        this.quizDraftTimer = window.setTimeout(() => {
+          this.quizDraftTimer = null;
+          void this.learning.savePracticeDraft(questionId, answer)
+            .catch(() => new Notice("Could not save quiz draft."));
+        }, 450);
+      },
+      onHint: () => {
+        if (this.uiState === "RUNNING") return;
+        const request: LearningRequest = {
+          prompt: "/hint", action: "practice", explicitContext: [],
+          turnId: crypto.randomUUID(),
+        };
+        this.lastTurnRequest = request;
+        void this.runTurn(request, true);
+      },
+      onSubmit: async answer => {
+        if (!active || this.uiState === "RUNNING") return false;
+        if (this.quizDraftTimer !== null) window.clearTimeout(this.quizDraftTimer);
+        this.quizDraftTimer = null;
+        // Persist before provider call: retry/cancel must not lose the answer.
+        await this.learning.savePracticeDraft(questionId, answer);
+        const summary = answer.type === "multiple-choice"
+          ? "Selected option: " + answer.optionId
+          : answer.type === "code"
+            ? "Code answer (" + answer.language + "):\n" + answer.source
+            : answer.text;
+        const request: LearningRequest = {
+          turnId: crypto.randomUUID(), action: "practice",
+          prompt: summary, explicitContext: [],
+          practiceSubmission: { questionId, answer },
+        };
+        this.lastTurnRequest = request;
+        await this.runTurn(request, true);
+        return this.learning.getSession().messages.some(m => m.parts?.some(p =>
+          p.type === "practice-evaluation" && p.questionId === questionId));
+      },
+    } : undefined);
     this.scrollThread();
   }
 

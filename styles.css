@@ -2577,3 +2577,61 @@
     width: min(300px, calc(100vw - 16px));
   }
 }
+
+/* Inline active-recall quiz: native Obsidian surface, compact and keyboard accessible. */
+.nox-quiz-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 10px;
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid var(--nox-line-strong);
+  border-radius: var(--nox-radius-card);
+  background: var(--nox-surface);
+  color: var(--nox-ink);
+}
+.nox-quiz-answer { display: flex; flex-direction: column; min-width: 0; }
+.nox-quiz-options { display: flex; flex-direction: column; gap: 6px; }
+.nox-quiz-option {
+  display: flex; align-items: start; gap: 9px;
+  padding: 9px 10px; border-radius: var(--nox-radius-chip);
+  border: 1px solid var(--nox-line-strong);
+  background: transparent; cursor: pointer;
+  font-size: 12px; line-height: 1.45;
+}
+.nox-quiz-option:has(input:checked) {
+  border-color: var(--nox-accent);
+  background: var(--nox-accent-tint);
+}
+.nox-quiz-option:has(input:disabled) { cursor: default; opacity: .75; }
+.nox-quiz-option input { margin: 3px 0 0; flex-shrink: 0; }
+.nox-quiz-option-key { font-weight: 650; min-width: 13px; }
+.nox-quiz-editor {
+  display: block; box-sizing: border-box; width: 100%;
+  min-height: 100px; padding: 10px 11px; resize: vertical;
+  border: 1px solid var(--nox-line-strong);
+  border-radius: var(--nox-radius-chip);
+  background: var(--nox-surface); color: var(--nox-ink);
+  font: inherit; font-size: 12px; line-height: 1.65;
+}
+.nox-quiz-editor:focus-visible,
+.nox-quiz-option:focus-within {
+  outline: 2px solid var(--nox-accent); outline-offset: 1px;
+}
+.nox-quiz-code-editor {
+  font-family: var(--font-monospace);
+  font-size: 11.5px; min-height: 180px;
+  tab-size: 2; white-space: pre; overflow: auto;
+}
+.nox-quiz-code-meta { display: flex; justify-content: space-between; gap: 8px;
+  color: var(--nox-ink-2); font-size: 11px; margin-bottom: 6px; }
+.nox-quiz-actions { display: flex; justify-content: flex-end; gap: 8px; }
+.nox-quiz-actions button {
+  padding: 6px 11px; border-radius: var(--nox-radius-chip);
+  font: inherit; font-size: 12px; cursor: pointer;
+}
+.nox-quiz-submit { background: var(--nox-accent) !important; color: white !important; }
+.nox-quiz-submit:disabled { opacity: .5; cursor: default; }
+.nox-quiz-status { min-height: 0; font-size: 11px; color: var(--nox-ink-2); }
+.nox-quiz-status:empty { display: none; }

@@ -11,6 +11,7 @@ export interface PracticeEvaluationAttempt {
   questionId: string;
   origin?: PracticeOrigin;
   question: string;
+  questionSpec?: PracticeQuestion;
   concept?: string;
   answer: string;
   programId?: string;
@@ -76,6 +77,7 @@ export class PracticeStateMachine {
       concept: question.concept,
       question: question.question,
       hint: question.hint,
+      questionSpec: question,
       programId: question.programId,
       objectiveId: question.objectiveId,
       taskKind: question.taskKind,
@@ -109,6 +111,7 @@ export class PracticeStateMachine {
       questionId: session.turns[session.turns.length - 1]!.id,
       origin: session.origin,
       question: session.currentQuestion,
+      questionSpec: session.turns[session.turns.length - 1]?.questionSpec,
       concept: session.concept,
       answer,
       programId: session.turns[session.turns.length - 1]?.programId,

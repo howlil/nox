@@ -116,8 +116,8 @@ export function objectiveProgress(program: LearningProgram, objectiveId: string,
   const attempts = objectiveEvidence(program, objectiveId, evidence);
   if (!attempts.length) return { status: "unseen" as const, dueAt: null, attempts: 0 };
   const last = attempts[attempts.length - 1];
-  if (last.outcome !== "correct" || last.assisted) return { status: "remediate" as const, dueAt: null, attempts: attempts.length };
-  const correct = attempts.filter(e => e.outcome === "correct" && !e.assisted);
+  if (last.outcome !== "correct" || last.assisted || last.assessmentCoverage === "single-item") return { status: "remediate" as const, dueAt: null, attempts: attempts.length };
+  const correct = attempts.filter(e => e.outcome === "correct" && !e.assisted && e.assessmentCoverage !== "single-item");
   const independent = correct.some(a => correct.some(b => b.createdAt - a.createdAt >= 12 * 3_600_000));
   const dueAt = last.createdAt + (independent ? 3 : 1) * DAY;
   return { status: independent ? "mastered" as const : "provisional" as const,
@@ -154,7 +154,7 @@ export function chooseNextActivity(program: LearningProgram, evidence: LearningE
     const last = attempts[attempts.length - 1];
     const taught = program.instructionEvents?.some(item =>
       item.objectiveId === remediation.id && item.afterEvidenceAt === last.createdAt);
-    const kind = last.outcome === "correct" && last.assisted ? "guided-practice" :
+    const kind = last.outcome === "correct" && (last.assisted || last.assessmentCoverage === "single-item") ? "guided-practice" :
       taught ? "guided-practice" : "teach";
     return { kind, objective: remediation,
       reason: kind === "teach" ? "Teach the missed concept before retrying." :

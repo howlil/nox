@@ -31,6 +31,7 @@ import {
   LearningRequest,
 } from "./learning-types";
 import { PracticeQuestion, PracticeOrigin, PracticeEvaluation } from "../domain/practice/types";
+import { validatePracticeAnswer, gradeMultipleChoice } from "../domain/practice/question-schema";
 import {
   PracticeEvaluationAttempt,
   PracticeStateMachine,
@@ -415,9 +416,37 @@ export class RunLearningTurn {
       | undefined;
 
     if (request.action === "practice") {
+      if (request.practiceSubmission && !practice.isWaitingForAnswer()) {
+        if (this.activeTurn === activeTurn) this.activeTurn = null;
+        yield { type: "failed", failure: { code: "protocol-invalid",
+          message: "This question has already been answered or is no longer active." } };
+        return;
+      }
       if (practice.isWaitingForAnswer()) {
+        const active = practice.snapshot()?.turns.at(-1);
+        let textAnswer = request.prompt;
+        if (request.practiceSubmission) {
+          if (!active || active.id !== request.practiceSubmission.questionId || !active.questionSpec) {
+            if (this.activeTurn === activeTurn) this.activeTurn = null;
+            yield { type: "failed", failure: { code: "protocol-invalid",
+              message: "This answer no longer matches the active question." } };
+            return;
+          }
+          try { textAnswer = validatePracticeAnswer(active.questionSpec, request.practiceSubmission.answer); }
+          catch (error) {
+            if (this.activeTurn === activeTurn) this.activeTurn = null;
+            yield { type: "failed", failure: { code: "protocol-invalid",
+              message: error instanceof Error ? error.message : "Invalid quiz answer." } };
+            return;
+          }
+        } else if (active?.questionSpec?.input && active.questionSpec.input.type !== "essay") {
+          if (this.activeTurn === activeTurn) this.activeTurn = null;
+          yield { type: "failed", failure: { code: "protocol-invalid",
+            message: "Answer this question using its interactive card." } };
+          return;
+        }
         const attempt =
-          practice.beginEvaluation(request.prompt);
+          practice.beginEvaluation(textAnswer);
 
         if (!attempt) {
           if (this.activeTurn === activeTurn) this.activeTurn = null;
@@ -438,6 +467,11 @@ export class RunLearningTurn {
             question: attempt.question,
             answer: attempt.answer,
             concept: attempt.concept,
+            criteria: attempt.questionSpec?.input?.type === "essay" ||
+              attempt.questionSpec?.input?.type === "code"
+              ? attempt.questionSpec.input.criteria : undefined,
+            codeLanguage: attempt.questionSpec?.input?.type === "code"
+              ? attempt.questionSpec.input.language : undefined,
           });
       } else {
         const originFile = program?.constraints.sourceBound
@@ -577,11 +611,32 @@ export class RunLearningTurn {
                 concept: committed.evaluation.concept,
                 question: committed.evaluation.nextQuestion.trim(),
               },
+              questionId: committed.nextQuestionId,
             };
           }
           yield { type: "completed" };
           return;
         }
+      }
+
+      // MCQ verdict is deterministic. No provider may override its answer key.
+      if (practiceAttempt?.questionSpec?.input?.type === "multiple-choice" &&
+          request.practiceSubmission) {
+        const graded = gradeMultipleChoice(practiceAttempt.questionSpec,
+          request.practiceSubmission.answer);
+        const evaluation: PracticeEvaluation = {
+          ...graded, programId: practiceAttempt.programId,
+          objectiveId: practiceAttempt.objectiveId,
+          assisted: Boolean(practiceAttempt.assisted),
+          taskKind: practiceAttempt.taskKind,
+          assessmentCoverage: practiceAttempt.programId ? "single-item" : undefined,
+        };
+        for await (const item of this.commitPracticeOutcome(
+          evaluation, snapshot, turnSessionId, practice, practiceAttempt,
+          Boolean(lockedMode),
+        )) yield item;
+        yield { type: "completed" };
+        return;
       }
 
       for await (const event of this.runtime.send(
@@ -725,7 +780,7 @@ export class RunLearningTurn {
               turnSessionId,
             );
             practice.acceptQuestion(practiceBuffer.question, questionId);
-            yield { type: "practice-question", question: practiceBuffer.question };
+            yield { type: "practice-question", question: practiceBuffer.question, questionId };
           }
 
           if (practiceAttempt && practiceBuffer.evaluation) {
@@ -989,7 +1044,7 @@ export class RunLearningTurn {
           yield { type: "practice-question", question: {
             kind: "question", concept: evaluationPart.evaluation.concept,
             question: evaluationPart.evaluation.nextQuestion.trim(),
-          }};
+          }, questionId: evaluationPart.nextQuestionId };
         }
 
   }

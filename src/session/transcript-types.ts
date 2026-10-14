@@ -1,4 +1,4 @@
-import type { PracticeQuestion, PracticeEvaluation, PracticeOrigin } from "../domain/practice/types";
+import type { PracticeQuestion, PracticeEvaluation, PracticeOrigin, PracticeAnswer } from "../domain/practice/types";
 import type { ReviewFinding } from "../domain/review/types";
 import type { LearningScopeState } from "../domain/practice/learning-scope";
 import type { ChatMessage } from "../types";
@@ -11,6 +11,8 @@ export interface ChatSession {
   runtimeProvider?: string;
   model?: string;
   messages: ChatMessage[];
+  /** Session-local unfinished inputs; only evaluated submissions become evidence. */
+  practiceDrafts?: Record<string, PracticeAnswer>;
   createdAt: number;
   updatedAt: number;
 }

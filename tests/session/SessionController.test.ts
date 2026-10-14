@@ -626,3 +626,61 @@ test("proposal updates can target their originating conversation explicitly", as
   await controller.selectSession(first);
   assert.equal(controller.getProposal("late-proposal")?.state, "applied");
 });
+
+test("quiz draft survives restart and is atomically removed after committed evaluation", async () => {
+  const harness = pluginHarness();
+  const writer = createController(harness);
+  await writer.init();
+  const questionId = "quiz-q-1";
+  await writer.recordStructuredPart({ type: "practice-question", questionId, question: {
+    kind: "question", concept: "Spring", question: "Which injection?", input: {
+      type: "multiple-choice", options: [
+        { id: "a", text: "Field" }, { id: "b", text: "Constructor" },
+      ], correctOptionId: "b", explanation: "Constructor injection",
+    },
+  } });
+  await writer.savePracticeDraft(questionId, { type: "multiple-choice", optionId: "b" });
+  const restarted = createController(harness);
+  await restarted.init();
+  assert.deepEqual(restarted.getSession().practiceDrafts?.[questionId],
+    { type: "multiple-choice", optionId: "b" });
+
+  const operationId = "practice:session-1:quiz-q-1";
+  await restarted.recordPracticeOutcome([{
+    type: "practice-evaluation", questionId, operationId,
+    evaluation: { kind: "evaluation", concept: "Spring",
+      outcome: "correct", feedback: "Correct", misconceptions: [] },
+  }], operationId, "note.md", "session-1");
+  assert.equal(restarted.getSession().practiceDrafts?.[questionId], undefined);
+  await assert.rejects(restarted.savePracticeDraft(questionId,
+    { type: "multiple-choice", optionId: "a" }));
+  const reloaded = createController(harness);
+  await reloaded.init();
+  assert.equal(reloaded.getSession().practiceDrafts?.[questionId], undefined);
+  assert.equal(reloaded.getSession().messages.flatMap(m => m.parts ?? [])
+    .filter(part => part.type === "practice-evaluation").length, 1);
+});
+
+test("quiz draft write failure does not mutate the in-memory canonical session", async () => {
+  let data: Record<string, unknown> | null = null;
+  let rejectWrite = false;
+  const repo = new PluginDataRepository({
+    loadData: async () => data,
+    saveData: async (next: Record<string, unknown>) => {
+      if (rejectWrite) throw new Error("disk full");
+      data = next;
+    },
+  } as never);
+  const writer = new SessionController(repo, new SessionStore({
+    now: () => 1, uuid: () => "session-1",
+  }));
+  await writer.init();
+  await writer.recordStructuredPart({ type: "practice-question", questionId: "q",
+    question: { kind: "question", concept: "IoC", question: "Explain." } });
+  rejectWrite = true;
+  await assert.rejects(writer.savePracticeDraft("q", { type: "essay", text: "My draft" }));
+  assert.equal(writer.getSession().practiceDrafts?.q, undefined);
+  rejectWrite = false;
+  await writer.savePracticeDraft("q", { type: "essay", text: "My draft" });
+  assert.equal(writer.getSession().practiceDrafts?.q?.type, "essay");
+});

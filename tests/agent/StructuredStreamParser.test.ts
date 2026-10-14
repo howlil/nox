@@ -350,3 +350,27 @@ test("unclosed <think> flushes remaining thought text without error", () => {
   assert.ok(![...chunk, ...final].some((e) => e.type === "error"));
 });
 
+
+test("accepts MCQ and code questions across every stream split and rejects invalid option references", () => {
+  const valid = [
+    { kind: "question", concept: "IoC", question: "Select answer",
+      input: { type: "multiple-choice", options: [
+        { id: "a", text: "wrong" }, { id: "b", text: "correct" },
+      ], correctOptionId: "b", explanation: "Dependency resolution." } },
+    { kind: "question", concept: "Java", question: "Write a service",
+      input: { type: "code", language: "java", executionMode: "review-only",
+        starterCode: "class Service {}", criteria: ["Constructor injection"] } },
+  ];
+  for (const q of valid) {
+    const payload = fence + "learning-practice\n" + JSON.stringify(q) + "\n" + fence;
+    for (const events of parseAtEverySplit(payload)) {
+      assert.deepEqual(normalized(events), [{ type: "practice-question", question: q }]);
+    }
+  }
+  const invalid = { ...valid[0], input: { ...valid[0].input, correctOptionId: "unknown" } };
+  const parser = new StructuredStreamParser();
+  const parsed = [...parser.push(fence + "learning-practice\n" + JSON.stringify(invalid) + "\n" + fence),
+    ...parser.finish()];
+  assert.equal(parsed.filter(event => event.type === "practice-question").length, 0);
+  assert.equal(parsed.some(event => event.type === "error"), true);
+});

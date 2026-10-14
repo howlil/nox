@@ -1069,3 +1069,74 @@ test("streams thought-delta from <think> tags and persists thought on assistant 
   assert.equal(message?.thought, "Step 1 reasoning\nStep 2 reasoning");
   assert.ok(typeof message?.elapsedMs === "number");
 });
+
+test("typed MCQ card submission uses deterministic grader and creates exactly one evidence record", async () => {
+  const fence = "```";
+  let providerCalls = 0;
+  const question = {
+    kind: "question", concept: "IoC", question: "Which dependency is injected?",
+    input: { type: "multiple-choice", options: [
+      { id: "a", text: "Hardcoded class" },
+      { id: "b", text: "Constructor parameter" },
+    ], correctOptionId: "b", explanation: "Constructor injection decouples construction." },
+  };
+  const h = createHarness(async function* () {
+    providerCalls++;
+    yield { type: "text", content: fence + "learning-practice\n" +
+      JSON.stringify(question) + "\n" + fence };
+    yield { type: "completed" };
+  });
+  const generated = await collectEvents(h.controller.run({
+    prompt: "MCQ about IoC", action: "practice", explicitContext: [],
+  }));
+  const card = generated.find(e => e.type === "practice-question");
+  assert.ok(card?.type === "practice-question" && card.questionId);
+  assert.equal(h.controller.hasActivePracticeQuestion(), true);
+  const id = card.questionId;
+  const marked = await collectEvents(h.controller.run({
+    prompt: "Selected option: b", action: "practice", explicitContext: [],
+    practiceSubmission: { questionId: id, answer: { type: "multiple-choice", optionId: "b" } },
+  }));
+  assert.equal(marked.find(e => e.type === "practice-evaluation")?.evaluation.outcome, "correct");
+  assert.equal(marked.at(-1)?.type, "completed");
+  assert.equal(providerCalls, 1);
+  assert.equal(h.getEvidence().length, 1);
+  const duplicate = await collectEvents(h.controller.run({
+    prompt: "Selected option: b", action: "practice", explicitContext: [],
+    practiceSubmission: { questionId: id, answer: { type: "multiple-choice", optionId: "b" } },
+  }));
+  assert.equal(duplicate.at(-1)?.type, "failed");
+  assert.equal(h.getEvidence().length, 1);
+});
+
+test("typed code answer keeps review-only constraints and criteria through the model evaluation", async () => {
+  const fence = "```";
+  let calls = 0;
+  const h = createHarness(async function* () {
+    calls++;
+    if (calls === 1) yield { type: "text", content: fence + "learning-practice\n" +
+      JSON.stringify({ kind: "question", concept: "DI", question: "Implement DI.",
+        input: { type: "code", language: "java", criteria: ["Constructor injection"],
+          executionMode: "review-only", starterCode: "class Service {}" } }) +
+      "\n" + fence };
+    else yield { type: "text", content: fence + "learning-practice\n" +
+      JSON.stringify({ kind: "evaluation", concept: "DI", outcome: "correct",
+        feedback: "Constructor injection is correct.", misconceptions: [] }) +
+      "\n" + fence };
+    yield { type: "completed" };
+  });
+  const generated = await collectEvents(h.controller.run({
+    prompt: "code exercise", action: "practice", explicitContext: [],
+  }));
+  const item = generated.find(e => e.type === "practice-question");
+  assert.ok(item?.type === "practice-question" && item.questionId);
+  const completed = await collectEvents(h.controller.run({
+    prompt: "Code answer", action: "practice", explicitContext: [],
+    practiceSubmission: { questionId: item.questionId,
+      answer: { type: "code", language: "java", source: "class Service { Service(Repo r) {} }" } },
+  }));
+  assert.equal(completed.find(e => e.type === "practice-evaluation")?.evaluation.outcome, "correct");
+  assert.match(h.prompts[1] ?? "", /Review only; do not claim code execution/);
+  assert.match(h.prompts[1] ?? "", /Constructor injection/);
+  assert.equal(h.getEvidence().length, 1);
+});

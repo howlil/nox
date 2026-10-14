@@ -2030,3 +2030,42 @@ small slice → small blast radius
 real risk → faithful proof
 clear done → ship
 ```
+
+
+## Interactive practice card boundary (2026-10-14)
+
+```text
+AI content → StructuredStreamParser → PracticeQuestion candidate
+           → RunLearningTurn validates terminal completion
+           → SessionController commits question
+           → ChatView / quiz-card (typed input and presentation)
+           → LearningController → RunLearningTurn (question ID validated)
+           → deterministic MCQ / provider-based essay-code evaluation
+           → SessionController transcript commit → LearningState projection
+```
+
+- `domain/practice/question-schema.ts` is authoritative for MCQ/essay/code
+  shapes and answer validation; the active lifecycle still belongs to
+  `PracticeStateMachine`. The model cannot author an active question ID,
+  override the active state or submit a grade by itself.
+- `SessionController` is the only writer of in-progress `practiceDrafts`;
+  the canonical transcript owns completed questions and outcomes. Draft deletion
+  and evaluation creation happen in one durable session snapshot.
+- `quiz-card.ts` owns only inputs/focus/visual feedback and calls the
+  application facade. It cannot import Obsidian persistence, agent providers,
+  run code, or project evidence.
+- All practice evaluations share the existing idempotent operation key
+  `practice:<sessionId>:<questionId>`. No duplicate evidence store.
+- Correct MCQ answers covering only one fact are tagged
+  `assessmentCoverage=single-item` when tied to a curriculum; they cannot
+  satisfy broader mastery gates or unlock prerequisites. Essays/code require
+  the existing rubric checks.
+- Code answers are reviewed as source text. There is no runtime execution,
+  compiler, process launch, or network sandbox.
+- Legacy `PracticeQuestion` data without `input` remains valid and is rendered
+  as an essay input for any still-active historical question.
+- Structured question payloads are discarded after a failed/cancelled model
+  response; evaluator failures leave the same question answerable.
+- Refer to `docs/INTERACTIVE_PRACTICE.md` for test cases and manual Obsidian
+  acceptance. Automated tests do not certify renderer behavior in the user's
+  actual vault/theme/account.

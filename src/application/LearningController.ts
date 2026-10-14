@@ -3,7 +3,7 @@ import type { ExplicitContextRef, LearningContext } from "../context/context-typ
 import type { SessionPort, ContextPort, PolicyPort, MutationPort, LearningStatePort, RuntimeSettingsWrite, ProgramStorePort } from "./ports";
 import type { AgentRuntimePort } from "../agent/AgentRuntime";
 import type { LearningEvent, LearningRequest } from "./learning-types";
-import type { PracticeOrigin } from "../domain/practice/types";
+import type { PracticeOrigin, PracticeAnswer } from "../domain/practice/types";
 import { RunLearningTurn } from "./RunLearningTurn";
 import { isLockedLearningMode, parseScopeCommand } from "../domain/practice/learning-scope";
 import { parseProgramCommand } from "../domain/learning-program/commands";
@@ -150,6 +150,18 @@ export class LearningController {
 
   searchNotes(query: string, limit = 8): Array<{ path: string; name: string }> {
     return this.turns.searchNotes(query, limit);
+  }
+
+  async savePracticeDraft(questionId: string, answer: PracticeAnswer): Promise<void> {
+    if (this.turns.isRunning()) return;
+    const session = this.sessions.getSession();
+    if (!session.messages.some(message => message.parts?.some(part =>
+      part.type === "practice-question" && part.questionId === questionId))) {
+      throw new Error("This practice question is not in the active session.");
+    }
+    if (session.messages.some(message => message.parts?.some(part =>
+      part.type === "practice-evaluation" && part.questionId === questionId))) return;
+    await this.sessions.savePracticeDraft(questionId, answer, session.id);
   }
 
   async *run(request: LearningRequest): AsyncIterable<LearningEvent> {

@@ -1,5 +1,6 @@
 import type { TranscriptPart } from "./transcript-types";
 import { isRubricResults } from "../domain/practice/types";
+import { isPracticeQuestion } from "../domain/practice/question-schema";
 
 /** Reject malformed plugin data before it reaches the UI. */
 export function isTranscriptPart(value: unknown): value is TranscriptPart {
@@ -9,8 +10,7 @@ export function isTranscriptPart(value: unknown): value is TranscriptPart {
     if (part.scope !== undefined && part.scope !== "backend") return false;
     const q = part.question as Record<string, unknown> | undefined;
     const origin = part.origin as Record<string, unknown> | undefined;
-    return Boolean(q && q.kind === "question" && typeof q.concept === "string" &&
-      typeof q.question === "string" && (q.hint === undefined || typeof q.hint === "string") &&
+    return Boolean(isPracticeQuestion(q) &&
       (q.programId === undefined || typeof q.programId === "string") &&
       (q.objectiveId === undefined || typeof q.objectiveId === "string") &&
       (part.questionId === undefined || typeof part.questionId === "string") &&
@@ -28,6 +28,7 @@ export function isTranscriptPart(value: unknown): value is TranscriptPart {
       (e.programId === undefined || typeof e.programId === "string") &&
       (e.objectiveId === undefined || typeof e.objectiveId === "string") &&
       (e.assisted === undefined || typeof e.assisted === "boolean") &&
+      (e.assessmentCoverage === undefined || e.assessmentCoverage === "single-item") &&
       (e.rubricResults === undefined || isRubricResults(e.rubricResults)) &&
       (part.questionId === undefined || typeof part.questionId === "string") &&
       (part.operationId === undefined || typeof part.operationId === "string") &&
