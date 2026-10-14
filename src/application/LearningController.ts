@@ -70,6 +70,14 @@ export class LearningController {
     return this.runtime.getModels();
   }
 
+  getModelDiscoveryError(): string | undefined {
+    return this.runtime.getModelDiscoveryError?.();
+  }
+
+  async refreshModels(): Promise<void> {
+    await this.runtime.refreshModels?.();
+  }
+
   async configureRuntime(
     provider: string, adapter: AgentAdapter | undefined, preferredModel?: string,
     options: RuntimeSettingsWrite = {},

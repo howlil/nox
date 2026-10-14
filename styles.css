@@ -1845,6 +1845,33 @@
   scrollbar-width: thin;
 }
 
+.nox-model-menu-error {
+  padding: 8px;
+  color: var(--nox-muted);
+  font-size: 12px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.nox-model-menu-retry {
+  width: 100%;
+  min-height: 30px;
+  padding: 5px 8px;
+  border: 1px solid var(--nox-line-strong) !important;
+  border-radius: var(--nox-radius-chip);
+  background: var(--nox-surface) !important;
+  color: var(--nox-ink);
+  font-size: 12px;
+  text-align: center;
+  cursor: pointer;
+  box-shadow: none !important;
+}
+
+.nox-model-menu-retry:disabled {
+  cursor: wait;
+  opacity: .6;
+}
+
 .nox-model-menu-row {
   display: flex;
   width: 100%;

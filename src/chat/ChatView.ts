@@ -535,7 +535,8 @@ export class ChatView extends ItemView {
 
     const selected = this.learning.getSession().model ?? "";
     const model = this.getModelMenuItems().find((item) => item.id === selected);
-    const label = model?.name ?? "Runtime default";
+    const label = !selected && !this.models.length && this.learning.getModelDiscoveryError()
+      ? "Models unavailable" : model?.name ?? "Runtime default";
 
     this.composerUi?.setModelLabel(label);
     this.modelMenuState.syncTrigger(this.modelTrigger, "nox-model-menu");
@@ -599,6 +600,20 @@ export class ChatView extends ItemView {
       rows.push(row);
     }
 
+    const discoveryError = this.learning.getModelDiscoveryError();
+    if (!this.models.length && discoveryError) {
+      this.modelMenuEl.createDiv({ cls: "nox-model-menu-error", text: discoveryError });
+      const retry = this.modelMenuEl.createEl("button", {
+        cls: "nox-model-menu-retry",
+        text: "Retry model discovery",
+        attr: { type: "button" },
+      });
+      retry.addEventListener("click", () => {
+        retry.disabled = true;
+        void this.learning.refreshModels().then(() => this.refreshModelList())
+          .catch(() => this.refreshModelList());
+      });
+    }
     this.modelMenuState.setRows(rows);
     this.syncModelMenuRows();
     animateNoxPopover(this.modelMenuEl);

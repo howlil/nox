@@ -18,6 +18,7 @@ test("runtime initialization tolerates model discovery failure", async () => {
   await runtime.init();
 
   assert.deepEqual(runtime.getModels(), []);
+  assert.equal(runtime.getModelDiscoveryError(), "models unavailable");
   assert.deepEqual(await runtime.check(), { status: "ready" });
 });
 
@@ -98,4 +99,25 @@ test("runtime forwards normalized turn execution without owning conversation sta
   assert.equal(receivedConversationId, "conversation-1");
   assert.equal(events.at(-1)?.type, "completed");
   assert.deepEqual(runtime.getModels(), [{ id: "model-a", name: "Model A" }]);
+});
+
+test("model discovery error is cleared on retry and never survives provider swap", async () => {
+  let shouldFail = true;
+  const adapter: AgentAdapter = {
+    check: async () => ({ status: "ready" }),
+    send: async function* () {},
+    listModels: async () => {
+      if (shouldFail) throw new Error("ChatGPT model discovery failed (HTTP 403).");
+      return [{ id: "model-x", name: "Model X" }];
+    },
+  };
+  const runtime = new AgentRuntime(adapter);
+  await runtime.init();
+  assert.equal(runtime.getModelDiscoveryError(), "ChatGPT model discovery failed (HTTP 403).");
+  shouldFail = false;
+  await runtime.refreshModels();
+  assert.equal(runtime.getModelDiscoveryError(), undefined);
+  assert.deepEqual(runtime.getModels(), [{ id: "model-x", name: "Model X" }]);
+  await runtime.replaceAdapter({ ...adapter, listModels: async () => [] });
+  assert.match(runtime.getModelDiscoveryError() ?? "", /No models available/);
 });

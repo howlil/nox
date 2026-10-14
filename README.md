@@ -71,7 +71,24 @@ login; Nox does not store an API key. Run `codex login` externally if needed.
 Provider changes apply immediately while idle and refresh the model menu. Finish
 or stop an active turn before changing runtime settings. Transcript and learning state are preserved;
 runtime thread/model state is reset when it belongs to the previous provider.
-Codex runs read-only, and note changes still require a Nox proposal and Apply.\n\n### ChatGPT plan (no API key)\n\nIn **Nox Settings → Agent provider**, select **ChatGPT plan**, then choose **Continue with ChatGPT**. Your default browser completes Sign in with ChatGPT using OAuth Authorization Code + PKCE. The local callback listens only on `127.0.0.1` and requires an exact matching `state`. Nox verifies the signed ID token and checks the granted `chatgpt.tokens.use.direct` scope. You must authorize plan use; identity-only sign-in does not enable inference.\n\nNox discovers models for the signed-in account, streams supported Responses requests with `store: false` and `stream: true`, and sends relevant local transcript history as input. ChatGPT plan inference has usage limits and may not support every Responses feature; no fallback to an API key or paid API billing is performed. Obsidian note selections/context are transmitted to OpenAI **only when you send a turn**. Nox still requires separate approval before applying any Markdown edit.\n\nThe issued client ID, host ID, tokens, and basic account profile are stored **outside the Obsidian vault** in the user-local Nox configuration folder (`LOCALAPPDATA\\nox` on Windows or `~/.config/nox` on Unix by default). Windows credentials are protected with current-user DPAPI; on Unix credential files use owner-only permissions (`0600`) and a private directory (`0700`). Do not sync or publish this directory. ChatGPT permission/token issues require **Reconnect ChatGPT**; **Disconnect ChatGPT** clears local tokens while retaining the original client registration. To check login without a browser, use the Codex CLI provider and run `codex login` once outside Obsidian.\n\n### Obsidian OAuth network transport
+Codex runs read-only, and note changes still require a Nox proposal and Apply.\n\n### ChatGPT plan (no API key)\n\nIn **Nox Settings → Agent provider**, select **ChatGPT plan**, then choose **Continue with ChatGPT**. Your default browser completes Sign in with ChatGPT using OAuth Authorization Code + PKCE. The local callback listens only on `127.0.0.1` and requires an exact matching `state`. Nox verifies the signed ID token and checks the granted `chatgpt.tokens.use.direct` scope. You must authorize plan use; identity-only sign-in does not enable inference.\n\nNox discovers models for the signed-in account, streams supported Responses requests with `store: false` and `stream: true`, and sends relevant local transcript history as input. ChatGPT plan inference has usage limits and may not support every Responses feature; no fallback to an API key or paid API billing is performed. Obsidian note selections/context are transmitted to OpenAI **only when you send a turn**. Nox still requires separate approval before applying any Markdown edit.\n\nThe issued client ID, host ID, tokens, and basic account profile are stored **outside the Obsidian vault** in the user-local Nox configuration folder (`LOCALAPPDATA\\nox` on Windows or `~/.config/nox` on Unix by default). Windows credentials are protected with current-user DPAPI; on Unix credential files use owner-only permissions (`0600`) and a private directory (`0700`). Do not sync or publish this directory. ChatGPT permission/token issues require **Reconnect ChatGPT**; **Disconnect ChatGPT** clears local tokens while retaining the original client registration. To check login without a browser, use the Codex CLI provider and run `codex login` once outside Obsidian.\n\n### ChatGPT model picker and response transport
+
+Nox requests the signed-in account's model catalog from `https://api.openai.com/v1/models`
+and inference from `https://api.openai.com/v1/responses` through Obsidian
+`requestUrl` instead of an unbound Electron `window.fetch`. This avoids the
+`Failed to execute 'fetch' on 'Window': Illegal invocation` failure and the
+associated empty model catalog. The model menu now displays a discovery error
+and a **Retry model discovery** action rather than hiding errors behind
+`Runtime default`.
+
+**Streaming trade-off:** Obsidian `requestUrl` buffers the whole HTTP
+response, so Nox does not render tokens incrementally for this provider.
+Nox still sends `store: false, stream: true`, parses SSE events, and
+accepts only a terminal `response.completed`. Other CLI providers retain
+their separate streaming implementations. Do not automatically repeat a
+timed-out inference because it may already have been processed remotely.
+
+### Obsidian OAuth network transport
 
 ChatGPT OAuth token exchange and JWKS verification use Obsidian's `requestUrl` network
 transport rather than renderer/Node global `fetch`. This avoids relying on the
