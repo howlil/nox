@@ -671,30 +671,25 @@ regenerated; alternatives are durable (maximum eight). A failed generation
 leaves canonical transcript state unchanged; selections go through the existing
 serialized SessionController writer and invalidate provider cursor state.
 
-## Token Usage Compact + Remaining Credits — 2026-10-15
-
-Design thinking: observe the existing six-number wall and unavailable account
-credit support; define quick answers to usage, traffic, and remaining balance;
-prioritize flat, compact, accessible light-only surfaces and truthful provenance.
+## Settings tabs and observability — 2026-10-15
 
 ```text
-Usage record → daily buckets → filter → Total hero + input/output split
-                         └── compact metrics + model ranking
-Manual quota input → serialized plugin data → model pool / provider shared pool
-                                      └── Remaining Credits progress row
+Nox Settings
+├── Settings → agent, authentication, executable, preferred model, build
+├── Usage    → QuotaSync → AGY/Codex provider quota windows
+└── Token    → TokenUsageRepository → recorded usage + model ranking
 ```
 
-- NOX token totals come from its existing ledger. Cached/reasoning are
-  auxiliary reported fields, not extra tokens to add.
-- NOX does not infer dollars, credits, allowances, or reset times from tokens.
-- Manual quota records must show Manual provenance and last-updated time.
-- Specific model quotas override shared provider pools, which have exactly
-  one editable/deletable canonical row and may be echoed beneath each model.
-  Never sum these displayed echoes as separate balances.
-- Reject malformed, negative, nonfinite, and over-limit amounts. Support
-  credits, USD and request units; request counts must be whole numbers.
-- Never imply that a manual snapshot is live or provider-verified.
-- No Appearance toggle. NOX stays light-only; host Obsidian theme untouched.
+Each tab owns a distinct data source and mounts only when active. The active tab
+survives Settings re-renders. The tablist is keyboard-navigable with arrows,
+Home and End, and uses native accessible role/aria labels. The visual grammar
+is light-only, flat, purple accent for selected state, no gradients, halos
+or shadows.
+
+The former Manual Balances UI/feature has been removed. Existing legacy
+`nox-credit-balances-v1` entries are left inert, without deleting user data.
+No manual balance can be added, edited, viewed or inferred. Provider quotas
+stay read-only and are not converted to currency or token estimates.
 
 ## Live provider quota states — 2026-10-15
 
@@ -703,7 +698,7 @@ NOX settings → Provider quotas → QuotaSync cache
               ├→ AGY read-only /usage and /credits (no AI turn)
               └→ Codex account/rateLimits/read (no AI thread)
               → grouped window bars / reset / provenance
-Manual balances → separate user-authored snapshots
+Token tab → NOX's own read-only recorded token ledger
 ```
 
 - Provider quota bars are flat, compact and light-only. Show `Provider-reported`,
@@ -712,6 +707,7 @@ Manual balances → separate user-authored snapshots
   Window percentages and reset times are distinct from currency/credits.
 - Full-screen dialogs, developer terminal, and API keys are not surfaced by
   the UI; there is no model turn to retrieve a quota.
-- Refresh credits reads providers; Refresh usage reloads NOX-local token usage.
+- Refresh credits reads providers in the Usage tab; Refresh usage reloads NOX-local
+  token usage in the Token tab. No manual-balance UI remains.
 - Unknown provider models, unsupported fields, auth failure and older AGY
   versions fail closed with no fabricated percentage.
