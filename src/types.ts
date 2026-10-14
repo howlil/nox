@@ -1,5 +1,5 @@
 import type { TranscriptPart } from "./session/transcript-types";
-import type { AgentUsageRecord } from "./agent/token-usage";
+import type { AgentUsageRecord } from "./domain/telemetry/token-usage";
 export type { ChatSession } from "./session/transcript-types";
 
 // Shared transport/session types.
