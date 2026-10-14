@@ -90,16 +90,16 @@ export class ContextResolver {
       });
     }
 
+    const seen = new Map<string, Set<string>>();
+    for (const existing of result) {
+      seen.set(existing.type + "\0" + existing.file, new Set([existing.content]));
+    }
     for (const item of context.explicit) {
-      const duplicate = result.some(
-        (existing) =>
-          existing.type === item.type &&
-          existing.file === item.path &&
-          existing.content === item.content,
-      );
-
-      if (duplicate) continue;
-
+      const key = item.type + "\0" + item.path;
+      const contents = seen.get(key) ?? new Set<string>();
+      if (contents.has(item.content)) continue;
+      contents.add(item.content);
+      seen.set(key, contents);
       result.push({
         type: item.type,
         file: item.path,

@@ -28,14 +28,18 @@ export interface ContextEnvelopeRequest {
   maxInputTokens?: number;
 }
 
+const encoder = new TextEncoder();
+const STOP_WORDS = new Set(["yang", "dan", "dari", "dengan", "untuk",
+  "the", "and", "this", "that", "with", "about"]);
+
 /** Conservative heuristic, not a tokenizer or provider usage report. */
 export function estimateTokens(content: string): number {
   if (!content) return 0;
-  return Math.ceil(new TextEncoder().encode(content).length / 2.5);
+  return Math.ceil(encoder.encode(content).length / 2.5);
 }
 
 const words = (text: string): string[] => (text.toLocaleLowerCase().match(/[\p{L}\p{N}]{3,}/gu) ?? [])
-  .filter(word => !new Set(["yang", "dan", "dari", "dengan", "untuk", "the", "and", "this", "that", "with", "about"]).has(word));
+  .filter(word => !STOP_WORDS.has(word));
 
 /** A query-directed extract, not an arbitrary prefix cut. Preserves paragraph order. */
 export function extractRelevantText(content: string, query: string, maxChars: number): string {
@@ -146,25 +150,21 @@ export function prepareContextEnvelope(request: ContextEnvelopeRequest): Context
   const prefix = digest
     ? "Earlier conversation (lossy summary, not authoritative learning evidence):\n" + digest + "\n\n"
     : "";
-  const estimatedContext = estimateTokens(JSON.stringify(context));
-  const total = estimatedContext + estimateTokens(JSON.stringify(recent)) +
-    estimateTokens(prefix) + promptTokens + fixedOverhead;
-  if (total > ceiling) {
-    // Serialized JSON can add overhead that the note-level estimate missed.
-    while (context.length && estimateTokens(JSON.stringify(context)) +
-      estimateTokens(JSON.stringify(recent)) + estimateTokens(prefix) + promptTokens + fixedOverhead > ceiling) {
-      if (request.strict) throw new Error("Serialized required context exceeds the input budget.");
-      context.pop();
-      shortenedSources++;
-    }
+  const historyCost = estimateTokens(JSON.stringify(recent)) + estimateTokens(prefix);
+  let contextCost = estimateTokens(JSON.stringify(context));
+  // Retry only when serialized JSON overhead caused an underestimated budget.
+  while (context.length && contextCost + historyCost + promptTokens + fixedOverhead > ceiling) {
+    if (request.strict) throw new Error("Serialized required context exceeds the input budget.");
+    context.pop();
+    shortenedSources++;
+    contextCost = estimateTokens(JSON.stringify(context));
   }
   return {
     context, history: recent, promptPrefix: prefix,
     estimate: {
-      total: estimateTokens(JSON.stringify(context)) + estimateTokens(JSON.stringify(recent)) +
-        estimateTokens(prefix) + promptTokens + fixedOverhead,
-      context: estimateTokens(JSON.stringify(context)),
-      history: estimateTokens(JSON.stringify(recent)) + estimateTokens(prefix),
+      total: contextCost + historyCost + promptTokens + fixedOverhead,
+      context: contextCost,
+      history: historyCost,
       prompt: promptTokens,
       compacted: Boolean(digest) || request.history.length > recent.length,
       shortenedSources,

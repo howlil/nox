@@ -78,7 +78,9 @@ export class SessionStore {
     return {
       serialized: draft.serialize(),
       result,
-      publish: () => { this.data = structuredClone(draft.data); },
+      // The staged draft is private to this transaction. Publish it after
+      // durable save instead of cloning the entire transcript a third time.
+      publish: () => { this.data = draft.data; },
     };
   }
 

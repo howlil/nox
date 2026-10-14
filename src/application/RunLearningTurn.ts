@@ -162,7 +162,7 @@ export class RunLearningTurn {
     }
 
     // Capture the complete user-visible turn, including context and preflight work.
-    const runStartedAt = Date.now();
+    const runStartedAt = performance.now();
     // Lock before asynchronous context/policy preparation.
     const controller = new AbortController();
     const activeTurn = { controller } as {
@@ -298,10 +298,11 @@ export class RunLearningTurn {
       if (sourceRef && !refs.some((ref) => ref.kind === "vault-note" && ref.path === sourceRef)) {
         refs.push({ kind: "vault-note", path: sourceRef });
       }
-      context = await this.contexts.resolve(refs);
-      [policy, state] = await Promise.all([
-        this.policies.load(),
-        this.learningState.load(),
+      // Independent vault reads share the same preflight window; required
+      // source resolution and learning-policy failures still fail this turn.
+      [context, [policy, state]] = await Promise.all([
+        this.contexts.resolve(refs),
+        Promise.all([this.policies.load(), this.learningState.load()]),
       ]);
       state = await this.reconcileTranscriptEvidence(sessionAtStart, state);
       if (researchQuery && this.contexts.searchKnowledge) {
@@ -444,7 +445,7 @@ export class RunLearningTurn {
       mutableFile,
     };
 
-    const contextMs = Date.now() - runStartedAt;
+    const contextMs = performance.now() - runStartedAt;
     yield { type: "context-ready", context: snapshot };
 
     const conversation = this.sessions.getSession();
@@ -611,7 +612,7 @@ export class RunLearningTurn {
     const parser = new StructuredStreamParser();
     const scopedEvents: StructuredStreamEvent[] = [];
 
-    const startedAt = Date.now();
+    const startedAt = performance.now();
     const timeout = setTimeout(() => {
       activeTurn.cancelReason = "timeout";
       controller.abort();
@@ -632,7 +633,7 @@ export class RunLearningTurn {
     const persistMappedEvent = (mapped: LearningEvent): void => {
       if (mapped.type === "response-delta") {
         visibleText += mapped.text;
-        if (firstVisibleMs === undefined) firstVisibleMs = Date.now() - runStartedAt;
+        if (firstVisibleMs === undefined) firstVisibleMs = performance.now() - runStartedAt;
       }
       if (mapped.type === "thought-delta") thoughtText += mapped.text;
     };
@@ -757,7 +758,7 @@ export class RunLearningTurn {
         retrievedChunks: researchResult?.hits.length ?? 0,
         compacted: envelope.estimate.compacted,
         contextMs,
-        preparationMs: Date.now() - runStartedAt,
+        preparationMs: performance.now() - runStartedAt,
         elapsedMs: 0,
       };
       // The runtime may still be authenticating or starting a CLI; do not claim
@@ -779,7 +780,7 @@ export class RunLearningTurn {
             receivedModelOutput = true;
             yield { type: "activity-phase", phase: "receiving-output", at: Date.now() };
           }
-          if (metrics.firstTokenMs === undefined) metrics.firstTokenMs = Date.now() - startedAt;
+          if (metrics.firstTokenMs === undefined) metrics.firstTokenMs = performance.now() - startedAt;
           executionPhase = "processing";
           if (lockedMode) {
             scopedEvents.push(...parser.push(event.content));
@@ -984,7 +985,7 @@ export class RunLearningTurn {
                 edit: { id: editProposalId, proposal: committed.proposal } };
             }
           }
-          const elapsedMs = Date.now() - runStartedAt;
+          const elapsedMs = performance.now() - runStartedAt;
           metrics.elapsedMs = elapsedMs;
           if (firstVisibleMs !== undefined) metrics.firstVisibleMs = firstVisibleMs;
           if (request.regenerate) {
@@ -1089,10 +1090,14 @@ export class RunLearningTurn {
   ): Promise<Awaited<ReturnType<LearningStatePort["load"]>>> {
     let state = initial;
     let changed = false;
+    // Most turns contain no uncommitted evidence. Check the stable operation
+    // IDs before invoking transitions that clone the entire learning state.
+    const existingIds = new Set(initial.evidence.map(item => item.id));
     for (const message of session.messages) {
       for (const part of message.parts ?? []) {
         if (part.type === "practice-evaluation" && part.questionId) {
           const operationId = part.operationId ?? `practice:${session.id}:${part.questionId}`;
+          if (existingIds.has(operationId)) continue;
           const next = recordPracticeEvaluation(state, {
             evaluation: part.evaluation,
             source: part.sourcePath ?? message.sourcePath ?? "learning-session",
@@ -1104,9 +1109,11 @@ export class RunLearningTurn {
           if (next.evidence.length !== state.evidence.length) {
             changed = true;
             state = next;
+            existingIds.add(operationId);
           }
         }
         if (part.type === "review-findings" && part.reviewId) {
+          if (part.findings.every((_, index) => existingIds.has(part.reviewId + ":" + index))) continue;
           const next = recordReviewFindings(state, {
             findings: part.findings,
             source: part.sourcePath ?? message.sourcePath ?? "learning-session",
@@ -1115,6 +1122,9 @@ export class RunLearningTurn {
           if (next.evidence.length !== state.evidence.length) {
             changed = true;
             state = next;
+            for (let index = 0; index < part.findings.length; index++) {
+              existingIds.add(part.reviewId + ":" + index);
+            }
           }
         }
       }
