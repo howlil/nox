@@ -1,4 +1,5 @@
 import type { IconName } from "obsidian";
+import type { ChatReplyReference } from "../types";
 import {
   createNoxChip,
   createNoxIconButton,
@@ -30,6 +31,7 @@ export type NoxComposerOptions = {
   onModelKeyDown: (event: KeyboardEvent) => void;
   onCancel: () => void;
   onSend: () => void;
+  onRemoveReply: () => void;
 };
 
 /**
@@ -53,6 +55,7 @@ export class NoxComposer {
   readonly actionMenuBtn: HTMLButtonElement;
   private readonly attachmentsEl: HTMLElement;
   private readonly intentEl: HTMLElement;
+  private readonly replyEl: HTMLElement;
   readonly anchor: HTMLElement;
 
   constructor(parent: HTMLElement, options: NoxComposerOptions) {
@@ -80,6 +83,12 @@ export class NoxComposer {
       this.focus();
     });
 
+    this.replyEl = this.composerBox.createDiv({ cls: "nox-composer-reply nox-hidden" });
+    const removeQuote = createNoxIconButton(this.replyEl, {
+      cls: "nox-composer-reply-remove", icon: "x",
+      label: "Remove quoted response", title: "Remove quote",
+    });
+    removeQuote.addEventListener("click", options.onRemoveReply);
     const controls = this.composerBox.createDiv({ cls: "nox-composer-controls" });
     this.inputLine = controls.createDiv({ cls: "nox-input-line" });
     this.contextRow = this.inputLine.createDiv({ cls: "nox-context-row nox-hidden" });
@@ -177,6 +186,18 @@ export class NoxComposer {
 
   focus(): void {
     this.input.focus();
+  }
+
+  setReplyReference(reference: ChatReplyReference | null): void {
+    const existing = this.replyEl.querySelector(".nox-composer-reply-text");
+    existing?.remove();
+    if (reference) {
+      const text = this.replyEl.createDiv({ cls: "nox-composer-reply-text" });
+      text.createSpan({ cls: "nox-composer-reply-title", text: "Quoted Nox response" });
+      text.createSpan({ cls: "nox-composer-reply-quote", text: reference.quote });
+    }
+    this.replyEl.toggleClass("nox-hidden", !reference);
+    this.syncInputLayout();
   }
 
   setContexts(contexts: NoxComposerContext[]): void {
