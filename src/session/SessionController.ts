@@ -422,9 +422,10 @@ export class SessionController {
   async updateProposalState(
     proposalId: string,
     state: "applied" | "rejected" | "stale",
+    sessionId?: string,
   ): Promise<void> {
     return this.serializeWrite(async () => {
-      const session = this.sessionForWrite();
+      const session = this.sessionForWrite(sessionId);
       const message = session.messages.find((item) => item.proposalId === proposalId);
       if (!message || message.proposalState !== "pending") return;
 
