@@ -4,9 +4,9 @@ import type { NoxFlowSpec } from "./response-spec";
  * One centered node per row intentionally prioritizes narrow Obsidian sidebars.
  * Never mutates learning state or executes model-supplied source.
  */
-export interface NoxFlowLayoutNode extends NoxFlowSpec["nodes"][number] {
+export type NoxFlowLayoutNode = NoxFlowSpec["nodes"][number] & {
   x: number; y: number; width: number; height: number; rank: number;
-}
+};
 export interface NoxFlowLayoutEdge {
   from: string; to: string; label?: string; path: string;
 }
