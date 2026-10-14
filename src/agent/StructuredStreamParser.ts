@@ -3,6 +3,7 @@ import {
   PracticeEvaluation,
   PracticePayload,
   PracticeQuestion,
+  isRubricResults,
 } from "../domain/practice/types";
 import { ReviewFinding, ReviewPayload } from "../domain/review/types";
 import type { ScopeOutcome } from "../domain/practice/learning-scope";
@@ -68,14 +69,7 @@ function isPracticePayload(value: unknown): value is PracticePayload {
       obj.misconceptions.every((item) => typeof item === "string") &&
       (obj.nextQuestion === undefined ||
         typeof obj.nextQuestion === "string") &&
-      (obj.rubricResults === undefined ||
-        (Array.isArray(obj.rubricResults) && obj.rubricResults.length <= 20 &&
-          obj.rubricResults.every((result: unknown) => {
-            if (!result || typeof result !== "object") return false;
-            const r = result as Record<string, unknown>;
-            return typeof r.criterion === "string" && r.criterion.trim().length > 0 &&
-              typeof r.met === "boolean" && typeof r.evidence === "string";
-          })))
+      (obj.rubricResults === undefined || isRubricResults(obj.rubricResults))
     );
   }
 
