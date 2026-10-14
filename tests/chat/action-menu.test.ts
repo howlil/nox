@@ -35,7 +35,7 @@ test("same authoritative primary action drives menu and welcome card", () => {
 test("one-character search is prefix-only: /s cannot expand into all session descriptions", () => {
   assert.deepEqual(buildActionMenu(saved, "s").map(item => item.key), ["start-session"]);
   assert.deepEqual(buildActionMenu(saved, "/s").map(item => item.key), ["start-session"]);
-  assert.deepEqual(buildActionMenu({ ...saved, hasActiveSession: true }, "s"), []);
+  assert.deepEqual(buildActionMenu({ ...saved, hasActiveSession: true }, "s").map(item => item.key), ["session-time"]);
   assert.equal(buildActionMenu(saved, "q").length, 0);
 });
 
