@@ -66,7 +66,7 @@ Unknown provider capabilities are **not** inferred from elapsed time.
 
 ## M0 — Normalized telemetry foundation
 
-**Files:** `src/types.ts`, `src/agent/token-usage.ts`,
+**Files:** `src/types.ts`, `src/domain/telemetry/token-usage.ts`,
 `src/agent/CodexProtocol.ts`, `src/agent/ChatGptAdapter.ts`,
 `src/application/learning-types.ts`, `src/application/RunLearningTurn.ts`.
 
