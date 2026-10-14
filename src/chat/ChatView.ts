@@ -550,6 +550,10 @@ export class ChatView extends ItemView {
   private confirmHistoryDeletion(count: number): Promise<boolean> {
     return new Promise(resolve => {
       const modal = new Modal(this.app);
+      modal.modalEl.addClass("nox-theme-portal");
+      const appearance = this.getAppearance();
+      modal.modalEl.toggleClass("nox-force-dark", appearance === "dark");
+      modal.modalEl.toggleClass("nox-force-light", appearance === "light");
       let settled = false;
       const finish = (confirmed: boolean) => {
         if (settled) return;
