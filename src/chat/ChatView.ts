@@ -2530,8 +2530,8 @@ export class ChatView extends ItemView {
         // Snapshot is checked again at the application/persistence boundary.
         const request: LearningRequest = {
           turnId: crypto.randomUUID(),
-          prompt: user.content,
-          action: user.action as "ask" | "explain",
+          prompt: user?.content ?? "",
+          action: user?.action === "explain" ? "explain" : "ask",
           explicitContext: [],
           regenerate: { messageIndex, expectedContent: message.content },
         };
