@@ -331,3 +331,33 @@ test("OAuth network failure produces network_error without including connection 
     auth.dispose();
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });
+
+
+test("ChatGPT response.completed carries provider-reported usage into the runtime boundary", async () => {
+  const auth = { status: () => ({ sharing: true }), accessToken: async () => "token" } as ChatGptAuth;
+  const body = 'data: ' + JSON.stringify({
+    type: "response.completed",
+    response: {
+      model: "gpt-6",
+      usage: { input_tokens: 240, output_tokens: 60, total_tokens: 300,
+        input_tokens_details: { cached_tokens: 80 },
+        output_tokens_details: { reasoning_tokens: 20 } },
+    },
+  }) + '\n\ndata: [DONE]\n\n';
+  const adapter = new ChatGptAdapter(auth, { fetch: async (url: unknown) => {
+    if (String(url).endsWith("/models")) return new Response(JSON.stringify({
+      models: [{ slug: "gpt-6", display_name: "GPT-6", visibility: "list" }],
+    }));
+    return new Response(body, { status: 200, headers: { "Content-Type": "text/event-stream" } });
+  } as typeof fetch });
+  const events = [];
+  for await (const event of adapter.send({ prompt: "test", context: [] }, { model: "gpt-6" },
+    new AbortController().signal)) events.push(event);
+  assert.deepEqual(events, [
+    { type: "usage", model: "gpt-6", usage: {
+      inputTokens: 240, outputTokens: 60, totalTokens: 300,
+      cachedInputTokens: 80, reasoningTokens: 20,
+    } },
+    { type: "completed" },
+  ]);
+});
