@@ -9,6 +9,8 @@ import {
 } from "./response-spec";
 
 import { enhanceNoxMarkdownTables, renderNoxCard, renderNoxFlow, renderNoxHorizontalChart } from "./response-rich";
+import { setNoxIcon } from "./primitives";
+import type { IconName } from "obsidian";
 
 const SVG_NS = "http://www.w3.org/2000/svg";
 
@@ -18,10 +20,12 @@ function element<K extends keyof HTMLElementTagNameMap>(tag: K, cls?: string): H
   return node;
 }
 
-function button(label: string): HTMLButtonElement {
+function button(label: string, icon: IconName): HTMLButtonElement {
   const node = element("button", "nox-visual-action");
   node.type = "button";
-  node.textContent = label;
+  node.setAttribute("aria-label", label);
+  node.title = label;
+  setNoxIcon(node, icon);
   return node;
 }
 
@@ -126,16 +130,16 @@ function renderChart(spec: NoxChartSpec): HTMLElement {
 }
 
 function renderPreview(
-  kind: "html-preview" | "svg-preview", source: string, original: HTMLPreElement,
+  kind: "html-preview" | "svg-preview" | "js-preview", source: string, original: HTMLPreElement,
 ): HTMLElement {
   const root = element("section", "nox-visual nox-code-preview");
   const header = element("div", "nox-visual-header");
   const title = element("span", "nox-visual-title");
-  title.textContent = kind === "html-preview" ? "HTML playground" : "SVG preview";
+  title.textContent = kind === "svg-preview" ? "SVG preview" : kind === "js-preview" ? "JavaScript runner" : "HTML playground";
   const controls = element("div", "nox-visual-controls");
-  const preview = button("Run preview");
-  const code = button("Code");
-  const reset = button("Reset");
+  const preview = button("Run preview", "play");
+  const code = button("Show source", "code-2");
+  const reset = button("Restart preview", "rotate-ccw");
   code.setAttribute("aria-pressed", "true");
   preview.setAttribute("aria-pressed", "false");
   reset.hidden = true;
@@ -159,8 +163,8 @@ function renderPreview(
     // Destroy the former execution realm, rather than hiding running scripts.
     stage.replaceChildren();
     const iframe = element("iframe", "nox-visual-frame");
-    iframe.title = kind === "html-preview" ? "Isolated HTML preview" : "Isolated SVG preview";
-    iframe.setAttribute("sandbox", kind === "html-preview" ? "allow-scripts" : "");
+    iframe.title = kind === "svg-preview" ? "Isolated SVG preview" : "Isolated code preview";
+    iframe.setAttribute("sandbox", kind === "svg-preview" ? "" : "allow-scripts allow-forms");
     iframe.setAttribute("referrerpolicy", "no-referrer");
     iframe.setAttribute("loading", "lazy");
     iframe.srcdoc = documentText;
@@ -179,6 +183,141 @@ function renderPreview(
   reset.addEventListener("click", showPreview);
   code.addEventListener("click", showCode);
   return root;
+}
+
+
+/** Enhance Obsidian-native Mermaid only after its SVG is available. */
+export function enhanceNoxMermaidDiagrams(content: HTMLElement): number {
+  let count = 0;
+  for (const mermaid of Array.from(content.querySelectorAll<HTMLElement>(".mermaid"))) {
+    if (mermaid.closest(".nox-diagram") || mermaid.closest(".nox-visual")) continue;
+    const svg = mermaid.querySelector<SVGSVGElement>("svg");
+    if (!svg) continue;
+    const width = Number.parseFloat(svg.getAttribute("width") ?? "");
+    const height = Number.parseFloat(svg.getAttribute("height") ?? "");
+    if (!svg.hasAttribute("viewBox") && width > 0 && height > 0) {
+      svg.setAttribute("viewBox", "0 0 " + width + " " + height);
+    }
+    const root = element("section", "nox-diagram");
+    const toolbar = element("div", "nox-diagram-toolbar");
+    const viewport = element("div", "nox-diagram-viewport");
+    viewport.tabIndex = 0;
+    viewport.setAttribute("role", "region");
+    viewport.setAttribute("aria-label", "Scrollable Mermaid diagram");
+    const out = button("Zoom out", "minus");
+    const reset = button("Fit diagram", "scan");
+    const zoomIn = button("Zoom in", "plus");
+    const expand = button("Expand diagram", "maximize-2");
+    toolbar.append(out, reset, zoomIn, expand);
+    mermaid.replaceWith(root);
+    root.append(toolbar, viewport);
+    viewport.append(mermaid);
+    let zoom = 100;
+    const applyZoom = () => {
+      mermaid.style.width = String(zoom) + "%";
+      out.disabled = zoom <= 100;
+      zoomIn.disabled = zoom >= 300;
+      reset.disabled = zoom === 100;
+    };
+    out.addEventListener("click", () => { zoom = Math.max(100, zoom - 25); applyZoom(); });
+    zoomIn.addEventListener("click", () => { zoom = Math.min(300, zoom + 25); applyZoom(); });
+    reset.addEventListener("click", () => {
+      zoom = 100;
+      applyZoom();
+      viewport.scrollTo(0, 0);
+    });
+    const collapse = () => {
+      root.classList.remove("is-expanded");
+      expand.setAttribute("aria-label", "Expand diagram");
+      expand.title = "Expand diagram";
+      setNoxIcon(expand, "maximize-2");
+    };
+    expand.addEventListener("click", () => {
+      if (root.classList.contains("is-expanded")) collapse();
+      else {
+        root.classList.add("is-expanded");
+        expand.setAttribute("aria-label", "Close expanded diagram");
+        expand.title = "Close expanded diagram";
+        setNoxIcon(expand, "minimize-2");
+        expand.focus();
+      }
+    });
+    root.addEventListener("keydown", event => {
+      if (event.key === "Escape" && root.classList.contains("is-expanded")) {
+        event.preventDefault();
+        collapse();
+      }
+    });
+    applyZoom();
+    count++;
+  }
+  return count;
+}
+
+/** Preserve native source selection; add one copy button at the top right. */
+function enhanceNoxCodeBlocks(content: HTMLElement): void {
+  for (const pre of Array.from(content.querySelectorAll<HTMLPreElement>("pre"))) {
+    if (pre.closest(".nox-code-block") || pre.closest(".nox-visual") ||
+        pre.closest(".mermaid")) continue;
+    const code = pre.querySelector("code");
+    if (!code) continue;
+    const wrapper = element("section", "nox-code-block");
+    const bar = element("div", "nox-code-toolbar");
+    const copy = button("Copy code", "copy");
+    copy.addEventListener("click", () => {
+      void navigator.clipboard.writeText(code.textContent ?? "").then(() => {
+        copy.title = "Copied";
+        copy.setAttribute("aria-label", "Copied");
+        setNoxIcon(copy, "check");
+        window.setTimeout(() => {
+          if (!copy.isConnected) return;
+          copy.title = "Copy code";
+          copy.setAttribute("aria-label", "Copy code");
+          setNoxIcon(copy, "copy");
+        }, 1400);
+      }).catch(() => {
+        copy.title = "Copy failed";
+        copy.setAttribute("aria-label", "Copy failed");
+      });
+    });
+    bar.append(copy);
+    const classes = Array.from(code.classList);
+    const kind = classes.some(name => name === "language-js" || name === "language-javascript")
+      ? "js-preview" : classes.includes("language-html") ? "html-preview" : null;
+    const source = code.textContent ?? "";
+    const srcdoc = kind ? createNoxPreviewDocument(kind, source) : null;
+    if (srcdoc) {
+      const run = button("Run isolated preview", "play");
+      const stage = element("div", "nox-visual-stage");
+      let running = false;
+      run.addEventListener("click", () => {
+        stage.replaceChildren();
+        if (running) {
+          running = false;
+          run.title = "Run isolated preview";
+          run.setAttribute("aria-label", "Run isolated preview");
+          setNoxIcon(run, "play");
+          return;
+        }
+        const iframe = element("iframe", "nox-visual-frame");
+        iframe.title = "Isolated code execution";
+        iframe.setAttribute("sandbox", "allow-scripts allow-forms");
+        iframe.setAttribute("referrerpolicy", "no-referrer");
+        iframe.srcdoc = srcdoc;
+        stage.append(iframe);
+        running = true;
+        run.title = "Stop preview";
+        run.setAttribute("aria-label", "Stop preview");
+        setNoxIcon(run, "square");
+      });
+      bar.append(run);
+      pre.replaceWith(wrapper);
+      wrapper.append(bar, pre, stage);
+    } else {
+      pre.replaceWith(wrapper);
+      wrapper.append(bar, pre);
+    }
+  }
 }
 
 /**
@@ -238,5 +377,22 @@ export function enhanceNoxResponseVisuals(content: HTMLElement): number {
       enhanced++;
     }
   }
+  enhanced += enhanceNoxMermaidDiagrams(content);
+  // Obsidian may settle native Mermaid SVGs after MarkdownRenderer resolves.
+  // Observe only pending diagrams, for at most three seconds, then disconnect.
+  if (Array.from(content.querySelectorAll<HTMLElement>(".mermaid"))
+      .some(node => !node.closest(".nox-diagram") && !node.querySelector("svg"))) {
+    const observer = new MutationObserver(() => {
+      if (!content.isConnected) { observer.disconnect(); return; }
+      enhanceNoxMermaidDiagrams(content);
+      if (!Array.from(content.querySelectorAll<HTMLElement>(".mermaid"))
+          .some(node => !node.closest(".nox-diagram") && !node.querySelector("svg"))) {
+        observer.disconnect();
+      }
+    });
+    observer.observe(content, { subtree: true, childList: true });
+    window.setTimeout(() => observer.disconnect(), 3000);
+  }
+  enhanceNoxCodeBlocks(content);
   return enhanced;
 }

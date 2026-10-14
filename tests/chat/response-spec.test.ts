@@ -14,6 +14,7 @@ test("only explicitly opted-in fences become interactive visuals", () => {
   assert.equal(visualKindFromClasses(["language-javascript"]), null);
   assert.equal(visualKindFromClasses(["language-html-preview"]), "html-preview");
   assert.equal(visualKindFromClasses(["language-svg-preview"]), "svg-preview");
+  assert.equal(visualKindFromClasses(["language-js-preview"]), "js-preview");
   assert.equal(visualKindFromClasses(["language-nox-chart"]), "nox-chart");
   assert.equal(visualKindFromClasses(["language-nox-flow"]), "nox-flow");
   assert.equal(visualKindFromClasses(["language-nox-card"]), "nox-card");
@@ -86,4 +87,18 @@ test("card schemas reject unsafe shapes and preserve literal values", () => {
   assert.equal(parseNoxCard(JSON.stringify({ ...spec, items: [] })), null);
   assert.equal(parseNoxCard(JSON.stringify({ ...spec, title: "x".repeat(121) })), null);
   assert.equal(parseNoxCard(JSON.stringify({ ...spec, kind: "script" })), null);
+});
+
+test("isolated JavaScript runner keeps source inside an opaque-origin frame", () => {
+  const src = 'console.log("hello");';
+  const doc = createNoxPreviewDocument("js-preview", src);
+  assert.ok(doc?.includes("id=\"nox-output\""));
+  assert.ok(doc?.includes(src));
+  assert.ok(doc?.includes("connect-src 'none'"));
+  assert.ok(doc?.includes("form-action 'none'"));
+  assert.ok(doc?.includes("script-src 'unsafe-inline'"));
+  assert.ok(!doc?.includes("allow-same-origin"));
+  const escaped = createNoxPreviewDocument("js-preview",
+    'console.log("</script><img src=x onerror=alert(1)>");');
+  assert.ok(!escaped?.includes('console.log("</script>'));
 });

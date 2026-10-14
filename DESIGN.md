@@ -679,3 +679,18 @@ Rounded-full applies specifically to header icon buttons and the capsule
 controls; existing functional cards and settings preserve their compact
 rectangular shape. Keyboard focus stays visible as a flat in-surface color
 change. No new learning state or model registry is created.
+
+
+### Response viewport and variants (2026-10-15)
+
+Thread reading content is capped at 768px and centered; narrow Obsidian panes
+take 100% available width. Native Mermaid is fit to the local viewport with
+icon-only Zoom/Fit/Expand; wide diagrams pan only in their own region.
+Source-code Copy sits at top right. Browser-executable HTML/JavaScript offers
+explicit, sandboxed Run/Stop. Assistant message actions are icon-only and
+consistent between newly streamed and restored history.
+
+Regenerate is distinct from retry. Only the latest Ask/Explain answer can be
+regenerated; alternatives are durable (maximum eight). A failed generation
+leaves canonical transcript state unchanged; selections go through the existing
+serialized SessionController writer and invalidate provider cursor state.

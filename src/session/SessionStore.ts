@@ -256,6 +256,30 @@ export class SessionStore {
       }
     }
 
+    // Decode bounded response alternatives independently; malformed metadata must
+    // never hide or corrupt a valid canonical assistant message.
+    if (raw.role === "assistant" && Array.isArray(raw.responseVersions) &&
+        raw.responseVersions.length >= 2 && raw.responseVersions.length <= 8 &&
+        Number.isInteger(raw.responseVersionIndex)) {
+      const versions = raw.responseVersions.map(value => {
+        if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+        const item = value as Record<string, unknown>;
+        if (typeof item.content !== "string" || !item.content.trim()) return null;
+        if (item.sourcePath !== undefined && typeof item.sourcePath !== "string") return null;
+        return { content: item.content,
+          ...(typeof item.sourcePath === "string" ? { sourcePath: item.sourcePath } : {}),
+          ...(typeof item.thought === "string" ? { thought: item.thought } : {}),
+          ...(typeof item.elapsedMs === "number" && Number.isFinite(item.elapsedMs) &&
+              item.elapsedMs >= 0 ? { elapsedMs: item.elapsedMs } : {}) };
+      });
+      const index = raw.responseVersionIndex as number;
+      if (versions.every(version => version !== null) && index >= 0 &&
+          index < versions.length && versions[index]?.content === message.content) {
+        message.responseVersions = versions as NonNullable<ChatMessage["responseVersions"]>;
+        message.responseVersionIndex = index;
+      }
+    }
+
     if (raw.role === "assistant" && raw.proposal && typeof raw.proposal === "object") {
       const proposal = raw.proposal as Record<string, unknown>;
       if (typeof proposal.file === "string" &&

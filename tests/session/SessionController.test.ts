@@ -794,3 +794,63 @@ test("quiz draft write failure does not mutate the in-memory canonical session",
   await writer.savePracticeDraft("q", { type: "essay", text: "My draft" });
   assert.equal(writer.getSession().practiceDrafts?.q?.type, "essay");
 });
+
+test("regenerate saves alternatives atomically and selected version survives restart", async () => {
+  const harness = pluginHarness();
+  const writer = createController(harness);
+  await writer.init();
+  await writer.recordUserMessage("Explain Go", "session-1", "ask");
+  await writer.recordAssistantMessage("Original answer", "Go.md", "session-1", undefined, 14000);
+  await writer.setConversationId("old-cursor", "session-1");
+  await writer.recordRegeneratedResponse(1, "Original answer", {
+    content: "New answer", sourcePath: "Go.md", elapsedMs: 47000,
+  }, "session-1", "new-cursor");
+  const message = writer.getSession().messages[1];
+  assert.equal(message.content, "New answer");
+  assert.deepEqual(message.responseVersions?.map(version => version.content),
+    ["Original answer", "New answer"]);
+  assert.equal(message.responseVersionIndex, 1);
+  assert.equal(message.elapsedMs, 47000);
+  assert.equal(writer.getSession().conversationId, "new-cursor");
+  await assert.rejects(writer.recordRegeneratedResponse(1, "Original answer",
+    { content: "Stale replacement" }, "session-1"));
+  assert.equal(writer.getSession().messages[1].content, "New answer");
+  const restored = createController(harness);
+  await restored.init();
+  assert.equal(restored.getSession().messages[1].responseVersions?.length, 2);
+  assert.equal(restored.getSession().messages[1].responseVersions?.[0].elapsedMs, 14000);
+  await restored.selectResponseVersion(1, 0, "session-1");
+  assert.equal(restored.getSession().messages[1].content, "Original answer");
+  assert.equal(restored.getSession().messages[1].elapsedMs, 14000);
+  assert.equal(restored.getSession().conversationId, undefined);
+  const reloaded = createController(harness);
+  await reloaded.init();
+  assert.equal(reloaded.getSession().messages[1].responseVersionIndex, 0);
+  assert.equal(reloaded.getSession().messages[1].content, "Original answer");
+});
+
+test("failed regeneration storage write preserves original and cursor", async () => {
+  let data: Record<string, unknown> | null = null;
+  let rejectWrite = false;
+  const repo = new PluginDataRepository({
+    loadData: async () => data,
+    saveData: async (next: Record<string, unknown>) => {
+      if (rejectWrite) throw new Error("disk full");
+      data = next;
+    },
+  } as never);
+  const writer = new SessionController(repo, new SessionStore({
+    now: () => 1, uuid: () => "session-1",
+  }));
+  await writer.init();
+  await writer.recordUserMessage("Question", "session-1", "explain");
+  await writer.recordAssistantMessage("Original", "Note.md", "session-1");
+  await writer.setConversationId("original-cursor", "session-1");
+  rejectWrite = true;
+  await assert.rejects(writer.recordRegeneratedResponse(1, "Original",
+    { content: "Attempt" }, "session-1", "attempt-cursor"));
+  const after = writer.getSession();
+  assert.equal(after.messages[1].content, "Original");
+  assert.equal(after.messages[1].responseVersions, undefined);
+  assert.equal(after.conversationId, "original-cursor");
+});

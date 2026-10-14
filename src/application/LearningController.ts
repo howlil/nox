@@ -74,6 +74,11 @@ export class LearningController {
     return this.sessions.mutateHistory(ids, action);
   }
 
+  async selectResponseVersion(messageIndex: number, versionIndex: number): Promise<void> {
+    this.assertRuntimeIdle();
+    await this.sessions.selectResponseVersion(messageIndex, versionIndex, this.sessions.getSession().id);
+  }
+
   getModels(): AgentModel[] {
     return this.runtime.getModels();
   }

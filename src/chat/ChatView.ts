@@ -1522,11 +1522,19 @@ export class ChatView extends ItemView {
     this.ensureThinkingTrace();
 
     try {
+      let regenerated = false;
+      const sessionId = this.learning.getSession().id;
       for await (const event of this.learning.run({
         ...request,
-        retry: !appendUserMessage,
+        retry: !appendUserMessage && !request.regenerate,
       })) {
+        if (event.type === "completed") regenerated = true;
         this.handleLearningEvent(event);
+      }
+      // Drop the provisional streaming bubble only after the new version is
+      // durable. A failure leaves the original response intact.
+      if (request.regenerate && regenerated && this.learning.getSession().id === sessionId) {
+        await this.restoreSession();
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
@@ -2093,7 +2101,7 @@ export class ChatView extends ItemView {
     this.thread.empty();
     this.restoringSession = true;
     try {
-      for (const message of messages) {
+      for (const [messageIndex, message] of messages.entries()) {
         if (message.role === "user") {
           this.appendUserBubble(message.content);
           continue;
@@ -2102,7 +2110,7 @@ export class ChatView extends ItemView {
           this.appendRestoredThinkingTrace(message);
         }
         if (message.content.trim()) {
-          await this.appendRestoredAssistant(message.content, message.sourcePath);
+          await this.appendRestoredAssistant(message.content, message.sourcePath, messageIndex);
         }
         if (message.proposal) {
           this.appendRestoredProposal(message);
@@ -2119,6 +2127,7 @@ export class ChatView extends ItemView {
   private async appendRestoredAssistant(
     markdown: string,
     messageSourcePath?: string,
+    messageIndex?: number,
   ): Promise<void> {
     const bubble = this.thread.createDiv({
       cls: "nox-bubble nox-bubble--agent",
@@ -2143,6 +2152,7 @@ export class ChatView extends ItemView {
     );
     this.wireMarkdownLinks(content, sourcePath);
     enhanceNoxResponseVisuals(content);
+    if (messageIndex !== undefined) this.appendResponseActions(bubble, markdown, messageIndex);
   }
 
   private appendRestoredStructuredParts(message: ChatMessage): void {
@@ -2445,30 +2455,96 @@ export class ChatView extends ItemView {
 
   private appendStreamActions(): void {
     if (!this.agentCursorEl || !this.streamedResponseText.trim()) return;
+    const messages = this.learning.getSession().messages;
+    if (messages.length) {
+      this.appendResponseActions(this.agentCursorEl, this.streamedResponseText, messages.length - 1);
+    }
+  }
 
-    const responseText = this.streamedResponseText.trim();
-    const actions = this.agentCursorEl.createDiv({
-      cls: "nox-stream-actions",
+  /** Identical icon toolbar for completed live turns and restored history. */
+  private appendResponseActions(
+    bubble: HTMLElement, responseText: string, messageIndex: number,
+  ): void {
+    if (!responseText.trim()) return;
+    const messages = this.learning.getSession().messages;
+    const message = messages[messageIndex];
+    if (message?.role !== "assistant") return;
+    const user = messages[messageIndex - 1];
+    const isLatest = messageIndex === messages.length - 1;
+    const canRegenerate = isLatest && user?.role === "user" &&
+      (user.action === "ask" || user.action === "explain") &&
+      !this.learning.hasActivePracticeQuestion() &&
+      !message.proposal && !message.parts?.length;
+    const actions = bubble.createDiv({ cls: "nox-stream-actions" });
+    const copy = createNoxIconButton(actions, {
+      cls: "nox-stream-action", icon: "copy", label: "Copy response", title: "Copy response",
     });
-    const copyButton = createNoxButton(actions, {
-      cls: "nox-stream-action",
-      variant: "quiet",
-      label: "Copy response",
-      text: "Copy",
+    copy.addEventListener("click", () => {
+      void navigator.clipboard.writeText(responseText).then(() => {
+        copy.setAttribute("aria-label", "Copied");
+        copy.title = "Copied";
+        setNoxIcon(copy, "check");
+        window.setTimeout(() => {
+          if (!copy.isConnected) return;
+          copy.setAttribute("aria-label", "Copy response");
+          copy.title = "Copy response";
+          setNoxIcon(copy, "copy");
+        }, 1400);
+      }).catch(() => new Notice("Unable to copy the response."));
     });
 
-    if ((this.runningAction === "ask" || this.runningAction === "explain") &&
-        !this.learning.hasActivePracticeQuestion()) {
-      const quickCheck = createNoxButton(actions, {
-        cls: "nox-stream-action",
-        variant: "quiet",
-        label: "Generate interactive practice from this explanation",
-        text: "Quiz me",
+    const versions = message.responseVersions;
+    if (versions && versions.length > 1) {
+      const selected = message.responseVersionIndex ?? versions.length - 1;
+      const back = createNoxIconButton(actions, {
+        cls: "nox-stream-action", icon: "chevron-left",
+        label: "Previous response", title: "Previous response",
+      });
+      back.disabled = selected <= 0;
+      const counter = actions.createSpan({
+        cls: "nox-response-variant-index", text: (selected + 1) + "/" + versions.length,
+      });
+      counter.setAttribute("aria-label", "Response version " + (selected + 1) + " of " + versions.length);
+      const forward = createNoxIconButton(actions, {
+        cls: "nox-stream-action", icon: "chevron-right",
+        label: "Next response", title: "Next response",
+      });
+      forward.disabled = selected >= versions.length - 1;
+      const select = (index: number) => {
+        if (this.uiState === "RUNNING") return;
+        void this.learning.selectResponseVersion(messageIndex, index)
+          .then(() => this.restoreSession())
+          .catch(() => new Notice("Could not select response version."));
+      };
+      back.addEventListener("click", () => select(selected - 1));
+      forward.addEventListener("click", () => select(selected + 1));
+    }
+
+    if (canRegenerate) {
+      const regenerate = createNoxIconButton(actions, {
+        cls: "nox-stream-action", icon: "refresh-cw",
+        label: "Regenerate response", title: "Regenerate response",
+      });
+      regenerate.addEventListener("click", () => {
+        if (this.uiState === "RUNNING" || !this.runtimeReady) return;
+        // Snapshot is checked again at the application/persistence boundary.
+        const request: LearningRequest = {
+          turnId: crypto.randomUUID(),
+          prompt: user?.content ?? "",
+          action: user?.action === "explain" ? "explain" : "ask",
+          explicitContext: [],
+          regenerate: { messageIndex, expectedContent: message.content },
+        };
+        this.lastTurnRequest = request;
+        void this.runTurn(request, false);
+      });
+      const quickCheck = createNoxIconButton(actions, {
+        cls: "nox-stream-action", icon: "list-checks",
+        label: "Quiz me", title: "Generate a practice question from this explanation",
       });
       quickCheck.addEventListener("click", () => {
         if (this.uiState === "RUNNING" || !this.runtimeReady) return;
         this.setAction("practice");
-        // The generated explanation is task context, not trusted system policy.
         this.input.value = "Generate one interactive knowledge-check question " +
           "(MCQ, essay, or code if appropriate) about this explanation: " +
           JSON.stringify(responseText.slice(0, 1600));
@@ -2476,19 +2552,6 @@ export class ChatView extends ItemView {
         void this.doSend();
       });
     }
-
-    copyButton.addEventListener("click", async () => {
-      try {
-        await navigator.clipboard.writeText(responseText);
-        copyButton.textContent = "Copied";
-      } catch {
-        copyButton.textContent = "Copy failed";
-      }
-
-      window.setTimeout(() => {
-        copyButton.textContent = "Copy";
-      }, 1400);
-    });
   }
 
   private appendPracticeQuestion(

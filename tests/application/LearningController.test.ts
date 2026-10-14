@@ -112,6 +112,8 @@ function createHarness(
         metrics,
       });
     },
+    recordRegeneratedResponse: async () => {},
+    selectResponseVersion: async () => {},
     recordStructuredPart: async (part: { type: string; questionId?: string }) => {
       if (part.type === "practice-evaluation" && transcriptFailures-- > 0) {
         throw new Error("Simulated session persistence failure");

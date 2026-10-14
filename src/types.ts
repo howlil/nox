@@ -107,9 +107,19 @@ export interface AgentTurnMetrics {
 
 // ── Session ─────────────────────────────────────────────────────────────────
 
+/** Bounded, display-only alternatives; only the selected answer enters model history. */
+export interface ResponseVersion {
+  content: string;
+  sourcePath?: string;
+  thought?: string;
+  elapsedMs?: number;
+}
+
 export interface ChatMessage {
   role: "user" | "assistant";
   content: string;
+  responseVersions?: ResponseVersion[];
+  responseVersionIndex?: number;
   parts?: TranscriptPart[];
   /** Action retained for practice recovery after session reload. */
   action?: "ask" | "explain" | "practice" | "review" | "edit";

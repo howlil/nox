@@ -360,6 +360,21 @@
   background: var(--nox-canvas);
   scroll-behavior: smooth;
   scrollbar-gutter: stable;
+  overflow-x: hidden;
+}
+
+/* One readable column regardless of Obsidian pane width. Visuals own their scroll. */
+.nox-thread > :not(.nox-bubble--user) {
+  width: min(100%, 768px);
+  max-width: 768px;
+  min-width: 0;
+  margin-inline: auto;
+}
+.nox-thread > .nox-bubble--user {
+  max-width: min(84%, 630px);
+  min-width: 0;
+  margin-right: max(0px, calc((100% - 768px) / 2));
+  margin-left: auto;
 }
 
 .nox-thread::-webkit-scrollbar {
@@ -532,6 +547,9 @@
 
 .nox-bubble-content {
   display: block;
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
 }
 
 .nox-bubble-content.nox-markdown {
@@ -662,6 +680,8 @@
 
 .nox-stream-actions {
   display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
   align-items: center;
   gap: 3px;
   margin-top: 9px;
@@ -672,10 +692,22 @@
 }
 
 .nox-stream-action {
-  min-height: 25px;
-  padding: 3px 8px;
-  border-radius: var(--nox-radius-chip);
+  display: inline-flex;
+  width: 30px;
+  height: 30px;
+  min-height: 30px;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border-radius: var(--nox-radius-pill);
+}
+.nox-stream-action:disabled { opacity: 0.45; cursor: not-allowed; }
+.nox-response-variant-index {
+  align-self: center;
+  padding: 0 4px;
   font-size: 11px;
+  color: var(--nox-ink-3);
+  font-variant-numeric: tabular-nums;
 }
 
 .nox-bubble--streaming::after {
@@ -1085,7 +1117,7 @@
   @apply relative shrink-0;
   position: relative;
   flex-shrink: 0;
-  padding: 6px 10px 8px;
+  padding: 6px max(10px, calc((100% - 768px) / 2)) 8px;
   border-top: 1px solid var(--nox-line);
   background: var(--nox-page);
 }
@@ -3319,6 +3351,87 @@
 }
 
 
+
+/* Native Mermaid diagrams must not enlarge the chat scroll container. */
+.nox-root .nox-markdown .mermaid,
+.nox-root .nox-markdown .nox-diagram {
+  min-width: 0;
+  max-width: 100%;
+}
+.nox-root .nox-diagram {
+  margin: 10px 0;
+  overflow: hidden;
+  border: 1px solid var(--nox-line);
+  border-radius: var(--nox-radius-card);
+  background: var(--nox-surface);
+}
+.nox-diagram-toolbar, .nox-code-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 3px;
+  min-height: 32px;
+  padding: 2px 5px;
+  background: var(--nox-surface);
+}
+.nox-diagram-viewport {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  max-height: 530px;
+  overflow: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  background: var(--nox-surface);
+}
+.nox-diagram-viewport .mermaid {
+  display: block;
+  width: 100%;
+  margin: 0;
+  padding: 8px;
+}
+.nox-root .nox-markdown .mermaid svg {
+  max-width: 100% !important;
+  height: auto !important;
+}
+.nox-diagram-viewport .mermaid svg {
+  display: block;
+  width: 100% !important;
+  max-width: none !important;
+  height: auto !important;
+  margin: 0 auto;
+}
+.nox-diagram.is-expanded {
+  position: fixed;
+  inset: 14px;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  max-width: none !important;
+  margin: 0;
+}
+.nox-diagram.is-expanded .nox-diagram-viewport {
+  flex: 1;
+  max-height: none;
+}
+.nox-root .nox-code-block {
+  position: relative;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  margin: 10px 0;
+  border: 1px solid var(--nox-line);
+  border-radius: var(--nox-radius-card);
+  background: var(--nox-inset);
+}
+.nox-root .nox-code-block pre {
+  margin: 0;
+  max-width: 100%;
+  border: 0;
+  border-radius: 0;
+}
+.nox-code-block .copy-code-button { display: none !important; }
+
 /* Assistant response visuals: content-first, theme-aware, no floating nested cards. */
 .nox-root .nox-visual {
   min-width: 0;
@@ -3341,11 +3454,16 @@
 .nox-visual-title { font-size: 12px; font-weight: 600; color: var(--nox-ink); }
 .nox-visual-controls { display: flex; flex-wrap: wrap; gap: 3px; }
 .nox-visual-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
   font: inherit;
   font-size: 11px;
   line-height: 1.4;
-  min-height: 28px;
-  padding: 4px 8px;
+  min-height: 30px;
+  padding: 0;
   border-radius: var(--nox-radius-control);
   background: transparent;
   color: var(--nox-ink-2);
@@ -3360,7 +3478,13 @@
 }
 .nox-visual-action:disabled { opacity: .5; cursor: not-allowed; }
 .nox-visual-action[hidden] { display: none; }
-.nox-visual-stage { min-width: 0; background: var(--nox-inset); }
+.nox-visual-stage {
+  min-width: 0;
+  width: 100%;
+  max-width: 100%;
+  overflow: hidden;
+  background: var(--nox-inset);
+}
 .nox-root .nox-visual-source {
   margin: 0;
   max-height: 350px;
@@ -3371,7 +3495,7 @@
 .nox-root .nox-visual-frame {
   display: block;
   width: 100%;
-  height: 270px;
+  height: clamp(240px, 48vh, 480px);
   border: 0;
   background: #fff;
   color-scheme: light;

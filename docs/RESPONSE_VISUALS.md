@@ -153,3 +153,36 @@ Model format hints are injected only where relevant, to limit prompt size.
 - Arbitrary compiled React bundles, remote mini-apps, backend commands or execution in plugin origin.
 - New learning persistence, arbitrary interactive widgets and curriculum edits from graph.
 - Vega/React Flow dependencies until complexity justifies them.
+
+
+## Responsive response system (2026-10-15)
+
+Design thinking: reproduce overflow in native Mermaid and custom visuals,
+define one 768px reading-column constraint, enhance existing Obsidian output
+instead of adding a second renderer, and verify width, keyboard, history and sandbox.
+
+Graph: AI stream -> RunLearningTurn -> SessionController -> ChatView ->
+MarkdownRenderer -> response-visuals -> native Mermaid viewport or code sandbox.
+
+- Thread width: max 768px centered, width 100% in narrow panes.
+- Native Mermaid: Obsidian-owned SVG enhanced with Fit, Zoom and Expand.
+  Late native diagrams use a bounded observer; the raw source persists.
+- Zoom changes inner diagram width, never the chat/document width.
+- Standard code fences: copy at top-right. HTML/JavaScript run only after
+  explicit click, inside opaque-origin sandbox iframes; source stays visible.
+- HTML, JS, SVG preview: icon-only Play, Code, Reset with accessible labels.
+  Never auto-run restored content.
+- The iframe denies network, nested frames, popup/navigation, and form posts
+  by CSP; do not add allow-same-origin.
+- Regenerate only the last plain Ask/Explain answer. New turn ID; exclude
+  replaced user prompt and answer from prior provider history; rotate cursor.
+  Persist up to eight alternatives atomically after successful generation.
+  Failed regeneration leaves the original intact. Selecting a version clears
+  the opaque provider cursor and is handled by SessionController.
+- Non-browser code (Go, Java, Spring) must NOT execute inside Obsidian or with
+  inherited vault/filesystem authority. A separately isolated, resource-limited,
+  network-denied execution service is a prerequisite for such code.
+
+Acceptance: 320/390/768/1440 widths, no page-level horizontal scrollbar,
+Mermaid zoom/fit/fullscreen, keyboard and aria labels, sandbox behavior,
+restart and stale-write regression tests, pnpm verify, manual Obsidian check.
