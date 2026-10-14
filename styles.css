@@ -2959,3 +2959,17 @@
   .nox-learning-graph { animation: none; }
   .nox-learning-graph-track > div { transition: none; }
 }
+
+.nox-source-card { margin-top: 4px; background: var(--nox-inset); border-radius: 6px; }
+.nox-source-card > summary {
+  display: flex; gap: 8px; justify-content: space-between; align-items: center;
+  cursor: pointer; padding: 7px 8px; font-size: 11px;
+  overflow-wrap: anywhere; min-width: 0;
+}
+.nox-source-card > summary > :first-child { min-width: 0; }
+.nox-source-card > summary > :last-child { flex-shrink: 0; }
+.nox-source-preview {
+  white-space: pre-wrap; overflow-wrap: anywhere; padding: 0 8px 8px;
+  color: var(--nox-ink-2); font-size: 11px; line-height: 1.55;
+  max-height: 180px; overflow: auto;
+}
