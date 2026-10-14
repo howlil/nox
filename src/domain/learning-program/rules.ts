@@ -14,9 +14,13 @@ export function validateConstraints(constraints: ProgramConstraints, today = new
     throw new Error("Sessions per week must be 1–7.");
   }
   if (constraints.deadline) {
-    const deadline = new Date(`${constraints.deadline}T23:59:59`);
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(constraints.deadline) || !Number.isFinite(deadline.getTime()) ||
-        deadline.toISOString().slice(0, 10) !== constraints.deadline ||
+    const iso = constraints.deadline;
+    const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso);
+    const deadline = match ? new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]), 23, 59, 59) : null;
+    if (!match || !deadline ||
+        deadline.getFullYear() !== Number(match[1]) ||
+        deadline.getMonth() !== Number(match[2]) - 1 ||
+        deadline.getDate() !== Number(match[3]) ||
         deadline.getTime() < new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime()) {
       throw new Error("Deadline must be a valid present or future date (YYYY-MM-DD).");
     }
