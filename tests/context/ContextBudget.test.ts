@@ -49,3 +49,16 @@ test("deduplicates identical source and records estimates, not actual provider u
   assert.equal(result.context.length, 1);
   assert.equal(result.estimate.compacted, false);
 });
+
+test("multilingual memory cannot exceed its history allocation", () => {
+  const history = Array.from({ length: 80 }, (_, i) => ({
+    role: (i % 2 ? "assistant" : "user") as "assistant" | "user",
+    content: ("会話の記録と学習情報 ").repeat(500) + i,
+  }));
+  const result = prepareContextEnvelope({
+    prompt: "Summarize the networking concept", visible: [], system: [], history,
+    maxInputTokens: 1800,
+  });
+  assert.ok(result.estimate.total <= 1800);
+  assert.ok(result.estimate.history <= Math.floor(1800 * 0.24));
+});
