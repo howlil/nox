@@ -7,6 +7,7 @@ import { createObsidianOAuthFetch } from "./agent/ObsidianOAuthTransport";
 import { createObsidianInferenceFetch } from "./agent/ObsidianInferenceTransport";
 import { createNodeInferenceFetch } from "./agent/NodeInferenceTransport";
 import { AgentRuntime } from "./agent/AgentRuntime";
+import { QuotaSync } from "./application/QuotaSync";
 import { ChatView, NOX_VIEW_TYPE } from "./chat/ChatView";
 import { ContextResolver } from "./context/ContextResolver";
 import { ObsidianContext } from "./context/ObsidianContext";
@@ -48,6 +49,7 @@ export default class NoxPlugin extends Plugin {
   private pluginData!: PluginDataRepository;
   private tokenUsage!: TokenUsageRepository;
   private creditBalances!: CreditBalanceRepository;
+  private quotaSync!: QuotaSync;
   private vaultPath?: string;
   private runtime?: AgentRuntime;
   // Use the Obsidian HTTP stack for OAuth instead of renderer/Node global fetch.
@@ -64,6 +66,7 @@ export default class NoxPlugin extends Plugin {
     this.tokenUsage = new TokenUsageRepository(this.pluginData);
     this.creditBalances = new CreditBalanceRepository(this.pluginData);
     this.noxSettings = decodeNoxSettings(await this.pluginData.read());
+    this.quotaSync = this.createQuotaSync(this.noxSettings);
     const adapter = this.createAdapter(this.noxSettings);
     const runtime = new AgentRuntime(adapter,
       (usage, model, metadata) => this.tokenUsage.record(this.noxSettings.provider, model, usage, metadata));
@@ -167,6 +170,7 @@ export default class NoxPlugin extends Plugin {
   async onunload(): Promise<void> {
     this.rememberDevelopmentSidebar();
     this.runtime?.dispose();
+    this.quotaSync?.dispose();
     this.chatGptAuth.dispose();
     try { await this.learning?.flushSessionTime(); }
     catch (error) { console.warn("[Nox] Final learning time checkpoint failed", error); }
@@ -235,6 +239,10 @@ export default class NoxPlugin extends Plugin {
         updateData: (data) => ({ ...data, [NOX_SETTINGS_KEY]: next }),
       });
     this.noxSettings = next;
+    if (runtimeChanged) {
+      this.quotaSync.dispose();
+      this.quotaSync = this.createQuotaSync(next);
+    }
     await Promise.all(this.app.workspace.getLeavesOfType(NOX_VIEW_TYPE)
       .map((leaf) => (leaf.view as ChatView).refreshRuntime(runtimeChanged)));
   }
@@ -242,6 +250,8 @@ export default class NoxPlugin extends Plugin {
   getTokenUsageSnapshot(): ReturnType<TokenUsageRepository["snapshot"]> {
     return this.tokenUsage.snapshot();
   }
+
+  getProviderQuotas(force = false) { return this.quotaSync.read(force); }
 
   getCreditBalances() { return this.creditBalances.list(); }
 
@@ -284,6 +294,19 @@ export default class NoxPlugin extends Plugin {
       await Promise.all(this.app.workspace.getLeavesOfType(NOX_VIEW_TYPE)
         .map((leaf) => (leaf.view as ChatView).refreshRuntime(true)));
     }
+  }
+
+  private createQuotaSync(settings: NoxSettings): QuotaSync {
+    // Dedicated short-lived read-only sessions. They never share a conversation
+    // or write token usage, login credentials, or manual balance snapshots.
+    const agy = new AgyAdapter(this.vaultPath,
+      () => ({ executablePath: settings.executablePath }));
+    const codex = new CodexAdapter(this.vaultPath,
+      () => ({ executablePath: settings.codexExecutablePath }));
+    return new QuotaSync({
+      agy: signal => agy.readQuota(signal),
+      codex: signal => codex.readQuota(signal),
+    });
   }
 
   private createAdapter(settings: NoxSettings): AgyAdapter | CodexAdapter | ChatGptAdapter {
