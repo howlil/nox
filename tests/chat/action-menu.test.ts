@@ -33,7 +33,7 @@ test("program start and continue are state-dependent, never both default", () =>
 
 test("search filters to relevant commands and reveals advanced actions", () => {
   assert.deepEqual(buildActionMenu(saved, "pro").map(i => i.key).slice(0, 3),
-    ["programs", "progress", "programs-command"]);
+    ["progress", "programs", "programs-command"]);
   assert.deepEqual(buildActionMenu(saved, "use-program").map(i => i.key), ["use-program"]);
   assert.deepEqual(buildActionMenu(saved, "legacy").map(i => i.key).sort(),
     ["assessment", "focused"]);
