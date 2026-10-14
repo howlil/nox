@@ -105,7 +105,7 @@ export function renderNoxCard(spec: NoxCardSpec): HTMLElement {
 }
 
 function wrapLabel(text: string): string[] {
-  const words = text.split(/\\s+/);
+  const words = text.split(/\s+/);
   const lines: string[] = [];
   let current = "";
   for (const word of words) {
