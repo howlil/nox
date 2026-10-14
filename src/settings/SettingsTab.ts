@@ -160,7 +160,11 @@ export class NoxSettingsTab extends PluginSettingTab {
     const selected = records.filter(r =>
       (this.usageProvider === "all" || r.provider === this.usageProvider) &&
       (this.usageModel === "all" || r.model === this.usageModel));
-    const usage = summarizeUsage(selected);
+    const usage = selected.reduce((sum, item) => ({
+      requests: sum.requests + 1, inputTokens: sum.inputTokens + item.inputTokens,
+      outputTokens: sum.outputTokens + item.outputTokens,
+      cachedInputTokens: sum.cachedInputTokens + (item.cachedInputTokens ?? 0),
+    }), { requests: 0, inputTokens: 0, outputTokens: 0, cachedInputTokens: 0 });
     const summary = parent.createDiv({ cls: "nox-settings-usage-summary" });
     const values: Array<[string, number]> = [
       ["Recorded requests", usage.requests], ["Input tokens", usage.inputTokens],
