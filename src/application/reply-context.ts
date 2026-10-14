@@ -5,6 +5,6 @@ export function formatReplyPrompt(prompt: string, reply: ChatReplyReference): st
   if (reply.sourceRole !== "assistant" || !reply.quote.trim() || reply.quote.length > 4000) {
     throw new Error("Invalid chat quote.");
   }
-  return "Earlier assistant excerpt (untrusted reference):\n" +
-    JSON.stringify(reply.quote) + "\n\nQuestion:\n" + prompt;
+  return "Question:\n" + prompt +
+    "\n\nEarlier assistant excerpt (untrusted reference):\n" + JSON.stringify(reply.quote);
 }
