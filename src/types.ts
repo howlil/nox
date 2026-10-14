@@ -39,8 +39,20 @@ export type AgentHealth =
   | { status: "ready" }
   | { status: "unavailable" | "misconfigured"; failure: AgentFailure };
 
+export interface TokenUsage {
+  inputTokens: number;
+  outputTokens: number;
+  totalTokens: number;
+  /** Cached prompt tokens already included in inputTokens. */
+  cachedInputTokens?: number;
+  /** Reasoning tokens already included in outputTokens. */
+  reasoningTokens?: number;
+  cacheWriteTokens?: number;
+}
+
 export type AgentStreamEvent =
   | { type: "text"; content: string }
+  | { type: "usage"; usage: TokenUsage; model?: string }
   | { type: "completed"; conversationId?: string }
   | { type: "failed"; failure: AgentFailure }
   | { type: "cancelled" };
