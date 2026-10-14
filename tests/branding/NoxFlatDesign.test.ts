@@ -64,11 +64,30 @@ test("Learning surfaces and actions keep their canonical selectors", () => {
 
 test("compact visual grammar uses in-surface focus rather than outer rings", () => {
   assert.doesNotMatch(css, /outline:\s*2px solid/i);
-  assert.match(css, /\.nox-composer-controls\s*\{[^}]*grid-template-rows:\s*minmax\(24px, auto\) 30px;/s);
-  assert.match(css, /\.nox-input-line\s*\{[^}]*grid-column:\s*1 \/ -1;/s);
+  assert.match(css, /\.nox-composer-controls\s*\{[^}]*grid-template-rows:\s*32px;/s);
+  assert.match(css, /\.nox-input-line\s*\{[^}]*grid-column:\s*2;/s);
+  assert.match(css, /\.nox-composer-box\.is-expanded \.nox-composer-controls\s*\{[^}]*grid-template-rows:\s*auto 32px;/s);
+  assert.match(css, /\.nox-composer-box\.is-expanded \.nox-input-line\s*\{[^}]*grid-column:\s*1 \/ -1;/s);
   assert.ok(css.includes("textarea.nox-input:is(:hover, :focus, :focus-visible, :active)"));
   assert.match(css, /\.nox-composer-box:focus-within\s*\{[^}]*border-color:\s*var\(--nox-accent-border\);/s);
   assert.ok(css.includes(".nox-usage-header {"));
   assert.match(css, /\.nox-capability-card\s*\{[^}]*min-height:\s*90px;/s);
   assert.match(css, /\.nox-capability-meta\s*\{[^}]*background:\s*transparent;/s);
+});
+
+test("native rounded composer keeps the file picker, action menu and accessible model", () => {
+  const composer = readFileSync("src/chat/composer.ts", "utf8");
+  const view = readFileSync("src/chat/ChatView.ts", "utf8");
+  assert.match(composer, /label: "Attach a text file"/);
+  assert.match(composer, /this\.promptPlusBtn\.addEventListener\("click", options\.onOpenFilePicker\)/);
+  assert.match(view, /onOpenFilePicker: \(\) => \{[\s\S]*?this\.fileInput\.click\(\);/);
+  assert.match(composer, /nox-action-menu-key", text: "@"/);
+  assert.match(composer, /setNoxIcon\(this\.modelTrigger, "bot"\)/);
+  assert.match(composer, /aria-label", `Learning model: \$\{label\}`/);
+  assert.match(css, /\.nox-composer-box\s*\{[^}]*border-radius:\s*var\(--nox-radius-pill\);/s);
+  assert.match(css, /\.nox-header-right > :is\(\.nox-map-btn, \.nox-history-btn, \.nox-new-btn, \.nox-more-btn\)/);
+  assert.match(css, /\.nox-prompt-plus\s*\{[^}]*border-radius:\s*var\(--nox-radius-pill\);/s);
+  assert.match(css, /\.nox-model-trigger\s*\{[^}]*width:\s*32px;/s);
+  assert.ok(composer.includes("wrapsAtCapsuleWidth"));
+  assert.ok(composer.includes("const maxHeight = 120;"));
 });

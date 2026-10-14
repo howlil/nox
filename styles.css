@@ -319,31 +319,33 @@
   cursor: pointer;
 }
 
-.nox-new-btn,
-.nox-more-btn {
+.nox-header-right > :is(.nox-map-btn, .nox-history-btn, .nox-new-btn, .nox-more-btn) {
   display: inline-flex;
-  width: 30px;
-  height: 30px;
-  min-width: 30px;
-  min-height: 30px;
+  width: 32px;
+  height: 32px;
+  min-width: 32px;
+  min-height: 32px;
   padding: 0;
   align-items: center;
   justify-content: center;
   border: 1px solid transparent;
-  border-radius: var(--nox-radius-control);
-  background: transparent;
+  border-radius: var(--nox-radius-pill);
+  background: var(--nox-inset);
   color: var(--nox-ink-2);
   box-shadow: none;
-  font-size: 16px;
   line-height: 1;
 }
-
-.nox-new-btn:hover,
-.nox-new-btn:focus-visible,
-.nox-more-btn:hover,
-.nox-more-btn:focus-visible {
+.nox-header-right > :is(.nox-map-btn, .nox-history-btn, .nox-new-btn, .nox-more-btn):hover {
   background: var(--nox-hover);
   color: var(--nox-ink);
+}
+.nox-header-right > :is(.nox-map-btn, .nox-history-btn, .nox-new-btn, .nox-more-btn):focus-visible {
+  background: var(--nox-accent-soft);
+  color: var(--nox-accent-ink);
+}
+.nox-header-right > :is(.nox-map-btn, .nox-history-btn)[aria-expanded="true"] {
+  background: var(--nox-accent-soft);
+  color: var(--nox-accent-ink);
 }
 
 .nox-thread {
@@ -1083,7 +1085,7 @@
   @apply relative shrink-0;
   position: relative;
   flex-shrink: 0;
-  padding: 8px 12px 10px;
+  padding: 6px 10px 8px;
   border-top: 1px solid var(--nox-line);
   background: var(--nox-page);
 }
@@ -1346,15 +1348,19 @@
 
 .nox-composer-box {
   display: block;
-  padding: 8px 10px;
+  padding: 5px 6px 5px 8px;
   border: 1px solid var(--nox-line);
-  border-radius: var(--nox-radius-window);
+  border-radius: var(--nox-radius-pill);
   background: var(--nox-surface);
   box-shadow: none;
   cursor: text;
 }
 .nox-composer-box:focus-within {
   border-color: var(--nox-accent-border);
+}
+.nox-composer-box.is-expanded {
+  padding: 8px 7px 7px 10px;
+  border-radius: 16px;
 }
 
 .nox-attachments {
@@ -1404,32 +1410,31 @@
 
 .nox-composer-controls {
   display: grid;
-  grid-template-columns: 30px minmax(0, 1fr) auto auto;
-  grid-template-rows: minmax(24px, auto) 30px;
+  grid-template-columns: 32px minmax(0, 1fr) auto 32px;
+  grid-template-rows: 32px;
   align-items: center;
   width: 100%;
   min-width: 0;
-  gap: 5px 6px;
+  gap: 4px;
 }
 
 .nox-prompt-plus {
   display: inline-flex;
   grid-column: 1;
-  grid-row: 2;
+  grid-row: 1;
   align-items: center;
   justify-content: center;
-  width: 30px;
-  height: 30px;
-  flex: 0 0 auto;
+  width: 32px;
+  height: 32px;
+  flex: 0 0 32px;
   padding: 0;
   border: 1px solid transparent !important;
-  border-radius: var(--nox-radius-control);
+  border-radius: var(--nox-radius-pill);
   background: var(--nox-inset);
   color: var(--nox-ink-2);
   cursor: pointer;
   appearance: none;
   box-shadow: none !important;
-  font-size: 16px;
   line-height: 1;
 }
 
@@ -1437,11 +1442,6 @@
 .nox-prompt-plus:focus-visible {
   background: var(--nox-hover);
   color: var(--nox-ink);
-}
-
-.nox-prompt-plus[aria-expanded="true"] {
-  background: var(--nox-accent-tint);
-  color: var(--nox-accent-ink);
 }
 
 .nox-root textarea.nox-input,
@@ -1477,16 +1477,16 @@
 
 .nox-btn-group {
   grid-column: 4;
-  grid-row: 2;
+  grid-row: 1;
   align-items: center;
-  gap: 5px;
+  gap: 4px;
 }
 
 .nox-composer-tools {
   @apply flex items-center gap-1;
   display: flex;
   grid-column: 3;
-  grid-row: 2;
+  grid-row: 1;
   align-items: center;
   min-width: 0;
   gap: 4px;
@@ -1494,9 +1494,9 @@
 
 .nox-send-btn,
 .nox-cancel-btn {
-  width: 30px;
-  height: 30px;
-  border-radius: var(--nox-radius-control);
+  width: 32px;
+  height: 32px;
+  border-radius: var(--nox-radius-pill);
   font-size: 16px;
   line-height: 1;
 }
@@ -2006,16 +2006,18 @@
 
 .nox-action-menu-btn {
   display: inline-flex;
-  height: 30px;
+  width: 32px;
+  height: 32px;
+  flex: 0 0 32px;
   align-items: center;
-  gap: 5px;
-  padding: 0 8px;
+  justify-content: center;
+  padding: 0;
   border: 1px solid transparent !important;
-  border-radius: var(--nox-radius-control);
+  border-radius: var(--nox-radius-pill);
   background: var(--nox-inset);
   color: var(--nox-ink-2);
   cursor: pointer;
-  font-size: 11px;
+  font-size: 16px;
   box-shadow: none !important;
 }
 
@@ -2031,27 +2033,29 @@
 }
 
 .nox-action-menu-key {
-  font-family: var(--font-monospace), ui-monospace, monospace;
+  font-family: var(--font-interface, ui-sans-serif, system-ui, sans-serif);
+  font-size: 17px;
+  font-weight: 500;
+  line-height: 1;
 }
 
 .nox-model-trigger {
   display: inline-flex;
-  width: 130px;
-  max-width: 130px;
-  height: 30px;
-  min-width: 0;
+  width: 32px;
+  max-width: 32px;
+  height: 32px;
+  min-width: 32px;
+  flex: 0 0 32px;
   align-items: center;
-  gap: 5px;
-  padding: 0 7px;
+  justify-content: center;
+  padding: 0;
   overflow: hidden;
   border: 1px solid transparent !important;
-  border-radius: var(--nox-radius-control);
+  border-radius: var(--nox-radius-pill);
   background: var(--nox-inset);
   color: var(--nox-ink-2);
   cursor: pointer;
   box-shadow: none !important;
-  font-size: 11px;
-  text-align: left;
 }
 
 .nox-model-trigger:hover,
@@ -2063,24 +2067,6 @@
 .nox-model-trigger[aria-expanded="true"] {
   background: var(--nox-accent-tint);
   color: var(--nox-accent-ink);
-}
-
-.nox-model-trigger-label {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.nox-model-trigger-chevron {
-  display: inline-flex;
-  flex: 0 0 auto;
-  color: var(--nox-ink-3);
-}
-
-.nox-model-trigger-chevron .svg-icon {
-  width: 12px;
-  height: 12px;
 }
 
 .nox-model-menu {
@@ -2329,7 +2315,7 @@
 /* ── Inline-context composer v1 ─────────────────────────────────────────── */
 .nox-input-line {
   display: flex;
-  grid-column: 1 / -1;
+  grid-column: 2;
   grid-row: 1;
   min-width: 0;
   align-items: center;
@@ -2416,53 +2402,34 @@
   line-height: 20px;
 }
 
-.nox-action-menu-btn,
-.nox-model-trigger {
-  height: 30px;
+.nox-composer-box.is-expanded .nox-composer-controls {
+  grid-template-rows: auto 32px;
+  row-gap: 6px;
 }
-
-.nox-model-trigger {
-  width: auto;
-  max-width: 118px;
-}
-
 .nox-composer-box.is-expanded .nox-input-line {
   grid-column: 1 / -1;
   grid-row: 1;
-  display: grid;
-  grid-template-columns: max-content max-content minmax(0, 1fr);
-  grid-template-rows: auto auto;
+  display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 5px;
 }
-
-.nox-composer-box.is-expanded .nox-input-line > .nox-context-row {
-  grid-column: 1;
-  grid-row: 1;
-}
-
-.nox-composer-box.is-expanded .nox-input-line > .nox-intent-row,
-.nox-composer-box.is-expanded .nox-input-line > .nox-attachments {
-  grid-row: 1;
-}
-
 .nox-composer-box.is-expanded .nox-input-line > .nox-input {
-  grid-column: 1 / -1;
-  grid-row: 2;
+  flex: 1 0 100%;
   width: 100%;
   min-width: 0;
 }
-
 .nox-composer-box.is-expanded .nox-prompt-plus,
 .nox-composer-box.is-expanded .nox-composer-tools,
-.nox-composer-box.is-expanded .nox-btn-group {
-  grid-row: 2;
+.nox-composer-box.is-expanded .nox-btn-group { grid-row: 2; }
+.nox-composer-box.is-expanded .nox-context-row .nox-chips,
+.nox-composer-box.is-expanded .nox-input-line > .nox-attachments {
+  flex-wrap: wrap;
 }
-
-@media (max-width: 600px) {
-  .nox-model-trigger {
-    max-width: 104px;
-  }
+.nox-composer-box.is-expanded .nox-context-row,
+.nox-composer-box.is-expanded .nox-intent-row,
+.nox-composer-box.is-expanded .nox-attachments {
+  max-width: 100%;
 }
 
 /* ── Selection actions ──────────────────────────────────────────────────── */

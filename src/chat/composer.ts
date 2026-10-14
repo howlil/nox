@@ -24,7 +24,7 @@ export type NoxComposerOptions = {
   onInput: () => void;
   onKeyDown: (event: KeyboardEvent) => void;
   onFiles: (files: FileList | null) => void;
-  onOpenSourceMenu: () => void;
+  onOpenFilePicker: () => void;
   onOpenCommandMenu: () => void;
   onToggleModelMenu: () => void;
   onModelKeyDown: (event: KeyboardEvent) => void;
@@ -121,12 +121,11 @@ export class NoxComposer {
     this.promptPlusBtn = createNoxIconButton(footer, {
       cls: "nox-prompt-plus",
       icon: "plus",
-      label: "Add context or file",
-      title: "Add context or file",
+      label: "Attach a text file",
+      title: "Attach a text file",
     });
-    this.promptPlusBtn.setAttribute("aria-controls", "nox-prompt-menu");
-    this.promptPlusBtn.setAttribute("aria-expanded", "false");
-    this.promptPlusBtn.addEventListener("click", options.onOpenSourceMenu);
+    // A dedicated native file picker: no overloaded source menu on '+'.
+    this.promptPlusBtn.addEventListener("click", options.onOpenFilePicker);
 
     const tools = footer.createDiv({ cls: "nox-composer-tools" });
     this.actionMenuBtn = tools.createEl("button", {
@@ -138,11 +137,8 @@ export class NoxComposer {
         "aria-expanded": "false",
       },
     });
-    this.actionMenuBtn.createSpan({
-      cls: "nox-action-menu-key",
-      text: "/",
-    });
-    this.actionMenuBtn.createSpan({ text: "Actions" });
+    this.actionMenuBtn.createSpan({ cls: "nox-action-menu-key", text: "@" });
+    this.actionMenuBtn.title = "Actions (type / for commands, @ for notes)";
     this.actionMenuBtn.addEventListener("click", options.onOpenCommandMenu);
 
     this.modelTrigger = tools.createEl("button", {
@@ -250,15 +246,10 @@ export class NoxComposer {
   }
 
   setModelLabel(label: string): void {
-    this.modelTrigger.empty();
-    this.modelTrigger.createSpan({
-      cls: "nox-model-trigger-label",
-      text: label,
-    });
-    const chevron = this.modelTrigger.createSpan({
-      cls: "nox-model-trigger-chevron",
-    });
-    setNoxIcon(chevron, "chevron-down");
+    // The model name stays accessible and available via tooltip; chrome uses a
+    // single native Obsidian/Lucide agent glyph at every sidebar width.
+    setNoxIcon(this.modelTrigger, "bot");
+    this.modelTrigger.title = `Learning model: ${label}`;
     this.modelTrigger.setAttribute("aria-label", `Learning model: ${label}`);
   }
 
@@ -267,24 +258,26 @@ export class NoxComposer {
   }
 
   syncInputLayout(): void {
-    const lineHeight = Number.parseFloat(getComputedStyle(this.input).lineHeight) || 18;
-    const maxHeight = 80;
+    const lineHeight = Number.parseFloat(getComputedStyle(this.input).lineHeight) || 20;
+    const maxHeight = 120;
+    const hasVisibleChips = [this.contextRow, this.intentEl, this.attachmentsEl]
+      .some((row) => !row.hasClass("nox-hidden"));
 
+    // Measure at the collapsed width on every update, even if currently
+    // expanded. This prevents the composer flickering between layouts when a
+    // wrapped line fits once the input receives the expanded width.
+    this.composerBox.removeClass("is-expanded");
     this.input.style.height = "auto";
-    const expanded = this.input.value.includes("\n") || this.input.scrollHeight > lineHeight + 2;
-    const wasExpanded = this.composerBox.hasClass("is-expanded");
+    const wrapsAtCapsuleWidth = this.input.scrollHeight > lineHeight + 4;
+    const expanded = hasVisibleChips || this.input.value.includes("\n") ||
+      wrapsAtCapsuleWidth;
     this.composerBox.toggleClass("is-expanded", expanded);
 
     this.input.style.height = "auto";
-    const contentHeight = Math.min(this.input.scrollHeight, maxHeight);
-    this.input.style.height = `${Math.max(lineHeight, contentHeight)}px`;
-    this.input.style.overflowY = this.input.scrollHeight > maxHeight ? "auto" : "hidden";
-
-    if (expanded !== wasExpanded) {
-      this.input.style.height = "auto";
-      const relaidOutHeight = Math.min(this.input.scrollHeight, maxHeight);
-      this.input.style.height = `${Math.max(lineHeight, relaidOutHeight)}px`;
-    }
+    const height = Math.min(this.input.scrollHeight, maxHeight);
+    this.input.style.height = `${Math.max(lineHeight, height)}px`;
+    this.input.style.overflowY = this.input.scrollHeight > maxHeight
+      ? "auto" : "hidden";
   }
 
   setState({ busy, disabled, canSend }: {
