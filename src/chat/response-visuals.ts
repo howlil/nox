@@ -378,6 +378,21 @@ export function enhanceNoxResponseVisuals(content: HTMLElement): number {
     }
   }
   enhanced += enhanceNoxMermaidDiagrams(content);
+  // Obsidian may settle native Mermaid SVGs after MarkdownRenderer resolves.
+  // Observe only pending diagrams, for at most three seconds, then disconnect.
+  if (Array.from(content.querySelectorAll<HTMLElement>(".mermaid"))
+      .some(node => !node.closest(".nox-diagram") && !node.querySelector("svg"))) {
+    const observer = new MutationObserver(() => {
+      if (!content.isConnected) { observer.disconnect(); return; }
+      enhanceNoxMermaidDiagrams(content);
+      if (!Array.from(content.querySelectorAll<HTMLElement>(".mermaid"))
+          .some(node => !node.closest(".nox-diagram") && !node.querySelector("svg"))) {
+        observer.disconnect();
+      }
+    });
+    observer.observe(content, { subtree: true, childList: true });
+    window.setTimeout(() => observer.disconnect(), 3000);
+  }
   enhanceNoxCodeBlocks(content);
   return enhanced;
 }
