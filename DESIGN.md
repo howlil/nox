@@ -398,3 +398,16 @@ stages, permanent animation, or hidden consequential actions.
 10. Capability cards and command rows use the same icon metadata.
 11. Command and model popovers use one Nox surface rule with no per-row shadow.
 12. Text input focus does not create a purple ring.
+
+
+## Interactive Practice Cards
+
+An active question must render inside the existing chat bubble with compact,
+native inputs and no competing floating panel. Choice options use radio inputs,
+essays use an autosizing-capable textarea, and code uses a monospace editable
+textarea. Hint is optional and does not submit an answer. A card is interactive
+only when its question identity is the current unanswered question; historical
+cards are read-only. Feedback is a separate nearby result, with explicit
+misconceptions and the existing progress/evidence workflow. Colors, spacing,
+typography and focus states reuse Nox tokens. No code execution in the
+Obsidian renderer.
