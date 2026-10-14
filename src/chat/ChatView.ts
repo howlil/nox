@@ -80,8 +80,6 @@ const ACTIONS: Array<{
   })),
 ];
 
-const PROMPT_COMMANDS = NOX_CAPABILITIES;
-
 type PromptMenuAction =
   | { type: "attach" }
   | { type: "info" }
@@ -918,6 +916,24 @@ export class ChatView extends ItemView {
     const query = token?.kind === this.promptMenu ? token.query : "";
     const rows = await this.getPromptMenuItems();
     if (requestId !== this.promptMenuRequest || !this.promptMenu) return;
+    if (this.promptMenu === "command") {
+      const key = this.commandPage + ":" + query;
+      if (key !== this.lastCommandQuery) {
+        this.promptMenuState.setActive(0);
+        this.lastCommandQuery = key;
+      }
+      const head = this.promptMenuEl.createDiv({ cls: "nox-prompt-menu-heading" });
+      head.createSpan({ text: this.commandPage === "programs" ? "Learning programs" : "Actions" });
+      if (this.commandPage === "actions") head.createSpan({
+        cls: "nox-prompt-menu-heading-hint", text: query ? "Search results" : "Quick actions",
+      });
+    }
+    if (rows.length === 0) {
+      this.promptMenuEl.createDiv({
+        cls: "nox-prompt-menu-empty",
+        text: "No matching actions. Try another keyword.",
+      });
+    }
 
     let interactiveIndex = 0;
     const rowsForState: HTMLButtonElement[] = [];
@@ -925,7 +941,7 @@ export class ChatView extends ItemView {
       const menuIndex = item.disabled ? -1 : interactiveIndex++;
       const button = createNoxMenuRow(this.promptMenuEl, {
         cls: "nox-prompt-menu-row",
-        id: `nox-prompt-menu-option-${menuIndex}`,
+        ...(item.disabled ? {} : { id: `nox-prompt-menu-option-${menuIndex}` }),
         icon: item.icon,
         iconClass: "nox-prompt-menu-icon",
         name: item.name,
@@ -934,6 +950,7 @@ export class ChatView extends ItemView {
         descriptionClass: "nox-prompt-menu-description",
         command: item.command,
         commandClass: "nox-prompt-menu-command",
+        stacked: this.promptMenu === "command",
         disabled: item.disabled,
       });
 
@@ -951,7 +968,11 @@ export class ChatView extends ItemView {
       cls: "nox-prompt-menu-hint",
       text: this.promptMenu === "source"
         ? query ? "Select a note or attach a text file" : "Type @name to search vault notes"
-        : "Choose a learning action",
+        : this.commandPage === "programs"
+          ? "Select a plan or return to actions"
+          : query
+            ? "↑ ↓ navigate · Enter select · Esc close"
+            : "Type / plus a keyword for more actions",
     });
     this.promptMenuState.setRows(rowsForState);
     this.syncPromptMenuRows();
@@ -996,6 +1017,27 @@ export class ChatView extends ItemView {
       return;
     }
     if (action.type === "info") return;
+    if (action.type === "programs") {
+      this.commandPage = "programs";
+      this.promptMenuState.openAt(0);
+      await this.renderPromptMenu();
+      return;
+    }
+    if (action.type === "menu-back") {
+      this.commandPage = "actions";
+      this.promptMenuState.openAt(0);
+      await this.renderPromptMenu();
+      return;
+    }
+    if (action.type === "switch-program") {
+      if (this.uiState === "RUNNING") return;
+      this.setAction("ask");
+      this.input.value = `/use-program ${action.id}`;
+      this.closePromptMenu();
+      this.onInput();
+      await this.doSend();
+      return;
+    }
     if (action.type === "scope") {
       this.input.value = action.command;
       this.closePromptMenu();
@@ -1046,19 +1088,16 @@ export class ChatView extends ItemView {
   private closePromptMenu(): void {
     this.promptMenuRequest += 1;
     this.promptMenu = null;
+    this.commandPage = "actions";
+    this.lastCommandQuery = "";
     this.promptMenuState.close();
     this.promptPopover.close();
     this.syncPromptMenuControls();
     void this.renderPromptMenu();
   }
 
-  private getPromptMenuStartIndex(menu: PromptMenuKind): number {
-    if (menu !== "command") return 0;
-
-    const selected = PROMPT_COMMANDS.findIndex(
-      (command) => command.action === this.selectedAction,
-    );
-    return selected >= 0 ? selected : 0;
+  private getPromptMenuStartIndex(_menu: PromptMenuKind): number {
+    return 0;
   }
 
   private setAction(action: LearningActionKind): void {
@@ -1254,6 +1293,7 @@ export class ChatView extends ItemView {
     }
 
     const token = parsePromptToken(this.input.value);
+    if (token?.kind === "command" && token.query) this.commandPage = "actions";
     if (token && this.promptMenu !== token.kind) {
       this.promptMenu = token.kind;
       this.promptMenuState.openAt(this.getPromptMenuStartIndex(token.kind));
@@ -1645,7 +1685,7 @@ export class ChatView extends ItemView {
 
     const commandHint = sectionHead.createEl("button", {
       cls: "nox-capability-command-hint",
-      text: "Type / to see all actions",
+      text: "Type / to search actions",
       attr: {
         type: "button",
         "aria-label": "Show all Nox actions",
@@ -1656,7 +1696,8 @@ export class ChatView extends ItemView {
     this.commandHintBtn = commandHint;
     commandHint.addEventListener("click", () => {
       this.promptMenu = "command";
-      this.promptMenuState.openAt(this.getPromptMenuStartIndex("command"));
+      this.commandPage = "actions";
+      this.promptMenuState.openAt(0);
       void this.renderPromptMenu();
       this.focusComposer();
     });
