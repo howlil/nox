@@ -3277,3 +3277,23 @@
 .nox-chart-data summary { color: var(--nox-ink-2); font-size: 11px; cursor: pointer; padding: 3px 0; }
 .nox-chart-data table { margin: 8px 0 4px; width: 100%; }
 .nox-chart-data th, .nox-chart-data td { font-size: 11px; }
+
+
+/* Read-only prerequisite map; objective details below are still keyboard-accessible. */
+.nox-learning-map-scroll {
+  max-width: 100%;
+  max-height: 245px;
+  overflow: auto;
+  margin: 10px 0;
+  padding: 2px;
+  border: 1px solid var(--nox-line);
+  border-radius: var(--nox-radius-control);
+  background: var(--nox-page);
+}
+.nox-learning-map-svg { display: block; max-width: none; }
+.nox-learning-map-edge { fill: none; stroke: var(--nox-line-strong); stroke-width: 1.5; }
+.nox-learning-map-node rect { fill: var(--nox-surface); stroke: var(--nox-line-strong); stroke-width: 1; }
+.nox-learning-map-node[data-status="mastered"] rect { stroke: var(--nox-green); }
+.nox-learning-map-node[data-status="remediate"] rect { stroke: var(--nox-orange); }
+.nox-learning-map-title { fill: var(--nox-ink); font-size: 10px; font-weight: 600; }
+.nox-learning-map-status { fill: var(--nox-ink-2); font-size: 9px; }
