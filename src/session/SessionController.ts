@@ -1,5 +1,5 @@
 import { SessionStore } from "./SessionStore";
-import { isAgentUsageRecord, type AgentUsageRecord } from "../agent/token-usage";
+import { isAgentUsageRecord, type AgentUsageRecord } from "../domain/telemetry/token-usage";
 import { PersistenceError } from "../persistence/PersistenceError";
 import { findCommittedPracticeOutcome, findCommittedReview, type TranscriptPart } from "./transcript-types";
 import { PluginDataRepository } from "../persistence/PluginDataRepository";
