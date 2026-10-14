@@ -8,19 +8,32 @@ export class SseDecoder {
   private data: string[] = [];
   private event: string | undefined;
   private readonly maximum = 1024 * 1024;
+  private eventLength = 0;
   push(chunk: string): SseMessage[] {
-    this.buffer += chunk;
-    if (this.buffer.length > this.maximum) throw new Error("ChatGPT SSE event exceeds size limit.");
     const result: SseMessage[] = [];
-    while (true) {
-      const index = this.buffer.indexOf("\n");
-      if (index < 0) break;
-      const line = this.buffer.slice(0, index).replace(/\r$/, "");
-      this.buffer = this.buffer.slice(index + 1);
+    let start = 0;
+    // A buffered Obsidian request may return many small SSE events in a
+    // single HTTP body. Bound each line/event instead of the total body.
+    while (start < chunk.length) {
+      const newline = chunk.indexOf("\n", start);
+      if (newline === -1) {
+        this.buffer += chunk.slice(start);
+        if (this.buffer.length > this.maximum) throw new Error("ChatGPT SSE line exceeds size limit.");
+        break;
+      }
+      this.buffer += chunk.slice(start, newline);
+      if (this.buffer.length > this.maximum) throw new Error("ChatGPT SSE line exceeds size limit.");
+      const line = this.buffer.replace(/\r$/, "");
+      this.buffer = "";
+      start = newline + 1;
       if (!line) {
         if (this.data.length) result.push({ event: this.event, data: this.data.join("\n") });
-        this.data = []; this.event = undefined;
-      } else if (line.startsWith("data:")) this.data.push(line.slice(5).replace(/^ /, ""));
+        this.data = []; this.event = undefined; this.eventLength = 0;
+        continue;
+      }
+      this.eventLength += line.length;
+      if (this.eventLength > this.maximum) throw new Error("ChatGPT SSE event exceeds size limit.");
+      if (line.startsWith("data:")) this.data.push(line.slice(5).replace(/^ /, ""));
       else if (line.startsWith("event:")) this.event = line.slice(6).trim();
     }
     return result;
@@ -93,7 +106,8 @@ export class ChatGptAdapter implements AgentAdapter {
         input: [...history, { role: "user", content: context + input.prompt }],
       };
       const response = await this.http("https://api.openai.com/v1/responses", {
-        method: "POST", headers: { Authorization: "Bearer " + token, "Content-Type": "application/json" },
+        method: "POST", headers: { Authorization: "Bearer " + token, "Content-Type": "application/json",
+          "Accept": "text/event-stream" },
         body: JSON.stringify(body), signal,
       });
       if (!response.ok) {
