@@ -58,7 +58,7 @@ export function renderPracticeInstructions(parent: HTMLElement, question: Practi
     const block = parent.createDiv({ cls: "nox-quiz-instruction-legacy" });
     block.createDiv({ cls: "nox-quiz-section-heading", text: "Task brief" });
     for (const paragraph of legacyInstructionParagraphs(question.question)) {
-      const el = block.createEl("p", { cls: "nox-quiz-instruction-paragraph" });
+      const el = block.createEl("p", { cls: "nox-quiz-instruction-paragraph nox-practice-question" });
       inlineText(el, paragraph);
     }
     return;
