@@ -83,6 +83,7 @@ export class PracticeStateMachine {
   markHintUsed(): string | undefined {
     const current = this.session?.turns[this.session.turns.length - 1];
     if (!current || !this.isWaitingForAnswer()) return undefined;
+    if (!current.hint) return undefined;
     current.assisted = true;
     return current.hint;
   }
