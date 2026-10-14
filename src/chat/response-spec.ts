@@ -186,9 +186,8 @@ export function createNoxPreviewDocument(
       "const frameId=" + JSON.stringify(frameId) + ";",
       "let pending=false;",
       "function report(){if(pending)return;pending=true;requestAnimationFrame(()=>{pending=false;",
-      "const root=document.documentElement,body=document.body;",
-      "const height=Math.max(root?.scrollHeight||0,body?.scrollHeight||0,",
-      "root?.offsetHeight||0,body?.offsetHeight||0);",
+      "const body=document.body;",
+      "const height=Math.max(body?.scrollHeight||0,body?.offsetHeight||0);",
       "parent.postMessage({kind:'nox-preview-resize',id:frameId,height},'*');",
       "});}",
       "const observer=new ResizeObserver(report);",
@@ -217,7 +216,7 @@ export function createNoxPreviewDocument(
     '<meta http-equiv="Content-Security-Policy" content="' + csp + '">' +
     '<meta name="referrer" content="no-referrer">' +
     '<style>*,*::before,*::after{box-sizing:border-box}body{margin:12px;' +
-    'font:14px/1.5 system-ui;overflow-wrap:anywhere}img,svg{max-width:100%;height:auto}' +
+    'font:14px/1.5 system-ui;overflow-wrap:anywhere;padding:12px}img,svg{max-width:100%;height:auto}' +
     '</style>' + autoHeight + '</head><body>' + (kind === "js-preview" ? jsBody : source) +
     '</body></html>';
 }
