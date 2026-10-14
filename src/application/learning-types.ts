@@ -42,6 +42,8 @@ export interface LearningRequest {
   sourcePath?: string;
   /** A retry is another attempt at the same logical user turn. */
   retry?: boolean;
+  /** Generate a new alternative for the latest Ask/Explain assistant message. */
+  regenerate?: { messageIndex: number; expectedContent: string };
   /** Stable identity across Retry. New user submissions receive new IDs. */
   turnId?: string;
   programActivity?: { programId: string; objectiveId: string; kind: "teach" };
