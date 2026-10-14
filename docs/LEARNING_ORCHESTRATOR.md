@@ -31,6 +31,25 @@ NOX is a provider-agnostic, domain-neutral learning assistant that turns an expl
 - **Source boundary:** Source-bound curricula must cite only selected materials, and model inputs used for program Practice are restricted to those notes. A source-bound plan requires an active Markdown note.
 - **Provider boundary:** LLM proposes curricula/questions/feedback. Application validates outputs and owns state, selection, authorization and persistence. Model output never directly establishes mastery.
 
+## Active-time accounting (v2)
+
+A session has independent active-study and agent-wait counters. AI execution,
+manual pause and recovery do not spend the learning budget. Checkpoints are
+serialized through the existing program store and happen at transitions and
+at most every 30 seconds while activity is observed. Unobserved delays above
+120 seconds are conservatively discarded rather than charged as focused study.
+Legacy sessions without timing metadata recover paused, and their historical
+wall-clock `minutesSpent` is not counted as confirmed active learning.
+
+Commands: `/pause-session`, `/resume-session`, and `/session-time`.
+These are separate from legacy backend-scope `/pause` and `/resume`.
+
+For model-backed turns, LearningController pauses the active session before
+RunLearningTurn and resumes it at terminal settlement, preserving other pause
+reasons. Hard turn timeout defaults to 300 seconds rather than the previous
+60 seconds; 90 seconds without output triggers a non-fatal UI warning.
+Model elapsed time is not a prediction of remaining learning time.
+
 ## User workflow
 
 ```text
