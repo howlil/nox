@@ -1,8 +1,9 @@
-import { addIcon, FileSystemAdapter, Plugin } from "obsidian";
+import { addIcon, FileSystemAdapter, Plugin, requestUrl } from "obsidian";
 import { AgyAdapter } from "./agent/AgyAdapter";
 import { CodexAdapter } from "./agent/CodexAdapter";
 import { ChatGptAdapter } from "./agent/ChatGptAdapter";
 import { ChatGptAuth, type ChatGptConnection } from "./agent/ChatGptAuth";
+import { createObsidianOAuthFetch } from "./agent/ObsidianOAuthTransport";
 import { AgentRuntime } from "./agent/AgentRuntime";
 import { ChatView, NOX_VIEW_TYPE } from "./chat/ChatView";
 import { ContextResolver } from "./context/ContextResolver";
@@ -36,7 +37,8 @@ export default class NoxPlugin extends Plugin {
   private pluginData!: PluginDataRepository;
   private vaultPath?: string;
   private runtime?: AgentRuntime;
-  private readonly chatGptAuth = new ChatGptAuth();
+  // Use the Obsidian HTTP stack for OAuth instead of renderer/Node global fetch.
+  private readonly chatGptAuth = new ChatGptAuth({ fetch: createObsidianOAuthFetch(requestUrl) });
 
   async onload(): Promise<void> {
     const vaultAdapter = this.app.vault.adapter;
