@@ -33,7 +33,7 @@ import {
   stripPromptToken,
 } from "./prompt-token";
 import { NOX_CAPABILITIES } from "./capabilities";
-import { buildActionMenu, type ActionMenuContext } from "./action-menu";
+import { buildActionMenu, getPrimaryAction, type ActionMenuContext, type ActionMenuEntry } from "./action-menu";
 import { isLockedLearningMode, parseScopeCommand } from "../domain/practice/learning-scope";
 import { animateNoxEnter, animateNoxPopover } from "./motion";
 import { resolveNoxMarkdownLink } from "./markdown-links";
@@ -790,6 +790,18 @@ export class ChatView extends ItemView {
     this.composerUi.focus();
   }
 
+  private toActionMenuContext(programState: Awaited<ReturnType<LearningController["getProgramMenuState"]>>): ActionMenuContext {
+    const scope = this.learning.getSession().learningScope;
+    return {
+      activeProgramId: programState.activeProgramId,
+      hasActiveSession: programState.sessionActive,
+      savedProgramCount: programState.programs.length,
+      hasPracticeQuestion: this.learning.hasActivePracticeQuestion(),
+      legacyMode: isLockedLearningMode(scope?.mode) ? "locked"
+        : scope?.resumeMode ? "paused" : "free",
+    };
+  }
+
   private async getPromptMenuItems(): Promise<PromptMenuItem[]> {
     if (this.promptMenu === "command") {
       let programState: Awaited<ReturnType<LearningController["getProgramMenuState"]>>;
@@ -819,15 +831,7 @@ export class ChatView extends ItemView {
         ];
       }
 
-      const scope = this.learning.getSession().learningScope;
-      const context: ActionMenuContext = {
-        activeProgramId: programState.activeProgramId,
-        hasActiveSession: programState.sessionActive,
-        savedProgramCount: programState.programs.length,
-        hasPracticeQuestion: this.learning.hasActivePracticeQuestion(),
-        legacyMode: isLockedLearningMode(scope?.mode) ? "locked"
-          : scope?.resumeMode ? "paused" : "free",
-      };
+      const context = this.toActionMenuContext(programState);
       const token = parsePromptToken(this.input.value);
       const query = token?.kind === "command" ? token.query : "";
       return buildActionMenu(context, query).map(item => ({
@@ -1693,13 +1697,15 @@ export class ChatView extends ItemView {
     });
     intro.createDiv({
       cls: "nox-empty-title",
-      text: "What do you want to work on?",
+      text: "What would you like to learn?",
     });
     intro.createDiv({
       cls: "nox-empty-description",
       text:
-        "Choose a focused action for the current note, or ask Nox directly.",
+        "Continue a learning plan, or explore your current note.",
     });
+
+    this.renderEmptyPrimary(slate);
 
     const section = slate.createDiv({
       cls: "nox-capability-section",
@@ -1709,15 +1715,15 @@ export class ChatView extends ItemView {
     });
     sectionHead.createSpan({
       cls: "nox-capability-label",
-      text: "Focused actions",
+      text: "Note tools",
     });
 
     const commandHint = sectionHead.createEl("button", {
       cls: "nox-capability-command-hint",
-      text: "Type / to search actions",
+      text: "Search all actions /",
       attr: {
         type: "button",
-        "aria-label": "Show all Nox actions",
+        "aria-label": "Search Nox actions",
         "aria-controls": "nox-prompt-menu",
         "aria-expanded": "false",
       },
@@ -1737,13 +1743,12 @@ export class ChatView extends ItemView {
 
     for (const capability of NOX_CAPABILITIES) {
       const card = grid.createEl("button", {
-        cls:
-          `nox-capability-card ` +
-          `nox-capability-card--${capability.tone}`,
+        cls: "nox-capability-card",
         attr: {
           type: "button",
-          "aria-label": capability.title,
+          "aria-label": capability.title + ": " + capability.description,
           "aria-pressed": String(this.selectedAction === capability.action),
+          title: capability.description,
         },
       });
 
@@ -1761,20 +1766,6 @@ export class ChatView extends ItemView {
         cls: "nox-capability-title",
         text: capability.title,
       });
-      top.createSpan({
-        cls: "nox-capability-command",
-        text: capability.command,
-      });
-
-      card.createDiv({
-        cls: "nox-capability-description",
-        text: capability.description,
-      });
-      card.createSpan({
-        cls: "nox-capability-meta",
-        text: capability.meta,
-      });
-
       card.addEventListener("click", () => {
         this.setAction(capability.action);
         this.focusComposer();
@@ -1786,6 +1777,49 @@ export class ChatView extends ItemView {
 
     this.setUIState(this.runtimeReady ? "EMPTY" : "ERROR");
     animateNoxEnter(slate, 5);
+  }
+
+  private renderEmptyPrimary(slate: HTMLElement): void {
+    const button = slate.createEl("button", {
+      cls: "nox-learning-start",
+      attr: { type: "button", "aria-label": "Create a learning plan" },
+    });
+    const icon = button.createSpan({ cls: "nox-learning-start-icon" });
+    const body = button.createDiv({ cls: "nox-learning-start-body" });
+    const title = body.createSpan({ cls: "nox-learning-start-title" });
+    const description = body.createSpan({ cls: "nox-learning-start-description" });
+    const arrow = button.createSpan({ cls: "nox-learning-start-arrow" });
+    setNoxIcon(arrow, "arrow-right");
+
+    let action: ActionMenuEntry = getPrimaryAction({
+      hasActiveSession: false, savedProgramCount: 0,
+      hasPracticeQuestion: false, legacyMode: "free",
+    });
+    const update = (item: ActionMenuEntry) => {
+      action = item;
+      setNoxIcon(icon, item.icon);
+      title.setText(item.name);
+      description.setText(item.description);
+      button.setAttribute("aria-label", item.name + ": " + item.description);
+    };
+    update(action);
+    button.addEventListener("click", () => {
+      if (this.uiState === "RUNNING" || !this.runtimeReady) return;
+      this.setAction("ask");
+      this.input.value = action.command ?? "";
+      this.onInput();
+      this.focusComposer();
+      // One click starts valid session commands; creating a plan needs a goal.
+      if (action.command && action.command.trim() !== "/plan") {
+        void this.doSend();
+      }
+    });
+    void this.learning.getProgramMenuState().then(state => {
+      if (!slate.isConnected || !slate.contains(button)) return;
+      update(getPrimaryAction(this.toActionMenuContext(state)));
+    }).catch(() => {
+      // Keep the non-destructive Create plan action available if the index cannot load.
+    });
   }
 
   private renderEmptyContext(parent: HTMLElement): void {
