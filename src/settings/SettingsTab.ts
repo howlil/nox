@@ -57,7 +57,7 @@ export class NoxSettingsTab extends PluginSettingTab {
           }));
       new Setting(containerEl)
         .setName("Plan usage")
-        .setDesc("Requires ChatGPT plan permission. Requests use the official Responses API, not your API billing key.");
+        .setDesc("Requires ChatGPT plan permission. Selected note context is sent to OpenAI when you submit a message. Uses the official Responses API, not your API billing key.");
     } else new Setting(containerEl)
       .setName("Agent executable")
       .setDesc("Optional absolute path to the configured agent runtime.")
