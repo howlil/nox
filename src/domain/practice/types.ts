@@ -30,11 +30,25 @@ export type PracticeAnswer =
   | { type: "essay"; text: string }
   | { type: "code"; language: string; source: string };
 
+/** Structured reading order for a practice instruction; no HTML or executable markup. */
+export interface PracticeInstructions {
+  title?: string;
+  brief?: string;
+  tasks?: string[];
+  requirements?: string[];
+  given?: string[];
+  expectedOutput?: string[];
+  /** Reference-only, never inserted into the editable answer automatically. */
+  referenceCode?: string;
+}
+
 export interface PracticeQuestion {
   kind: "question";
   concept: string;
   question: string;
   hint?: string;
+  /** Structured learning brief. Existing plain-text questions remain valid. */
+  instructions?: PracticeInstructions;
   /** Optional for backward-compatible question cards. */
   input?: PracticeInput;
   programId?: string;
