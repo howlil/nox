@@ -3361,7 +3361,7 @@
   max-width: 100%;
 }
 .nox-root .nox-diagram {
-  margin: 10px 0;
+  margin: 10px auto;
   overflow: hidden;
   border: 1px solid var(--nox-line);
   border-radius: var(--nox-radius-card);
