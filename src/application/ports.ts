@@ -24,7 +24,7 @@ export interface SessionPort {
   selectSession(id: string): Promise<ChatSession | null>;
   setModel(modelId?: string): Promise<void>;
   newSession(): Promise<ChatSession>;
-  forkSession(parentId: string, anchorMessageId: string): Promise<{ session: ChatSession; draftUserPrompt?: string }>;
+  forkSession(parentId: string, anchorMessageId: string): Promise<{ session: ChatSession; draftUserPrompt?: string; draftReplyTo?: ChatMessage["replyTo"] }>;
   recordScopeChange(state: LearningScopeState, command: string, reply: string, sessionId: string, messageId?: string): Promise<void>;
   recordUserMessage(content: string, sessionId?: string, action?: ChatMessage["action"],
     messageId?: string, replyTo?: ChatMessage["replyTo"]): Promise<void>;
