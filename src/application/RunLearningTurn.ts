@@ -962,7 +962,7 @@ export class RunLearningTurn {
             failure: {
               code: "timeout",
               message:
-                `No response after ${seconds} seconds. The agent runtime may be busy.`,
+                `AI turn exceeded its ${seconds}s hard deadline. Progress is preserved; retry or choose a faster model.`,
             },
           };
         } else {
