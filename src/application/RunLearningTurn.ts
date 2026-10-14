@@ -671,9 +671,9 @@ export class RunLearningTurn {
           // A parsed question is only a candidate until the agent completes.
           // Never leave a durable or visible unanswered question after failure.
           if (practiceBuffer.question) {
-            if (program && objective) {
-              practiceBuffer.question = { ...practiceBuffer.question, programId: program.id, objectiveId: objective.id };
-            }
+            practiceBuffer.question = program && objective
+              ? { ...practiceBuffer.question, programId: program.id, objectiveId: objective.id }
+              : { ...practiceBuffer.question, programId: undefined, objectiveId: undefined };
             const questionId = crypto.randomUUID();
             await this.sessions.recordStructuredPart(
               { type: "practice-question", question: practiceBuffer.question,
@@ -689,7 +689,8 @@ export class RunLearningTurn {
           if (practiceAttempt && practiceBuffer.evaluation) {
             const evaluation = practiceAttempt.programId
               ? { ...practiceBuffer.evaluation, programId: practiceAttempt.programId,
-                  objectiveId: practiceAttempt.objectiveId, nextQuestion: undefined }
+                  objectiveId: practiceAttempt.objectiveId, nextQuestion: undefined,
+                  assisted: Boolean(practiceAttempt.assisted) }
               : practiceBuffer.evaluation;
             for await (const mapped of this.commitPracticeOutcome(
               evaluation,
@@ -836,6 +837,7 @@ export class RunLearningTurn {
             evidenceId: operationId,
             programId: part.evaluation.programId,
             objectiveId: part.evaluation.objectiveId,
+            assisted: part.evaluation.assisted,
           });
           if (next.evidence.length !== state.evidence.length) {
             changed = true;
@@ -921,7 +923,7 @@ export class RunLearningTurn {
           evidenceId: operationId,
           programId: evaluationPart.evaluation.programId,
           objectiveId: evaluationPart.evaluation.objectiveId,
-          assisted: practiceAttempt.assisted,
+          assisted: evaluationPart.evaluation.assisted,
         });
         if (nextState.evidence.length !== currentState.evidence.length) {
           await this.learningState.save(nextState);
