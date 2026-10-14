@@ -2187,7 +2187,8 @@ export class ChatView extends ItemView {
     this.loadingElapsedEl = toggle.createSpan({ cls: "nox-thinking-elapsed" });
     this.loadingElapsedEl.setAttribute("aria-hidden", "true");
 
-    const chevron = toggle.createSpan({ cls: "nox-thinking-chevron", text: "⌄" });
+    const chevron = toggle.createSpan({ cls: "nox-thinking-chevron" });
+    setNoxIcon(chevron, "chevron-down");
     this.thinkingChevronEl = chevron;
 
     const panel = trace.createDiv({ cls: "nox-thinking-panel" });
@@ -2273,7 +2274,8 @@ export class ChatView extends ItemView {
       text: labelText,
     });
 
-    const chevron = toggle.createSpan({ cls: "nox-thinking-chevron", text: "⌄" });
+    const chevron = toggle.createSpan({ cls: "nox-thinking-chevron" });
+    setNoxIcon(chevron, "chevron-down");
 
     const panel = trace.createDiv({ cls: "nox-thinking-panel" });
     const list = panel.createDiv({ cls: "nox-thinking-trace nox-thinking-trace--facts" });
@@ -2292,7 +2294,8 @@ export class ChatView extends ItemView {
 
     for (const fact of facts) {
       const row = list.createDiv({ cls: "nox-thinking-row is-done" });
-      row.createSpan({ cls: "nox-thinking-marker", text: "✓" });
+      const marker = row.createSpan({ cls: "nox-thinking-marker" });
+      setNoxIcon(marker, "check");
       row.createSpan({ cls: "nox-thinking-primary", text: fact.primary });
       if (fact.secondary) row.createSpan({ cls: "nox-thinking-secondary", text: fact.secondary });
     }
