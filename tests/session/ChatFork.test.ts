@@ -32,6 +32,7 @@ test("assistant fork copies only prefix, resets provider cursor and freezes sele
   await sessions.recordUserMessage("u1", parentId, "ask", "user-1");
   await sessions.recordAssistantMessage("a1", undefined, parentId);
   const assistantId = sessions.getSession().messages[1].id!;
+  await sessions.recordRegeneratedResponse(1, "a1", { content: "a1 revised" }, parentId);
   await sessions.recordUserMessage("u2", parentId, "ask", "user-2");
   await sessions.recordAssistantMessage("a2", undefined, parentId);
   await sessions.setConversationId("provider-thread", parentId);
@@ -39,11 +40,13 @@ test("assistant fork copies only prefix, resets provider cursor and freezes sele
   assert.equal(draftUserPrompt, undefined);
   assert.notEqual(child.id, parentId);
   assert.equal(child.conversationId, undefined);
-  assert.deepEqual(child.messages.map(m => m.content), ["u1", "a1"]);
+  assert.deepEqual(child.messages.map(m => m.content), ["u1", "a1 revised"]);
+  assert.equal(child.messages[1].responseVersions, undefined);
   assert.equal(child.fork?.parentMessageId, assistantId);
   assert.equal(child.fork?.inheritedMessageCount, 2);
   const parent = sessions.listSessions().find(s => s.id === parentId)!;
-  assert.deepEqual(parent.messages.map(m => m.content), ["u1", "a1", "u2", "a2"]);
+  assert.deepEqual(parent.messages.map(m => m.content), ["u1", "a1 revised", "u2", "a2"]);
+  assert.equal(parent.messages[1].responseVersions?.length, 2);
   assert.equal(parent.conversationId, "provider-thread");
 
   const restored = db.makeController();
@@ -51,7 +54,7 @@ test("assistant fork copies only prefix, resets provider cursor and freezes sele
   assert.equal(restored.getSession().fork?.parentSessionId, parentId);
   await restored.mutateHistory([parentId], "delete");
   assert.equal(restored.getSession().id, child.id);
-  assert.deepEqual(restored.getSession().messages.map(m => m.content), ["u1", "a1"]);
+  assert.deepEqual(restored.getSession().messages.map(m => m.content), ["u1", "a1 revised"]);
 });
 
 test("fork from user message makes that message editable, not part of child transcript", async () => {
