@@ -125,42 +125,6 @@
   letter-spacing: -0.01em;
 }
 
-.theme-dark .nox-root:not(.nox-force-light),
-.theme-dark .nox-settings:not(.nox-force-light),
-.theme-dark .nox-theme-portal:not(.nox-force-light),
-.nox-root.nox-force-dark,
-.nox-settings.nox-force-dark,
-.nox-theme-portal.nox-force-dark {
-  --nox-page: #080808;
-  --nox-canvas: #080808;
-  --nox-surface: #121212;
-  --nox-inset: #1B1B1B;
-  --nox-hover: #202020;
-  --nox-card-hover: #191919;
-  --nox-hover-2: #262626;
-  --nox-ink: #FEFEFE;
-  --nox-ink-2: #BFBFBF;
-  --nox-ink-3: #949494;
-  --nox-line: #262626;
-  --nox-line-strong: #424242;
-  --nox-line-soft: #1D1D1D;
-  --nox-field: #1B1B1B;
-  --nox-accent: #AD82EA;
-  --nox-accent-hover: #BE9AF2;
-  --nox-accent-ink: #C8A9F3;
-  --nox-accent-soft: #2A2038;
-  --nox-accent-border: #704F97;
-  --nox-on-accent: #121212;
-  --nox-green: #7ED4A2;
-  --nox-orange: #E6B96B;
-  --nox-red: #EE8888;
-  --nox-error-soft: #311C22;
-  --nox-success-soft: #162A20;
-  --nox-popover-shadow: none;
-  color-scheme: dark;
-
-}
-
 .nox-root :focus-visible,
 .nox-settings :focus-visible {
   outline: none;
