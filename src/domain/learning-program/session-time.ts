@@ -37,7 +37,7 @@ export function checkpointTiming(timing: SessionTiming, now: number): SessionTim
       objectiveActiveMs: { ...timing.objectiveActiveMs,
         [timing.focusObjectiveId]: (timing.objectiveActiveMs?.[timing.focusObjectiveId] ?? 0) + observed },
     } : {}),
-    checkpointAt: now,
+    checkpointAt: Math.max(timing.checkpointAt, now),
   };
 }
 
@@ -65,7 +65,7 @@ export function recoverTiming(session: LearningSession, now: number): SessionTim
     ? session.timing : newSessionTiming(now);
   return {
     ...previous,
-    checkpointAt: now,
+    checkpointAt: Math.max(now, session.startedAt, previous.checkpointAt),
     pauseReasons: [...new Set([...previous.pauseReasons.filter(r => r !== "ai-running"), "recovery" as const])],
   };
 }
