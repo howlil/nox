@@ -9,7 +9,7 @@ import {
   LearningContext,
   TurnContextSnapshot,
 } from "../context/context-types";
-import type { SessionPort, ContextPort, PolicyPort, LearningStatePort } from "./ports";
+import type { SessionPort, ContextPort, PolicyPort, LearningStatePort, ProgramStorePort } from "./ports";
 import { PersistenceError } from "../persistence/PersistenceError";
 import {
   recordPracticeEvaluation,
@@ -36,7 +36,6 @@ import {
   PracticeStateMachine,
 } from "../domain/practice/PracticeStateMachine";
 import { PracticeSessionRegistry } from "./PracticeSessionRegistry";
-import type { ProgramStorePort } from "./ports";
 import type { LearningProgram, LearningObjective } from "../domain/learning-program/types";
 import { chooseNextActivity } from "../domain/learning-program/rules";
 import {
