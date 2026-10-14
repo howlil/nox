@@ -14,11 +14,7 @@ export interface UsageViewEntry {
 
 export type UsageFilters = { provider: string; model: string; range: "all" | "7d" | "30d" };
 
-const format = (value: number): string => value.toLocaleString("en-US");
-
 /** Pure, filterable projection from provider-reported daily buckets. */
-
-const format = (value: number): string => value.toLocaleString("en-US");
 
 export function summarizeTokenUsage(
   entries: UsageViewEntry[], filters: UsageFilters, now = new Date(),
