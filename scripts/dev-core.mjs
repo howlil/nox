@@ -51,8 +51,14 @@ export function syncDevelopmentArtifacts({
   const markerContents = "managed by NOX development orchestrator\n";
   if (reloadMode === "hot-reload") {
     if (!fs.existsSync(marker)) fs.writeFileSync(marker, markerContents);
-  } else if (fs.existsSync(marker) && fs.readFileSync(marker, "utf8") === markerContents) {
-    fs.rmSync(marker);
+  } else if (fs.existsSync(marker)) {
+    if (fs.readFileSync(marker, "utf8") === markerContents) {
+      fs.rmSync(marker);
+    } else if (reloadMode === "cli") {
+      throw new Error(
+        "Existing .hotreload marker conflicts with CLI reload. Remove it or use --reload hot-reload.",
+      );
+    }
   }
 
   const changed = [];
