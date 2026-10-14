@@ -80,7 +80,7 @@ export function validateArchitecture(files) {
       } else if (owner === "application" && specifier === "obsidian") {
         issues.push(`${filename}: application must not import Obsidian APIs`);
       } else if (owner === "agent" && ["child_process", "fs", "os", "path"].includes(specifier)
-        && filename !== "src/agent/AgyAdapter.ts" && filename !== "src/agent/CodexAdapter.ts") {
+        && filename !== "src/agent/AgyAdapter.ts" && filename !== "src/agent/CodexAdapter.ts" && filename !== "src/agent/ChatGptAuth.ts") {
         issues.push(`${filename}: provider/process I/O belongs in a concrete agent adapter`);
       }
     }
