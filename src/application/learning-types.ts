@@ -16,6 +16,10 @@ import type { LearningObjective, ActivityKind } from "../domain/learning-program
 export interface NoxProgramOverview {
   goal: string;
   active: boolean;
+  sessionTime?: {
+    budgetMs: number; activeMs: number; remainingMs: number; aiWaitingMs: number;
+    status: "active" | "waiting-ai" | "paused" | "recovered" | "exhausted";
+  };
   next: { kind: ActivityKind; objectiveId?: string; reason: string };
   objectives: Array<{ objective: LearningObjective;
     status: "unseen" | "remediate" | "provisional" | "mastered";
