@@ -78,9 +78,9 @@ export class SessionStore {
     return {
       serialized: draft.serialize(),
       result,
-      // The staged draft is private to this transaction. Publish it after
-      // durable save instead of cloning the entire transcript a third time.
-      publish: () => { this.data = draft.data; },
+      // Keep this clone: mutate() may return the draft as its generic result,
+      // so publishing draft.data directly would leak a mutable store alias.
+      publish: () => { this.data = structuredClone(draft.data); },
     };
   }
 

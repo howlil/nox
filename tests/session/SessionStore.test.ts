@@ -218,6 +218,7 @@ test("decodes valid latency metrics and discards malformed optional timings", as
     shortenedSources: 0, retrievedChunks: 0, compacted: false,
     elapsedMs: 1400, firstTokenMs: 100, contextMs: 12,
     preparationMs: 40, firstVisibleMs: 210,
+    providerFirstTextMs: 170, providerDurationMs: 1200,
   };
   const store = new SessionStore();
   await store.load({
@@ -235,8 +236,11 @@ test("decodes valid latency metrics and discards malformed optional timings", as
   assert.equal(restored?.contextMs, 12);
   assert.equal(restored?.preparationMs, 40);
   assert.equal(restored?.firstVisibleMs, 210);
+  assert.equal(restored?.providerFirstTextMs, 170);
+  assert.equal(restored?.providerDurationMs, 1200);
 
   metrics.firstVisibleMs = -1;
+  metrics.providerFirstTextMs = -1;
   await store.load({
     "nox-sessions": {
       currentSessionId: "measured",
@@ -249,5 +253,24 @@ test("decodes valid latency metrics and discards malformed optional timings", as
     },
   });
   assert.equal(store.getCurrentSession()?.messages[0]?.metrics?.firstVisibleMs, undefined);
+  assert.equal(store.getCurrentSession()?.messages[0]?.metrics?.providerFirstTextMs, undefined);
   assert.equal(store.getCurrentSession()?.messages[0]?.metrics?.elapsedMs, 1400);
+});
+
+test("staged session state is isolated before and after durable publication", () => {
+  const store = new SessionStore({ now: () => 11, uuid: () => "staged" });
+  store.createSession();
+  const stage = store.stageTransaction(draft => {
+    const session = draft.getSession("staged")!;
+    session.messages.push({ role: "user", content: "hello" });
+    draft.updateSession(session);
+    return draft;
+  });
+  assert.equal(store.getCurrentSession()!.messages.length, 0);
+  stage.publish();
+  assert.equal(store.getCurrentSession()!.messages.length, 1);
+  // The caller is allowed to retain the staged transaction result.
+  stage.result.getSession("staged")!.messages.push({ role: "user", content: "not committed" });
+  stage.result.updateSession({ ...stage.result.getSession("staged")!, model: "should not leak" });
+  assert.equal(store.getCurrentSession()!.model, undefined);
 });
