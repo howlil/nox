@@ -1,5 +1,23 @@
 import { Setting } from "obsidian";
-import type { ProviderQuotaSnapshot, QuotaReading } from "../types";
+// Settings-owned projection: infrastructure details never enter this boundary.
+interface QuotaReading {
+  provider: "agy" | "codex";
+  key: string;
+  label: string;
+  kind: "window" | "credit";
+  remainingPercent?: number;
+  amount?: string;
+  resetAt?: string;
+  model?: string;
+  shared: boolean;
+}
+interface ProviderQuotaSnapshot {
+  provider: "agy" | "codex";
+  status: "live" | "stale" | "unavailable";
+  checkedAt?: string;
+  readings: QuotaReading[];
+  error?: string;
+}
 import {
   creditForModel, type CreditBalance, type CreditBalanceInput, type CreditProvider, type CreditUnit,
 } from "./CreditBalanceView";
