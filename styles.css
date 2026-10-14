@@ -3390,6 +3390,10 @@
   margin: 0;
   padding: 8px;
 }
+.nox-root .nox-markdown .mermaid svg {
+  max-width: 100% !important;
+  height: auto !important;
+}
 .nox-diagram-viewport .mermaid svg {
   display: block;
   width: 100% !important;
