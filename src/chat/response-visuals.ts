@@ -185,6 +185,107 @@ function renderPreview(
   return root;
 }
 
+
+/** Enhance Obsidian-native Mermaid only after its SVG is available. */
+export function enhanceNoxMermaidDiagrams(content: HTMLElement): number {
+  let count = 0;
+  for (const mermaid of Array.from(content.querySelectorAll<HTMLElement>(".mermaid"))) {
+    if (mermaid.closest(".nox-diagram") || mermaid.closest(".nox-visual")) continue;
+    const svg = mermaid.querySelector<SVGSVGElement>("svg");
+    if (!svg) continue;
+    const width = Number.parseFloat(svg.getAttribute("width") ?? "");
+    const height = Number.parseFloat(svg.getAttribute("height") ?? "");
+    if (!svg.hasAttribute("viewBox") && width > 0 && height > 0) {
+      svg.setAttribute("viewBox", "0 0 " + width + " " + height);
+    }
+    const root = element("section", "nox-diagram");
+    const toolbar = element("div", "nox-diagram-toolbar");
+    const viewport = element("div", "nox-diagram-viewport");
+    viewport.tabIndex = 0;
+    viewport.setAttribute("role", "region");
+    viewport.setAttribute("aria-label", "Scrollable Mermaid diagram");
+    const out = button("Zoom out", "minus");
+    const reset = button("Fit diagram", "scan");
+    const zoomIn = button("Zoom in", "plus");
+    const expand = button("Expand diagram", "maximize-2");
+    toolbar.append(out, reset, zoomIn, expand);
+    mermaid.replaceWith(root);
+    root.append(toolbar, viewport);
+    viewport.append(mermaid);
+    let zoom = 100;
+    const applyZoom = () => {
+      mermaid.style.width = String(zoom) + "%";
+      out.disabled = zoom <= 100;
+      zoomIn.disabled = zoom >= 300;
+      reset.disabled = zoom === 100;
+    };
+    out.addEventListener("click", () => { zoom = Math.max(100, zoom - 25); applyZoom(); });
+    zoomIn.addEventListener("click", () => { zoom = Math.min(300, zoom + 25); applyZoom(); });
+    reset.addEventListener("click", () => {
+      zoom = 100;
+      applyZoom();
+      viewport.scrollTo(0, 0);
+    });
+    const collapse = () => {
+      root.classList.remove("is-expanded");
+      expand.setAttribute("aria-label", "Expand diagram");
+      expand.title = "Expand diagram";
+      setNoxIcon(expand, "maximize-2");
+    };
+    expand.addEventListener("click", () => {
+      if (root.classList.contains("is-expanded")) collapse();
+      else {
+        root.classList.add("is-expanded");
+        expand.setAttribute("aria-label", "Close expanded diagram");
+        expand.title = "Close expanded diagram";
+        setNoxIcon(expand, "minimize-2");
+        expand.focus();
+      }
+    });
+    root.addEventListener("keydown", event => {
+      if (event.key === "Escape" && root.classList.contains("is-expanded")) {
+        event.preventDefault();
+        collapse();
+      }
+    });
+    applyZoom();
+    count++;
+  }
+  return count;
+}
+
+/** Preserve native source selection; add one copy button at the top right. */
+function enhanceNoxCodeBlocks(content: HTMLElement): void {
+  for (const pre of Array.from(content.querySelectorAll<HTMLPreElement>("pre"))) {
+    if (pre.closest(".nox-code-block") || pre.closest(".nox-visual") ||
+        pre.closest(".mermaid")) continue;
+    const code = pre.querySelector("code");
+    if (!code) continue;
+    const wrapper = element("section", "nox-code-block");
+    const bar = element("div", "nox-code-toolbar");
+    const copy = button("Copy code", "copy");
+    copy.addEventListener("click", () => {
+      void navigator.clipboard.writeText(code.textContent ?? "").then(() => {
+        copy.title = "Copied";
+        copy.setAttribute("aria-label", "Copied");
+        setNoxIcon(copy, "check");
+        window.setTimeout(() => {
+          if (!copy.isConnected) return;
+          copy.title = "Copy code";
+          copy.setAttribute("aria-label", "Copy code");
+          setNoxIcon(copy, "copy");
+        }, 1400);
+      }).catch(() => {
+        copy.title = "Copy failed";
+        copy.setAttribute("aria-label", "Copy failed");
+      });
+    });
+    bar.append(copy);
+    pre.replaceWith(wrapper);
+    wrapper.append(bar, pre);
+  }
+}
+
 /**
  * Post-process native Obsidian Markdown output. Existing prose, Mermaid,
  * math, wikilinks and ordinary code fences stay owned by MarkdownRenderer.
@@ -242,5 +343,7 @@ export function enhanceNoxResponseVisuals(content: HTMLElement): number {
       enhanced++;
     }
   }
+  enhanced += enhanceNoxMermaidDiagrams(content);
+  enhanceNoxCodeBlocks(content);
   return enhanced;
 }
