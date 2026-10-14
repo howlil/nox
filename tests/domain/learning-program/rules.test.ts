@@ -127,3 +127,14 @@ test("duplicated rubric criteria are rejected", () => {
   draft.objectives[0].rubric = ["same", "same"];
   assert.throws(() => validateCurriculum(draft, constraints), /Invalid objective/);
 });
+
+test("correct single-item MCQ is formative evidence, not objective mastery", () => {
+  const one = {
+    ...event("symbols", "correct", now - 24 * 60 * 60 * 1000),
+    assessmentCoverage: "single-item" as const,
+  };
+  const two = { ...event("symbols", "correct", now), assessmentCoverage: "single-item" as const };
+  assert.equal(objectiveProgress(program(), "symbols", [one, two], now).status, "remediate");
+  assert.equal(chooseNextActivity(program(), [one, two], now).kind, "guided-practice");
+  assert.equal(chooseNextActivity(program(), [one, two], now).objective?.id, "symbols");
+});
