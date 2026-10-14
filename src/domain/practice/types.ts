@@ -19,6 +19,8 @@ export interface PracticeEvaluation {
   feedback: string;
   misconceptions: string[];
   nextQuestion?: string;
+  assisted?: boolean;
+  rubricResults?: Array<{ criterion: string; met: boolean; evidence: string }>;
   programId?: string;
   objectiveId?: string;
 }
