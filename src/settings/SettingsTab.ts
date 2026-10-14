@@ -148,13 +148,13 @@ export class NoxSettingsTab extends PluginSettingTab {
       .map(r => r.model))];
     if (!models.includes(this.usageModel)) this.usageModel = "all";
     const providerSelect = filters.createEl("select", { attr: { "aria-label": "Filter usage by provider" } });
-    for (const value of providers) providerSelect.createEl("option", { value, text: value === "all" ? "All providers" : value });
+    for (const value of providers) providerSelect.createEl("option", { attr: { value }, text: value === "all" ? "All providers" : value });
     providerSelect.value = this.usageProvider;
     providerSelect.addEventListener("change", () => {
       this.usageProvider = providerSelect.value; this.usageModel = "all"; this.display();
     });
     const modelSelect = filters.createEl("select", { attr: { "aria-label": "Filter usage by model" } });
-    for (const value of models) modelSelect.createEl("option", { value, text: value === "all" ? "All models" : value });
+    for (const value of models) modelSelect.createEl("option", { attr: { value }, text: value === "all" ? "All models" : value });
     modelSelect.value = this.usageModel;
     modelSelect.addEventListener("change", () => { this.usageModel = modelSelect.value; this.display(); });
     const selected = records.filter(r =>
