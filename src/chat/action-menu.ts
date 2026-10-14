@@ -102,7 +102,6 @@ function scoreAction(item: ActionMenuEntry, query: string): number | null {
   // Keywords are intentional synonyms, never broad matches in descriptions.
   if (query.length >= 3 && item.keywords?.some(word =>
     word.toLowerCase().split(" ").some(part => part.startsWith(query)))) return 2;
-  if (query.length >= 3 && (command.includes(query) || name.includes(query))) return 3;
   return null;
 }
 
