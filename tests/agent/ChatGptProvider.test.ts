@@ -63,7 +63,7 @@ test("OAuth loopback PKCE authenticates a dynamically issued client and persists
     const callbackFetch = async (input: unknown, init?: RequestInit): Promise<Response> => {
       if (String(input).endsWith("oauth/token")) {
         const params = new URLSearchParams(String(init?.body));
-        assert.ok(params.get("code_verifier"));
+        if (params.get("grant_type") === "authorization_code") assert.ok(params.get("code_verifier"));
       }
       return http(input, init);
     };
