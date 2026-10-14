@@ -6,7 +6,7 @@ import { renderQuizCard, type QuizCardActions } from "./quiz-card";
 /** Feature rendering only: learning and navigation effects belong to ChatView. */
 export function renderPracticeQuestionCard(parent: HTMLElement, question: PracticeQuestion,
   actions?: QuizCardActions): void {
-  if (question.input && actions) {
+  if (actions) {
     renderQuizCard(parent, question, actions);
     return;
   }
