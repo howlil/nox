@@ -7,11 +7,11 @@ function inlineText(parent: HTMLElement, value: string): void {
   let start = 0;
   for (const match of value.matchAll(tokens)) {
     const index = match.index ?? 0;
-    if (index > start) parent.createSpan({ text: value.slice(start, index) });
+    if (index > start) parent.createEl("span", { text: value.slice(start, index) });
     parent.createEl("code", { text: match[1] });
     start = index + match[0].length;
   }
-  if (start < value.length) parent.createSpan({ text: value.slice(start) });
+  if (start < value.length) parent.createEl("span", { text: value.slice(start) });
 }
 
 /**
