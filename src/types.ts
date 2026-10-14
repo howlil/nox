@@ -94,6 +94,12 @@ export interface AgentTurnMetrics {
   retrievedChunks: number;
   compacted: boolean;
   firstTokenMs?: number;
+  /** End-to-end time before context is prepared (includes session recovery). */
+  contextMs?: number;
+  /** End-to-end time before the runtime is invoked, including preflight persistence. */
+  preparationMs?: number;
+  /** End-to-end time when the first visible response text is emitted. */
+  firstVisibleMs?: number;
   elapsedMs: number;
   providerInputTokens?: number;
   providerOutputTokens?: number;

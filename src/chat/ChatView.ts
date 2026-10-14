@@ -158,6 +158,10 @@ export class ChatView extends ItemView {
   private thinkingPanelEl: HTMLElement | null = null;
   private thinkingThoughtEl: HTMLElement | null = null;
   private thinkingRows: HTMLElement[] = [];
+  private thinkingStage = -1;
+  private thinkingStageAt = 0;
+  private streamFrame: number | null = null;
+  private streamingTextNode: Text | null = null;
   private runInspector: NoxRunInspector | null = null;
   private learningGraphEl: HTMLElement | null = null;
   private thinkingManualExpanded: boolean | null = null;
@@ -1503,6 +1507,10 @@ export class ChatView extends ItemView {
     this.thinkingThoughtEl = null;
     this.streamedResponseText = "";
     this.streamingPendingText = "";
+    this.streamingTextNode = null;
+    if (this.streamFrame !== null) window.cancelAnimationFrame(this.streamFrame);
+    this.streamFrame = null;
+    this.thinkingStage = -1;
     this.stopLoadingTimer();
     this.runInspector = null;
     this.turnTerminal = false;
@@ -1532,6 +1540,13 @@ export class ChatView extends ItemView {
   }
 
   private handleLearningEvent(event: LearningEvent): void {
+    if (event.type === "activity-phase") {
+      if (event.phase === "waiting-model") this.setThinkingStage(2);
+      else if (event.phase === "receiving-output") this.setThinkingStage(3);
+      else this.setThinkingStage(4);
+      this.lastAgentActivityAt = Date.now();
+      return;
+    }
     if (event.type === "tool-started") {
       this.lastAgentActivityAt = Date.now();
       this.runInspector?.toolStarted(event.toolCallId, event.name);
@@ -1561,6 +1576,7 @@ export class ChatView extends ItemView {
     if (event.type === "thought-delta") {
       this.lastAgentActivityAt = Date.now();
       const shouldFollow = this.isNearThreadBottom();
+      this.setThinkingStage(3);
       this.appendThoughtText(event.text);
       if (shouldFollow) this.scrollThread("auto");
       return;
@@ -1569,7 +1585,7 @@ export class ChatView extends ItemView {
     if (event.type === "response-delta") {
       this.lastAgentActivityAt = Date.now();
       const shouldFollow = this.isNearThreadBottom();
-      this.setThinkingStage(2);
+      this.setThinkingStage(3);
       this.appendToAgentBubble(event.text);
       if (shouldFollow) this.scrollThread("auto");
       return;
@@ -1577,21 +1593,21 @@ export class ChatView extends ItemView {
 
     if (event.type === "practice-question") {
       this.setAction("practice");
-      this.setThinkingStage(2);
+      this.setThinkingStage(3);
       this.ensureAgentBubble();
       this.appendPracticeQuestion(event.question, this.agentCursorEl, event.questionId);
       return;
     }
 
     if (event.type === "practice-evaluation") {
-      this.setThinkingStage(2);
+      this.setThinkingStage(3);
       this.ensureAgentBubble();
       this.appendPracticeEvaluation(event.evaluation, this.agentCursorEl, event.questionId);
       return;
     }
 
     if (event.type === "review-findings") {
-      this.setThinkingStage(2);
+      this.setThinkingStage(3);
       this.ensureAgentBubble();
       this.appendReviewFindings(event.findings, this.turnContextSource);
       return;
@@ -1668,10 +1684,7 @@ export class ChatView extends ItemView {
     this.flushStreamingText();
     this.renderMarkdownResponse();
     if (doneLabel === undefined) this.appendStreamActions();
-    const hasThought = this.streamedThoughtText.trim().length > 0;
-    const defaultLabel = hasThought
-      ? `Thought for ${elapsed}`
-      : `Completed in ${elapsed}`;
+    const defaultLabel = `Completed in ${elapsed}`;
     this.settleThinking(doneLabel ?? defaultLabel);
     this.stopLoadingTimer();
     this.agentCursorEl?.removeClass("nox-bubble--streaming");
@@ -1684,7 +1697,9 @@ export class ChatView extends ItemView {
     this.thinkingPanelEl = null;
     this.thinkingThoughtEl = null;
     this.thinkingRows = [];
+    this.thinkingStage = -1;
     this.thinkingManualExpanded = null;
+    this.streamingTextNode = null;
     this.runInspector = null;
   }
 
@@ -1695,17 +1710,20 @@ export class ChatView extends ItemView {
     this.thinkingLabelEl.removeClass("nox-thinking-label--active");
     this.thinkingLabelEl.addClass("nox-thinking-label--done");
 
-    for (const row of this.thinkingRows) {
-      row.removeClass("nox-hidden");
+    const succeeded = doneLabel.startsWith("Completed");
+    for (const [index, row] of this.thinkingRows.entries()) {
+      if (index > this.thinkingStage) continue; // Never invent unobserved steps.
       row.removeClass("is-active");
-      row.addClass("is-done");
-
+      row.toggleClass("is-done", succeeded || index < this.thinkingStage);
+      row.toggleClass("is-interrupted", !succeeded && index === this.thinkingStage);
       const marker = row.firstElementChild as HTMLElement | null;
       if (marker) {
-        marker.textContent = "✓";
         marker.removeClass("nox-thinking-marker--spinner");
+        setNoxIcon(marker, !succeeded && index === this.thinkingStage ? "x" : "check");
       }
     }
+    const activeDuration = this.thinkingRows[this.thinkingStage]?.querySelector<HTMLElement>(".nox-thinking-phase-time");
+    if (activeDuration) activeDuration.textContent = this.formatElapsed(Date.now() - this.thinkingStageAt);
 
     const expanded = this.thinkingManualExpanded ?? false;
     this.thinkingPanelEl?.toggleClass("is-expanded", expanded);
@@ -1714,8 +1732,13 @@ export class ChatView extends ItemView {
   }
 
   private setThinkingStage(activeIndex: number): void {
-    if (!this.thinkingRows.length) return;
-
+    if (!this.thinkingRows.length || activeIndex <= this.thinkingStage) return;
+    if (this.thinkingStage >= 0) {
+      const priorTime = this.thinkingRows[this.thinkingStage]?.querySelector<HTMLElement>(".nox-thinking-phase-time");
+      if (priorTime) priorTime.textContent = this.formatElapsed(Date.now() - this.thinkingStageAt);
+    }
+    this.thinkingStage = activeIndex;
+    this.thinkingStageAt = Date.now();
     for (const [index, row] of this.thinkingRows.entries()) {
       const marker = row.firstElementChild as HTMLElement | null;
       const isDone = index < activeIndex;
@@ -1727,14 +1750,10 @@ export class ChatView extends ItemView {
 
       if (!marker) continue;
       marker.toggleClass("nox-thinking-marker--spinner", isActive);
-      marker.textContent = isDone ? "✓" : "";
+      if (isDone) setNoxIcon(marker, "check");
+      else marker.empty();
     }
-
-    if (activeIndex > 0 && this.thinkingManualExpanded === null) {
-      this.thinkingPanelEl?.addClass("is-expanded");
-      this.thinkingToggleEl?.setAttribute("aria-expanded", "true");
-      this.thinkingChevronEl?.addClass("is-expanded");
-    }
+    // Keep the trace compact by default; the user owns expansion.
   }
 
   private startLoadingTimer(): void {
@@ -1748,14 +1767,18 @@ export class ChatView extends ItemView {
       if (this.loadingElapsedEl) this.loadingElapsedEl.textContent = elapsed;
       if (this.thinkingLabelEl?.hasClass("nox-thinking-label--active")) {
         const quietMs = Date.now() - this.lastAgentActivityAt;
-        this.thinkingLabelEl.textContent = quietMs >= 90_000
-          ? "No recent AI output · still working" : "Thinking";
+        this.thinkingLabelEl.textContent = this.thinkingStage === 2 && quietMs >= 30_000
+          ? "No model output yet"
+          : this.thinkingStage === 2 ? "Waiting for AI"
+          : this.thinkingStage === 4 ? "Saving result"
+          : this.thinkingStage === 3 ? "Receiving response"
+          : this.thinkingStage === 1 ? "Preparing request" : "Resolving context";
       }
     };
 
     this.loadingStartedAt = Date.now();
     update();
-    this.loadingTimer = window.setInterval(update, 100);
+    this.loadingTimer = window.setInterval(update, 250);
   }
 
   private stopLoadingTimer(): void {
@@ -2159,12 +2182,13 @@ export class ChatView extends ItemView {
 
     this.thinkingLabelEl = toggle.createSpan({
       cls: "nox-thinking-label nox-thinking-label--active",
-      text: "Thinking",
+      text: "Resolving context",
     });
     this.loadingElapsedEl = toggle.createSpan({ cls: "nox-thinking-elapsed" });
     this.loadingElapsedEl.setAttribute("aria-hidden", "true");
 
-    const chevron = toggle.createSpan({ cls: "nox-thinking-chevron", text: "⌄" });
+    const chevron = toggle.createSpan({ cls: "nox-thinking-chevron" });
+    setNoxIcon(chevron, "chevron-down");
     this.thinkingChevronEl = chevron;
 
     const panel = trace.createDiv({ cls: "nox-thinking-panel" });
@@ -2174,14 +2198,11 @@ export class ChatView extends ItemView {
 
     const source = this.currentContext?.selection?.file ?? this.currentContext?.activeNote?.path;
     const facts: Array<{ primary: string; secondary?: string }> = [
-      {
-        primary: "Resolving context",
-        secondary: source?.split("/").pop(),
-      },
-      {
-        primary: `Running ${ACTIONS.find((action) => action.kind === this.runningAction)?.label ?? "Ask"}`,
-      },
-      { primary: "Generating response" },
+      { primary: "Resolving context", secondary: source?.split("/").pop() },
+      { primary: `Preparing ${ACTIONS.find((action) => action.kind === this.runningAction)?.label ?? "Ask"} request` },
+      { primary: "Waiting for model output" },
+      { primary: "Receiving response" },
+      { primary: "Saving result" },
     ];
 
     this.thinkingRows = facts.map((fact) => {
@@ -2189,6 +2210,7 @@ export class ChatView extends ItemView {
       row.createSpan({ cls: "nox-thinking-marker" });
       row.createSpan({ cls: "nox-thinking-primary", text: fact.primary });
       if (fact.secondary) row.createSpan({ cls: "nox-thinking-secondary", text: fact.secondary });
+      row.createSpan({ cls: "nox-thinking-phase-time" });
       return row;
     });
 
@@ -2252,7 +2274,8 @@ export class ChatView extends ItemView {
       text: labelText,
     });
 
-    const chevron = toggle.createSpan({ cls: "nox-thinking-chevron", text: "⌄" });
+    const chevron = toggle.createSpan({ cls: "nox-thinking-chevron" });
+    setNoxIcon(chevron, "chevron-down");
 
     const panel = trace.createDiv({ cls: "nox-thinking-panel" });
     const list = panel.createDiv({ cls: "nox-thinking-trace nox-thinking-trace--facts" });
@@ -2271,7 +2294,8 @@ export class ChatView extends ItemView {
 
     for (const fact of facts) {
       const row = list.createDiv({ cls: "nox-thinking-row is-done" });
-      row.createSpan({ cls: "nox-thinking-marker", text: "✓" });
+      const marker = row.createSpan({ cls: "nox-thinking-marker" });
+      setNoxIcon(marker, "check");
       row.createSpan({ cls: "nox-thinking-primary", text: fact.primary });
       if (fact.secondary) row.createSpan({ cls: "nox-thinking-secondary", text: fact.secondary });
     }
@@ -2294,44 +2318,29 @@ export class ChatView extends ItemView {
   private appendToAgentBubble(text: string): void {
     this.ensureAgentBubble(true);
     if (!this.agentContentEl) return;
-
     this.streamedResponseText += text;
     this.streamingPendingText += text;
-
-    const parts = this.streamingPendingText.split(/(\s+)/);
-    const lastPart = parts[parts.length - 1] ?? "";
-    const hasTrailingWhitespace = /\s$/.test(this.streamingPendingText);
-
-    if (!hasTrailingWhitespace) {
-      this.streamingPendingText = parts.pop() ?? lastPart;
-    } else {
-      this.streamingPendingText = "";
-    }
-
-    for (const part of parts) {
-      if (!part) continue;
-
-      if (/\s+/.test(part)) {
-        this.agentContentEl.appendText(part);
-        continue;
-      }
-
-      this.agentContentEl.createSpan({
-        cls: "nox-stream-word",
-        text: part,
+    // Coalesce transport deltas into one text node, at most once per frame.
+    // Word-by-word spans previously created excessive DOM and animations.
+    if (this.streamFrame === null) {
+      this.streamFrame = window.requestAnimationFrame(() => {
+        this.streamFrame = null;
+        this.flushStreamingText();
       });
     }
-
-    // Follow-scroll is decided by the caller, not by every streamed token.
   }
 
   private flushStreamingText(): void {
+    if (this.streamFrame !== null) {
+      window.cancelAnimationFrame(this.streamFrame);
+      this.streamFrame = null;
+    }
     if (!this.agentContentEl || !this.streamingPendingText) return;
-
-    this.agentContentEl.createSpan({
-      cls: "nox-stream-word",
-      text: this.streamingPendingText,
-    });
+    if (!this.streamingTextNode) {
+      this.streamingTextNode = this.agentContentEl.ownerDocument.createTextNode("");
+      this.agentContentEl.appendChild(this.streamingTextNode);
+    }
+    this.streamingTextNode.appendData(this.streamingPendingText);
     this.streamingPendingText = "";
   }
 

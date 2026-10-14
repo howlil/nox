@@ -60,6 +60,8 @@ export type LearningEvent =
       type: "context-ready";
       context: TurnContextSnapshot;
     }
+  /** Runtime-observed activity only; not model reasoning or estimated progress. */
+  | { type: "activity-phase"; phase: "waiting-model" | "receiving-output" | "finalizing"; at: number }
   | {
       type: "thought-delta";
       text: string;

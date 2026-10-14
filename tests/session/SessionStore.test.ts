@@ -210,3 +210,44 @@ test("assistant message with thought and elapsedMs survives session serializatio
   assert.equal(msg?.thought, "Here is my reasoning");
   assert.equal(msg?.elapsedMs, 2450);
 });
+
+
+test("decodes valid latency metrics and discards malformed optional timings", async () => {
+  const metrics = {
+    estimatedInputTokens: 100, estimatedContextTokens: 45, estimatedHistoryTokens: 20,
+    shortenedSources: 0, retrievedChunks: 0, compacted: false,
+    elapsedMs: 1400, firstTokenMs: 100, contextMs: 12,
+    preparationMs: 40, firstVisibleMs: 210,
+  };
+  const store = new SessionStore();
+  await store.load({
+    "nox-sessions": {
+      currentSessionId: "measured",
+      sessions: {
+        measured: {
+          id: "measured", createdAt: 1, updatedAt: 2,
+          messages: [{ role: "assistant", content: "Hello", metrics }],
+        },
+      },
+    },
+  });
+  const restored = store.getCurrentSession()?.messages[0]?.metrics;
+  assert.equal(restored?.contextMs, 12);
+  assert.equal(restored?.preparationMs, 40);
+  assert.equal(restored?.firstVisibleMs, 210);
+
+  metrics.firstVisibleMs = -1;
+  await store.load({
+    "nox-sessions": {
+      currentSessionId: "measured",
+      sessions: {
+        measured: {
+          id: "measured", createdAt: 1, updatedAt: 2,
+          messages: [{ role: "assistant", content: "Hello", metrics }],
+        },
+      },
+    },
+  });
+  assert.equal(store.getCurrentSession()?.messages[0]?.metrics?.firstVisibleMs, undefined);
+  assert.equal(store.getCurrentSession()?.messages[0]?.metrics?.elapsedMs, 1400);
+});
