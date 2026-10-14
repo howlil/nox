@@ -3580,6 +3580,27 @@
 }
 .nox-theme-portal .modal-title,
 .nox-theme-portal .modal-content { color: var(--nox-ink); }
+
+/* Obsidian native DOM Menu mounted in an external NOX-owned theme portal. */
+.nox-menu-portal {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  pointer-events: none;
+  background: transparent;
+}
+.nox-menu-portal .menu {
+  pointer-events: auto;
+  background: var(--nox-surface);
+  color: var(--nox-ink);
+  border: 1px solid var(--nox-line-strong);
+  border-radius: var(--nox-radius-card);
+  box-shadow: none;
+}
+.nox-menu-portal .menu-item { color: var(--nox-ink); }
+.nox-menu-portal .menu-item:hover,
+.nox-menu-portal .menu-item.is-selected { background: var(--nox-hover); }
+.nox-menu-portal .menu-item.is-warning { color: var(--nox-red); }
 .nox-theme-portal .nox-history-confirm-actions button:not(.mod-warning) {
   background: var(--nox-inset);
   color: var(--nox-ink);
