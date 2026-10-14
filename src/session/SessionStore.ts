@@ -118,9 +118,15 @@ export class SessionStore {
    * The caller publishes it to memory only after saveData succeeds.
    */
   private ensureMessageIds(session: ChatSession): ChatSession {
-    return { ...session, messages: session.messages.map(message => ({
-      ...message, id: message.id || this.uuid(),
-    })) };
+    const seen = new Set<string>();
+    return { ...session, messages: session.messages.map((message, index) => {
+      const base = message.id || this.uuid();
+      let id = base;
+      let suffix = 0;
+      while (seen.has(id)) id = `${base}:${index}:${++suffix}`;
+      seen.add(id);
+      return { ...message, id };
+    }) };
   }
 
   stageSessionUpdate(session: ChatSession, defaults?: { model?: string }): {
@@ -347,7 +353,11 @@ export class SessionStore {
         Number.isInteger(session.fork.inheritedMessageCount) && session.fork.inheritedMessageCount >= 0 &&
         session.fork.inheritedMessageCount <= session.messages.length &&
         typeof session.fork.createdAt === "number" && Number.isFinite(session.fork.createdAt)
-        ? structuredClone(session.fork) : undefined,
+        ? { parentSessionId: session.fork.parentSessionId,
+          parentMessageId: session.fork.parentMessageId,
+          parentMessageIndex: session.fork.parentMessageIndex,
+          inheritedMessageCount: session.fork.inheritedMessageCount,
+          createdAt: session.fork.createdAt } : undefined,
       runtimeProvider: typeof session.runtimeProvider === "string" ? session.runtimeProvider : undefined,
       learningScope: session.learningScope &&
         (session.learningScope.mode === "FREE" || isLockedLearningMode(session.learningScope.mode))
