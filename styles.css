@@ -116,6 +116,41 @@
   flex-shrink: 0;
 }
 
+
+/* One-line learning budget, not a persistent dashboard/card. */
+.nox-session-clock {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  min-width: 0;
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--nox-ink-2);
+}
+.nox-session-clock.nox-hidden,
+.nox-session-clock-button.nox-hidden { display: none; }
+.nox-session-clock-label {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+.nox-session-clock-button {
+  flex: 0 0 auto;
+  color: var(--nox-accent-ink);
+  background: transparent;
+  border: 0;
+  border-radius: var(--nox-radius-chip);
+  padding: 2px 5px;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+.nox-session-clock-button:hover { background: var(--nox-hover); }
+.nox-session-clock-button:disabled { opacity: 0.5; cursor: default; }
+
 .nox-header-top {
   @apply flex w-full min-w-0 items-center justify-between;
   display: flex;
