@@ -1,5 +1,5 @@
 import type { TurnContextSnapshot } from "../context/context-types";
-import type { AgentUsageRecord } from "../agent/token-usage";
+import type { AgentUsageRecord } from "../domain/telemetry/token-usage";
 
 /** Beautiful UI-inspired tool chips and context cards, adapted to Obsidian native DOM.
  * Facts only: no inferred tool calls, reasoning, cost, or token estimates.
