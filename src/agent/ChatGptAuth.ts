@@ -12,6 +12,20 @@ const AUTH_URL = ISSUER + "/api/accounts/authorize";
 const SCOPE = "openid profile email offline_access resource.invoke chatgpt.tokens.use.direct";
 const PERMISSION = "chatgpt.tokens.use.direct";
 
+const OAUTH_ERROR_CODES = new Set([
+  "invalid_grant", "invalid_request", "invalid_client", "unauthorized_client",
+  "access_denied", "invalid_scope", "unsupported_grant_type", "server_error",
+  "temporarily_unavailable", "interaction_required", "consent_required",
+]);
+
+/** Deliberately stores a bounded diagnostic category, never raw server text. */
+class OAuthTokenError extends Error {
+  constructor(readonly diagnosticCode: string) {
+    super("ChatGPT OAuth failed: " + diagnosticCode);
+    this.name = "OAuthTokenError";
+  }
+}
+
 type Credentials = {
   clientId: string;
   subject: string;
@@ -50,10 +64,8 @@ export type ChatGptConnection = {
 function signInFailure(stage: ChatGptAuthStage, cause: unknown): ChatGptAuthFailure {
   const text = cause instanceof Error ? cause.message : "";
   const oauth = /^ChatGPT OAuth failed: ([a-z][a-z0-9_]{0,47})$/.exec(text)?.[1];
-  const known = new Set(["invalid_grant", "invalid_request", "invalid_client", "unauthorized_client",
-    "access_denied", "invalid_scope", "unsupported_grant_type", "server_error",
-    "temporarily_unavailable", "interaction_required", "consent_required"]);
-  const code = oauth && known.has(oauth) ? oauth
+  const code = cause instanceof OAuthTokenError ? cause.diagnosticCode
+    : oauth && OAUTH_ERROR_CODES.has(oauth) ? oauth
     : /DPAPI|System.Security|encrypt|decrypt/i.test(text) ? "credential_protection_failed"
     : /timed out|AbortError|aborted/i.test(text) ? "timeout"
     : /fetch failed|network|ECONN|ENOTFOUND/i.test(text) ? "network_error"
@@ -74,6 +86,11 @@ function signInFailure(stage: ChatGptAuthStage, cause: unknown): ChatGptAuthFail
       ? "Check Windows DPAPI and local credential storage."
       : code === "network_error" || code === "timeout"
         ? "Check connectivity and retry with a new sign-in."
+        : code === "missing_id_token" || code === "missing_access_token" ||
+          code === "missing_refresh_token" || code === "invalid_token_type"
+        ? "OpenAI's token response did not contain the expected credentials. Retry and report this diagnostic."
+        : code.startsWith("http_") || code === "non_json_response" || code === "invalid_response_shape"
+        ? "The OAuth server returned an unexpected HTTP response. Check network/proxy settings and report this diagnostic."
         : "Retry sign-in; if it persists, report this stage and code only.";
   return { stage, code, message: labels[stage] + " failed (" + code + "). " + advice };
 }
@@ -325,7 +342,7 @@ export class ChatGptAuth {
         code: result.code, code_verifier: verifier, redirect_uri: redirectUri, resource: RESOURCE,
       }));
       const idToken = typeof response.id_token === "string" ? response.id_token : "";
-      if (!idToken) throw new Error("ChatGPT did not issue an ID token.");
+      if (!idToken) throw new OAuthTokenError("missing_id_token");
       stage = "identity-validation";
       const identity = await verifyChatGptIdToken(idToken, result.clientId, nonce, this.deps.fetch, this.deps.now());
       if (this.record.credentials && this.record.credentials.subject !== identity.subject) {
@@ -360,24 +377,54 @@ export class ChatGptAuth {
   }
 
   private async tokenRequest(body: URLSearchParams): Promise<Record<string, unknown>> {
-    const result = await this.deps.fetch(TOKEN_URL, { method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: body.toString(), signal: AbortSignal.timeout(30000) });
-    const data = object(await result.json());
+    let result: Response;
+    try {
+      result = await this.deps.fetch(TOKEN_URL, { method: "POST",
+        headers: { "Accept": "application/json", "Content-Type": "application/x-www-form-urlencoded" },
+        body: body.toString(), signal: AbortSignal.timeout(30000) });
+    } catch (error) {
+      const name = error instanceof Error ? error.name : "";
+      throw new OAuthTokenError(name === "TimeoutError" || name === "AbortError"
+        ? "timeout" : "network_error");
+    }
+
+    // OAuth errors may be JSON objects, text, or even proxy-generated HTML.
+    // Preserve a safe HTTP status/shape instead of collapsing all to request_failed.
+    const httpStatus = Number.isInteger(result.status) && result.status >= 100 && result.status <= 599
+      ? result.status : 0;
+    let response: unknown;
+    try { response = await result.json(); }
+    catch {
+      throw new OAuthTokenError(result.ok ? "non_json_response" : "http_" + httpStatus + "_non_json");
+    }
+    if (!response || typeof response !== "object" || Array.isArray(response)) {
+      throw new OAuthTokenError(result.ok ? "invalid_response_shape" : "http_" + httpStatus + "_invalid_shape");
+    }
+    const data = response as Record<string, unknown>;
     if (!result.ok) {
-      const rawCode = typeof data.error === "string" ? data.error : "";
-      const code = /^[a-z][a-z0-9_]{0,47}$/.test(rawCode) ? rawCode : "oauth_error";
-      throw new Error("ChatGPT OAuth failed: " + code);
+      const problem = data.error;
+      const nested = problem && typeof problem === "object" && !Array.isArray(problem)
+        ? problem as Record<string, unknown> : undefined;
+      const rawCode = typeof problem === "string" ? problem : nested?.code;
+      // Never surface opaque error descriptions or untrusted response fields.
+      throw new OAuthTokenError(
+        typeof rawCode === "string" && OAUTH_ERROR_CODES.has(rawCode)
+          ? rawCode : "http_" + httpStatus,
+      );
     }
     return data;
   }
 
   private credentialFrom(data: Record<string, unknown>, clientId: string, subject: string,
     email: string | undefined, idToken: string, old?: Credentials): Credentials {
-    if (typeof data.access_token !== "string" || !data.access_token ||
-        (typeof data.refresh_token !== "string" && !old) ||
-        (data.token_type !== undefined && String(data.token_type).toLowerCase() !== "bearer")) {
-      throw new Error("ChatGPT returned incomplete OAuth credentials.");
+    if (typeof data.access_token !== "string" || !data.access_token) {
+      throw new OAuthTokenError("missing_access_token");
+    }
+    if (typeof data.refresh_token !== "string" && !old) {
+      throw new OAuthTokenError("missing_refresh_token");
+    }
+    if (data.token_type !== undefined && String(data.token_type).toLowerCase() !== "bearer") {
+      throw new OAuthTokenError("invalid_token_type");
     }
     const scopes = typeof data.scope === "string" ? data.scope.split(/\s+/).filter(Boolean) : old?.scopes || [];
     const expires = typeof data.expires_in === "number" && data.expires_in > 0 ? data.expires_in : 3600;
