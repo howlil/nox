@@ -72,6 +72,7 @@ function createHarness(
       session = selected;
       return selected;
     },
+    forkSession: async () => ({ session }),
     setModel: async (_model?: string) => {},
     newSession: async () => {
       for (const record of proposalRecords.values()) {

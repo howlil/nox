@@ -11,6 +11,7 @@ import {
   TurnContextSnapshot,
 } from "../context/context-types";
 import type { SessionPort, ContextPort, PolicyPort, LearningStatePort, ProgramStorePort } from "./ports";
+import { formatReplyPrompt } from "./reply-context";
 import { PersistenceError } from "../persistence/PersistenceError";
 import { prepareContextEnvelope } from "../context/ContextBudget";
 import type { ResearchResult } from "../context/LocalResearch";
@@ -110,7 +111,8 @@ export class RunLearningTurn {
     const scoped = isLockedLearningMode(session.learningScope?.mode);
     const practice = this.practices.forSession(scoped ? `${session.id}:backend` : session.id);
     if (practice.snapshot()) return practice;
-    for (let i = session.messages.length - 1; i >= 0; i--) {
+    const inheritedCount = session.fork?.inheritedMessageCount ?? 0;
+    for (let i = session.messages.length - 1; i >= inheritedCount; i--) {
       const message = session.messages[i];
       // Only whitelisted informational commands preserve an unanswered question.
       // Ordinary Ask/Explain and explicit mode changes end free-Practice recovery.
@@ -209,10 +211,10 @@ export class RunLearningTurn {
             : `MODE: ${next.mode} · backend. ${question ? `Kembali ke pertanyaan: ${question}`
               : "Kirim 'mulai' untuk pertanyaan backend pertama."} Ketik /pause untuk diskusi bebas.`;
         if (scopeCommand === "invalid" || unavailableResume) {
-          if (!request.retry) await this.sessions.recordUserMessage(request.prompt, sessionAtStart.id);
+          if (!request.retry) await this.sessions.recordUserMessage(request.prompt, sessionAtStart.id, "ask", request.turnId);
           await this.sessions.recordAssistantMessage(reply, undefined, sessionAtStart.id);
         } else {
-          await this.sessions.recordScopeChange(next, request.prompt, reply, sessionAtStart.id);
+          await this.sessions.recordScopeChange(next, request.prompt, reply, sessionAtStart.id, request.turnId);
           // An explicit mode transition exits ordinary Practice. The backend
           // machine remains derived from its separately marked transcript parts.
           this.practices.reset(sessionAtStart.id);
@@ -235,7 +237,7 @@ export class RunLearningTurn {
       if (request.action === "edit" || request.action === "review") {
         try {
           const reply = scopeDeflection(this.practiceForSession(sessionAtStart).snapshot()?.currentQuestion);
-          if (!request.retry) await this.sessions.recordUserMessage(request.prompt, sessionAtStart.id, "practice");
+          if (!request.retry) await this.sessions.recordUserMessage(request.prompt, sessionAtStart.id, "practice", request.turnId);
           await this.sessions.recordAssistantMessage(reply, undefined, sessionAtStart.id);
           yield { type: "response-delta", text: reply };
           yield { type: "completed" };
@@ -354,7 +356,10 @@ export class RunLearningTurn {
         program.constraints.sourcePaths.includes(item.file));
     // A Review follow-up practices its originating material, even if the user
     // navigated to another note before sending. Other explicit refs remain additive.
-    let visible = resolvedContext;
+    // An Ask AI quote never implicitly attaches another editor's selection.
+    let visible = request.replyTo
+      ? context.explicit.map(item => ({ type: item.type, file: item.path, content: item.content }))
+      : resolvedContext;
     if (pinnedPracticeSource && request.action === "practice") {
       const source = resolvedContext.find((item) => item.file === pinnedPracticeSource);
       if (!source) {
@@ -549,7 +554,9 @@ export class RunLearningTurn {
       const instruction =
         buildActionInstruction(request.action);
       preparedPrompt =
-        `${instruction}\n\nUser request:\n${researchQuery ?? request.prompt}`;
+        `${instruction}\n\nUser request:\n${request.replyTo
+          ? formatReplyPrompt(researchQuery ?? request.prompt, request.replyTo)
+          : researchQuery ?? request.prompt}`;
       if (request.action === "ask" || request.action === "explain") {
         preparedPrompt += "\n\nPRESENTATION: Use short semantic Markdown headings without numeric prefixes unless specifically requested. Prefer compact Markdown tables for comparisons. Avoid emoji as status icons. Do not invent metrics or display a chart for unknown data.";
         if (/diagram|flowchart|arsitektur|architecture|dependency graph|peta konsep|visualisasi alur/i.test(request.prompt) && !/mermaid/i.test(request.prompt)) {
@@ -646,8 +653,14 @@ export class RunLearningTurn {
     };
 
     try {
-      if (!request.retry && !request.regenerate) {
-        await this.sessions.recordUserMessage(request.prompt, turnSessionId, request.action);
+      // Retries after a failed save must not silently lose the user message.
+      // A durable turn ID also prevents appending the same message twice.
+      const missingRetryMessage = Boolean(request.retry && request.turnId &&
+        !this.sessions.getSession().messages.some(message =>
+          message.role === "user" && message.id === request.turnId));
+      if (!request.regenerate && (!request.retry || missingRetryMessage)) {
+        await this.sessions.recordUserMessage(request.prompt, turnSessionId, request.action,
+          request.turnId, request.replyTo);
       }
 
       // A retry replays a durable edit decision instead of invoking the model.
@@ -725,9 +738,12 @@ export class RunLearningTurn {
       // itself represents that user turn and must not be duplicated in history.
       const historyMessages = request.regenerate
         ? conversation.messages.slice(0, request.regenerate.messageIndex - 1)
-        : conversation.messages;
+        : request.retry && request.turnId
+          ? conversation.messages.filter(message => message.id !== request.turnId)
+          : conversation.messages;
       const priorHistory = lockedMode || program ? [] : historyMessages.map(message => ({
-        role: message.role, content: message.content,
+        role: message.role, content: message.role === "user" && message.replyTo
+          ? formatReplyPrompt(message.content, message.replyTo) : message.content,
       }));
       const envelope = prepareContextEnvelope({
         prompt: preparedPrompt,
@@ -1089,7 +1105,7 @@ export class RunLearningTurn {
   ): Promise<Awaited<ReturnType<LearningStatePort["load"]>>> {
     let state = initial;
     let changed = false;
-    for (const message of session.messages) {
+    for (const message of session.messages.slice(session.fork?.inheritedMessageCount ?? 0)) {
       for (const part of message.parts ?? []) {
         if (part.type === "practice-evaluation" && part.questionId) {
           const operationId = part.operationId ?? `practice:${session.id}:${part.questionId}`;

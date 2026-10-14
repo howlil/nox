@@ -159,9 +159,16 @@ export class NoxHistoryList {
     });
     if (session.id === this.currentId && !archived) open.addClass("is-current");
     const icon = open.createSpan({ cls: "nox-history-entry-icon" });
-    setNoxIcon(icon, archived ? "archive" : "message-circle");
+    setNoxIcon(icon, archived ? "archive" : session.fork ? "git-branch" : "message-circle");
     const copy = open.createDiv({ cls: "nox-history-entry-copy" });
     copy.createSpan({ cls: "nox-history-entry-name", text: this.title(session) });
+    if (session.fork) {
+      const parent = this.sessions.find(item => item.id === session.fork?.parentSessionId);
+      copy.createSpan({
+        cls: "nox-history-entry-fork",
+        text: parent ? "Fork of " + this.title(parent) : "Fork · original removed",
+      });
+    }
     copy.createSpan({ cls: "nox-history-entry-preview", text: this.preview(session) });
     const time = open.createSpan({ cls: "nox-history-entry-time", text: this.formatTime(session.updatedAt) });
     time.setAttribute("aria-hidden", "true");

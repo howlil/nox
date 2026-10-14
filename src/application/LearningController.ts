@@ -1,4 +1,4 @@
-import type { AgentAdapter, AgentHealth, AgentModel, ApplyResult, ChatSession } from "../types";
+import type { AgentAdapter, AgentHealth, AgentModel, ApplyResult, ChatSession, ChatMessage } from "../types";
 import type { ExplicitContextRef, LearningContext } from "../context/context-types";
 import type { SessionPort, ContextPort, PolicyPort, MutationPort, LearningStatePort, RuntimeSettingsWrite, ProgramStorePort } from "./ports";
 import type { AgentRuntimePort } from "../agent/AgentRuntime";
@@ -177,6 +177,13 @@ export class LearningController {
     return this.sessions.newSession();
   }
 
+  async forkSession(parentId: string, anchorMessageId: string): Promise<{
+    session: ChatSession; draftUserPrompt?: string; draftReplyTo?: ChatMessage["replyTo"];
+  }> {
+    this.assertRuntimeIdle();
+    return this.sessions.forkSession(parentId, anchorMessageId);
+  }
+
   async selectSession(id: string): Promise<ChatSession | null> {
     if (this.configuringRuntime) throw new Error("Wait for runtime settings to finish saving.");
     if (this.turns.isRunning() || this.applyingProposals.size > 0 || this.programs?.isPlanning()) throw new Error("Finish the active turn or note edit or learning plan before switching sessions.");
@@ -274,7 +281,7 @@ export class LearningController {
       // A failed write must not publish an assisted attempt or half a hint.
       const sessionId = this.sessions.getSession().id;
       try {
-        await this.sessions.recordPracticeHint(hint, sessionId);
+        await this.sessions.recordPracticeHint(hint, sessionId, request.turnId);
         this.turns.getPracticeHint();
       } catch (error) {
         yield { type: "failed", failure: { code: "persistence-failed",
@@ -406,7 +413,7 @@ export class LearningController {
             }
           }
         }
-        if (!request.retry) await this.sessions.recordUserMessage(request.prompt, this.sessions.getSession().id, "ask");
+        if (!request.retry) await this.sessions.recordUserMessage(request.prompt, this.sessions.getSession().id, "ask", request.turnId);
         await this.sessions.recordAssistantMessage(response, undefined, this.sessions.getSession().id);
         yield { type: "response-delta", text: response };
         yield { type: "completed" }; return;
