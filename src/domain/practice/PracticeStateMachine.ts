@@ -13,6 +13,9 @@ export interface PracticeEvaluationAttempt {
   question: string;
   concept?: string;
   answer: string;
+  programId?: string;
+  objectiveId?: string;
+  assisted?: boolean;
 }
 
 export class PracticeStateMachine {
@@ -71,7 +74,17 @@ export class PracticeStateMachine {
       id: questionId ?? this.makeId(),
       concept: question.concept,
       question: question.question,
+      hint: question.hint,
+      programId: question.programId,
+      objectiveId: question.objectiveId,
     });
+  }
+
+  markHintUsed(): string | undefined {
+    const current = this.session?.turns[this.session.turns.length - 1];
+    if (!current || !this.isWaitingForAnswer()) return undefined;
+    current.assisted = true;
+    return current.hint;
   }
 
   beginEvaluation(
@@ -95,6 +108,9 @@ export class PracticeStateMachine {
       question: session.currentQuestion,
       concept: session.concept,
       answer,
+      programId: session.turns[session.turns.length - 1]?.programId,
+      objectiveId: session.turns[session.turns.length - 1]?.objectiveId,
+      assisted: session.turns[session.turns.length - 1]?.assisted,
     };
 
     session.state = "evaluating";
