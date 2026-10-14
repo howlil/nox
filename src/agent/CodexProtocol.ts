@@ -1,5 +1,5 @@
 import type { AgentFailure, AgentModel, AgentStreamEvent } from "../types";
-import { decodeTokenUsage } from "./token-usage";
+import { decodeTokenUsage } from "../domain/telemetry/token-usage";
 
 /** Project the app-server catalog to executable model slugs, not catalog row IDs. */
 export function parseCodexModelPage(value: unknown): { models: AgentModel[]; nextCursor: string | null } {
