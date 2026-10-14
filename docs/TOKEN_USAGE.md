@@ -95,3 +95,41 @@ This conservative choice can undercount the first observed resumed turn.
   removes only the requested scope, and independent token ledger remains.
 - Light-only NOX removes the Appearance selector; host Obsidian theme is
   not modified.
+
+## Provider-reported quotas (2026-10-15)
+
+Settings > Nox > Token Usage now keeps **Provider quotas** distinct from
+**Manual balances**. NOX reads provider quota data only through local,
+installed CLIs. It does not call private subscription HTTP endpoints, read
+credentials directly, consume reset credits, start agent threads or infer
+billing amounts from token counts.
+
+- **AGY**: `agy --version` must confirm version >= 1.2.15; only then execute
+  `agy --output-format json -p /usage` and optional `-p /credits`.
+  The first command must have `status: SUCCESS`, `num_turns: 0`, empty
+  `conversation_id`, and `command.name: usage`. A mismatched response is
+  rejected. Parse quota *groups and windows*; Gemini quotas may be shared,
+  not individual Flash/Pro credits. Unexpected credit shape = unknown.
+- **Codex**: use a short-lived `codex app-server --listen stdio://`
+  initialize/initialized/read sequence with `account/rateLimits/read`.
+  Convert `usedPercent` to remaining percentage, preserve window reset
+  and `normalModelSlug` if explicitly supplied. No `thread/start`.
+- **ChatGPT plan**: still explicitly unavailable; no unsupported private
+  quota interface is scraped.
+- **Caching**: one application-owned ephemeral cache per provider, 90 seconds,
+  30-second backoff after failures, inflight request coalescing, cancellation
+  on unload or runtime path change. A failed refresh retains a *stale*-labeled
+  snapshot rather than falsely marking it live.
+- **Refresh credits** triggers a fresh provider read; **Refresh usage**
+  reloads the NOX token ledger. These are different user intents.
+- **Manual balances** remain separate in plugin data, with their own source,
+  timestamps and explicit units. The fallback `requested: model-id` is
+  normalized for manual lookup, without mutating the usage ledger.
+- Never total quotas from multiple shared windows into one credit balance,
+  nor assume a pooled bucket is owned uniquely by a model.
+- CLI output is bounded, timed out, and auth stderr is discarded (not saved
+  into settings/errors). Unsupported CLI versions fail closed.
+
+Desktop smoke test: AGY old/new version; signed-out, authenticated and missing
+CLI; Codex local sign-in and app-server version; fresh/stale/unavailable;
+requested-prefixed models, manual shared pools, light-only in a dark host.
