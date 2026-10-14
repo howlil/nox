@@ -1,14 +1,18 @@
 import type { PracticeAnswer, PracticeQuestion } from "../domain/practice/types";
 import { validatePracticeAnswer } from "../domain/practice/question-schema";
 import { renderPracticeInstructions } from "./practice-instructions";
+import { createNoxButton, createNoxSurface } from "./primitives";
 
 export interface QuizCardActions {
   questionId: string;
   active: boolean;
   draft?: PracticeAnswer;
+  /** Derived from the persisted /hint turn, never a second durable state. */
+  hintUsed?: boolean;
   onDraft: (answer: PracticeAnswer) => void;
   onSubmit: (answer: PracticeAnswer) => Promise<boolean>;
-  onHint: () => void;
+  /** Resolve true only after the canonical /hint operation has been persisted. */
+  onHint: () => Promise<boolean> | boolean | void;
 }
 
 /**
@@ -17,7 +21,7 @@ export interface QuizCardActions {
  */
 export function renderQuizCard(parent: HTMLElement, question: PracticeQuestion,
   actions: QuizCardActions): void {
-  const card = parent.createDiv({ cls: "nox-quiz-card" });
+  const card = createNoxSurface(parent, "nox-quiz-card");
   const header = card.createDiv({ cls: "nox-quiz-heading" });
   header.createDiv({ cls: "nox-practice-label", text: "Practice · " + question.concept });
   header.createSpan({ cls: "nox-quiz-kind", text: question.input?.type === "code"
@@ -33,10 +37,12 @@ export function renderQuizCard(parent: HTMLElement, question: PracticeQuestion,
   const status = card.createDiv({ cls: "nox-quiz-status", attr: { "aria-live": "polite" } });
   let answer: PracticeAnswer | undefined;
   let submit!: HTMLButtonElement;
+  let busy = false;
+  let hintPending = false;
 
   const update = (value: PracticeAnswer) => {
     answer = value;
-    if (submit) submit.disabled = disabled || !isValid();
+    if (submit) submit.disabled = disabled || busy || !isValid();
     if (!disabled) actions.onDraft(value);
     status.setText("");
   };
@@ -77,7 +83,7 @@ export function renderQuizCard(parent: HTMLElement, question: PracticeQuestion,
   } else {
     const toolbar = answerArea.createDiv({ cls: "nox-quiz-code-meta" });
     toolbar.createSpan({ text: input.language });
-    toolbar.createSpan({ text: "Review only · not executed" });
+    toolbar.createSpan({ text: "Review only · Tab moves focus" });
     const editor = answerArea.createEl("textarea", { cls: "nox-quiz-editor nox-quiz-code-editor" });
     editor.rows = 9;
     editor.spellcheck = false;
@@ -90,35 +96,82 @@ export function renderQuizCard(parent: HTMLElement, question: PracticeQuestion,
     editor.addEventListener("input", () => update({
       type: "code", language: input.language, source: editor.value,
     }));
-    editor.addEventListener("keydown", event => {
-      if (event.key !== "Tab" || event.shiftKey) return;
-      event.preventDefault();
-      const start = editor.selectionStart, end = editor.selectionEnd;
-      editor.setRangeText("  ", start, end, "end");
-      update({ type: "code", language: input.language, source: editor.value });
-    });
+  }
+
+  // The hint body is intentionally absent from the visible UI until the
+  // persisted /hint command confirms assisted practice. It is not an answer key.
+  const hintPanel = question.hint
+    ? card.createDiv({ cls: "nox-quiz-hint-panel" }) : null;
+  if (hintPanel) {
+    hintPanel.hidden = true;
+    hintPanel.createDiv({ cls: "nox-quiz-hint-title", text: "A small nudge" });
+    hintPanel.createDiv({ cls: "nox-quiz-hint-text", text: question.hint });
+    hintPanel.createDiv({ cls: "nox-quiz-hint-note",
+      text: "Using a hint makes this attempt assisted, not independent recall." });
   }
 
   const footer = card.createDiv({ cls: "nox-quiz-actions" });
-  if (question.hint && actions.active) {
-    const hint = footer.createEl("button", { cls: "nox-quiz-hint", text: "Hint" });
-    hint.type = "button";
-    hint.addEventListener("click", actions.onHint);
+  let hintUsed = Boolean(actions.hintUsed);
+  let hintVisible = false;
+  let hintButton: HTMLButtonElement | null = null;
+  if (hintPanel && actions.active) {
+    hintButton = createNoxButton(footer, {
+      cls: "nox-quiz-hint", variant: "quiet",
+      text: hintUsed ? "Show hint" : "Get hint",
+      label: hintUsed ? "Show the previously requested hint" : "Request a hint; this marks the answer assisted",
+    });
+    const hintControl = hintButton;
+    const hintId = "nox-hint-" + actions.questionId;
+    hintPanel.id = hintId;
+    hintControl.setAttribute("aria-controls", hintId);
+    hintControl.setAttribute("aria-expanded", "false");
+    hintControl.addEventListener("click", async () => {
+      if (disabled || busy || hintPending) return;
+      if (!hintUsed) {
+        hintPending = true;
+        hintControl.disabled = true;
+        hintControl.setText("Opening hint…");
+        try {
+          if (await actions.onHint() !== true) {
+            status.setText("Hint could not be saved. Try again.");
+            return;
+          }
+          hintUsed = true;
+        } catch (error) {
+          status.setText(error instanceof Error ? error.message : "Unable to open hint.");
+          return;
+        } finally {
+          hintPending = false;
+          hintControl.disabled = busy;
+        }
+      }
+      hintVisible = !hintVisible;
+      hintPanel.hidden = !hintVisible;
+      hintControl.setAttribute("aria-expanded", String(hintVisible));
+      hintControl.setText(hintVisible ? "Hide hint" : "Show hint");
+      status.setText("");
+    });
   }
-  submit = footer.createEl("button", { cls: "nox-quiz-submit",
-    text: disabled ? "Answered" : "Submit answer" });
-  submit.type = "button";
+
+  submit = createNoxButton(footer, {
+    cls: "nox-quiz-submit", variant: "primary",
+    text: disabled ? "Evaluated" : "Submit answer",
+    label: "Submit this answer for evaluation",
+  });
   submit.disabled = disabled || !isValid();
   submit.addEventListener("click", async () => {
-    if (!answer || !isValid() || submit.disabled) return;
+    if (!answer || !isValid() || submit.disabled || busy || hintPending) return;
+    busy = true;
     submit.disabled = true;
-    status.setText("Submitting...");
+    if (hintButton) hintButton.disabled = true;
+    submit.setText("Evaluating…");
+    status.setText("Evaluating your answer…");
     let committed = false;
     try {
       committed = await actions.onSubmit(answer);
       if (committed) {
-        status.setText("Answer recorded.");
-        submit.setText("Answered");
+        status.setText("Evaluation saved. Feedback appears below.");
+        submit.setText("Evaluated");
         card.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>("input,textarea")
           .forEach(control => { control.disabled = true; });
       } else {
@@ -127,7 +180,12 @@ export function renderQuizCard(parent: HTMLElement, question: PracticeQuestion,
     } catch (error) {
       status.setText(error instanceof Error ? error.message : "Unable to submit the answer.");
     } finally {
-      if (actions.active && !committed) submit.disabled = !isValid();
+      busy = false;
+      if (!committed) {
+        submit.setText("Retry evaluation");
+        if (actions.active) submit.disabled = !isValid();
+        if (hintButton) hintButton.disabled = disabled;
+      }
     }
   });
 }

@@ -91,6 +91,10 @@ export class RunLearningTurn {
     return this.practiceForSession(this.sessions.getSession()).isWaitingForAnswer();
   }
 
+  peekPracticeHint(): string | undefined {
+    return this.practiceForSession(this.sessions.getSession()).peekHint();
+  }
+
   getPracticeHint(): string | undefined {
     return this.practiceForSession(this.sessions.getSession()).markHintUsed();
   }
@@ -639,7 +643,8 @@ export class RunLearningTurn {
         );
         if (committed) {
           practice.commitEvaluation(practiceAttempt, committed.evaluation, committed.nextQuestionId);
-          yield { type: "practice-evaluation", evaluation: committed.evaluation };
+          yield { type: "practice-evaluation", evaluation: committed.evaluation,
+            questionId: practiceAttempt.questionId };
           if (committed.evaluation.nextQuestion?.trim()) {
             yield {
               type: "practice-question",
@@ -1103,7 +1108,8 @@ export class RunLearningTurn {
         }
 
         practice.commitEvaluation(practiceAttempt, evaluationPart.evaluation, evaluationPart.nextQuestionId);
-        yield { type: "practice-evaluation", evaluation: evaluationPart.evaluation };
+        yield { type: "practice-evaluation", evaluation: evaluationPart.evaluation,
+          questionId: practiceAttempt.questionId };
         yield { type: "learning-state-updated", state: nextState };
         if (evaluationPart.evaluation.nextQuestion?.trim()) {
           yield { type: "practice-question", question: {

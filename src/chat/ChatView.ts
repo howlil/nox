@@ -1481,7 +1481,7 @@ export class ChatView extends ItemView {
     if (event.type === "practice-evaluation") {
       this.setThinkingStage(2);
       this.ensureAgentBubble();
-      this.appendPracticeEvaluation(event.evaluation);
+      this.appendPracticeEvaluation(event.evaluation, this.agentCursorEl, event.questionId);
       return;
     }
 
@@ -1949,7 +1949,7 @@ export class ChatView extends ItemView {
       if (part.type === "practice-question") {
         this.appendPracticeQuestion(part.question, bubble, part.questionId);
       } else if (part.type === "practice-evaluation") {
-        this.appendPracticeEvaluation(part.evaluation, bubble);
+        this.appendPracticeEvaluation(part.evaluation, bubble, part.questionId);
       } else if (part.type === "review-findings") {
         this.appendReviewFindings(part.findings, part.sourcePath ?? message.sourcePath ?? null, bubble);
       }
@@ -2328,8 +2328,12 @@ export class ChatView extends ItemView {
       this.learning.hasActivePracticeQuestion() &&
       !session.messages.some(m => m.parts?.some(p =>
         p.type === "practice-evaluation" && p.questionId === questionId)));
+    const questionIndex = questionId ? session.messages.findIndex(m => m.parts?.some(p =>
+      p.type === "practice-question" && p.questionId === questionId)) : -1;
+    const hintUsed = questionIndex >= 0 && session.messages.slice(questionIndex + 1)
+      .some(m => m.role === "user" && m.content.trim().toLowerCase() === "/hint");
     renderPracticeQuestionCard(parent, question, questionId ? {
-      questionId, active, draft: session.practiceDrafts?.[questionId],
+      questionId, active, hintUsed, draft: session.practiceDrafts?.[questionId],
       onDraft: answer => {
         if (!active) return;
         if (this.quizDraftTimer !== null) window.clearTimeout(this.quizDraftTimer);
@@ -2339,14 +2343,19 @@ export class ChatView extends ItemView {
             .catch(() => new Notice("Could not save quiz draft."));
         }, 450);
       },
-      onHint: () => {
-        if (this.uiState === "RUNNING") return;
+      onHint: async () => {
+        if (this.uiState === "RUNNING" || !this.learning.hasActivePracticeQuestion()) return false;
+        const before = this.learning.getSession().messages.length;
         const request: LearningRequest = {
           prompt: "/hint", action: "practice", explicitContext: [],
           turnId: crypto.randomUUID(),
         };
         this.lastTurnRequest = request;
-        void this.runTurn(request, true);
+        await this.runTurn(request, true);
+        // Do not reveal the hint when the transcript operation failed.
+        const after = this.learning.getSession();
+        return after.id === session.id && after.messages.slice(before).some(
+          m => m.role === "assistant" && m.content === "Hint: " + question.hint);
       },
       onSubmit: async answer => {
         if (!active || this.uiState === "RUNNING") return false;
@@ -2376,9 +2385,33 @@ export class ChatView extends ItemView {
   private appendPracticeEvaluation(
     evaluation: PracticeEvaluation,
     parent: HTMLElement | null = this.agentCursorEl,
+    questionId?: string,
   ): void {
     if (!parent) return;
-    renderPracticeEvaluationCard(parent, evaluation);
+    // Only a committed evaluation can resolve a correct-answer disclosure.
+    const session = this.learning.getSession();
+    const questionPart = questionId ? session.messages.flatMap(m => m.parts ?? [])
+      .find(p => p.type === "practice-question" && p.questionId === questionId) : undefined;
+    const question = questionPart?.type === "practice-question" ? questionPart.question : undefined;
+    const input = question?.input;
+    const choice = input?.type === "multiple-choice"
+      ? input.options.find(o => o.id === input.correctOptionId) : undefined;
+    renderPracticeEvaluationCard(parent, evaluation, {
+      correctAnswer: choice?.text,
+      onContinue: this.learning.hasActivePracticeQuestion() ? undefined : () => {
+        if (this.uiState === "RUNNING") return;
+        const sessionId = session.id;
+        void this.learning.getProgramMenuState().then(state => {
+          if (this.learning.getSession().id !== sessionId) return;
+          this.setAction(state.activeProgramId ? "ask" : "practice");
+          this.input.value = state.activeProgramId
+            ? (state.sessionActive ? "/next" : "/start-session")
+            : "Give me another practice question about " + evaluation.concept + ".";
+          this.onInput();
+          this.focusComposer();
+        }).catch(() => new Notice("Unable to prepare the next learning activity."));
+      },
+    });
     this.scrollThread();
   }
 

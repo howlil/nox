@@ -20,6 +20,13 @@ class FakeElement {
     this.children.push(child);
     return child;
   }
+  createSpan(options: { cls?: string; text?: string } = {}): FakeElement {
+    return this.createEl("span", options);
+  }
+  empty(): void { this.children.splice(0); }
+  querySelector(_selector: string): null { return null; }
+  addClass(_className: string): void {}
+
   addEventListener(type: string, handler: () => void): void {
     this.handlers.set(type, handler);
   }
@@ -68,4 +75,34 @@ test("review controls relay the exact finding through supplied actions", () => {
   buttons[0].click();
   buttons[1].click();
   assert.deepEqual(called, ["practice:transactions", "fix:transactions"]);
+});
+
+test("feedback reveals the committed solution and rubric only in a native disclosure", () => {
+  const root = new FakeElement();
+  let prepares = 0;
+  renderPracticeEvaluationCard(asDom(root), {
+    kind: "evaluation", concept: "transactions", outcome: "incorrect",
+    assisted: true, feedback: "Atomicity requires a rollback boundary.",
+    misconceptions: ["Confuses rollback with retry"],
+    rubricResults: [
+      { criterion: "Explains rollback", met: false, evidence: "No rollback mentioned" },
+    ],
+  }, { correctAnswer: "A database transaction", onContinue: () => { prepares++; } });
+  const details = root.find("nox-evaluation-reveal");
+  assert.equal(details?.tag, "details");
+  assert.equal(root.find("nox-evaluation-solution-text")?.text, "A database transaction");
+  assert.equal(root.find("nox-evaluation-assisted")?.text, "Hint used");
+  assert.equal(root.find("nox-evaluation-rubric-name")?.text, "Explains rollback");
+  root.find("nox-evaluation-continue")?.click();
+  assert.equal(prepares, 1);
+});
+
+test("feedback never invents an answer key when no committed MCQ option is supplied", () => {
+  const root = new FakeElement();
+  renderPracticeEvaluationCard(asDom(root), {
+    kind: "evaluation", concept: "code", outcome: "partial",
+    feedback: "Address the race condition.", misconceptions: [],
+  });
+  assert.equal(root.find("nox-evaluation-solution-text"), undefined);
+  assert.equal(root.find("nox-evaluation-reveal"), undefined);
 });

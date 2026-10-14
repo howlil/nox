@@ -60,6 +60,8 @@ export type LearningEvent =
   | {
       type: "practice-evaluation";
       evaluation: PracticeEvaluation;
+      /** Identity of the evaluated question, for post-commit UI reveal. */
+      questionId?: string;
     }
   | {
       type: "review-findings";
