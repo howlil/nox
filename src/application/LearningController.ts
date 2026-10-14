@@ -70,6 +70,21 @@ export class LearningController {
     return this.runtime.getModels();
   }
 
+  async getProgramMenuState(): Promise<{
+    activeProgramId?: string;
+    sessionActive: boolean;
+    programs: Array<{ id: string; goal: string }>;
+  }> {
+    if (!this.programs) return { sessionActive: false, programs: [] };
+    const collection = await this.programs.listPrograms();
+    const active = collection.programs.find(item => item.id === collection.activeProgramId);
+    return {
+      activeProgramId: active?.id,
+      sessionActive: Boolean(active?.session),
+      programs: collection.programs.map(item => ({ id: item.id, goal: item.goal })),
+    };
+  }
+
   getModelDiscoveryError(): string | undefined {
     return this.runtime.getModelDiscoveryError?.();
   }
