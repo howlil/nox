@@ -273,7 +273,7 @@ export class LearningProgramOrchestrator {
     }
     this.planning = true;
     const abort = this.currentAbort = new AbortController();
-    const timeout = setTimeout(() => abort.abort(), 120_000);
+    const timeout = setTimeout(() => abort.abort(), 300_000);
     try {
       const context = await this.contexts.resolve();
       const source = context.selection ?? (context.activeNote ? {
