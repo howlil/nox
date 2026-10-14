@@ -2,6 +2,7 @@ import type { LearningProgram } from "../domain/learning-program/types";
 import type { LearningController } from "../application/LearningController";
 import type { OnboardingDraft } from "../domain/onboarding/types";
 import { planWorkspace } from "../domain/workspace/plan";
+import { feasibility } from "../domain/learning-program/rules";
 import { createNoxButton, setNoxIcon } from "./primitives";
 import { animateNoxEnter } from "./motion";
 
@@ -118,6 +119,7 @@ export class OnboardingFlow {
       const constraints = {
         minutesPerSession: this.draft.minutesPerSession, sessionsPerWeek: this.draft.sessionsPerWeek,
         startingLevel: this.draft.level,
+        ...(this.draft.deadline ? { deadline: this.draft.deadline } : {}),
         sourceBound: this.draft.sourceBound,
         sourcePaths: this.draft.sourcePath ? [this.draft.sourcePath] : [], excludedTopics: [],
       };
@@ -247,6 +249,14 @@ export class OnboardingFlow {
           this.persist();
         });
       }
+      panel.createEl("label", { cls: "nox-onboarding-label", text: "Deadline (optional)", attr: { for: "nox-learning-deadline" } });
+      const deadline = panel.createEl("input", { cls: "nox-onboarding-field",
+        attr: { id: "nox-learning-deadline", type: "date" } });
+      deadline.value = this.draft.deadline ?? "";
+      deadline.addEventListener("change", () => {
+        this.draft.deadline = deadline.value || undefined;
+        this.persist();
+      });
       if (this.draft.sourceBound) panel.createDiv({ cls: "nox-onboarding-help", text: `Source: ${this.draft.sourcePath ?? "active note"}` });
       this.actions(panel, "Generate blueprint", () => void this.prepare(),
         this.draft.sourceBound ? "notes" : "welcome");
@@ -265,6 +275,12 @@ export class OnboardingFlow {
       this.header(panel, "Review your learning blueprint", p.goal);
       const details = panel.createDiv({ cls: "nox-onboarding-summary" });
       details.createDiv({ text: `${p.objectives.length} objectives · ${p.constraints.minutesPerSession} min · ${p.constraints.sessionsPerWeek} sessions/week` });
+      const work = feasibility(p);
+      details.createDiv({ text: `Estimated total: ${work.estimatedMinutes} min including review` });
+      if (work.feasible === false) details.createDiv({
+        cls: "nox-onboarding-risk",
+        text: "Schedule at risk. Reduce scope or increase time before approving.",
+      });
       const list = panel.createDiv({ cls: "nox-onboarding-objectives" });
       p.objectives.forEach((objective, index) => {
         const row = list.createDiv({ cls: "nox-onboarding-objective" });

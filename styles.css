@@ -4500,3 +4500,5 @@
 .nox-activity-material {padding:6px 0;border-bottom:1px solid var(--nox-line);font-size:11px;}
 .nox-activity-material>span:first-child {min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 .nox-activity-duration {font-variant-numeric:tabular-nums;flex-shrink:0;color:var(--nox-ink-2);}
+
+.nox-onboarding-risk {padding-top:7px;color:var(--nox-orange);font-size:11px;line-height:1.5;}

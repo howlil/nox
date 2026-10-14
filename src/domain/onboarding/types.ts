@@ -13,4 +13,5 @@ export interface OnboardingDraft {
   sessionsPerWeek: number;
   sourceBound: boolean;
   sourcePath?: string;
+  deadline?: string;
 }
