@@ -114,6 +114,7 @@ export class ChatView extends ItemView {
   private selectionActions!: NoxSelectionActions;
   private transcriptSelection: TranscriptSelectionController | null = null;
   private pendingReplyTo: ChatReplyReference | null = null;
+  private transcriptRenderEpoch = 0;
   private headerEl!: HTMLElement;
   private historyBtn!: HTMLButtonElement;
   private historyMenuEl!: HTMLElement;
@@ -254,6 +255,7 @@ export class ChatView extends ItemView {
 
   async onClose(): Promise<void> {
     this.learning.cancel();
+    this.transcriptRenderEpoch++;
     this.transcriptSelection?.destroy();
     this.transcriptSelection = null;
     this.stopLoadingTimer();
@@ -633,6 +635,7 @@ export class ChatView extends ItemView {
 
     this.closeHistoryMenu();
     this.clearReplyReference();
+    this.transcriptSelection?.hide();
     this.input.value = "";
     this.composerUi.syncInputLayout();
     this.lastTurnRequest = null;
@@ -1933,6 +1936,8 @@ export class ChatView extends ItemView {
   }
 
   private showEmpty(): void {
+    this.transcriptRenderEpoch++;
+    this.transcriptSelection?.hide();
     this.stopLoadingTimer();
     this.thread.empty();
     this.agentCursorEl = null;
@@ -2134,6 +2139,7 @@ export class ChatView extends ItemView {
   }
 
   private async restoreSession(): Promise<void> {
+    const epoch = ++this.transcriptRenderEpoch;
     const messages = this.learning.getSession().messages;
     if (messages.length === 0) {
       this.showEmpty();
@@ -2144,6 +2150,7 @@ export class ChatView extends ItemView {
     this.restoringSession = true;
     try {
       for (const [messageIndex, message] of messages.entries()) {
+        if (epoch !== this.transcriptRenderEpoch) return;
         if (message.role === "user") {
           this.appendUserBubble(message.content, message.id, message.replyTo);
           continue;
@@ -2160,8 +2167,9 @@ export class ChatView extends ItemView {
         this.appendRestoredStructuredParts(message);
       }
     } finally {
-      this.restoringSession = false;
+      if (epoch === this.transcriptRenderEpoch) this.restoringSession = false;
     }
+    if (epoch !== this.transcriptRenderEpoch) return;
     this.setUIState(this.runtimeReady ? "ANSWER" : "ERROR");
     this.scrollThread("auto");
   }
@@ -2192,6 +2200,7 @@ export class ChatView extends ItemView {
       sourcePath,
       this,
     );
+    if (!bubble.isConnected) return;
     this.wireMarkdownLinks(content, sourcePath);
     enhanceNoxResponseVisuals(content);
     if (messageIndex !== undefined) this.appendResponseActions(bubble, markdown, messageIndex);
