@@ -800,16 +800,17 @@ test("regenerate saves alternatives atomically and selected version survives res
   const writer = createController(harness);
   await writer.init();
   await writer.recordUserMessage("Explain Go", "session-1", "ask");
-  await writer.recordAssistantMessage("Original answer", "Go.md", "session-1");
+  await writer.recordAssistantMessage("Original answer", "Go.md", "session-1", undefined, 14000);
   await writer.setConversationId("old-cursor", "session-1");
   await writer.recordRegeneratedResponse(1, "Original answer", {
-    content: "New answer", sourcePath: "Go.md",
+    content: "New answer", sourcePath: "Go.md", elapsedMs: 47000,
   }, "session-1", "new-cursor");
   const message = writer.getSession().messages[1];
   assert.equal(message.content, "New answer");
   assert.deepEqual(message.responseVersions?.map(version => version.content),
     ["Original answer", "New answer"]);
   assert.equal(message.responseVersionIndex, 1);
+  assert.equal(message.elapsedMs, 47000);
   assert.equal(writer.getSession().conversationId, "new-cursor");
   await assert.rejects(writer.recordRegeneratedResponse(1, "Original answer",
     { content: "Stale replacement" }, "session-1"));
@@ -817,8 +818,10 @@ test("regenerate saves alternatives atomically and selected version survives res
   const restored = createController(harness);
   await restored.init();
   assert.equal(restored.getSession().messages[1].responseVersions?.length, 2);
+  assert.equal(restored.getSession().messages[1].responseVersions?.[0].elapsedMs, 14000);
   await restored.selectResponseVersion(1, 0, "session-1");
   assert.equal(restored.getSession().messages[1].content, "Original answer");
+  assert.equal(restored.getSession().messages[1].elapsedMs, 14000);
   assert.equal(restored.getSession().conversationId, undefined);
   const reloaded = createController(harness);
   await reloaded.init();
