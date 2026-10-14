@@ -1741,7 +1741,9 @@ export class ChatView extends ItemView {
       cls: "nox-capability-grid",
     });
 
-    for (const capability of NOX_CAPABILITIES) {
+    const legacyLocked = isLockedLearningMode(this.learning.getSession().learningScope?.mode);
+    for (const capability of NOX_CAPABILITIES.filter(item =>
+      !legacyLocked || item.action === "practice")) {
       const card = grid.createEl("button", {
         cls: "nox-capability-card",
         attr: {
