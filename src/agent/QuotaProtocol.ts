@@ -1,26 +1,5 @@
-/** Normalized, display-only provider quota readings. No token usage or manual balance writes. */
-export type QuotaProvider = "agy" | "codex";
-export interface QuotaReading {
-  provider: QuotaProvider;
-  key: string;
-  label: string;
-  kind: "window" | "credit";
-  /** Percentage that remains in a rate-limit window. Never a dollar/credit estimate. */
-  remainingPercent?: number;
-  /** A provider-reported balance (in its original units); not a derived percentage. */
-  amount?: string;
-  resetAt?: string;
-  /** Model slug only when provider explicitly ties a quota to one model. */
-  model?: string;
-  shared: boolean;
-}
-export interface ProviderQuotaSnapshot {
-  provider: QuotaProvider;
-  status: "live" | "stale" | "unavailable";
-  checkedAt?: string;
-  readings: QuotaReading[];
-  error?: string;
-}
+import type { QuotaReading } from "../types";
+export type { QuotaProvider, QuotaReading, ProviderQuotaSnapshot } from "../types";
 type Obj = Record<string, unknown>;
 const obj = (x: unknown): Obj | null => x && typeof x === "object" && !Array.isArray(x) ? x as Obj : null;
 const arr = (x: unknown): unknown[] | null => Array.isArray(x) ? x : null;
