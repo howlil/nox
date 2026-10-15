@@ -5,6 +5,13 @@ export type { ChatSession } from "./session/transcript-types";
 
 // ── Context ─────────────────────────────────────────────────────────────────
 
+/** Vault-relative research authority, shared across application and context adapters. */
+export type ResearchScope =
+  | { kind: "vault" }
+  | { kind: "selected"; paths: string[] }
+  | { kind: "folder"; path: string };
+
+
 export type AgentContext =
   | { type: "selection"; file: string; content: string }
   | { type: "note"; file: string; content: string };
