@@ -46,6 +46,9 @@ jobs:
       - name: Lint
         run: pnpm lint
 
+      - name: Typed trust-boundary lint
+        run: pnpm lint:typed
+
       - name: Parse CSS source stylesheets
         run: pnpm lint:css
 
@@ -88,6 +91,30 @@ jobs:
             dist/styles.css
           if-no-files-found: error
           retention-days: 14
+
+  # Landing is independently deployed by Cloudflare; do not add it to the
+  # Obsidian plugin's pnpm workspace or release artifact.
+  landing:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: landing
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      # The landing package currently has no committed npm lockfile.
+      # Keep Cloudflare's existing install semantics until a separate
+      # lockfile/provenance change can be verified.
+      - name: Install landing dependencies
+        run: npm install --no-audit --no-fund --package-lock=false
+      - name: Astro type validation
+        run: npm run check
+      - name: React type-aware lint
+        run: npm run lint
+      - name: Landing production build
+        run: npm run build
 
   # The Linux job cannot validate Windows PowerShell / DPAPI.
   # Run the actual local-credential OAuth roundtrip on Windows.
