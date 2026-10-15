@@ -37,7 +37,7 @@ import {
 } from "./prompt-token";
 import { NOX_CAPABILITIES } from "./capabilities";
 import { buildActionMenu, getPrimaryAction, type ActionMenuContext, type ActionMenuEntry } from "./action-menu";
-import { isLockedLearningMode, parseScopeCommand } from "../domain/practice/learning-scope";
+import { isActiveLearningScope, isProgramLearningScope, parseScopeCommand } from "../domain/practice/learning-scope";
 import { animateNoxEnter, animateNoxPopover } from "./motion";
 import { resolveNoxMarkdownLink } from "./markdown-links";
 import {
@@ -142,6 +142,7 @@ export class ChatView extends ItemView {
   private commandPage: "actions" | "programs" = "actions";
   private lastCommandQuery = "";
   private commandProgramSnapshot: Awaited<ReturnType<LearningController["getProgramMenuState"]>> | null = null;
+  private scopeGoal: { sessionId: string; programId: string; goal: string } | null = null;
   private readonly promptMenuState = new NoxMenuState();
   private promptMenuRequest = 0;
   private attachments: Array<{
@@ -974,7 +975,7 @@ export class ChatView extends ItemView {
       hasActiveSession: programState.sessionActive,
       savedProgramCount: programState.programs.length,
       hasPracticeQuestion: this.learning.hasActivePracticeQuestion(),
-      legacyMode: isLockedLearningMode(scope?.mode) ? "locked"
+      legacyMode: isActiveLearningScope(scope) ? "locked"
         : scope?.resumeMode ? "paused" : "free",
     };
   }
@@ -1289,7 +1290,7 @@ export class ChatView extends ItemView {
   }
 
   private setAction(action: LearningActionKind): void {
-    if (isLockedLearningMode(this.learning.getSession().learningScope?.mode)) action = "practice";
+    if (isActiveLearningScope(this.learning.getSession().learningScope)) action = "practice";
     const changed = action !== this.selectedAction;
     this.selectedAction = action;
     if (changed && this.pendingFindingSource) {
@@ -1324,14 +1325,43 @@ export class ChatView extends ItemView {
     }
   }
 
+  /** A read-only UI projection: never make the view read a vault repository directly. */
+  private async refreshScopeGoal(): Promise<void> {
+    const session = this.learning.getSession();
+    const scope = session.learningScope;
+    if (!isProgramLearningScope(scope)) {
+      this.scopeGoal = null;
+      this.renderIntent();
+      return;
+    }
+    try {
+      const state = await this.learning.getProgramMenuState();
+      const current = this.learning.getSession();
+      if (current.id !== session.id || !isProgramLearningScope(current.learningScope) ||
+          current.learningScope.programId !== scope.programId) return;
+      const goal = state.programs.find(item => item.id === scope.programId)?.goal;
+      this.scopeGoal = goal ? { sessionId: session.id, programId: scope.programId, goal } : null;
+      this.renderIntent();
+      this.updatePlaceholder();
+    } catch {
+      this.scopeGoal = null;
+      this.renderIntent();
+    }
+  }
+
   private renderIntent(): void {
-    const scope = this.learning.getSession().learningScope;
-    const locked = isLockedLearningMode(scope?.mode);
-    const label = locked
-      ? scope?.mode === "BASELINE_ASSESSMENT" ? "Backend · Assessment" : "Backend · Focused"
+    const session = this.learning.getSession();
+    const scope = session.learningScope;
+    const program = isProgramLearningScope(scope);
+    const locked = isActiveLearningScope(scope);
+    const title = program && this.scopeGoal?.sessionId === session.id &&
+      this.scopeGoal.programId === scope.programId ? this.scopeGoal.goal : "Learning program";
+    const label = program
+      ? locked ? `${title} · ${scope.mode === "ASSESSMENT" ? "Assessment" : "Focused"}`
+        : scope.resumeMode && this.selectedAction === "ask" ? `${title} · Paused` : null
+      : locked ? scope?.mode === "BASELINE_ASSESSMENT" ? "Backend · Legacy Assessment" : "Backend · Legacy Focused"
       : scope?.resumeMode && this.selectedAction === "ask" ? "Backend · Paused"
-      : this.selectedAction === "ask"
-      ? null
+      : this.selectedAction === "ask" ? null
       : ACTIONS.find((item) => item.kind === this.selectedAction)?.label ?? this.selectedAction;
     const chip = this.composerUi.setIntent(
       label,
@@ -1349,7 +1379,7 @@ export class ChatView extends ItemView {
     );
     if (chip) {
       if (locked || scope?.resumeMode) {
-        chip.title = locked ? "Type /pause or /mode free to leave the backend scope." : "Type /resume to return to backend learning.";
+        chip.title = locked ? "Type /pause or /mode free to leave the learning scope." : "Type /resume to resume learning.";
         const control = chip.querySelector("button");
         control?.setAttribute("aria-label", locked ? "Prepare /pause command" : "Prepare /resume command");
       }
@@ -1384,8 +1414,8 @@ export class ChatView extends ItemView {
     };
 
     if (this.input) {
-      this.input.placeholder = isLockedLearningMode(this.learning.getSession().learningScope?.mode)
-        ? "Answer or ask about the backend question · /pause to leave"
+      this.input.placeholder = isActiveLearningScope(this.learning.getSession().learningScope)
+        ? "Answer or clarify the current question · /pause to leave"
         : placeholders[this.selectedAction];
     }
   }
@@ -1412,6 +1442,7 @@ export class ChatView extends ItemView {
     );
 
     this.updatePlaceholder();
+    void this.refreshScopeGoal();
 
     if (
       this.uiState === "EMPTY" &&
@@ -1776,6 +1807,7 @@ export class ChatView extends ItemView {
       this.setAction("ask");
     }
     this.runningAction = null;
+    void this.refreshScopeGoal();
     if (this.learning.hasActivePracticeQuestion() || this.learning.getSession().learningScope) {
       this.syncPracticeComposerState();
     }
@@ -2070,7 +2102,7 @@ export class ChatView extends ItemView {
       cls: "nox-capability-grid",
     });
 
-    const legacyLocked = isLockedLearningMode(this.learning.getSession().learningScope?.mode);
+    const legacyLocked = isActiveLearningScope(this.learning.getSession().learningScope);
     for (const capability of NOX_CAPABILITIES.filter(item =>
       !legacyLocked || item.action === "practice")) {
       const card = grid.createEl("button", {
