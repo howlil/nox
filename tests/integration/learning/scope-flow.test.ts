@@ -260,7 +260,7 @@ test("mode entry waits for an in-flight editor Apply to settle", async () => {
   try {
     const events = await r.send("/mode assessment");
     assert.ok(events.some((event) => event.type === "failed" && event.failure.code === "busy"));
-    assert.equal(r.sessions.getSession().learningScope, undefined);
+    assert.deepEqual(r.sessions.getSession().learningScope, { mode: "FREE" });
   } finally {
     finishApply();
     await applying;
