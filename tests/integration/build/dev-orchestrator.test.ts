@@ -11,7 +11,7 @@ test("dev orchestrator builds and deploys into a temporary vault without Obsidia
   const root = mkdtempSync(join(tmpdir(), "nox-dev-smoke-"));
   const vault = join(root, "test-vault");
   mkdirSync(join(vault, ".obsidian"), { recursive: true });
-  const installed = join(vault, ".obsidian", "plugins", "nox-obsidian");
+  const installed = join(vault, ".obsidian", "plugins", "nox");
 
   const child = spawn(process.execPath, [
     "scripts/dev.mjs", "--vault", vault, "--reload", "none",
