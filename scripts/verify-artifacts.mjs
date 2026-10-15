@@ -2,7 +2,7 @@ import {
   existsSync,
   readFileSync,
 } from "fs";
-import { assertCompiledPluginCss } from "./css-artifact-policy.mjs";
+import { assertCompiledPluginCss, assertLandingDialogCss } from "./css-artifact-policy.mjs";
 
 const required = [
   "dist/main.js",
@@ -31,6 +31,7 @@ if (existsSync("dist/forge.png")) {
 
 // Community reviewers inspect the built CSS, not Tailwind input directives.
 assertCompiledPluginCss(readFileSync("dist/styles.css", "utf8"));
+assertLandingDialogCss(readFileSync("landing/src/components/arc/dialog/dialog.module.css", "utf8"));
 
 const manifest = JSON.parse(
   readFileSync("dist/manifest.json", "utf8"),
