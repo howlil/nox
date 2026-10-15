@@ -1,4 +1,5 @@
 import { addIcon, FileSystemAdapter, TFile, Plugin, requestUrl } from "obsidian";
+import { shell } from "electron";
 import { AgyAdapter } from "./agent/AgyAdapter";
 import { CodexAdapter } from "./agent/CodexAdapter";
 import { ChatGptAdapter } from "./agent/ChatGptAdapter";
@@ -213,15 +214,21 @@ export default class NoxPlugin extends Plugin {
     }
   }
 
-  async onunload(): Promise<void> {
+  onunload(): void {
     this.rememberDevelopmentSidebar();
     this.runtime?.dispose();
     this.quotaSync?.dispose();
     this.chatGptAuth.dispose();
-    try { await this.learning?.flushSessionTime(); }
-    catch (error) { console.warn("[Nox] Final learning time checkpoint failed", error); }
+    // Obsidian does not await a Promise returned by Plugin.onunload.
+    // Start a final checkpoint and observe failures; dispose the learning
+    // owner once its persistence operation has settled.
+    const learning = this.learning;
+    if (learning) {
+      void learning.flushSessionTime()
+        .catch(error => console.warn("[Nox] Final learning time checkpoint failed", error))
+        .finally(() => learning.dispose());
+    }
     // Preserve workspace layout on plugin disable/reload; Obsidian owns leaf disposal.
-    this.learning?.dispose();
   }
 
   private developmentSidebarKey(): string {
@@ -315,8 +322,7 @@ export default class NoxPlugin extends Plugin {
   getChatGPTConnection(): ChatGptConnection { return this.chatGptAuth.status(); }
 
   async connectChatGPT(): Promise<void> {
-    const electron = require("electron") as { shell: { openExternal(url: string): Promise<void> } };
-    await this.chatGptAuth.signIn((url) => electron.shell.openExternal(url));
+    await this.chatGptAuth.signIn((url) => shell.openExternal(url));
     if (this.noxSettings.provider === "chatgpt") {
       await this.runtime?.init();
       await Promise.all(this.app.workspace.getLeavesOfType(NOX_VIEW_TYPE)

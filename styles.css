@@ -2785,11 +2785,11 @@
   background: transparent; cursor: pointer;
   font-size: 12px; line-height: 1.45;
 }
-.nox-quiz-option:has(input:checked) {
+.nox-quiz-option.is-checked {
   border-color: var(--nox-accent-border);
   background: var(--nox-accent-tint);
 }
-.nox-quiz-option:has(input:disabled) { cursor: default; opacity: .75; }
+.nox-quiz-option.is-disabled { cursor: default; opacity: .75; }
 .nox-quiz-option input { margin: 3px 0 0; flex-shrink: 0; }
 .nox-quiz-option-key { font-weight: 600; min-width: 13px; }
 .nox-quiz-editor {

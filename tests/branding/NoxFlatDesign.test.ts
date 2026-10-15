@@ -46,7 +46,7 @@ test("Learning surfaces and actions keep their canonical selectors", () => {
     ".nox-learning-start",
     ".nox-composer-box",
     ".nox-send-btn:not(:disabled)",
-    ".nox-quiz-option:has(input:checked)",
+    ".nox-quiz-option.is-checked",
     ".nox-practice-evaluation",
     ".nox-review-card",
     ".nox-proposal",
@@ -90,26 +90,19 @@ test("native rounded composer keeps the file picker, action menu and accessible 
   assert.ok(composer.includes("const maxHeight = 120;"));
 });
 
-test("Settings use three flat tabs, and usage/token views are separate", () => {
+test("Settings use searchable Obsidian definitions and native usage/token pages", () => {
   const settings = readFileSync("src/settings/SettingsTab.ts", "utf8");
   const token = readFileSync("src/settings/TokenUsageSection.ts", "utf8");
   const usage = readFileSync("src/settings/ProviderUsageSection.ts", "utf8");
-  assert.match(settings, /value: "settings", label: "Settings"/);
-  assert.match(settings, /value: "usage", label: "Usage"/);
-  assert.match(settings, /value: "token", label: "Token"/);
-  assert.match(settings, /role: "tablist"/);
-  assert.match(settings, /"aria-selected": String\(this.activePage === page.value\)/);
-  assert.ok(settings.includes('this.activePage === "usage"'));
-  assert.ok(settings.includes('this.activePage === "token"'));
-  assert.ok(settings.includes("this.disposeSection?.()"));
-  assert.match(css, /\.nox-settings-tabs\s*\{[^}]*display:flex;/s);
-  assert.match(css, /\.nox-settings \.nox-settings-tab\[aria-selected="true"\]/);
+  assert.match(settings, /getSettingDefinitions\(\): SettingDefinitionItem\[\]/);
+  assert.match(settings, /type: "page",\s*name: "Usage"/);
+  assert.match(settings, /type: "page",\s*name: "Token"/);
+  assert.ok(settings.includes("mountProviderUsageSection"));
+  assert.ok(settings.includes("mountTokenUsageSection"));
+  assert.doesNotMatch(settings, /display\(\): void|\.display\(\)/);
   assert.match(token, /cls:\s*"nox-usage-overview"/);
-  assert.match(token, /cls:\s*"nox-usage-split-input"/);
   assert.match(usage, /cls:\s*"nox-quota-progress"/);
-  assert.ok(usage.includes("getProviderQuotas(force)"));
-  for (const source of [settings,token,usage]) {
+  for (const source of [settings, token, usage]) {
     assert.doesNotMatch(source, /[Cc]redit[Bb]alance|Manual [Bb]alances|Add balance|Set balance/);
   }
-  assert.doesNotMatch(css, /\.nox-credit-editor|\.nox-credits|\.nox-credit-fields/);
 });

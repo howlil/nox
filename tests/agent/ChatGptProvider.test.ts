@@ -4,7 +4,7 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createSign, generateKeyPairSync } from "node:crypto";
-import { ChatGptAuth, verifyChatGptIdToken } from "../../src/agent/ChatGptAuth";
+import { ChatGptAuth, verifyChatGptIdToken, decodeStoredCredentials } from "../../src/agent/ChatGptAuth";
 import { ChatGptAdapter, SseDecoder } from "../../src/agent/ChatGptAdapter";
 
 const { publicKey, privateKey } = generateKeyPairSync("rsa", { modulusLength: 2048 });
@@ -360,4 +360,26 @@ test("ChatGPT response.completed carries provider-reported usage into the runtim
     } },
     { type: "completed" },
   ]);
+});
+
+test("stored OAuth credentials reject malformed scopes and expiry without exposing secrets", () => {
+  const fixture = {
+    clientId: "client", subject: "subject", idToken: "id-secret",
+    accessToken: "access-secret", refreshToken: "refresh-secret",
+    scopes: ["chatgpt.tokens.use.direct"], expiresAt: 100000,
+    earliestRefreshAt: 1,
+  };
+  assert.deepEqual(decodeStoredCredentials(fixture).scopes, ["chatgpt.tokens.use.direct"]);
+  for (const invalid of [
+    { ...fixture, scopes: "chatgpt.tokens.use.direct" },
+    { ...fixture, scopes: [true] },
+    { ...fixture, expiresAt: "100000" },
+    { ...fixture, refreshToken: null },
+    null,
+  ]) {
+    assert.throws(() => decodeStoredCredentials(invalid),
+      (error: unknown) => error instanceof Error &&
+        /Invalid stored ChatGPT credentials/.test(error.message) &&
+        !error.message.includes("secret"));
+  }
 });

@@ -4,7 +4,7 @@ import fs from "node:fs";
 import path from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
-import builtins from "builtin-modules";
+import { builtinModules } from "node:module";
 
 const BUILD_TIMESTAMP_PLACEHOLDER = "NOX_DEV_BUILD_TIMESTAMP_PLACEHOLDER";
 
@@ -65,7 +65,7 @@ export function createNoxBuildOptions({ production = false, onStart, onBuild } =
       "@lezer/common",
       "@lezer/highlight",
       "@lezer/lr",
-      ...builtins,
+      ...builtinModules,
     ],
     format: "cjs",
     target: "es2018",

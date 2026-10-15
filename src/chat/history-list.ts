@@ -96,14 +96,11 @@ export class NoxHistoryList {
 
   private renderSelectionBar(visible: ChatSession[]): void {
     const bar = this.parent.createDiv({ cls: "nox-history-selection" });
-    const checkbox = document.createElement("input");
-    checkbox.type = "checkbox";
-    checkbox.className = "nox-history-checkbox";
+    const checkbox = bar.createEl("input", { type: "checkbox", cls: "nox-history-checkbox" });
     checkbox.setAttribute("aria-label", "Select all visible conversations");
     checkbox.checked = this.selected.size === visible.length;
     checkbox.indeterminate = this.selected.size > 0 && this.selected.size < visible.length;
     checkbox.disabled = this.busy;
-    bar.appendChild(checkbox);
     checkbox.addEventListener("change", () => {
       if (checkbox.checked) this.selected = new Set(visible.map(session => session.id));
       else this.selected.clear();
@@ -142,14 +139,12 @@ export class NoxHistoryList {
     deleteButton.disabled = this.busy;
 
     const front = item.createDiv({ cls: "nox-history-swipe-front" });
-    const checked = this.selecting ? document.createElement("input") : null;
+    const checked = this.selecting ? front.createEl("input", { type: "checkbox", cls: "nox-history-checkbox" }) : null;
     if (checked) {
       checked.type = "checkbox";
-      checked.className = "nox-history-checkbox";
       checked.checked = this.selected.has(session.id);
       checked.disabled = this.busy;
       checked.setAttribute("aria-label", `Select ${this.title(session)}`);
-      front.appendChild(checked);
       checked.addEventListener("change", () => this.toggleSelected(session.id));
     }
 

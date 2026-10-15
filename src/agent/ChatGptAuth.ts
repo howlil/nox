@@ -39,6 +39,35 @@ type Credentials = {
 };
 
 type RecordOnDisk = { hostId: string; clientId?: string; credentials?: Credentials };
+/** Disk JSON is untrusted even when located in a user-only configuration directory.
+ * Fail closed before any token, expiry or scope is used by an agent adapter.
+ */
+export function decodeStoredCredentials(value: unknown): Credentials {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    throw new Error("Invalid stored ChatGPT credentials. Reconnect your account.");
+  }
+  const data = value as Record<string, unknown>;
+  const fields = ["clientId", "subject", "idToken", "accessToken", "refreshToken"] as const;
+  if (fields.some(key => typeof data[key] !== "string" || !data[key]) ||
+    (data.email !== undefined && typeof data.email !== "string") ||
+    !Array.isArray(data.scopes) || !data.scopes.every(scope => typeof scope === "string") ||
+    typeof data.expiresAt !== "number" || !Number.isFinite(data.expiresAt) ||
+    typeof data.earliestRefreshAt !== "number" || !Number.isFinite(data.earliestRefreshAt)) {
+    throw new Error("Invalid stored ChatGPT credentials. Reconnect your account.");
+  }
+  return {
+    clientId: data.clientId as string,
+    subject: data.subject as string,
+    ...(typeof data.email === "string" ? { email: data.email } : {}),
+    idToken: data.idToken as string,
+    accessToken: data.accessToken as string,
+    refreshToken: data.refreshToken as string,
+    scopes: [...data.scopes] as string[],
+    expiresAt: data.expiresAt,
+    earliestRefreshAt: data.earliestRefreshAt,
+  };
+}
+
 
 export type ChatGptAuthStage = "registration-storage" | "browser-launch" | "callback" |
   "token-exchange" | "identity-validation" | "credentials-storage";
@@ -207,8 +236,7 @@ export class ChatGptAuth {
         hostId: typeof disk.hostId === "string" && disk.hostId.startsWith("urn:uuid:")
           ? disk.hostId : "urn:uuid:" + randomUUID(),
         clientId: typeof disk.clientId === "string" ? disk.clientId : undefined,
-        credentials: disk.credentials && typeof disk.credentials === "object"
-          ? disk.credentials as Credentials : undefined,
+        credentials: disk.credentials !== undefined ? decodeStoredCredentials(disk.credentials) : undefined,
       };
     } else this.record = { hostId: "urn:uuid:" + randomUUID() };
   }

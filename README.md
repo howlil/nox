@@ -87,6 +87,7 @@ ChatGPT sign-in credentials are stored outside the vault in user-local configura
 | [Troubleshooting](docs/TROUBLESHOOTING.md) | Installation, authentication, and runtime failures |
 | [Learning programs](docs/LEARNING_ORCHESTRATOR.md) | Commands, curriculum rules, and progress semantics |
 | [Development](docs/DEVELOPMENT.md) | Local build, testing, and hot reload |
+| [Community review remediation](docs/COMMUNITY_REVIEW_1_1.md) | Design decisions, trust boundaries, verification and 1.1 release gates |
 | [Full documentation](docs/README.md) | Technical reference and engineering context |
 
 ## Development

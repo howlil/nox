@@ -8,10 +8,11 @@ function source(path: string): string {
 
 test("NOX leaves remain workspace-owned across plugin reload", () => {
   const main = source("src/main.ts");
-  const unload = main.match(/async onunload\(\): Promise<void> \{([\s\S]*?)\n  \}/)?.[1];
+  const unload = main.match(/onunload\(\): void \{([\s\S]*?)\n  \}/)?.[1];
   assert.ok(unload, "Obsidian plugin must implement unload cleanup");
   assert.doesNotMatch(unload, /detachLeavesOfType\s*\(/, "Never detach a workspace leaf in onunload");
   assert.match(unload, /flushSessionTime\(/, "Preserve the session-time flush");
+  assert.match(unload, /\.finally\(\(\) => learning\.dispose\(\)\)/, "Finish owner cleanup after checkpoint");
 });
 
 test("Obsidian community P0 style and settings findings cannot regress", () => {
@@ -26,7 +27,8 @@ test("Obsidian community P0 style and settings findings cannot regress", () => {
   }
 
   const settings = source("src/settings/SettingsTab.ts");
-  assert.match(settings, /new Setting\(containerEl\)\.setName\("Nox"\)\.setHeading\(\)/);
+  assert.match(settings, /getSettingDefinitions\(\)/, "Use searchable Obsidian 1.13+ settings");
+  assert.doesNotMatch(settings, /\.setName\("Nox"\)\.setHeading\(\)/, "Do not duplicate plugin name as heading");
   assert.doesNotMatch(settings, /containerEl\.createEl\("h[1-6]"/);
 });
 
