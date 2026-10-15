@@ -1,9 +1,9 @@
 {
-  "id": "nox-obsidian",
+  "id": "nox",
   "name": "Nox",
-  "version": "0.0.1",
-  "minAppVersion": "1.4.0",
-  "description": "AI learning companion for Obsidian with a pluggable agent runtime",
+  "version": "0.1.0",
+  "minAppVersion": "1.13.0",
+  "description": "Learn from your notes with AI-powered explanations, practice, reviews, and guided learning plans.",
   "author": "Howlil",
   "authorUrl": "https://github.com/howlil",
   "isDesktopOnly": true

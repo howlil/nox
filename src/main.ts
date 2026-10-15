@@ -32,6 +32,7 @@ import { NoxSettingsTab } from "./settings/SettingsTab";
 
 // Values are injected into the actual production bundle by esbuild. They are
 // not read from a manifest that could be newer than the loaded JavaScript.
+declare const __NOX_LOGO_DATA_URI__: string;
 declare const __NOX_BUILD_REVISION__: string;
 declare const __NOX_BUILD_TIMESTAMP__: string;
 declare const __NOX_BUILD_TRANSPORT__: string;
@@ -174,8 +175,8 @@ export default class NoxPlugin extends Plugin {
     );
 
     this.addCommand({
-      id: "open-nox-sidebar",
-      name: "Open Nox sidebar",
+      id: "open-sidebar",
+      name: "Open sidebar",
       callback: () => this.activateView(),
     });
 
@@ -194,9 +195,8 @@ export default class NoxPlugin extends Plugin {
     });
 
     this.addCommand({
-      id: "focus-nox-composer",
-      name: "Focus Nox composer",
-      hotkeys: [{ modifiers: ["Mod"], key: "l" }],
+      id: "focus-composer",
+      name: "Focus composer",
       callback: async () => {
         await this.activateView();
 
@@ -269,8 +269,7 @@ export default class NoxPlugin extends Plugin {
   }
 
   getLogoUrl(): string {
-    const pluginPath = `${this.manifest.dir}/nox.png`;
-    return this.app.vault.adapter.getResourcePath(pluginPath);
+    return __NOX_LOGO_DATA_URI__;
   }
 
   async updateSettings(update: Partial<NoxSettings>): Promise<void> {

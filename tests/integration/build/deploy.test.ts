@@ -16,7 +16,7 @@ function tempRoot() {
 }
 
 function addRequiredBuildAssets(dist: string) {
-  writeFileSync(join(dist, "manifest.json"), JSON.stringify({ id: "nox-obsidian" }));
+  writeFileSync(join(dist, "manifest.json"), JSON.stringify({ id: "nox" }));
   writeFileSync(join(dist, "styles.css"), "/* nox styles */");
 }
 
@@ -57,7 +57,7 @@ test("deploy copies dist and enables Nox without removing existing plugins", () 
         "utf8",
       ),
     ),
-    ["other-plugin", "nox-obsidian"],
+    ["other-plugin", "nox"],
   );
 });
 
@@ -71,7 +71,7 @@ test("deploy does not duplicate an already-enabled plugin", () => {
   addRequiredBuildAssets(dist);
   writeFileSync(
     join(vault, ".obsidian", "community-plugins.json"),
-    JSON.stringify(["nox-obsidian"]),
+    JSON.stringify(["nox"]),
   );
 
   deployPlugin({
@@ -87,7 +87,7 @@ test("deploy does not duplicate an already-enabled plugin", () => {
         "utf8",
       ),
     ),
-    ["nox-obsidian"],
+    ["nox"],
   );
 });
 

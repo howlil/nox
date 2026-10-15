@@ -33,13 +33,19 @@ function compileProductionCss() {
  * and synchronized deployment to scripts/dev.mjs.
  */
 export function createNoxBuildOptions({ production = false, onStart, onBuild } = {}) {
-  const revision = currentRevision();
+  const releaseVersion = JSON.parse(fs.readFileSync("manifest.json", "utf8")).version;
+  const revision = production ? "release/" + releaseVersion : currentRevision();
   return {
     entryPoints: ["src/main.ts"],
     define: {
       __NOX_BUILD_REVISION__: JSON.stringify(revision),
+      // Obsidian Community installs exactly three files. Inlining avoids
+      // a runtime file dependency and keeps source import boundaries intact.
+      __NOX_LOGO_DATA_URI__: JSON.stringify(
+        "data:image/png;base64," + fs.readFileSync(path.join("public", "nox.png")).toString("base64"),
+      ),
       __NOX_BUILD_TIMESTAMP__: JSON.stringify(
-        production ? new Date().toISOString() : BUILD_TIMESTAMP_PLACEHOLDER,
+        production ? "reproducible-release" : BUILD_TIMESTAMP_PLACEHOLDER,
       ),
       __NOX_BUILD_TRANSPORT__: JSON.stringify("NOX_RUNTIME_TRANSPORT_V3:node-https-sse"),
       __NOX_DEV_BUILD__: JSON.stringify(!production),

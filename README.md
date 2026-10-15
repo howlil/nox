@@ -7,6 +7,101 @@ Nox is agent-runtime agnostic at the product boundary. The current runtime
 adapters use AGY CLI, local Codex CLI, or the ChatGPT plan OAuth provider, while the UI and Learning OS flow depend on the
 normalized agent contract rather than provider-specific stream events.
 
+## Start here
+
+- **Users:** [Install and run your first learning session](docs/GETTING_STARTED.md).
+- **Providers:** [AGY / Codex / ChatGPT setup and privacy](docs/PROVIDERS.md).
+- **Help:** [Troubleshooting and diagnostics](docs/TROUBLESHOOTING.md).
+- **All docs:** [Documentation index](docs/README.md).
+- **Maintainers:** [Release procedure](docs/RELEASING.md), [Contributing](CONTRIBUTING.md), [Security](SECURITY.md), [Changelog](CHANGELOG.md).
+
+This repository currently contains a **release candidate**; Community Directory
+availability depends on official review. A GitHub Release alone does not mean
+Obsidian has approved the plugin.
+
+## Install from a release
+
+Nox is currently preparing for submission to the Obsidian Community directory.
+Until its listing is approved, install a pre-release build manually in a
+**separate test vault**, not your primary vault:
+
+1. Download `main.js`, `manifest.json`, and `styles.css` from an
+   [official Nox GitHub release](https://github.com/howlil/nox/releases).
+   Do not use GitHub's automatic "Source code" ZIP as the plugin.
+2. Place the three files in `<vault>/<config-dir>/plugins/nox/`.
+   The default Obsidian config directory is `.obsidian`.
+3. Open **Settings → Community plugins**, refresh the installed plugins,
+   and enable **Nox**.
+4. Open Nox settings and choose a configured agent runtime. An AI runtime
+   or ChatGPT plan is not bundled with this plugin.
+
+**Migration from development builds:** The old, unpublished plugin ID was
+`nox-obsidian`. The Community version uses `nox` and therefore stores
+its Obsidian plugin data in a different directory. Back up the old
+`nox-obsidian/data.json` before upgrading. With Obsidian closed, copy that
+file into the new `nox/data.json` location **before enabling the new ID**.
+Keep the old directory as a backup and avoid enabling both IDs in the same
+vault. This is a manual migration, not an automatic in-place upgrade.
+
+## Privacy, network access, and external files
+
+Nox runs within Obsidian and does **not** include its own hosted inference
+service. Using its AI features requires choosing an available provider:
+
+- **AGY CLI or Codex CLI:** Nox starts the configured local executable outside
+  the vault and communicates with its agent runtime. These tools can access
+  external files and network services according to their own configuration.
+  Install and authenticate them separately; review their data handling.
+- **ChatGPT plan:** The optional "Continue with ChatGPT" flow opens the browser
+  for OpenAI authentication and uses OpenAI services for account identity,
+  model discovery, and inference when you explicitly permit plan usage.
+  Availability and usage limits depend on your account and OpenAI's program.
+  No API key is required for this mode. Do not assume every account has access.
+- **Note context:** Nox reads the active note, selected text, and explicitly
+  attached or researched Markdown context for learning actions. Content included
+  in an AI request may be transmitted to the selected provider. Check context
+  and avoid sending confidential notes you do not want to share.
+- **Vault writes:** Approved note edits and learning-program workspace files
+  are written locally to the selected vault. Review proposed edits before
+  applying them.
+- **Outside-vault local storage:** ChatGPT sign-in credentials and account
+  metadata are stored outside the vault in a local Nox configuration directory
+  (typically `%LOCALAPPDATA%\\nox` on Windows or `~/.config/nox` on Unix).
+  Do not synchronize, share, or commit this directory.
+- **Costs and accounts:** A suitable CLI installation, login, subscription,
+  or provider billing entitlement may be needed. Nox itself does not include
+  paid model credits; provider rules and usage limits apply. No standalone
+  Nox account or payment is required to install the plugin.
+
+Nox records token usage locally to support its settings display. Remote
+AI providers and CLI tools follow their own privacy and retention policies.
+Nox does not automatically replay failed inference requests.
+
+## Community release maintenance
+
+The community installer fetches **only** `main.js`, `manifest.json`,
+and optional `styles.css` from the matching GitHub release. Nox embeds
+its branding image inside `main.js`; do not require `nox.png` to be installed.
+
+Before making a public release, run `pnpm install --frozen-lockfile` and
+`pnpm verify`. Bump `package.json` and `manifest.json` to the same
+`x.y.z` version. Once the final revision is on `master`, push an exact
+version tag (for example `0.1.0`, **not** `v0.1.0`). The release workflow
+builds and creates a **draft** GitHub release with the three installable
+assets. Inspect and manually publish that draft, then submit the repository
+at [Obsidian Community](https://community.obsidian.md). Do not upload the
+development bundle or the GitHub-generated source archive as the plugin.
+
+**Platform:** Desktop only. Nox uses Node.js/Electron integration and is not
+supported on Obsidian mobile. The minimum Obsidian version is set
+conservatively for the public candidate; verify against an actual Obsidian
+desktop installation before publishing.
+
+## License
+
+MIT. See [LICENSE](LICENSE). Third-party components retain their own license
+notices where applicable.
+
 ## What Nox does
 
 Nox also supports opt-in **goal-based learning programs** across domains—not
@@ -66,7 +161,7 @@ for budgets, telemetry, privacy/source restrictions and limitations.
 
 ## Requirements
 
-- Obsidian desktop `1.4.0` or newer.
+- Obsidian desktop `1.13.0` or newer (desktop acceptance test required).
 - Node.js and `pnpm` for development.
 - For AGY or Codex: a configured CLI runtime, signed in locally, to be
   available on `PATH`, or at an absolute path configured in Nox settings.
@@ -192,7 +287,7 @@ successful edit.
    then run `pnpm dev`. Changing a TypeScript file or Tailwind source will
    build, sync, and request plugin reload automatically.
 
-CLI reload targets `vault=<vault-name>` and `id=nox-obsidian`. The default
+CLI reload targets `vault=<vault-name>` and `id=nox`. The default
 vault selector is the basename of `NOX_DEV_VAULT`; set
 `NOX_DEV_VAULT_NAME` if the CLI uses a different name or unique ID, especially
 when two vaults share the same name. The orchestrator prints the actual target
@@ -255,14 +350,14 @@ switching network transports again. The current ChatGPT provider uses Obsidian
 3. **Fully reload** the installed Nox plugin in Obsidian (toggle the plugin
    off/on under Community plugins, use **Reload app without saving**, or
    restart Obsidian). Reopen Settings and confirm the embedded Git revision,
-   build time, and `NOX_RUNTIME_TRANSPORT_V2:obsidian-requesturl` marker.
+   build time, and `NOX_RUNTIME_TRANSPORT_V3:node-https-sse` marker.
    Copy the *build diagnostic* if the values do not match the deployment.
 4. Only after the loaded build is confirmed should you retry ChatGPT model
    discovery and a short inference prompt. If those fail, share the safe
    model picker/runtime error without any access token or OAuth callback URL.
 
-The plugin `manifest.json` version is currently `0.0.1` across multiple
-commits, so **manifest version alone cannot prove which code was loaded**.
+A manifest version alone cannot prove which code is loaded; verify the Git
+revision and build identity displayed in Nox settings.
 A successful CI run or a successful deployment to some vault does not prove
 the currently open Obsidian window has reloaded that bundle.
 
@@ -285,7 +380,7 @@ Build and copy the generated plugin into an Obsidian vault with:
 pnpm run deploy "C:\\Path\\To\\Your\\Vault"
 ```
 
-The deploy command targets `.obsidian/plugins/nox-obsidian`, copies the
+The deploy command targets `.obsidian/plugins/nox`, copies the
 contents of `dist/`, and can update the vault's community plugin list. It does
 not modify a vault unless a vault path is explicitly provided or configured
 through `OBSIDIAN_VAULT`.

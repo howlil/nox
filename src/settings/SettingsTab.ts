@@ -157,7 +157,9 @@ export class NoxSettingsTab extends PluginSettingTab {
     const build = this.nox.getBuildDiagnostics();
     new Setting(pageContent)
       .setName("Loaded plugin build")
-      .setDesc("Git: " + build.revision + " · Built: " + build.builtAt +
+      .setDesc((build.revision.startsWith("release/")
+        ? "Release: " + build.revision.slice(8) + " · Reproducible build"
+        : "Git: " + build.revision + " · Built: " + build.builtAt) +
         " · Transport: " + build.transport +
         " · Vault: " + build.vaultDir +
         " · Plugin: " + build.pluginDir)

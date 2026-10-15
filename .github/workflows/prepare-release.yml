@@ -1,0 +1,57 @@
+name: Prepare release PR
+
+on:
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: "Version bump; current only bootstraps the first release"
+        required: true
+        type: choice
+        options: [current, patch, minor, major]
+
+permissions:
+  contents: write
+  pull-requests: write
+concurrency:
+  group: nox-prepare-release
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    if: github.ref == 'refs/heads/master'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Generate matching version, changelog, and plan
+        env:
+          BUMP: ${{ inputs.bump }}
+        run: node scripts/prepare-release.mjs "$BUMP"
+      - name: Validate release metadata and public docs
+        run: |
+          node scripts/check-release.mjs
+          node scripts/check-docs.mjs
+      - name: Create reviewed release PR
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          version="$(node -p 'JSON.parse(require("fs").readFileSync(".release-plan.json")).version')"
+          branch="release/$version"
+          if git ls-remote --exit-code --heads origin "$branch" >/dev/null 2>&1; then
+            echo "::error::Existing release branch: $branch"
+            exit 1
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -b "$branch"
+          git add manifest.json package.json CHANGELOG.md versions.json .release-plan.json
+          git commit -m "chore(release): prepare $version"
+          git push -u origin "$branch"
+          gh pr create --base master --head "$branch" \
+            --title "chore(release): prepare $version" \
+            --body-file .github/RELEASE_PR_BODY.md

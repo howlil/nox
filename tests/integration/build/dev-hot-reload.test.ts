@@ -16,10 +16,10 @@ function fixture() {
   const dist = join(root, "dist");
   mkdirSync(join(vault, ".obsidian"), { recursive: true });
   mkdirSync(dist, { recursive: true });
-  writeFileSync(join(dist, "manifest.json"), JSON.stringify({ id: "nox-obsidian" }));
+  writeFileSync(join(dist, "manifest.json"), JSON.stringify({ id: "nox" }));
   writeFileSync(join(dist, "main.js"), "bundle-v1");
   writeFileSync(join(dist, "styles.css"), "styles-v1");
-  return { root, vault, dist, plugin: join(vault, ".obsidian", "plugins", "nox-obsidian") };
+  return { root, vault, dist, plugin: join(vault, ".obsidian", "plugins", "nox") };
 }
 
 test("rejects an invalid vault before writing plugin files", () => {
@@ -40,7 +40,7 @@ test("rejects an incomplete or mismatched build without changing installed files
       /Manifest plugin ID/,
     );
     assert.equal(readFileSync(join(f.plugin, "main.js"), "utf8"), "bundle-v1");
-    writeFileSync(join(f.dist, "manifest.json"), JSON.stringify({ id: "nox-obsidian" }));
+    writeFileSync(join(f.dist, "manifest.json"), JSON.stringify({ id: "nox" }));
     rmSync(join(f.dist, "styles.css"));
     assert.throws(
       () => syncDevelopmentArtifacts({ targetVault: f.vault, distDir: f.dist }),

@@ -1,6 +1,6 @@
 {
   "name": "nox-obsidian",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "description": "Nox is an AI learning companion for Obsidian with a pluggable agent runtime",
   "private": true,
   "repository": {
@@ -25,8 +25,10 @@
     "test:integration": "node scripts/test.mjs integration",
     "test:all": "node scripts/test.mjs all",
     "bench:research": "node scripts/bench-research.mjs",
-    "verify": "pnpm check:boundaries && pnpm typecheck && pnpm lint && pnpm test:unit && pnpm test:integration && pnpm build && pnpm test:artifacts",
-    "test:artifacts": "node scripts/verify-artifacts.mjs"
+    "verify": "pnpm check:boundaries && pnpm typecheck && pnpm lint && pnpm test:unit && pnpm test:integration && pnpm docs:check && pnpm release:check && pnpm build && pnpm test:artifacts",
+    "test:artifacts": "node scripts/verify-artifacts.mjs",
+    "docs:check": "node scripts/check-docs.mjs",
+    "release:check": "node scripts/check-release.mjs"
   },
   "keywords": [
     "obsidian",
