@@ -1,4 +1,4 @@
-import { AgentContext } from "../types";
+import { AgentContext, type ResearchScope } from "../types";
 import type { ObsidianContext } from "./ObsidianContext";
 import {
   ContextDocument,
@@ -6,7 +6,6 @@ import {
   LearningContext,
 } from "./context-types";
 import type { ResearchResult } from "./LocalResearch";
-import type { ResearchScope } from "../types";
 
 /**
  * Single source of truth for context shown in the UI and sent to the agent.
