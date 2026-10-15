@@ -1,5 +1,4 @@
 import { addIcon, FileSystemAdapter, TFile, Plugin, requestUrl } from "obsidian";
-import noxLogoDataUrl from "../public/nox.png";
 import { AgyAdapter } from "./agent/AgyAdapter";
 import { CodexAdapter } from "./agent/CodexAdapter";
 import { ChatGptAdapter } from "./agent/ChatGptAdapter";
@@ -33,6 +32,7 @@ import { NoxSettingsTab } from "./settings/SettingsTab";
 
 // Values are injected into the actual production bundle by esbuild. They are
 // not read from a manifest that could be newer than the loaded JavaScript.
+declare const __NOX_LOGO_DATA_URI__: string;
 declare const __NOX_BUILD_REVISION__: string;
 declare const __NOX_BUILD_TIMESTAMP__: string;
 declare const __NOX_BUILD_TRANSPORT__: string;
@@ -269,7 +269,7 @@ export default class NoxPlugin extends Plugin {
   }
 
   getLogoUrl(): string {
-    return noxLogoDataUrl;
+    return __NOX_LOGO_DATA_URI__;
   }
 
   async updateSettings(update: Partial<NoxSettings>): Promise<void> {
