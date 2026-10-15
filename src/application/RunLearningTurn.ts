@@ -212,7 +212,7 @@ export class RunLearningTurn {
       try {
         const oldScope = sessionAtStart.learningScope;
         const existingProgramScope = isProgramLearningScope(oldScope) ? oldScope : undefined;
-        const legacyScope = oldScope && !existingProgramScope ? oldScope : undefined;
+        const legacyScope = oldScope && !isProgramLearningScope(oldScope) ? oldScope : undefined;
         let activeProgram: LearningProgram | undefined;
         if ((existingProgramScope || (!legacyScope &&
             (scopeCommand === "assessment" || scopeCommand === "focused"))) && this.programStore) {
