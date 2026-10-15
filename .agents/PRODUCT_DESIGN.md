@@ -305,12 +305,27 @@ and source restrictions are enforced by the application. Users can inspect
 progress without starting an agent turn. Goal controls remain optional: Ask,
 Explain, Review, Edit and free Practice still work without a plan.
 
-The legacy opt-in backend scope lock below is retained for older sessions.
+### Program-scoped assessment and focused learning (v2)
 
-### Backend scope lock
+New conversations begin free. With a selected, validated learning program,
+`/mode assessment` and `/mode focused` explicitly enter program scope,
+pinned to the program's ID, goal, objective and rubric. The application resolves
+the domain from the program, never from a hardcoded backend policy, CLI/provider
+choice, or unconstrained model suggestion. Without a program, these commands
+offer `/plan` and leave session scope unchanged. A program's timebox must be
+started before a new assessed practice question. A pinned active mode blocks
+program switches; pausing permits explicit rebind to a new selected program.
+`/pause` retains an unanswered question without charging study time, and
+`/resume` restores it only when the pinned program remains selected.
+An ordinary `/next` follows the existing evidence-derived learning decision,
+including a selected teaching activity, rather than faking evidence.
 
-New conversations start in **FREE** mode. Existing learning intents remain
-available there. Backend curriculum modes are opt-in:
+### Legacy backend scope lock (v1 persisted sessions only)
+
+Existing sessions without a versioned scope remain on their original,
+opt-in backend-only semantics. Their `scope: "backend"` transcript parts and
+outstanding questions remain durable and readable. Only an existing v1 session
+uses these backend transitions:
 
 - `/mode assessment` enters **BASELINE_ASSESSMENT** for diagnostic backend questions.
 - `/mode focused` enters **FOCUSED_LEARNING** for the current backend concept.
