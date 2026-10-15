@@ -1,6 +1,6 @@
 {
   "name": "nox-obsidian",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Nox is an AI learning companion for Obsidian with a pluggable agent runtime",
   "private": true,
   "repository": {
