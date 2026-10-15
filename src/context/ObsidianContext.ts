@@ -5,6 +5,7 @@ import {
   TFile,
 } from "obsidian";
 import { LocalResearchIndex, type ResearchResult } from "./LocalResearch";
+import type { ResearchScope } from "../domain/research-scope";
 
 /**
  * Select the newest k files without sorting an entire large vault.
@@ -167,17 +168,25 @@ export class ObsidianContext {
    */
   async searchKnowledge(query: string, options: {
     allowedPaths?: string[];
+    scope?: ResearchScope;
     limit?: number;
   } = {}): Promise<ResearchResult> {
     const allowed = options.allowedPaths ? new Set(options.allowedPaths) : null;
+    const scope = options.scope ?? { kind: "vault" };
+    const selected = scope.kind === "selected" ? new Set(scope.paths) : null;
+    const inScope = (path: string): boolean =>
+      (!allowed || allowed.has(path)) &&
+      (!selected || selected.has(path)) &&
+      (scope.kind !== "folder" || path.startsWith(scope.path + "/"));
     const openViews = new Map<string, MarkdownView>();
     for (const leaf of this.app.workspace.getLeavesOfType("markdown")) {
       if (leaf.view instanceof MarkdownView && leaf.view.file) openViews.set(leaf.view.file.path, leaf.view);
     }
+    // Filter metadata before any file contents are read or indexed.
     const files = selectRecentMarkdownFiles(this.app.vault.getMarkdownFiles()
-      .filter(file => !allowed || allowed.has(file.path)), 600);
+      .filter(file => inScope(file.path)), 600);
     const paths = new Set(files.map(file => file.path));
-    if (!options.allowedPaths) {
+    if (!options.allowedPaths && scope.kind === "vault") {
       for (const path of this.researchIndex.paths()) {
         if (!paths.has(path)) {
           this.researchIndex.remove(path);
@@ -214,7 +223,11 @@ export class ObsidianContext {
         this.indexedRevisions.set(file.path, revision);
       }));
     }
-    return this.researchIndex.search(query, { limit: options.limit, allowedPaths: options.allowedPaths });
+    // Also constrain cached index hits: switching scopes must never expose
+    // notes indexed by an earlier, broader research request.
+    return this.researchIndex.search(query, {
+      limit: options.limit, allowedPaths: [...paths],
+    });
   }
 
   private invalidateResearch(path: string): void {
