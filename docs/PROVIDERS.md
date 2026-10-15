@@ -43,7 +43,7 @@ NOX is a **desktop-only** Obsidian plugin. A community-plugin scanner correctly 
 - **Provider boundaries:** Codex inference currently starts with `--sandbox read-only`, `approval_policy="never"`, and `--ignore-user-config`. This is a Codex-specific restriction, **not** a sandbox guarantee for arbitrary configured AGY executables. Review CLI trust and provider permissions before using NOX.
 - **Vault enumeration:** filename search uses `vault.getMarkdownFiles()`; optional research indexes a bounded subset of Markdown notes only on demand. When `allowedPaths` is supplied it filters research candidates. Do not run broad research in a confidential vault without inspecting the requested context.
 - **Clipboard:** user-triggered copy actions write diagnostics or selected text to the system clipboard. NOX does not intentionally read clipboard history.
-- **Web storage:** `sessionStorage` is used only to remember development hot-reload sidebar intent; normal sessions and settings use the Obsidian plugin data repository.
+- **Local plugin data:** Sessions, settings and learning progress use the Obsidian plugin data repository; Nox does not use browser `localStorage` or `sessionStorage`.
 
 The external-provider boundary must remain visible: a locally installed CLI can have **broader permissions than NOX's own Obsidian vault mutation flow**. Only install trusted binaries and use a disposable vault for a new provider.
 
