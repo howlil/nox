@@ -2171,6 +2171,17 @@
   height: 14px;
 }
 
+.nox-motion-active { will-change: opacity, transform; }
+
+/* Portal icons have no .nox-root ancestor; keep the same fixed geometry. */
+.nox-theme-portal .nox-icon {
+  display: block;
+  width: 16px;
+  height: 16px;
+  min-width: 16px;
+  min-height: 16px;
+}
+
 .nox-root .nox-new-btn > .svg-icon,
 .nox-root .nox-more-btn > .svg-icon,
 .nox-root .nox-prompt-plus > .svg-icon,
@@ -2396,10 +2407,14 @@
   min-width: 5ch;
   min-height: 24px;
   max-height: 80px;
+  height: var(--nox-input-height, auto);
+  overflow-y: hidden;
   flex: 1 1 auto;
   padding: 2px 0;
   line-height: 20px;
 }
+
+.nox-input.is-overflowing { overflow-y: auto; }
 
 .nox-composer-box.is-expanded .nox-composer-controls {
   grid-template-rows: auto 32px;
@@ -3988,6 +4003,7 @@
 .nox-history-swipe-actions.is-leading { left: 0; width: 72px; background: var(--nox-accent-soft); }
 .nox-history-swipe-actions.is-trailing { right: 0; width: 144px; background: var(--nox-inset); }
 .nox-history-swipe-front {
+  transform: translate3d(var(--nox-history-swipe-x, 0px), 0, 0);
   display: flex;
   align-items: center;
   gap: 5px;
@@ -4000,6 +4016,8 @@
   will-change: transform;
   transition: transform var(--nox-motion-fast) var(--nox-ease-out-strong);
 }
+.nox-history-swipe-front.is-gesturing { transition: none; }
+
 .nox-history-item.is-selected .nox-history-swipe-front { background: var(--nox-accent-soft); }
 .nox-history-entry {
   display: flex;
