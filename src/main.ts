@@ -78,10 +78,9 @@ export default class NoxPlugin extends Plugin {
       sessionStore,
     );
 
-    await Promise.all([
-      runtime.init(),
-      sessions.init(),
-    ]);
+    // Local sessions must load even if the selected CLI is absent or hung.
+    // Model discovery is performed only when the model picker is opened.
+    await sessions.init();
     await sessions.configureRuntime(this.noxSettings.provider, this.noxSettings.preferredModel || undefined);
     if (!sessions.getSession().model && this.noxSettings.preferredModel) {
       await sessions.setModel(this.noxSettings.preferredModel);
@@ -320,6 +319,8 @@ export default class NoxPlugin extends Plugin {
   }
 
   getChatGPTConnection(): ChatGptConnection { return this.chatGptAuth.status(); }
+
+  recoverChatGPTStorage(): void { this.chatGptAuth.repairStorage(); }
 
   async connectChatGPT(): Promise<void> {
     await this.chatGptAuth.signIn((url) => shell.openExternal(url));
