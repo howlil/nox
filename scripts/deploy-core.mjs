@@ -4,7 +4,7 @@ import path from "path";
 export function deployPlugin({
   targetVault,
   distDir,
-  pluginId = "nox-obsidian",
+  pluginId = "nox",
   logger = console,
 }) {
   if (!fs.existsSync(distDir)) {
