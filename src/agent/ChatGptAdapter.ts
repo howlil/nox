@@ -65,7 +65,7 @@ function diagnostic(payload: unknown, status?: number): string {
     server_error: "ChatGPT service is unavailable.",
     temporarily_unavailable: "ChatGPT service is temporarily unavailable.",
   };
-  return Object.hasOwn(allowed, code) ? allowed[code] : "ChatGPT request failed.";
+  return Object.prototype.hasOwnProperty.call(allowed, code) ? allowed[code] : "ChatGPT request failed.";
 }
 
 function failure(message: string, code: "runtime-unavailable" | "process-failed" = "process-failed"): AgentStreamEvent {
