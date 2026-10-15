@@ -88,7 +88,7 @@ a:focus-visible, button:focus-visible, input:focus-visible { outline: 2px solid 
 .wave-near { animation: drift-wave 24s ease-in-out infinite alternate; }
 .hero-copy { position: relative; z-index: 10; max-width: 1080px; padding: clamp(174px,18vh,230px) 20px 0; }
 .hero-eyebrow { display: inline-flex; justify-content: center; align-items: center; gap: 10px; color: #c7b2f5; font-size: 11px; line-height: 1.6; letter-spacing: .16em; text-transform: uppercase; font-weight: 700; }
-.hero-title { max-width: 17ch !important; font-size: clamp(62px,8vw,112px) !important; font-weight: 700 !important; line-height: 1 !important; letter-spacing: -.065em !important; margin: 21px 0 0 !important; color: #f9f5ff !important; font-family: var(--font-display) !important; }
+.hero h1.hero-title { max-width: 17ch; font-size: clamp(62px,8vw,112px); font-weight: 700; line-height: 1; letter-spacing: -.065em; margin: 21px 0 0; color: #f9f5ff; font-family: var(--font-display); }
 .hero-title .word { color: inherit; }
 .hero-description { max-width: 580px; margin: 24px auto 0; color: #d2c5e5; font-size: clamp(15px,1.6vw,19px); line-height: 1.6; }
 .hero-actions { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 12px; margin-top: 28px; }
@@ -169,7 +169,7 @@ a:focus-visible, button:focus-visible, input:focus-visible { outline: 2px solid 
 @keyframes drift-wave { from { transform: translateX(-1%) translateY(0); } to { transform: translateX(1%) translateY(9px); } }
 @keyframes drift-wave-reverse { from { transform: translateX(1%) translateY(6px); } to { transform: translateX(-1%) translateY(-6px); } }
 @media (max-width: 970px) {
-  .hero-title { font-size: clamp(62px,10vw,93px) !important; }
+  .hero h1.hero-title { font-size: clamp(62px,10vw,93px); }
   .mascot-position { width: min(60vw,540px); }
 }
 @media (max-width: 680px) {
@@ -182,7 +182,7 @@ a:focus-visible, button:focus-visible, input:focus-visible { outline: 2px solid 
   .hero { min-height: max(800px,100svh); }
   .hero-copy { padding: 156px 15px 0; }
   .hero-eyebrow { letter-spacing: .09em; font-size: 9px; }
-  .hero-title { font-size: clamp(52px, 14vw, 76px) !important; line-height: 1.01 !important; max-width: 12ch !important; margin-top: 18px !important; }
+  .hero h1.hero-title { font-size: clamp(52px, 14vw, 76px); line-height: 1.01; max-width: 12ch; margin-top: 18px; }
   .hero-description { margin-top: 19px; font-size: 15px; line-height: 1.58; max-width: 420px; }
   .hero-actions { margin-top: 22px; gap: 8px; }
   .capsule-actions { gap: 5px; }
@@ -212,7 +212,7 @@ a:focus-visible, button:focus-visible, input:focus-visible { outline: 2px solid 
   .github-label { display: none; }
   .github-label-short { display: inline; }
   .capsule-github, .capsule-sponsor { padding-inline: 9px; }
-  .hero-title { font-size: clamp(49px,13.6vw,60px) !important; }
+  .hero h1.hero-title { font-size: clamp(49px,13.6vw,60px); }
   .hero-foot span:last-child { display: none; }
   .hero-foot { justify-content: space-between; }
   .mascot-position { width: 445px; bottom: -145px; }
@@ -220,7 +220,7 @@ a:focus-visible, button:focus-visible, input:focus-visible { outline: 2px solid 
 }
 @media (prefers-reduced-motion: reduce) {
   html { scroll-behavior: auto; }
-  .wave-remote,.wave-middle,.wave-near { animation: none !important; }
+  .wave-remote,.wave-middle,.wave-near { animation: none; }
   .floating-capsule { transition: none; }
 }
 @media (prefers-reduced-transparency: reduce) {

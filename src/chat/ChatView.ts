@@ -29,7 +29,7 @@ import {
   renderPracticeEvaluationCard,
   renderReviewFindingCards,
 } from "./learning-card-renderers";
-import { ChatMessage, EditProposal, type ChatReplyReference, type AgentModel, type ChatSession } from "../types";
+import { ChatMessage, EditProposal, type ChatReplyReference, type AgentModel } from "../types";
 import {
   parsePromptToken,
   PromptMenuKind,
@@ -312,17 +312,19 @@ export class ChatView extends ItemView {
       this.workspaceEventsRegistered = true;
       this.registerEvent(
         this.app.workspace.on("active-leaf-change", () => {
-          void this.syncChips();
+          void this.syncChips().catch(error => console.warn("[Nox] Could not synchronize note context", error));
         }),
       );
       this.registerEvent(
-        this.app.workspace.on("editor-selection-change" as any, () => {
-          void this.syncChips();
+        (this.app.workspace as typeof this.app.workspace & {
+          on(name: "editor-selection-change", callback: () => void): import("obsidian").EventRef;
+        }).on("editor-selection-change", () => {
+          void this.syncChips().catch(error => console.warn("[Nox] Selection sync failed", error));
         }),
       );
     }
 
-    void this.refreshModelList();
+    void this.refreshModelList().catch(error => console.warn("[Nox] Model refresh failed", error));
   }
 
   private async retryRuntime(): Promise<void> {
@@ -393,7 +395,7 @@ export class ChatView extends ItemView {
       label: "New learning session",
       title: "New learning session",
     });
-    newBtn.addEventListener("click", async () => {
+    newBtn.addEventListener("click", () => { void (async () => {
       if (this.uiState === "RUNNING") return;
       try {
         await this.learning.newSession();
@@ -423,7 +425,7 @@ export class ChatView extends ItemView {
           "Could not start a new session.",
         );
       }
-    });
+    })().catch(error => console.warn("[Nox] UI action failed", error)); });
 
     const moreBtn = createNoxIconButton(right, {
       cls: "nox-more-btn",
@@ -441,7 +443,7 @@ export class ChatView extends ItemView {
       cls: "nox-session-clock-button",
       attr: { type: "button" },
     });
-    this.sessionClockButtonEl.addEventListener("click", async () => {
+    this.sessionClockButtonEl.addEventListener("click", () => { void (async () => {
       if (!this.sessionClockButtonEl || this.sessionClockButtonEl.disabled) return;
       const paused = this.sessionClockButtonEl.dataset.action === "pause";
       this.sessionClockButtonEl.disabled = true;
@@ -453,7 +455,7 @@ export class ChatView extends ItemView {
       } finally {
         if (this.sessionClockButtonEl) this.sessionClockButtonEl.disabled = false;
       }
-    });
+    })().catch(error => console.warn("[Nox] UI action failed", error)); });
 
     this.historyMenuEl = createNoxPopover(this.headerEl, {
       cls: "nox-history-menu",
@@ -786,7 +788,7 @@ export class ChatView extends ItemView {
       });
       row.addEventListener("mousedown", (event) => event.preventDefault());
       row.addEventListener("click", () => {
-        void this.selectModel(model.id);
+        void this.selectModel(model.id).catch(error => console.warn("[Nox] Model selection failed", error));
       });
       rows.push(row);
     }
@@ -853,7 +855,7 @@ export class ChatView extends ItemView {
     if ((event.key === "Enter" || event.key === " ") && this.modelMenuState.isOpen) {
       event.preventDefault();
       const model = items[this.modelMenuState.activeIndex];
-      if (model) this.selectModel(model.id);
+      if (model) void this.selectModel(model.id).catch(error => console.warn("[Nox] Model selection failed", error));
       return;
     }
 
@@ -2896,7 +2898,7 @@ export class ChatView extends ItemView {
       text: "Apply ✓",
     });
 
-    rejectBtn.addEventListener("click", async () => {
+    rejectBtn.addEventListener("click", () => { void (async () => {
       rejectBtn.disabled = true;
       applyBtn.disabled = true;
       try {
@@ -2913,9 +2915,9 @@ export class ChatView extends ItemView {
         applyBtn.disabled = false;
         this.appendInlineStatus(wrap, "failed", "Could not save rejection. Retry.");
       }
-    });
+    })().catch(error => console.warn("[Nox] UI action failed", error)); });
 
-    applyBtn.addEventListener("click", async () => {
+    applyBtn.addEventListener("click", () => { void (async () => {
       applyBtn.disabled = true;
       rejectBtn.disabled = true;
       applyBtn.textContent = "Applying…";
@@ -2964,7 +2966,7 @@ export class ChatView extends ItemView {
         applyBtn.textContent = "Retry Apply";
         this.appendInlineStatus(wrap, "failed", "Could not save the result. Check the note before retrying.");
       }
-    });
+    })().catch(error => console.warn("[Nox] UI action failed", error)); });
   }
 
   private appendAppliedStatusRecovery(
@@ -2984,7 +2986,7 @@ export class ChatView extends ItemView {
       variant: "secondary",
       text: "Retry status sync",
     });
-    retryBtn.addEventListener("click", async () => {
+    retryBtn.addEventListener("click", () => { void (async () => {
       retryBtn.disabled = true;
       retryBtn.textContent = "Saving status…";
       try {
@@ -3015,7 +3017,7 @@ export class ChatView extends ItemView {
       }
       retryBtn.disabled = false;
       retryBtn.textContent = "Retry status sync";
-    });
+    })().catch(error => console.warn("[Nox] UI action failed", error)); });
   }
 
   private renderProposal(proposal: EditProposal): HTMLElement {

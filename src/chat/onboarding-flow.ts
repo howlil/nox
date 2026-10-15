@@ -89,6 +89,15 @@ export class OnboardingFlow {
     input.addEventListener("change", () => this.persist());
     return input;
   }
+  private async useCurrentNote(): Promise<void> {
+    const ctx = await this.learning.getOnboardingContext();
+    if (!ctx.activeNote) throw new Error("Open a Markdown note before continuing.");
+    this.draft.goal = this.draft.goal || "Understand " + ctx.activeNote.split("/").pop();
+    this.draft.sourceBound = true;
+    this.draft.sourcePath = ctx.activeNote;
+    this.go("form");
+  }
+
   private async discover(): Promise<void> {
     const epoch = ++this.requestEpoch;
     this.cancelTo = "discovery";
@@ -207,18 +216,11 @@ export class OnboardingFlow {
       const status = panel.createDiv({ cls: "nox-onboarding-help",
         text: "Nox uses your current note. It will not invent a source for an empty vault." });
       status.setAttribute("role", "status");
-      this.actions(panel, "Use current note", async () => {
-        try {
-          const ctx = await this.learning.getOnboardingContext();
-          if (!ctx.activeNote) throw new Error("Open a Markdown note before continuing.");
-          this.draft.goal = this.draft.goal || "Understand " + ctx.activeNote.split("/").pop();
-          this.draft.sourceBound = true;
-          this.draft.sourcePath = ctx.activeNote;
-          this.go("form");
-        } catch (error) {
+      this.actions(panel, "Use current note", () => {
+        void this.useCurrentNote().catch(error => {
           this.error = error instanceof Error ? error.message : String(error);
           this.render();
-        }
+        });
       });
     } else if (this.stage === "form") {
       this.header(panel, "Build your learning path",

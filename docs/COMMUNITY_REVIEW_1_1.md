@@ -64,3 +64,14 @@ flowchart TD
 7. Prepare `1.1.0` only after the checks pass. The exact GitHub tag is `1.1.0`, not `v1.1.0`.
 
 **Release policy:** Do not merge/publish a release solely because lint output is shorter. Existing Node process and credential capabilities remain subject to documented security review and end-to-end behavior proof.
+
+## P1 triage and scanner interpretation (1.1.0)
+
+- **Type safety:** the scanner report listed hundreds of `@typescript-eslint/no-unsafe-*` diagnostics in both the Astro landing and plugin; these also appear when the scanner environment cannot resolve Node/React types. The current [obsidianmd/eslint-plugin scanner configuration](https://github.com/obsidianmd/eslint-plugin/blob/master/docs/configuration.md) explicitly disables these rules for the community scanner. Do not suppress type validation in the plugin: CI still runs `pnpm typecheck`, the project ESLint configuration, and protocol decoder tests.
+- **DOM event callbacks:** event listeners in the chat, quiz, and onboarding now observe their returned Promises or explicitly report failures. The handler itself returns `void`.
+- **Timers:** `LearningProgramOrchestrator`, CLI process probes, and OAuth loopback use Node-owned timers, not popout view DOM timers; replacing them indiscriminately with `window.setTimeout` would reduce portability/testability. `src/main.ts` already uses registered Obsidian window intervals for plugin lifetime.
+- **Provider networking:** OAuth is routed through the allowlisted Obsidian `requestUrl` adapter; Node HTTPS is intentionally limited to first-party inference streaming, because `requestUrl` buffers the response. The `fetch` symbol in auth is an injected request transport, not direct renderer fetch.
+- **CSS:** Tailwind `@source`/`@theme` directives only belong to the build input. The production artifact gate fails if they leak into `dist/styles.css`. Min-app version is 1.13.0, not the 1.11.4 benchmark mentioned by the initial report. Intentional `!important` rules that isolate plugin controls from third-party Obsidian themes and Mermaid-generated styles are not blindly removed; removing them can cause readability, sizing or diagram regressions. Landing CSS is built/deployed separately by Cloudflare.
+- **Behavior recommendations:** filesystem/CLI access and the clipboard are required by documented user-initiated features; stored credentials are validated and never written to the synced vault.
+
+All remaining non-blocking advisories should be evaluated against the final compiled release and current scanner version, not mechanically treated as actionable vulnerabilities.

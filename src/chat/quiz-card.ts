@@ -138,7 +138,7 @@ export function renderQuizCard(parent: HTMLElement, question: PracticeQuestion,
     hintPanel.id = hintId;
     hintControl.setAttribute("aria-controls", hintId);
     hintControl.setAttribute("aria-expanded", "false");
-    hintControl.addEventListener("click", async () => {
+    hintControl.addEventListener("click", () => { void (async () => {
       if (disabled || busy || hintPending) return;
       if (!hintUsed) {
         hintPending = true;
@@ -163,7 +163,7 @@ export function renderQuizCard(parent: HTMLElement, question: PracticeQuestion,
       hintControl.setAttribute("aria-expanded", String(hintVisible));
       hintControl.setText(hintVisible ? "Hide hint" : "Show hint");
       status.setText("");
-    });
+    })().catch(error => console.warn("[Nox] Quiz action failed", error)); });
   }
 
   submit = createNoxButton(footer, {
@@ -172,7 +172,7 @@ export function renderQuizCard(parent: HTMLElement, question: PracticeQuestion,
     label: "Submit this answer for evaluation",
   });
   submit.disabled = disabled || !isValid();
-  submit.addEventListener("click", async () => {
+  submit.addEventListener("click", () => { void (async () => {
     if (!answer || !isValid() || submit.disabled || busy || hintPending) return;
     busy = true;
     submit.disabled = true;
@@ -201,5 +201,5 @@ export function renderQuizCard(parent: HTMLElement, question: PracticeQuestion,
         if (hintButton) hintButton.disabled = disabled;
       }
     }
-  });
+  })().catch(error => console.warn("[Nox] Quiz action failed", error)); });
 }
