@@ -15,6 +15,7 @@ import { formatReplyPrompt } from "./reply-context";
 import { PersistenceError } from "../persistence/PersistenceError";
 import { prepareContextEnvelope } from "../context/ContextBudget";
 import type { ResearchResult } from "../context/LocalResearch";
+import { parseResearchRequest, resolveResearchScope } from "../domain/research-scope";
 import {
   recordPracticeEvaluation,
   recordReviewFindings,
@@ -311,9 +312,8 @@ export class RunLearningTurn {
     const pinnedPracticeSource = request.action === "practice"
       ? (previousOrigin?.file ?? request.sourcePath)
       : undefined;
-    const researchQuery = request.action === "ask" && /^\/research(?:\s|$)/i.test(request.prompt)
-      ? request.prompt.replace(/^\/research\s*/i, "").trim()
-      : null;
+    const research = request.action === "ask" ? parseResearchRequest(request.prompt) : null;
+    const researchQuery = research?.query ?? null;
     let researchResult: ResearchResult | undefined;
 
     let context: LearningContext;
@@ -359,9 +359,20 @@ export class RunLearningTurn {
         Promise.all([this.policies.load(), this.learningState.load()]),
       ]);
       state = await this.reconcileTranscriptEvidence(sessionAtStart, state);
-      if (researchQuery && this.contexts.searchKnowledge) {
+      if (researchQuery && research && this.contexts.searchKnowledge) {
+        const selectedPaths = [
+          ...context.explicit.filter(item => item.source === "explicit" && item.type === "note" &&
+            !item.path.startsWith("attachment/")).map(item => item.path),
+          ...(context.selection ? [context.selection.file] : []),
+          ...(request.sourcePath ? [request.sourcePath] : []),
+        ];
+        const scope = resolveResearchScope(research.scope, {
+          selectedPaths,
+          sourceBoundPaths: program?.constraints.sourceBound
+            ? program.constraints.sourcePaths : undefined,
+        });
         researchResult = await this.contexts.searchKnowledge(researchQuery, {
-          limit: 8, allowedPaths: program?.constraints.sourceBound ? program.constraints.sourcePaths : undefined,
+          limit: 8, scope,
         });
       }
       // Optional vault-authored skills are contextual material, never scope authority.
