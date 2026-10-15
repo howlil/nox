@@ -33,7 +33,7 @@ test("segmented Token view draws only filtered, actually recorded UTC buckets", 
     row("2026-10-14", "agy", "gemini", 30),
     row("2026-10-14", "agy", "gemini", 10),
     row("2026-10-13", "codex", "gpt", 40),
-    row("2026-09-15", "agy", "gemini", 90),
+    row("2026-09-14", "agy", "gemini", 90),
   ];
   const now = new Date("2026-10-14T20:00:00Z");
   const filtered = tokenUsageTimeline(entries,
