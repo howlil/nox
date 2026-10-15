@@ -320,9 +320,12 @@ export class RunLearningTurn {
 
     try {
       const refs = [...request.explicitContext];
-      if (this.programStore && (request.programActivity || (request.action === "practice" && !request.freePractice && (!activePracticeTurn || activePracticeTurn.programId))) && !lockedMode) {
+      if (this.programStore && (request.programActivity || (request.action === "practice" && !request.freePractice && (!activePracticeTurn || activePracticeTurn.programId))) && !legacyLockedMode) {
         const collection = await this.programStore.load();
         program = collection.programs.find(item => item.id === collection.activeProgramId);
+        if (programScope && programScope.programId !== program?.id) {
+          throw new Error("This learning mode belongs to another program. Switch back or leave this mode.");
+        }
         if (request.programActivity && (request.programActivity.programId !== program?.id ||
             !program.objectives.some(o => o.id === request.programActivity?.objectiveId))) {
           throw new Error("Teaching task does not match the active program.");
@@ -625,14 +628,14 @@ export class RunLearningTurn {
       }
     }
 
-    if (program && !lockedMode && request.programActivity) {
+    if (program && !legacyLockedMode && request.programActivity) {
       const topic = program.objectives.find(item => item.id === request.programActivity?.objectiveId);
       if (!topic) throw new Error("The teaching objective no longer exists.");
       preparedPrompt += "\n\nTeach this objective: " + topic.outcome +
         ". Rubric: " + JSON.stringify(topic.rubric) +
         ". Give a mental model, one worked example, and a guided check. Do not grade or claim mastery.";
     }
-    if (program && !lockedMode && request.action === "practice") {
+    if (program && !legacyLockedMode && request.action === "practice") {
       const activeObjective = practiceAttempt?.objectiveId
         ? program.objectives.find(item => item.id === practiceAttempt.objectiveId)
         : objective;
@@ -658,8 +661,18 @@ export class RunLearningTurn {
         ].join("\n");
       }
     }
-    if (lockedMode) {
-      preparedPrompt = buildScopedPracticeInstruction(lockedMode, preparedPrompt, Boolean(practiceAttempt));
+    if (strictPractice && legacyLockedMode) {
+      preparedPrompt = buildScopedPracticeInstruction(legacyLockedMode, preparedPrompt, Boolean(practiceAttempt));
+    } else if (strictPractice && programScope) {
+      if (!program) throw new Error("The selected learning program is unavailable.");
+      const activeObjectiveId = practiceAttempt?.objectiveId ?? objective?.id;
+      const activeObjective = program.objectives.find(item => item.id === activeObjectiveId);
+      preparedPrompt = buildProgramScopedPracticeInstruction({
+        mode: programScope.mode as "ASSESSMENT" | "FOCUSED",
+        goal: program.goal,
+        objective: activeObjective,
+        hasQuestion: Boolean(practiceAttempt),
+      }, preparedPrompt);
     }
     const parser = new StructuredStreamParser();
     const scopedEvents: StructuredStreamEvent[] = [];
@@ -773,7 +786,7 @@ export class RunLearningTurn {
         };
         for await (const item of this.commitPracticeOutcome(
           evaluation, snapshot, turnSessionId, practice, practiceAttempt,
-          Boolean(lockedMode),
+          (legacyLockedMode ? "backend" : programScope ? "program" : undefined),
         )) yield item;
         yield { type: "completed" };
         return;
@@ -834,7 +847,7 @@ export class RunLearningTurn {
         controller.signal,
       )) {
         if (event.type === "tool-started" || event.type === "tool-completed") {
-          if (!lockedMode) yield event;
+          if (!strictPractice) yield event;
           continue;
         }
         if (event.type === "text") {
@@ -847,7 +860,7 @@ export class RunLearningTurn {
             metrics.providerFirstTextMs = performance.now() - providerStartedAt;
           }
           executionPhase = "processing";
-          if (lockedMode) {
+          if (strictPractice) {
             scopedEvents.push(...parser.push(event.content));
             executionPhase = "agent";
             continue;
@@ -882,7 +895,7 @@ export class RunLearningTurn {
           }
 
           let completedEvents = parser.finish();
-          if (lockedMode) {
+          if (strictPractice) {
             scopedEvents.push(...completedEvents);
             if (controller.signal.aborted) {
               rollbackPractice();
@@ -902,7 +915,7 @@ export class RunLearningTurn {
             const decision = decisions[0];
             if (decision.outcome === "out-of-scope" || decision.outcome === "help") {
               rollbackPractice();
-              let reply = scopeDeflection(practiceAttempt?.question);
+              let reply = scopeDeflection(practiceAttempt?.question, programScope ? program?.goal : undefined);
               if (decision.outcome === "help") {
                 const text = scopedEvents.filter((item) => item.type === "text").map((item) => item.text).join("").trim();
                 if (!practiceAttempt || !text || text.length > 1200 || scopedEvents.some((item) =>
@@ -972,7 +985,7 @@ export class RunLearningTurn {
             await this.sessions.recordStructuredPart(
               { type: "practice-question", question: practiceBuffer.question,
                 questionId, origin: practice.snapshot()?.origin,
-                ...(lockedMode ? { scope: "backend" as const } : {}) },
+                ...(strictPractice ? { scope: legacyLockedMode ? "backend" as const : "program" as const } : {}) },
               snapshot.mutableFile,
               turnSessionId,
             );
@@ -1000,7 +1013,7 @@ export class RunLearningTurn {
               turnSessionId,
               practice,
               practiceAttempt,
-              Boolean(lockedMode),
+              (legacyLockedMode ? "backend" : programScope ? "program" : undefined),
             )) {
               persistMappedEvent(mapped);
               yield mapped;
@@ -1221,7 +1234,7 @@ export class RunLearningTurn {
     sessionId: string,
     practice: PracticeStateMachine,
     practiceAttempt: PracticeEvaluationAttempt,
-    scoped = false,
+    scoped?: "backend" | "program",
   ): AsyncIterable<LearningEvent> {
         const source =
           practiceAttempt.origin?.file ??
@@ -1239,11 +1252,11 @@ export class RunLearningTurn {
           { type: "practice-evaluation", evaluation: evaluation,
             questionId: practiceAttempt.questionId, operationId,
             nextQuestionId: nextId, sourcePath: source,
-            ...(scoped ? { scope: "backend" as const } : {}) },
+            ...(scoped ? { scope: scoped } : {}) },
           ...(nextQuestion ? [{
             type: "practice-question" as const, question: nextQuestion,
             questionId: nextId, origin: practice.snapshot()?.origin,
-            ...(scoped ? { scope: "backend" as const } : {}),
+            ...(scoped ? { scope: scoped } : {}),
           }] : []),
         ];
         const committed = await this.sessions.recordPracticeOutcome(
