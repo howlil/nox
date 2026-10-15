@@ -62,8 +62,8 @@ export function renderQuizCard(parent: HTMLElement, question: PracticeQuestion,
     const optionControls: Array<{ row: HTMLElement; radio: HTMLInputElement }> = [];
     const refreshOptionStates = () => {
       for (const { row, radio } of optionControls) {
-        row.toggleClass("is-checked", radio.checked);
-        row.toggleClass("is-disabled", radio.disabled);
+        row.className = "nox-quiz-option" + (radio.checked ? " is-checked" : "") +
+          (radio.disabled ? " is-disabled" : "");
       }
     };
     syncOptionState = refreshOptionStates;
