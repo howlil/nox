@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.1.1]
+
+### Fixes
+
+- repair CSS syntax and enforce Obsidian source quality gates
+
 ## [1.1.0]
 
 ### Compatibility
