@@ -49,7 +49,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git checkout -b "$branch"
-          git add manifest.json package.json CHANGELOG.md .release-plan.json
+          git add manifest.json package.json CHANGELOG.md versions.json .release-plan.json
           git commit -m "chore(release): prepare $version"
           git push -u origin "$branch"
           gh pr create --base master --head "$branch" \
