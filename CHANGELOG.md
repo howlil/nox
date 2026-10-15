@@ -1,5 +1,31 @@
 # Changelog
 
+## [1.1.0]
+
+### Compatibility
+
+- Adopt Obsidian 1.13 declarative settings with searchable configuration and native Usage/Token pages.
+- Align plugin unload with Obsidian's synchronous lifecycle while observing the final learning checkpoint.
+- Replace an expensive quiz CSS `:has()` selector with explicit selection state.
+
+### Security and reliability
+
+- Validate persisted OAuth credentials before accepting scopes, expiration, or refresh tokens.
+- Preserve authenticated provider transports and restricted subprocess boundaries.
+- Use a supported Electron import boundary and Obsidian DOM helpers where appropriate.
+
+### Engineering
+
+- Replace deprecated `builtin-modules` with Node.js `builtinModules`.
+- Add targeted regression tests for credential decoding, quiz state, settings, and unload behavior.
+- Document Community review trade-offs, external provider permissions, and release acceptance criteria.
+
+### Release caveats
+
+- Desktop-only, requires Obsidian 1.13.0 or later.
+- Provider capabilities depend on installed CLIs or account eligibility.
+- Production publication requires separate native desktop smoke tests and the final Community review.
+
 ## [1.0.0]
 
 ### First major release
