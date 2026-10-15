@@ -52,7 +52,7 @@ async function rig() {
   };
 }
 
-test("switching provider refreshes model choices and next turn without restarting or losing history", async () => {
+test("switching provider lazily refreshes model choices without restarting or losing history", async () => {
   const r = await rig();
   const previous = r.sessions.getSession();
   await r.change("codex");
@@ -71,6 +71,8 @@ test("switching provider refreshes model choices and next turn without restartin
   assert.equal(r.calls[1].options.model, "custom-codex-model");
   await r.change("agy");
   assert.equal(r.sessions.getSession().conversationId, undefined);
+  assert.deepEqual(r.controller.getModels(), []); // No eager process execution on provider switch.
+  await r.controller.refreshModels();
   assert.deepEqual(r.controller.getModels(), [{ id: "agy-model", name: "AGY model" }]);
   await r.send();
   assert.equal(r.calls.at(-1)?.provider, "agy");
