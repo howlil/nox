@@ -6,6 +6,7 @@ import { SessionStore } from "../../../src/session/SessionStore";
 import { PluginDataRepository } from "../../../src/persistence/PluginDataRepository";
 import type { AgentStreamEvent } from "../../../src/types";
 import type { LearningState } from "../../../src/domain/learning-state/types";
+import type { LearningProgram } from "../../../src/domain/learning-program/types";
 import { collectEvents } from "../../support/collect-events";
 
 const block = (tag: string, value: object) => "```" + tag + "\n" + JSON.stringify(value) + "\n```";
@@ -16,8 +17,14 @@ const output = (outcome: string, value?: object, text = ""): AgentStreamEvent[] 
   { type: "completed", conversationId: "untrusted-scoped-history" },
 ];
 
-async function rig(options: { turnTimeoutMs?: number } = {}) {
-  let data: Record<string, unknown> | null = null;
+async function rig(options: { turnTimeoutMs?: number; program?: LearningProgram; legacy?: boolean } = {}) {
+  // Scope-flow historical cases deliberately load an existing v1 session.
+  const legacy = options.legacy !== false && !options.program;
+  let data: Record<string, unknown> | null = legacy ? {
+    "nox-sessions": { currentSessionId: "legacy", sessions: {
+      legacy: { id: "legacy", messages: [], createdAt: 1, updatedAt: 1, learningScope: { mode: "FREE" } },
+    } },
+  } : null;
   let failSave = false;
   let failQuestions = false;
   let state: LearningState = { version: 2, target: null, gaps: [], evidence: [] };
@@ -46,7 +53,13 @@ async function rig(options: { turnTimeoutMs?: number } = {}) {
       resolve: async () => ({ explicit: [] }), searchNotes: () => [], toAgentContext: () => [],
     }, { load: async () => ({ path: "AGENTS.md", rawInstructions: "" }) }, {
       apply: async () => mutation(),
-    }, { load: async () => structuredClone(state), save: async (next) => { state = structuredClone(next); } }, options);
+    }, { load: async () => structuredClone(state), save: async (next) => { state = structuredClone(next); } }, {
+      turnTimeoutMs: options.turnTimeoutMs,
+      programStore: options.program ? {
+        load: async () => ({ version: 1 as const, activeProgramId: options.program!.id, programs: [structuredClone(options.program!)] }),
+        save: async () => {},
+      } : undefined,
+    });
     return { sessions, learning, send: (prompt: string, action = "ask") => collectEvents(learning.run({
       prompt, action: action as "ask", explicitContext: [], turnId: crypto.randomUUID(),
     })) };
@@ -247,7 +260,7 @@ test("mode entry waits for an in-flight editor Apply to settle", async () => {
   try {
     const events = await r.send("/mode assessment");
     assert.ok(events.some((event) => event.type === "failed" && event.failure.code === "busy"));
-    assert.equal(r.sessions.getSession().learningScope, undefined);
+    assert.deepEqual(r.sessions.getSession().learningScope, { mode: "FREE" });
   } finally {
     finishApply();
     await applying;
@@ -306,4 +319,58 @@ test("hint persistence failure does not assist a question until an atomic retry 
     .find(part => part.type === "practice-evaluation");
   assert.equal(saved?.type, "practice-evaluation");
   if (saved?.type === "practice-evaluation") assert.equal(saved.evaluation.assisted, true);
+});
+
+const japaneseProgram = (): LearningProgram => ({
+  version: 1, id: "japanese-n5", goal: "Learn Japanese N5",
+  createdAt: Date.now(), planVersion: 1,
+  constraints: { minutesPerSession: 45, sessionsPerWeek: 3,
+    sourcePaths: [], sourceBound: false, excludedTopics: [] },
+  objectives: [{ id: "kana", title: "Hiragana", outcome: "Recognize basic hiragana",
+    prerequisiteIds: [], estimatedMinutes: 30,
+    rubric: ["Read hiragana accurately"], sourceRefs: [], priority: "core" }],
+  session: { startedAt: Date.now(), timeBudgetMinutes: 45,
+    timing: { version: 2, activeMs: 0, aiWaitingMs: 0,
+      pauseReasons: [], checkpointAt: Date.now() } },
+});
+
+test("program assessment is domain-neutral and survives pause/resume and restart", async () => {
+  const r = await rig({ program: japaneseProgram() });
+  await r.send("/mode assessment");
+  assert.deepEqual(r.sessions.getSession().learningScope, {
+    version: 2, kind: "program", programId: "japanese-n5",
+    mode: "ASSESSMENT", resumeMode: undefined,
+  });
+  const q = { kind: "question", concept: "Hiragana",
+    question: "What sound does the hiragana あ represent?" };
+  r.queue.push(output("answer", q));
+  const events = await r.send("Start");
+  assert.ok(events.some(event => event.type === "practice-question"));
+  assert.ok(r.calls.at(-1)?.prompt.includes("Learn Japanese N5"));
+  assert.ok(r.calls.at(-1)?.prompt.includes("Recognize basic hiragana"));
+  assert.ok(!r.calls.at(-1)?.prompt.includes("SCOPE: backend engineering only"));
+  const part = r.sessions.getSession().messages.flatMap(message => message.parts ?? [])
+    .find(item => item.type === "practice-question");
+  assert.equal(part?.scope, "program");
+  await r.send("/pause");
+  assert.equal(r.learning.hasActivePracticeQuestion(), false);
+  const restored = await r.restart();
+  await restored.send("/resume");
+  assert.equal(restored.learning.hasActivePracticeQuestion(), true);
+  assert.equal(restored.learning.getSession().learningScope?.mode, "ASSESSMENT");
+  r.queue.push(output("answer", { kind: "evaluation", concept: "Hiragana",
+    outcome: "correct", feedback: "あ is read a.", misconceptions: [],
+    rubricResults: [{ criterion: "Read hiragana accurately", met: true, evidence: "a" }] }));
+  const response = await restored.send("The sound is a");
+  assert.ok(response.some(event => event.type === "practice-evaluation"));
+  assert.ok(r.evidence().some(item => item.programId === "japanese-n5" && item.objectiveId === "kana"));
+});
+
+test("new sessions without an active program never silently enter backend assessment", async () => {
+  const r = await rig({ legacy: false });
+  const events = await r.send("/mode assessment");
+  assert.equal(events.at(-1)?.type, "completed");
+  assert.equal(r.sessions.getSession().learningScope, undefined);
+  assert.equal(r.calls.length, 0);
+  assert.match(events.filter(e => e.type === "response-delta").map(e => e.text).join(""), /\/plan/);
 });

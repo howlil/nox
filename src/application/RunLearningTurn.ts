@@ -27,8 +27,9 @@ import {
   buildPracticeEvaluationInstruction,
   buildPracticeQuestionInstruction,
   buildScopedPracticeInstruction,
+  buildProgramScopedPracticeInstruction,
 } from "./action-builders";
-import { isLockedLearningMode, parseScopeCommand, scopeDeflection, transitionLearningScope } from "../domain/practice/learning-scope";
+import { isLockedLearningMode, isProgramLearningScope, parseScopeCommand, scopeDeflection, transitionLearningScope, transitionProgramLearningScope } from "../domain/practice/learning-scope";
 import { toPromptLearningState } from "./learning-state-projection";
 import {
   LearningEvent,
@@ -108,8 +109,14 @@ export class RunLearningTurn {
 
   /** Reconstruct the active question from the same durable conversation transcript. */
   private practiceForSession(session: ChatSession): PracticeStateMachine {
-    const scoped = isLockedLearningMode(session.learningScope?.mode);
-    const practice = this.practices.forSession(scoped ? `${session.id}:backend` : session.id);
+    const legacy = !isProgramLearningScope(session.learningScope) &&
+      isLockedLearningMode(session.learningScope?.mode);
+    const programId = isProgramLearningScope(session.learningScope) &&
+      session.learningScope.mode !== "FREE" ? session.learningScope.programId : undefined;
+    const scoped = legacy || Boolean(programId);
+    const key = legacy ? `${session.id}:backend`
+      : programId ? JSON.stringify([session.id, "program", programId]) : session.id;
+    const practice = this.practices.forSession(key);
     if (practice.snapshot()) return practice;
     const inheritedCount = session.fork?.inheritedMessageCount ?? 0;
     for (let i = session.messages.length - 1; i >= inheritedCount; i--) {
@@ -122,7 +129,11 @@ export class RunLearningTurn {
       const parts = message.parts ?? [];
       for (let j = parts.length - 1; j >= 0; j--) {
         const part = parts[j];
-        if (part.type === "review-findings" || (part.scope === "backend") !== scoped) continue;
+        if (part.type === "review-findings") continue;
+        if (legacy ? part.scope !== "backend" : programId
+          ? part.scope !== "program" ||
+            (part.type === "practice-question" ? part.question.programId : part.evaluation.programId) !== programId
+          : part.scope === "backend" || part.scope === "program") continue;
         if (part.type === "practice-evaluation") return practice;
         if (part.type === "practice-question") {
           practice.start(part.origin);
@@ -199,44 +210,81 @@ export class RunLearningTurn {
     const scopeCommand = parseScopeCommand(request.prompt);
     if (scopeCommand) {
       try {
-        const next = transitionLearningScope(sessionAtStart.learningScope, scopeCommand);
-        const unavailableResume = scopeCommand === "resume" && next.mode === "FREE" && !next.resumeMode;
-        const question = this.practiceForSession({ ...sessionAtStart, learningScope: next }).snapshot()?.currentQuestion;
-        const reply = scopeCommand === "invalid"
+        const oldScope = sessionAtStart.learningScope;
+        const existingProgramScope = isProgramLearningScope(oldScope) ? oldScope : undefined;
+        const legacyScope = oldScope && !isProgramLearningScope(oldScope) ? oldScope : undefined;
+        let activeProgram: LearningProgram | undefined;
+        if ((existingProgramScope || (!legacyScope &&
+            (scopeCommand === "assessment" || scopeCommand === "focused"))) && this.programStore) {
+          const collection = await this.programStore.load();
+          activeProgram = collection.programs.find(item => item.id === collection.activeProgramId);
+        }
+        const wantsProgram = Boolean(existingProgramScope) || (!legacyScope &&
+          (scopeCommand === "assessment" || scopeCommand === "focused"));
+        let next = oldScope;
+        const invalid = scopeCommand === "invalid";
+        const unavailable = scopeCommand === "resume" &&
+          (!oldScope || oldScope.mode !== "FREE" || !oldScope.resumeMode);
+        let explanation: string | undefined;
+        if (!invalid && !unavailable && wantsProgram) {
+          if (existingProgramScope && scopeCommand === "free") {
+            next = transitionProgramLearningScope(existingProgramScope, "free", existingProgramScope.programId);
+          } else if (!activeProgram ||
+              (existingProgramScope && existingProgramScope.programId !== activeProgram.id &&
+                existingProgramScope.mode !== "FREE")) {
+            explanation = "Select a learning program with /plan <goal> before starting assessment. If you switched programs, pause the old mode first.";
+          } else {
+            next = transitionProgramLearningScope(existingProgramScope, scopeCommand, activeProgram.id);
+          }
+        } else if (!invalid && !unavailable && legacyScope) {
+          next = transitionLearningScope(legacyScope, scopeCommand);
+        } else if (!invalid && !unavailable && !oldScope && scopeCommand !== "free") {
+          explanation = "Create a learning program with /plan, then start a session before entering a learning mode.";
+        }
+        const programMode = isProgramLearningScope(next);
+        const subject = programMode ? activeProgram?.goal ?? "learning program" : "backend";
+        const question = next ? this.practiceForSession({ ...sessionAtStart,
+          learningScope: next }).snapshot()?.currentQuestion : undefined;
+        const reply = invalid
           ? "Gunakan /mode assessment, /mode focused, /pause, /mode free, atau /resume."
-          : unavailableResume ? "Tidak ada mode backend yang dijeda. Gunakan /mode assessment atau /mode focused."
-          : next.mode === "FREE"
-            ? (next.resumeMode ? "Mode bebas. Pertanyaan backend disimpan; ketik /resume untuk melanjutkan."
-              : "Mode bebas. Ketik /mode assessment atau /mode focused untuk belajar backend.")
-            : `MODE: ${next.mode} · backend. ${question ? `Kembali ke pertanyaan: ${question}`
-              : "Kirim 'mulai' untuk pertanyaan backend pertama."} Ketik /pause untuk diskusi bebas.`;
-        if (scopeCommand === "invalid" || unavailableResume) {
+          : explanation ?? (unavailable
+          ? "Tidak ada mode belajar yang dijeda."
+          : !next || next.mode === "FREE"
+            ? (next?.resumeMode ? `Mode bebas. Pertanyaan ${subject} disimpan; ketik /resume untuk melanjutkan.`
+              : "Mode bebas. Gunakan /plan <goal> untuk memulai program belajar.")
+            : `MODE: ${next.mode} · ${subject}. ${question ? `Kembali ke pertanyaan: ${question}`
+              : programMode ? "Gunakan /start-session lalu /next untuk belajar." : "Kirim 'mulai' untuk pertanyaan backend pertama."} Ketik /pause untuk diskusi bebas.`);
+        if (invalid || unavailable || explanation || !next ||
+            (next === oldScope && scopeCommand === "free")) {
           if (!request.retry) await this.sessions.recordUserMessage(request.prompt, sessionAtStart.id, "ask", request.turnId);
           await this.sessions.recordAssistantMessage(reply, undefined, sessionAtStart.id);
         } else {
           await this.sessions.recordScopeChange(next, request.prompt, reply, sessionAtStart.id, request.turnId);
-          // An explicit mode transition exits ordinary Practice. The backend
-          // machine remains derived from its separately marked transcript parts.
           this.practices.reset(sessionAtStart.id);
         }
         yield { type: "response-delta", text: reply };
         yield { type: "completed" };
       } catch (error) {
         yield { type: "failed", failure: { code: "persistence-failed",
-          message: "Nox could not save the learning mode. The previous mode is still active.",
+          message: "Nox could not change the learning mode. Existing progress remains unchanged.",
           diagnostic: error instanceof Error ? error.message : String(error) } };
       } finally {
         if (this.activeTurn === activeTurn) this.activeTurn = null;
       }
       return;
     }
-    const mode = sessionAtStart.learningScope?.mode;
-    const lockedMode = isLockedLearningMode(mode) ? mode : undefined;
-    if (lockedMode) {
-      // All callers, including cards and selection shortcuts, obey the same lock.
+    const scope = sessionAtStart.learningScope;
+    const legacyLockedMode = !isProgramLearningScope(scope) && isLockedLearningMode(scope?.mode)
+      ? scope.mode : undefined;
+    const programScope = isProgramLearningScope(scope) && scope.mode !== "FREE" ? scope : undefined;
+    const lockedMode = legacyLockedMode ?? (programScope ? programScope.mode : undefined);
+    const teachingProgramTurn = Boolean(programScope && request.programActivity?.kind === "teach");
+    const strictPractice = Boolean(lockedMode) && !teachingProgramTurn;
+    if (strictPractice) {
       if (request.action === "edit" || request.action === "review") {
         try {
-          const reply = scopeDeflection(this.practiceForSession(sessionAtStart).snapshot()?.currentQuestion);
+          const reply = scopeDeflection(this.practiceForSession(sessionAtStart).snapshot()?.currentQuestion,
+            programScope ? "learning program" : undefined);
           if (!request.retry) await this.sessions.recordUserMessage(request.prompt, sessionAtStart.id, "practice", request.turnId);
           await this.sessions.recordAssistantMessage(reply, undefined, sessionAtStart.id);
           yield { type: "response-delta", text: reply };
@@ -275,9 +323,12 @@ export class RunLearningTurn {
 
     try {
       const refs = [...request.explicitContext];
-      if (this.programStore && (request.programActivity || (request.action === "practice" && !request.freePractice && (!activePracticeTurn || activePracticeTurn.programId))) && !lockedMode) {
+      if (this.programStore && (request.programActivity || (request.action === "practice" && !request.freePractice && (!activePracticeTurn || activePracticeTurn.programId))) && !legacyLockedMode) {
         const collection = await this.programStore.load();
         program = collection.programs.find(item => item.id === collection.activeProgramId);
+        if (programScope && programScope.programId !== program?.id) {
+          throw new Error("This learning mode belongs to another program. Switch back or leave this mode.");
+        }
         if (request.programActivity && (request.programActivity.programId !== program?.id ||
             !program.objectives.some(o => o.id === request.programActivity?.objectiveId))) {
           throw new Error("Teaching task does not match the active program.");
@@ -580,14 +631,14 @@ export class RunLearningTurn {
       }
     }
 
-    if (program && !lockedMode && request.programActivity) {
+    if (program && !legacyLockedMode && request.programActivity) {
       const topic = program.objectives.find(item => item.id === request.programActivity?.objectiveId);
       if (!topic) throw new Error("The teaching objective no longer exists.");
       preparedPrompt += "\n\nTeach this objective: " + topic.outcome +
         ". Rubric: " + JSON.stringify(topic.rubric) +
         ". Give a mental model, one worked example, and a guided check. Do not grade or claim mastery.";
     }
-    if (program && !lockedMode && request.action === "practice") {
+    if (program && !legacyLockedMode && request.action === "practice") {
       const activeObjective = practiceAttempt?.objectiveId
         ? program.objectives.find(item => item.id === practiceAttempt.objectiveId)
         : objective;
@@ -613,8 +664,18 @@ export class RunLearningTurn {
         ].join("\n");
       }
     }
-    if (lockedMode) {
-      preparedPrompt = buildScopedPracticeInstruction(lockedMode, preparedPrompt, Boolean(practiceAttempt));
+    if (strictPractice && legacyLockedMode) {
+      preparedPrompt = buildScopedPracticeInstruction(legacyLockedMode, preparedPrompt, Boolean(practiceAttempt));
+    } else if (strictPractice && programScope) {
+      if (!program) throw new Error("The selected learning program is unavailable.");
+      const activeObjectiveId = practiceAttempt?.objectiveId ?? objective?.id;
+      const activeObjective = program.objectives.find(item => item.id === activeObjectiveId);
+      preparedPrompt = buildProgramScopedPracticeInstruction({
+        mode: programScope.mode as "ASSESSMENT" | "FOCUSED",
+        goal: program.goal,
+        objective: activeObjective,
+        hasQuestion: Boolean(practiceAttempt),
+      }, preparedPrompt);
     }
     const parser = new StructuredStreamParser();
     const scopedEvents: StructuredStreamEvent[] = [];
@@ -728,7 +789,7 @@ export class RunLearningTurn {
         };
         for await (const item of this.commitPracticeOutcome(
           evaluation, snapshot, turnSessionId, practice, practiceAttempt,
-          Boolean(lockedMode),
+          (legacyLockedMode ? "backend" : programScope ? "program" : undefined),
         )) yield item;
         yield { type: "completed" };
         return;
@@ -789,7 +850,7 @@ export class RunLearningTurn {
         controller.signal,
       )) {
         if (event.type === "tool-started" || event.type === "tool-completed") {
-          if (!lockedMode) yield event;
+          if (!strictPractice) yield event;
           continue;
         }
         if (event.type === "text") {
@@ -802,7 +863,7 @@ export class RunLearningTurn {
             metrics.providerFirstTextMs = performance.now() - providerStartedAt;
           }
           executionPhase = "processing";
-          if (lockedMode) {
+          if (strictPractice) {
             scopedEvents.push(...parser.push(event.content));
             executionPhase = "agent";
             continue;
@@ -837,7 +898,7 @@ export class RunLearningTurn {
           }
 
           let completedEvents = parser.finish();
-          if (lockedMode) {
+          if (strictPractice) {
             scopedEvents.push(...completedEvents);
             if (controller.signal.aborted) {
               rollbackPractice();
@@ -857,7 +918,7 @@ export class RunLearningTurn {
             const decision = decisions[0];
             if (decision.outcome === "out-of-scope" || decision.outcome === "help") {
               rollbackPractice();
-              let reply = scopeDeflection(practiceAttempt?.question);
+              let reply = scopeDeflection(practiceAttempt?.question, programScope ? program?.goal : undefined);
               if (decision.outcome === "help") {
                 const text = scopedEvents.filter((item) => item.type === "text").map((item) => item.text).join("").trim();
                 if (!practiceAttempt || !text || text.length > 1200 || scopedEvents.some((item) =>
@@ -927,7 +988,7 @@ export class RunLearningTurn {
             await this.sessions.recordStructuredPart(
               { type: "practice-question", question: practiceBuffer.question,
                 questionId, origin: practice.snapshot()?.origin,
-                ...(lockedMode ? { scope: "backend" as const } : {}) },
+                ...(strictPractice ? { scope: legacyLockedMode ? "backend" as const : "program" as const } : {}) },
               snapshot.mutableFile,
               turnSessionId,
             );
@@ -955,7 +1016,7 @@ export class RunLearningTurn {
               turnSessionId,
               practice,
               practiceAttempt,
-              Boolean(lockedMode),
+              (legacyLockedMode ? "backend" : programScope ? "program" : undefined),
             )) {
               persistMappedEvent(mapped);
               yield mapped;
@@ -1176,7 +1237,7 @@ export class RunLearningTurn {
     sessionId: string,
     practice: PracticeStateMachine,
     practiceAttempt: PracticeEvaluationAttempt,
-    scoped = false,
+    scoped?: "backend" | "program",
   ): AsyncIterable<LearningEvent> {
         const source =
           practiceAttempt.origin?.file ??
@@ -1194,11 +1255,11 @@ export class RunLearningTurn {
           { type: "practice-evaluation", evaluation: evaluation,
             questionId: practiceAttempt.questionId, operationId,
             nextQuestionId: nextId, sourcePath: source,
-            ...(scoped ? { scope: "backend" as const } : {}) },
+            ...(scoped ? { scope: scoped } : {}) },
           ...(nextQuestion ? [{
             type: "practice-question" as const, question: nextQuestion,
             questionId: nextId, origin: practice.snapshot()?.origin,
-            ...(scoped ? { scope: "backend" as const } : {}),
+            ...(scoped ? { scope: scoped } : {}),
           }] : []),
         ];
         const committed = await this.sessions.recordPracticeOutcome(

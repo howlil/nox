@@ -1,7 +1,7 @@
 import { ChatSession, ChatMessage, EditProposal } from "../types";
 import { isTranscriptPart } from "./transcript-schema";
 import { isPracticeAnswer } from "../domain/practice/question-schema";
-import { isLockedLearningMode } from "../domain/practice/learning-scope";
+import { isLockedLearningMode, isProgramLearningScope } from "../domain/practice/learning-scope";
 
 const STORE_KEY = "nox-sessions";
 const LEGACY_STORE_KEY = "agy-sessions";
@@ -363,12 +363,17 @@ export class SessionStore {
           inheritedMessageCount: session.fork.inheritedMessageCount,
           createdAt: session.fork.createdAt } : undefined,
       runtimeProvider: typeof session.runtimeProvider === "string" ? session.runtimeProvider : undefined,
-      learningScope: session.learningScope &&
-        (session.learningScope.mode === "FREE" || isLockedLearningMode(session.learningScope.mode))
-        ? { mode: session.learningScope.mode,
-            ...(session.learningScope.mode === "FREE" && isLockedLearningMode(session.learningScope.resumeMode)
+      learningScope: isProgramLearningScope(session.learningScope)
+        ? { version: 2, kind: "program", programId: session.learningScope.programId,
+            mode: session.learningScope.mode,
+            ...(session.learningScope.mode === "FREE" && session.learningScope.resumeMode
               ? { resumeMode: session.learningScope.resumeMode } : {}) }
-        : undefined,
+        : session.learningScope && !("version" in session.learningScope) &&
+          (session.learningScope.mode === "FREE" || isLockedLearningMode(session.learningScope.mode))
+          ? { mode: session.learningScope.mode,
+              ...(session.learningScope.mode === "FREE" && isLockedLearningMode(session.learningScope.resumeMode)
+                ? { resumeMode: session.learningScope.resumeMode } : {}) }
+          : undefined,
       conversationId:
         typeof session.conversationId === "string"
           ? session.conversationId

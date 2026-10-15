@@ -30,9 +30,9 @@ export interface ChatSession {
 
 /** Durable structured assistant content. Legacy text/proposal fields remain readable. */
 export type TranscriptPart =
-  | { type: "practice-question"; question: PracticeQuestion; questionId?: string; origin?: PracticeOrigin; scope?: "backend" }
+  | { type: "practice-question"; question: PracticeQuestion; questionId?: string; origin?: PracticeOrigin; scope?: "backend" | "program" }
   | { type: "practice-evaluation"; evaluation: PracticeEvaluation; questionId?: string;
-      operationId?: string; nextQuestionId?: string; sourcePath?: string; scope?: "backend" }
+      operationId?: string; nextQuestionId?: string; sourcePath?: string; scope?: "backend" | "program" }
   | { type: "review-findings"; findings: ReviewFinding[]; sourcePath?: string; reviewId?: string };
 
 export function findCommittedReview(

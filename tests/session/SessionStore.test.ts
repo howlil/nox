@@ -274,3 +274,32 @@ test("staged session state is isolated before and after durable publication", ()
   stage.result.updateSession({ ...stage.result.getSession("staged")!, model: "should not leak" });
   assert.equal(store.getCurrentSession()!.model, undefined);
 });
+
+test("v1 backend and v2 program modes roundtrip without reinterpreting transcripts", async () => {
+  const store = new SessionStore({ now: () => 1, uuid: () => "v2" });
+  const v2 = store.createSession();
+  v2.learningScope = { version: 2, kind: "program", programId: "japanese-n5",
+    mode: "FREE", resumeMode: "ASSESSMENT" };
+  v2.messages.push({ role: "assistant", content: "", parts: [{
+    type: "practice-question", scope: "program", questionId: "j1",
+    question: { kind: "question", concept: "Hiragana",
+      question: "Read あ", programId: "japanese-n5", objectiveId: "kana" },
+  }] });
+  store.updateSession(v2);
+  const saved = store.serialize();
+  const restored = new SessionStore();
+  await restored.load(saved);
+  assert.deepEqual(restored.getCurrentSession()?.learningScope, v2.learningScope);
+  assert.equal(restored.getCurrentSession()?.messages[0]?.parts?.[0]?.type, "practice-question");
+  const legacy = store.createSession();
+  legacy.learningScope = { mode: "FREE", resumeMode: "FOCUSED_LEARNING" };
+  legacy.messages.push({ role: "assistant", content: "", parts: [{
+    type: "practice-question", scope: "backend", questionId: "b1",
+    question: { kind: "question", concept: "HTTP", question: "Idempotency?" },
+  }] });
+  store.updateSession(legacy);
+  const reloaded = new SessionStore();
+  await reloaded.load(store.serialize());
+  assert.deepEqual(reloaded.getCurrentSession()?.learningScope, legacy.learningScope);
+  assert.equal(reloaded.getCurrentSession()?.messages[0]?.parts?.[0]?.type, "practice-question");
+});

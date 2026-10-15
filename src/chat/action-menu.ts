@@ -81,10 +81,10 @@ const advanced: AdvancedEntry[] = [
   { key: "programs", name: "Learning programs", description: "Browse and switch your saved plans",
     icon: "library", command: "/programs", action: { type: "programs" },
     keywords: ["switch", "saved", "curriculum", "program"], visible: hasSavedPrograms },
-  { key: "pause", name: "Pause backend mode", description: "Return to free chat temporarily",
+  { key: "pause", name: "Pause learning mode", description: "Return to free chat temporarily",
     icon: "pause", command: "/pause", action: { type: "scope", command: "/pause" },
     keywords: ["legacy", "mode"], visible: locked },
-  { key: "resume", name: "Resume backend mode", description: "Continue your paused backend question",
+  { key: "resume", name: "Resume learning mode", description: "Continue your paused learning question",
     icon: "play", command: "/resume", action: { type: "scope", command: "/resume" },
     keywords: ["legacy", "mode"], visible: paused },
 ];

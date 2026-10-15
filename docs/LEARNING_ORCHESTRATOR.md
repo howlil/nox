@@ -14,6 +14,21 @@ Status: implemented vertical slice on the feature branch (2026-10-14). This docu
 
 **Test:** Verify graph invariants, hard limits, deadline feasibility, source restrictions, delayed recall, hint-assisted answers, recovery, and multiple domains. Manual Obsidian GUI/Undo checks remain distinct from unit and integration proofs.
 
+## Program modes and backward compatibility (2026-10-15)
+
+New sessions have no implicit backend curriculum. With a selected learning
+program, `/mode assessment` and `/mode focused` select a version-2 mode bound
+to `programId` and its goal/objective. Without a program, Nox directs the
+learner to `/plan` and does not create a learning scope. The new strict
+practice prompt uses the selected objective and rubric, not a universal
+backend-engineering topic. Existing unversioned backend scopes and transcript
+markers are preserved for restart/recovery; provider adapters and evidence
+authority remain unchanged. Program-specific questions store their existing
+`programId`/`objectiveId` and the `scope:"program"` marker so free practice
+while paused cannot replace a pinned question. Program changes while locked
+require an explicit pause; reselecting a different program creates a new
+program scope only through an explicit mode command.
+
 ## Product contract
 
 NOX is a provider-agnostic, domain-neutral learning assistant that turns an explicit goal and its constraints into a curriculum, chooses activities from structured evidence, and preserves study progress in the vault.
