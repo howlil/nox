@@ -39,6 +39,7 @@ export function renderQuizCard(parent: HTMLElement, question: PracticeQuestion,
   let submit!: HTMLButtonElement;
   let busy = false;
   let hintPending = false;
+  let syncOptionState = () => {};
 
   const update = (value: PracticeAnswer) => {
     answer = value;
@@ -58,13 +59,14 @@ export function renderQuizCard(parent: HTMLElement, question: PracticeQuestion,
     const selected = actions.draft?.type === "multiple-choice"
       ? actions.draft.optionId : undefined;
     // Explicit state classes avoid expensive :has() invalidation in a dense view.
+    const optionControls: Array<{ row: HTMLElement; radio: HTMLInputElement }> = [];
     const refreshOptionStates = () => {
-      group.querySelectorAll<HTMLLabelElement>(".nox-quiz-option").forEach(row => {
-        const control = row.querySelector<HTMLInputElement>("input");
-        row.toggleClass("is-checked", Boolean(control?.checked));
-        row.toggleClass("is-disabled", Boolean(control?.disabled));
-      });
+      for (const { row, radio } of optionControls) {
+        row.toggleClass("is-checked", radio.checked);
+        row.toggleClass("is-disabled", radio.disabled);
+      }
     };
+    syncOptionState = refreshOptionStates;
     for (const [index, option] of input.options.entries()) {
       const row = group.createEl("label", { cls: "nox-quiz-option" });
       const radio = row.createEl("input", { type: "radio" });
@@ -72,6 +74,7 @@ export function renderQuizCard(parent: HTMLElement, question: PracticeQuestion,
       radio.value = option.id;
       radio.checked = selected === option.id;
       radio.disabled = disabled;
+      optionControls.push({ row, radio });
       row.createSpan({ cls: "nox-quiz-option-key", text: String.fromCharCode(65 + index) });
       row.createSpan({ text: option.text });
       radio.addEventListener("change", () => {
@@ -184,7 +187,7 @@ export function renderQuizCard(parent: HTMLElement, question: PracticeQuestion,
         submit.setText("Evaluated");
         card.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>("input,textarea")
           .forEach(control => { control.disabled = true; });
-        card.querySelectorAll<HTMLElement>(".nox-quiz-option").forEach(row => row.addClass("is-disabled"));
+        syncOptionState();
       } else {
         status.setText("The answer was not evaluated. You can retry.");
       }
