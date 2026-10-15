@@ -6,7 +6,7 @@ import {
   LearningContext,
 } from "./context-types";
 import type { ResearchResult } from "./LocalResearch";
-import type { ResearchScope } from "../domain/research-scope";
+import type { ResearchScope } from "../types";
 
 /**
  * Single source of truth for context shown in the UI and sent to the agent.
