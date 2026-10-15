@@ -191,3 +191,23 @@ test("model discovery ignores malformed rows", async () => {
     { id: "m2", name: "Model Two" },
   ]);
 });
+
+test("agent subprocess stderr cannot leak secrets into a failure event", async () => {
+  const secret = "Bearer TOP-SECRET-ACCESS-TOKEN";
+  const adapter = new AgyAdapter(undefined, () => ({ executablePath: "/agy" }), {
+    spawn: (() => {
+      const child = new FakeChild();
+      queueMicrotask(() => {
+        child.stderr.emit("data", Buffer.from(secret));
+        child.exitCode = 1;
+        child.emit("close", 1);
+      });
+      return child;
+    }) as never,
+    existsSync: () => true, platform: "linux", homedir: () => "/home/test", env: {},
+  });
+  const events = await collectEvents(adapter.send(
+    { prompt: "safe prompt", context: [] }, {}, new AbortController().signal));
+  assert.equal(events.at(-1)?.type, "failed");
+  assert.doesNotMatch(JSON.stringify(events), /TOP-SECRET-ACCESS-TOKEN/);
+});
