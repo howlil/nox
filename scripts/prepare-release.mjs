@@ -94,7 +94,7 @@ export function prepare(bump) {
   return plan;
 }
 
-if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+if (process.argv[1] && path.basename(process.argv[1]) === "prepare-release.mjs" && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const bump = process.argv[2];
   try { prepare(bump); }
   catch (error) { console.error(error instanceof Error ? error.message : String(error)); process.exitCode = 1; }
