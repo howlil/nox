@@ -21,7 +21,7 @@ export function renderLearningActivity(
   top.createDiv({ cls: "nox-activity-heading", text: "Learning activity" });
   const close = top.createEl("button", { cls: "nox-button nox-button--quiet", attr: { type: "button", "aria-label": "Close activity dashboard" } });
   setNoxIcon(close, "x");
-  close.addEventListener("click", options.onClose);
+  close.addEventListener("click", () => options.onClose());
 
   const filters = panel.createDiv({ cls: "nox-activity-scopes" });
   for (const scope of ["active", "all"] as const) {
