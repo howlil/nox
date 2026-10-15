@@ -60,4 +60,9 @@ test("segmented Token view draws only filtered, actually recorded UTC buckets", 
 test("empty usage must never manufacture a chart or provider quotas", () => {
   const chart = tokenUsageTimeline([], {provider:"all",model:"all",range:"7d"});
   assert.deepEqual(chart, []);
+  assert.deepEqual(tokenUsageTimeline(
+    [row("2026-99-99", "agy", "gemini", 12)],
+    {provider:"all",model:"all",range:"all"},
+    new Date("2026-10-14T00:00:00Z"),
+  ), []);
 });
