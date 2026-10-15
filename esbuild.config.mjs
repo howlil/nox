@@ -38,6 +38,11 @@ export function createNoxBuildOptions({ production = false, onStart, onBuild } =
     entryPoints: ["src/main.ts"],
     define: {
       __NOX_BUILD_REVISION__: JSON.stringify(revision),
+      // Obsidian Community installs exactly three files. Inlining avoids
+      // a runtime file dependency and keeps source import boundaries intact.
+      __NOX_LOGO_DATA_URI__: JSON.stringify(
+        "data:image/png;base64," + fs.readFileSync(path.join("public", "nox.png")).toString("base64"),
+      ),
       __NOX_BUILD_TIMESTAMP__: JSON.stringify(
         production ? new Date().toISOString() : BUILD_TIMESTAMP_PLACEHOLDER,
       ),
@@ -45,9 +50,6 @@ export function createNoxBuildOptions({ production = false, onStart, onBuild } =
       __NOX_DEV_BUILD__: JSON.stringify(!production),
     },
     bundle: true,
-    // Obsidian Community installs only main.js, manifest.json and styles.css.
-    // Embed the Nox brand asset in main.js rather than fetching a fourth file.
-    loader: { ".png": "dataurl" },
     external: [
       "obsidian",
       "electron",
