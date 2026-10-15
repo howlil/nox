@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.1.2]
+
+### Fixes
+
+- Harden agent lifecycle, OAuth recovery, and provider diagnostics.
+- Enforce selected/folder research authority on final provider context, including ambient and historical data.
+- Preserve committed assistant replies when study timer persistence fails.
+- Keep model-free learning commands accessible while a provider is offline.
+- Add regression coverage for scoped context, timer failure, and offline commands.
+- Carry forward latest Obsidian popout, accessibility and CSS corrections from master.
+
 ## [1.1.1]
 
 ### Fixes

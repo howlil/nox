@@ -172,3 +172,13 @@ colors; also verify that focusing a button does not change its box size.
 
 The following CSS warnings may remain after these changes. Warning count alone
 is neither security evidence nor a release-acceptance criterion.
+
+## Release 1.1.2 additional hardening (2026-10-16)
+
+- [x] Final provider-bound scoped context filtering, including history isolation
+- [x] Committed inference outcome independent of ancillary timer checkpoint
+- [x] Offline local command classifier in the composer
+- [ ] Release branch CI verification
+- [ ] Disposable-vault Obsidian desktop acceptance, including note isolation,
+  successful AI turn with timer write failure, offline commands and Windows OAuth
+- [ ] Owner approval to merge release PR and publish immutable 1.1.2 artifacts

@@ -42,6 +42,7 @@ import { animateNoxEnter, animateNoxPopover } from "./motion";
 import { resolveNoxMarkdownLink } from "./markdown-links";
 import {
   shouldResetAction,
+  isLocallyExecutableCommand,
   TerminalOutcome,
 } from "./chat-state";
 import {
@@ -2033,7 +2034,7 @@ export class ChatView extends ItemView {
 
   private canSend(): boolean {
     const hasInput = this.input.value.trim().length > 0 || this.attachments.length > 0;
-    return hasInput && (this.runtimeReady || Boolean(parseScopeCommand(this.input.value)));
+    return hasInput && (this.runtimeReady || isLocallyExecutableCommand(this.input.value));
   }
 
   private showEmpty(): void {

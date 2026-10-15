@@ -1,5 +1,5 @@
 import { Setting } from "obsidian";
-import { summarizeTokenUsage, type UsageFilters, type UsageViewEntry } from "./TokenUsageStats";
+import { summarizeTokenUsage, tokenUsageTimeline, type UsageFilters, type UsageViewEntry } from "./TokenUsageStats";
 
 export interface UsageViewSnapshot {
   trackingSince?: string;
@@ -76,6 +76,44 @@ export function mountTokenUsageSection(container: HTMLElement, host: TokenUsageH
       const row=metrics.createDiv({cls:"nox-usage-metric"});
       row.createEl("span",{text:name});
       row.createEl("strong",{text:format(value)});
+    }
+    const timeline = tokenUsageTimeline(snapshot.entries, filters);
+    const hasTraffic = timeline.some(day => day.inputTokens + day.outputTokens > 0);
+    if (hasTraffic) {
+      const chart = body.createDiv({ cls: "nox-token-chart" });
+      const heading = chart.createDiv({ cls: "nox-usage-section-head" });
+      heading.createEl("h4", { text: "Token activity" });
+      heading.createSpan({ cls: "nox-usage-subtitle",
+        text: filters.range === "7d" ? "Last 7 days · UTC" :
+          filters.range === "30d" ? "Last 30 days · 3-day groups · UTC" :
+          "Most recent 14 tracked days · UTC" });
+      const bars = chart.createDiv({ cls: "nox-token-chart-bars", attr: {
+        role: "group", "aria-label": "Recorded input and output token activity by UTC date",
+      } });
+      bars.setCssProps({ "--nox-chart-count": String(timeline.length) });
+      const max = Math.max(1, ...timeline.map(day => day.inputTokens + day.outputTokens));
+      for (const day of timeline) {
+        const total = day.inputTokens + day.outputTokens;
+        const column = bars.createDiv({ cls: "nox-token-chart-column",
+          attr: { role: "img", "aria-label": day.startDate +
+            (day.endDate !== day.startDate ? " to " + day.endDate : "") +
+            ": Input " + format(day.inputTokens) + ", output " + format(day.outputTokens) },
+        });
+        const stack = column.createDiv({ cls: "nox-token-chart-stack" });
+        stack.setCssProps({
+          "--nox-chart-input": (day.inputTokens / max * 100).toFixed(2) + "%",
+          "--nox-chart-output": (day.outputTokens / max * 100).toFixed(2) + "%",
+        });
+        stack.createDiv({ cls: "nox-token-chart-output" });
+        stack.createDiv({ cls: "nox-token-chart-input" });
+        column.createSpan({ cls: "nox-token-chart-date",
+          text: new Date(day.startDate + "T00:00:00Z").toLocaleDateString("en-US", {
+            timeZone: "UTC", month: "short", day: "numeric",
+          }) });
+      }
+      const legend = chart.createDiv({ cls: "nox-token-chart-legend" });
+      legend.createSpan({ cls: "nox-token-chart-legend-input", text: "Input" });
+      legend.createSpan({ cls: "nox-token-chart-legend-output", text: "Output" });
     }
     body.createEl("p",{cls:"nox-usage-footnote",
       text:"* Cached and reasoning are auxiliary reported figures; do not add them to total tokens."});

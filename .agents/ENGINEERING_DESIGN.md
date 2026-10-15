@@ -2170,3 +2170,19 @@ aggregates via the existing serialized `PluginDataRepository` writer.
 AGY cumulative counters require checkpoint deltas to avoid double counting.
 Settings reads a snapshot through the plugin host boundary. See
 `docs/TOKEN_USAGE.md`.
+
+## Release 1.1.2 — scoped provider authority and terminal-outcome rules
+
+- For selected/folder research, both retrieval and final provider-bound context
+  must satisfy the scope. No automatic ambient context, historical transcript
+  or policy/progress data may bypass the final authority. Source-bound programs
+  enforce that authority even without an explicit research command.
+- The canonical terminal outcome is owned by the learning turn. Auxiliary study
+  timer persistence errors must not convert a durably committed assistant reply
+  into a retryable inference failure. Runtime-owned wait tokens release even if
+  the underlying vault save fails.
+- Offline chat input distinguishes local commands from model-backed operations.
+  Plan generation, /next and free practice continue to require inference.
+- Regression proofs: provider input capture, authority unit test, timer failure
+  injection and offline command classification. Desktop acceptance remains a
+  separate mandatory release gate.

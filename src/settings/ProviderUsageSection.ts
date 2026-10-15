@@ -55,7 +55,9 @@ export function mountProviderUsageSection(container:HTMLElement,host:ProviderUsa
     for(const provider of ["agy","codex"] as const) {
       if(filter!=="all"&&filter!==provider)continue;
       const snapshot=snapshots.find(s=>s.provider===provider);
-      const group=body.createDiv({cls:"nox-provider-quota-group"});
+      const group=body.createDiv({cls:"nox-provider-quota-group", attr:{
+        "data-nox-quota-status":snapshot?.status ?? (loading?"checking":"unavailable"),
+      }});
       const label=group.createDiv({cls:"nox-provider-quota-label"});
       label.createEl("strong",{text:providerLabel(provider)});
       label.createSpan({cls:"nox-usage-subtitle",
@@ -67,7 +69,7 @@ export function mountProviderUsageSection(container:HTMLElement,host:ProviderUsa
           (loading?"Checking provider…":"No supported provider quota snapshot.")});
         continue;
       }
-      if(snapshot.checkedAt) group.createSpan({cls:"nox-quota-updated",
+      if(snapshot.checkedAt && Number.isFinite(Date.parse(snapshot.checkedAt))) group.createSpan({cls:"nox-quota-updated",
         text:"Last checked "+new Date(snapshot.checkedAt).toLocaleString()});
       if(snapshot.error) group.createEl("p",{cls:"nox-usage-subtitle",text:snapshot.error});
       if(!snapshot.readings.length) group.createEl("p",{cls:"nox-usage-description",
@@ -79,7 +81,7 @@ export function mountProviderUsageSection(container:HTMLElement,host:ProviderUsa
         copy.createEl("strong",{text:reading.label});
         copy.createSpan({cls:"nox-usage-subtitle",
           text:reading.model ? "Model-specific: "+reading.model : "Shared pool / window"});
-        if(reading.remainingPercent!==undefined) {
+        if(reading.remainingPercent!==undefined && Number.isFinite(reading.remainingPercent)) {
           const value=Math.max(0,Math.min(100,reading.remainingPercent));
           title.createEl("strong",{cls:"nox-provider-quota-percent",
             text:Math.floor(value)+"% left"});
@@ -95,7 +97,7 @@ export function mountProviderUsageSection(container:HTMLElement,host:ProviderUsa
         }
         if(reading.amount!==undefined)row.createEl("p",{cls:"nox-quota-values",
           text:"Provider-reported balance: "+reading.amount});
-        if(reading.resetAt)row.createSpan({cls:"nox-quota-updated",
+        if(reading.resetAt && Number.isFinite(Date.parse(reading.resetAt)))row.createSpan({cls:"nox-quota-updated",
           text:"Resets "+new Date(reading.resetAt).toLocaleString()});
       }
     }

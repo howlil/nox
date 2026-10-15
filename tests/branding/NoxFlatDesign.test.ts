@@ -97,8 +97,12 @@ test("Settings use searchable Obsidian definitions and native usage/token pages"
   const token = readFileSync("src/settings/TokenUsageSection.ts", "utf8");
   const usage = readFileSync("src/settings/ProviderUsageSection.ts", "utf8");
   assert.match(settings, /getSettingDefinitions\(\): SettingDefinitionItem\[\]/);
-  assert.match(settings, /type: "page",\s*name: "Usage"/);
-  assert.match(settings, /type: "page",\s*name: "Token"/);
+  assert.match(settings, /role: "tablist"/);
+  assert.match(settings, /"aria-selected"/);
+  assert.match(settings, /role: "tabpanel"/);
+  assert.match(settings, /mountSettingsSurface\(setting\)/);
+  assert.doesNotMatch(settings, /type: "page"/);
+  assert.doesNotMatch(settings, /Loaded plugin build|Copy build diagnostic/);
   assert.ok(settings.includes("mountProviderUsageSection"));
   assert.ok(settings.includes("mountTokenUsageSection"));
   assert.doesNotMatch(settings, /display\(\): void|\.display\(\)/);

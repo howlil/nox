@@ -1,5 +1,6 @@
 import {
   AgentContext,
+  type ResearchScope,
   AgentFailure,
   AgentTurnMetrics,
   ChatSession,
@@ -15,7 +16,7 @@ import { formatReplyPrompt } from "./reply-context";
 import { PersistenceError } from "../persistence/PersistenceError";
 import { prepareContextEnvelope } from "../context/ContextBudget";
 import type { ResearchResult } from "../context/LocalResearch";
-import { parseResearchRequest, resolveResearchScope } from "./research-scope";
+import { constrainResearchContext, parseResearchRequest, resolveResearchScope } from "./research-scope";
 import {
   recordPracticeEvaluation,
   recordReviewFindings,
@@ -315,6 +316,7 @@ export class RunLearningTurn {
     const research = request.action === "ask" ? parseResearchRequest(request.prompt) : null;
     const researchQuery = research?.query ?? null;
     let researchResult: ResearchResult | undefined;
+    let researchScope: ResearchScope | undefined;
 
     let context: LearningContext;
     let policy: Awaited<ReturnType<PolicyPort["load"]>>;
@@ -373,6 +375,7 @@ export class RunLearningTurn {
           sourceBoundPaths: program?.constraints.sourceBound
             ? program.constraints.sourcePaths : undefined,
         });
+        researchScope = scope;
         researchResult = await this.contexts.searchKnowledge(researchQuery, {
           limit: 8, scope,
         });
@@ -474,6 +477,12 @@ export class RunLearningTurn {
       }));
       visible = [...selected, ...snippets, ...explicitSources, ...ambient];
     }
+    // The final provider envelope must respect the same read authority as search.
+    // This also closes the reply-to explicit-context bypass for source-bound plans.
+    const authority: ResearchScope | undefined = program?.constraints.sourceBound
+      ? { kind: "selected", paths: program.constraints.sourcePaths }
+      : researchScope;
+    if (authority) visible = constrainResearchContext(visible, authority);
     const system: AgentContext[] = [];
     if (selectedSkill?.content.trim()) {
       system.push({ type: "note", file: selectedSkill.path, content: selectedSkill.content });
@@ -505,6 +514,8 @@ export class RunLearningTurn {
       ),
     });
 
+    const authorizedSystem = authority
+      ? constrainResearchContext(system, authority) : system;
     const readableFiles = Array.from(
       new Set(
         visible
@@ -524,7 +535,7 @@ export class RunLearningTurn {
     const snapshot: TurnContextSnapshot = {
       resolved: context,
       visible,
-      system,
+      system: authorizedSystem,
       readableFiles,
       mutableFile,
     };
@@ -831,7 +842,9 @@ export class RunLearningTurn {
         : request.retry && request.turnId
           ? conversation.messages.filter(message => message.id !== request.turnId)
           : conversation.messages;
-      const priorHistory = lockedMode || program ? [] : historyMessages.map(message => ({
+      // Historical messages can quote notes outside the selected/folder authority.
+      const priorHistory = lockedMode || program || (authority && authority.kind !== "vault")
+        ? [] : historyMessages.map(message => ({
         role: message.role, content: message.role === "user" && message.replyTo
           ? formatReplyPrompt(message.content, message.replyTo) : message.content,
       }));
@@ -845,7 +858,10 @@ export class RunLearningTurn {
       });
       const rotateCursor = conversation.messages.length > 0 &&
         conversation.messages.length % 24 < 2 && conversation.messages.length >= 24;
-      const conversationId = lockedMode || program || rotateCursor || request.regenerate
+      // A restricted turn must not inherit provider-owned hidden conversation
+      // context from an earlier unrestricted turn, even when history is empty.
+      const conversationId = lockedMode || program ||
+        (authority && authority.kind !== "vault") || rotateCursor || request.regenerate
         ? undefined : conversation.conversationId;
       // CLI adapters own opaque provider history. On rotation, explicitly carry a
       // bounded digest rather than depending on unbounded hidden state.

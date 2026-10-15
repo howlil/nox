@@ -11,6 +11,7 @@ import {
 import { LearningController } from "../../src/application/LearningController";
 import { LearningState } from "../../src/domain/learning-state/types";
 import { collectEvents } from "../support/collect-events";
+import type { ResearchResult } from "../../src/context/LocalResearch";
 
 function baseState(): LearningState {
   return {
@@ -31,13 +32,17 @@ function createHarness(
     mutationGate?: Promise<void>;
     contextOverride?: { activeNote: { path: string; content: string }; explicit: Array<{ type: "note"; path: string; content: string; source: "explicit" }> };
     agentContexts?: AgentContext[];
+    researchResult?: ResearchResult;
+    initialConversationId?: string;
     learningSaveFailures?: number;
     evaluationTranscriptFailures?: number;
-    programTimer?: { beginAiWait(id: string): Promise<boolean>; isPlanning(): boolean };
+    programTimer?: { beginAiWait(id: string): Promise<boolean>;
+      finishAiWait?(id: string): Promise<void>; isPlanning(): boolean };
   } = {},
 ) {
   let session: ChatSession = {
     id: "session-1",
+    conversationId: options.initialConversationId,
     messages: [],
     createdAt: 1,
     updatedAt: 1,
@@ -57,6 +62,8 @@ function createHarness(
   >();
   const prompts: string[] = [];
   const sentContexts: AgentContext[][] = [];
+  const sentHistories: unknown[] = [];
+  const sentCursors: Array<string | undefined> = [];
   let mutationCalls = 0;
   let mutationTarget: string | undefined;
   let recordedUserMessages = 0;
@@ -203,6 +210,9 @@ function createHarness(
     ) {
       prompts.push(input.prompt);
       sentContexts.push(input.context);
+      const sentOpts = _opts as { history?: unknown; conversationId?: string };
+      sentHistories.push(sentOpts.history);
+      sentCursors.push(sentOpts.conversationId);
       yield* sendTurn(input.prompt, signal);
     },
   };
@@ -216,6 +226,9 @@ function createHarness(
       explicit: [],
     }),
     searchNotes: () => [],
+    searchKnowledge: async (query: string) => options.researchResult ?? {
+      query, subquestions: [query], hits: [], edges: [],
+    },
     toAgentContext: () => options.agentContexts ?? [
       {
         type: "note" as const,
@@ -266,6 +279,8 @@ function createHarness(
     controller,
     prompts,
     getSentContexts: () => sentContexts,
+    getSentHistories: () => sentHistories,
+    getSentCursors: () => sentCursors,
     getMutationCalls: () => mutationCalls,
     getUserWrites: () => recordedUserMessages,
     getMutationTarget: () => mutationTarget,
@@ -1215,4 +1230,57 @@ test("learning-specific practice remains blocked when program storage is invalid
   }));
   assert.ok(events.some(event => event.type === "failed"));
   assert.equal(harness.prompts.length, 0);
+});
+
+test("selected-source research excludes off-scope provider content and prior history", async () => {
+  const h = createHarness(async function* () {
+    yield { type: "text", content: "grounded answer" };
+    yield { type: "completed" };
+  }, {
+    contextOverride: {
+      activeNote: { path: "Private/payroll.md", content: "PAYROLL_SECRET" },
+      explicit: [{ type: "note", path: "Study Notes/concurrency.md",
+        content: "PUBLIC_EVIDENCE", source: "explicit" }],
+    },
+    initialConversationId: "provider-private-thread",
+    agentContexts: [
+      { type: "note", file: "Private/payroll.md", content: "PAYROLL_SECRET" },
+      { type: "note", file: "Study Notes/concurrency.md", content: "PUBLIC_EVIDENCE" },
+    ],
+  });
+  await collectEvents(h.controller.run({
+    prompt: "Unrestricted conversation", action: "ask", explicitContext: [],
+  }));
+  const result = await collectEvents(h.controller.run({
+    prompt: "/research --scope=selected concurrency", action: "ask", explicitContext: [],
+  }));
+  assert.equal(result.at(-1)?.type, "completed");
+  const finalContext = h.getSentContexts().at(-1) ?? [];
+  assert.ok(finalContext.some(item => item.file === "Study Notes/concurrency.md"));
+  assert.ok(finalContext.every(item => item.file === "Study Notes/concurrency.md"));
+  assert.equal(JSON.stringify(finalContext).includes("PAYROLL_SECRET"), false);
+  assert.deepEqual(h.getSentHistories().at(-1), []);
+  assert.equal(h.getSentCursors().at(-1), undefined,
+    "restricted research must create a fresh provider conversation");
+});
+
+test("failed ancillary timer commit never converts durable model success into failure", async () => {
+  let checkpoints = 0;
+  const h = createHarness(async function* () {
+    yield { type: "text", content: "Committed answer" };
+    yield { type: "completed" };
+  }, {
+    programTimer: {
+      beginAiWait: async () => true,
+      finishAiWait: async () => { checkpoints++; throw new Error("Disk full"); },
+      isPlanning: () => false,
+    },
+  });
+  const result = await collectEvents(h.controller.run({
+    prompt: "Explain transactions", action: "ask", explicitContext: [],
+  }));
+  assert.deepEqual(result.filter(event => event.type === "completed" ||
+    event.type === "failed").map(event => event.type), ["completed"]);
+  assert.equal(h.getSentContexts().length, 1);
+  assert.equal(checkpoints, 1);
 });

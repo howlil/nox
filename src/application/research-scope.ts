@@ -1,5 +1,5 @@
 /** Parse research scope without accessing the Obsidian runtime. */
-import type { ResearchScope } from "../types";
+import type { AgentContext, ResearchScope } from "../types";
 
 export type RequestedResearchScope =
   | { kind: "vault" }
@@ -43,4 +43,15 @@ export function resolveResearchScope(requested: RequestedResearchScope, options:
     return { kind: "folder", path };
   }
   return { kind: "vault" };
+}
+
+/** Scope is an authority on provider-bound content, not a retrieval preference. */
+export function constrainResearchContext(
+  sources: readonly AgentContext[], scope: ResearchScope,
+): AgentContext[] {
+  if (scope.kind === "vault") return [...sources];
+  const paths = scope.kind === "selected" ? new Set(scope.paths) : undefined;
+  return sources.filter(source => scope.kind === "selected"
+    ? paths!.has(source.file)
+    : source.file.startsWith(scope.path + "/"));
 }
