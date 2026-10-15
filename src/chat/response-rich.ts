@@ -9,7 +9,7 @@ function el<K extends keyof HTMLElementTagNameMap>(doc: Document, tag: K, classN
   if (className) node.className = className;
   return node;
 }
-function svgEl(doc, doc: Document, tag: string, attrs: Record<string, string> = {}): SVGElement {
+function svgEl(doc: Document, tag: string, attrs: Record<string, string> = {}): SVGElement {
   const node = doc.createElementNS(NS, tag);
   for (const [key, value] of Object.entries(attrs)) node.setAttribute(key, value);
   return node;
