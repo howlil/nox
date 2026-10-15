@@ -33,6 +33,8 @@ The workflow updates `manifest.json` and `package.json` together, generates a [c
 
 GitHub CI also runs Obsidian's official `obsidianmd/obsidian-workflows@v1` validator in advisory scanner mode. The existing pnpm checks remain authoritative for building, and policy warnings must be reviewed before approval.
 
+For desktop acceptance **before merging**, open the release PR's successful `CI` run, download the `nox-desktop-test-<sha>` artifact, extract its three files, and install them into a disposable vault under `.obsidian/plugins/nox/`. The source ZIP is not an installable plugin. Record results in the release PR.
+
 The release PR must be manually reviewed/merged. Before merge, confirm a disposable-vault installation, three assets, the exact version, license/credit notices, security/privacy policy, provider connectivity, and any backwards compatibility change. Add manual evidence to the PR.
 
 ## Automated publish
