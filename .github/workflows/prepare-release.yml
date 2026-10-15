@@ -1,10 +1,16 @@
 name: Prepare release PR
 
+# Ordinary pushes create a release PR only after master CI succeeds.
+# Publishing still requires review, manual desktop acceptance, and merging that PR.
 on:
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+    branches: [master]
   workflow_dispatch:
     inputs:
       bump:
-        description: "Version bump; current only bootstraps the first release"
+        description: "Manual override; current only bootstraps the first release"
         required: true
         type: choice
         options: [current, patch, minor, major]
@@ -12,38 +18,87 @@ on:
 permissions:
   contents: write
   pull-requests: write
+  actions: write
+
 concurrency:
   group: nox-prepare-release
   cancel-in-progress: false
 
 jobs:
   prepare:
-    if: github.ref == 'refs/heads/master'
+    if: >-
+      (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/master') ||
+      (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push' && github.event.workflow_run.head_branch == 'master')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
+          ref: master
           fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: Generate matching version, changelog, and plan
+      - name: Select version bump
+        id: select
         env:
-          BUMP: ${{ inputs.bump }}
+          GH_TOKEN: ${{ github.token }}
+          EVENT_NAME: ${{ github.event_name }}
+          SOURCE_SHA: ${{ github.event.workflow_run.head_sha }}
+          MANUAL_BUMP: ${{ inputs.bump }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "$EVENT_NAME" = "workflow_run" ]; then
+            # Never let a stale CI event prepare a branch from newer untested code.
+            if [ "$(git rev-parse HEAD)" != "$SOURCE_SHA" ]; then
+              echo "Skipping stale CI event; newer master commit exists."
+              exit 0
+            fi
+            # A merged release PR is handled by release.yml, not by another release PR.
+            if git rev-parse HEAD^ >/dev/null 2>&1 && ! git diff --quiet HEAD^ HEAD -- .release-plan.json; then
+              echo "Release metadata merged; publication workflow handles this."
+              exit 0
+            fi
+            bump="$(node scripts/select-release-bump.mjs)"
+          else
+            bump="$MANUAL_BUMP"
+          fi
+          if [ "$bump" = "none" ]; then
+            echo "No releasable changes, or previous release still pending."
+            exit 0
+          fi
+          # Avoid opening parallel release PRs and overwriting in-review metadata.
+          open_heads="$(gh pr list --state open --limit 100 --json headRefName --jq '.[].headRefName')"
+          if grep -q '^release/' <<< "$open_heads"; then
+            echo "Existing release PR must be merged or closed first."
+            exit 0
+          fi
+          echo "bump=$bump" >> "$GITHUB_OUTPUT"
+      - name: Generate synchronized manifest, changelog, and compatibility map
+        if: steps.select.outputs.bump != ''
+        env:
+          BUMP: ${{ steps.select.outputs.bump }}
         run: node scripts/prepare-release.mjs "$BUMP"
-      - name: Validate release metadata and public docs
+      - name: Validate metadata and documentation
+        if: steps.select.outputs.bump != ''
         run: |
           node scripts/check-release.mjs
           node scripts/check-docs.mjs
-      - name: Create reviewed release PR
+      - name: Create release PR and explicitly trigger branch CI
+        if: steps.select.outputs.bump != ''
         env:
           GH_TOKEN: ${{ github.token }}
+        shell: bash
         run: |
           set -euo pipefail
           version="$(node -p 'JSON.parse(require("fs").readFileSync(".release-plan.json")).version')"
           branch="release/$version"
           if git ls-remote --exit-code --heads origin "$branch" >/dev/null 2>&1; then
-            echo "::error::Existing release branch: $branch"
+            if gh pr list --state open --head "$branch" --json number --jq '.[].number' | grep -q .; then
+              echo "Release PR already exists for $branch."
+              exit 0
+            fi
+            echo "::error::Branch $branch already exists without an open PR. Recover it manually; never overwrite."
             exit 1
           fi
           git config user.name "github-actions[bot]"
@@ -55,3 +110,6 @@ jobs:
           gh pr create --base master --head "$branch" \
             --title "chore(release): prepare $version" \
             --body-file .github/RELEASE_PR_BODY.md
+          # GITHUB_TOKEN-created PRs do not automatically fire pull_request workflows.
+          # workflow_dispatch is explicitly allowed to start a fresh CI run.
+          gh workflow run ci.yml --ref "$branch"
