@@ -7,6 +7,8 @@ const version = manifest.version;
 parseVersion(version);
 if (manifest.id !== "nox" || manifest.isDesktopOnly !== true) throw new Error("Invalid Obsidian release identity/platform.");
 if (version !== pkg.version) throw new Error("manifest.json and package.json versions disagree.");
+const versions = JSON.parse(fs.readFileSync("versions.json", "utf8"));
+if (versions[version] !== manifest.minAppVersion) throw new Error("versions.json does not match the current Obsidian minAppVersion.");
 if (!fs.existsSync(".release-plan.json")) {
   console.log("Release metadata matches; no release plan prepared.");
   process.exit(0);
