@@ -1,6 +1,7 @@
 import type { AgentContext, ApplyResult, ChatMessage, ChatSession, EditProposal, ResponseVersion } from "../types";
 import type { ExplicitContextRef, LearningContext, LearningPolicy } from "../context/context-types";
 import type { ResearchResult } from "../context/LocalResearch";
+import type { ResearchScope } from "../domain/research-scope";
 import type { LearningState } from "../domain/learning-state/types";
 import type { TranscriptPart } from "../session/transcript-types";
 import type { LearningScopeState } from "../domain/practice/learning-scope";
@@ -57,7 +58,7 @@ export interface ContextPort {
   resolve(explicit?: ExplicitContextRef[]): Promise<LearningContext>;
   searchNotes(query: string, limit?: number): Array<{ path: string; name: string }>;
   toAgentContext(context: LearningContext): AgentContext[];
-  searchKnowledge?(query: string, options?: { allowedPaths?: string[]; limit?: number }): Promise<ResearchResult>;
+  searchKnowledge?(query: string, options?: { allowedPaths?: string[]; scope?: ResearchScope; limit?: number }): Promise<ResearchResult>;
 }
 export interface RuntimeSettingsWrite {
   updateModel?: boolean;
