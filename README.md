@@ -7,6 +7,18 @@ Nox is agent-runtime agnostic at the product boundary. The current runtime
 adapters use AGY CLI, local Codex CLI, or the ChatGPT plan OAuth provider, while the UI and Learning OS flow depend on the
 normalized agent contract rather than provider-specific stream events.
 
+## Start here
+
+- **Users:** [Install and run your first learning session](docs/GETTING_STARTED.md).
+- **Providers:** [AGY / Codex / ChatGPT setup and privacy](docs/PROVIDERS.md).
+- **Help:** [Troubleshooting and diagnostics](docs/TROUBLESHOOTING.md).
+- **All docs:** [Documentation index](docs/README.md).
+- **Maintainers:** [Release procedure](docs/RELEASING.md), [Contributing](CONTRIBUTING.md), [Security](SECURITY.md), [Changelog](CHANGELOG.md).
+
+This repository currently contains a **release candidate**; Community Directory
+availability depends on official review. A GitHub Release alone does not mean
+Obsidian has approved the plugin.
+
 ## Install from a release
 
 Nox is currently preparing for submission to the Obsidian Community directory.
