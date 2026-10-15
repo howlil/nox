@@ -35,7 +35,7 @@ const pkg = JSON.parse(
   readFileSync("package.json", "utf8"),
 );
 
-if (manifest.id !== "nox-obsidian") {
+if (manifest.id !== "nox") {
   throw new Error(
     `Unexpected plugin id: ${String(manifest.id)}`,
   );
@@ -53,9 +53,22 @@ if (pkg.main !== "dist/main.js") {
   );
 }
 
+if (manifest.version !== pkg.version || !/^\d+\.\d+\.\d+$/.test(manifest.version)) {
+  throw new Error("Manifest/package versions must match semantic x.y.z format.");
+}
+if (!manifest.description.endsWith(".") || manifest.description.length > 250) {
+  throw new Error("Community Directory description must end in a period and use <=250 characters.");
+}
+if (manifest.isDesktopOnly !== true) {
+  throw new Error("Node/Electron runtime requires isDesktopOnly=true.");
+}
+
 // CI must reject a build that cannot reveal its loaded runtime identity.
 // A successful build alone does not prove Obsidian is executing this bundle.
 const mainBundle = readFileSync("dist/main.js", "utf8");
+if (!mainBundle.includes("data:image/png;base64,")) {
+  throw new Error("Nox logo must be embedded: Obsidian does not install extra image assets.");
+}
 if (!mainBundle.includes("NOX_RUNTIME_TRANSPORT_V3:node-https-sse")) {
   throw new Error("Build is missing its ChatGPT HTTP transport marker.");
 }
