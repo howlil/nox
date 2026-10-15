@@ -8,7 +8,12 @@ const errors = [];
 // Enforce navigability of public docs, not historical internal design notes.
 for (const filename of required.filter(f => f.endsWith(".md"))) {
   const content = fs.readFileSync(filename, "utf8");
-  if (!content.trimStart().startsWith("# ")) errors.push(filename + ": missing H1");
+  // Branded READMEs may begin with a standalone hero image before the H1.
+  // Reject any actual body text or smaller heading before the primary title.
+  const firstContentLine = content.replace(/^\uFEFF/, "").split(/\r?\n/)
+    .map(line => line.trim())
+    .find(line => line !== "" && !/^!\[[^\]\n]*\]\([^\n)]+\)$/.test(line));
+  if (!firstContentLine?.startsWith("# ")) errors.push(filename + ": missing H1");
   const regex = /!?\[[^\]\n]*\]\(([^)\n]+)\)/g;
   for (const [, raw] of content.matchAll(regex)) {
     const target = raw.trim().split(/\s+"/)[0].split("#")[0].replace(/^<|>$/g, "");
