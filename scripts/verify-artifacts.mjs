@@ -28,6 +28,14 @@ if (existsSync("dist/forge.png")) {
   throw new Error("Legacy brand artifact must not exist: dist/forge.png");
 }
 
+// Community reviewers inspect built CSS. Tailwind input-only syntax must not leak
+// into the three-file Obsidian distribution even when input.css uses @source/@theme.
+const builtCss = readFileSync("dist/styles.css", "utf8");
+if (/@(?:source|theme|apply)\\b/.test(builtCss) ||
+    /@import\\s+["']tailwindcss/.test(builtCss)) {
+  throw new Error("Production CSS contains uncompiled Tailwind directives.");
+}
+
 const manifest = JSON.parse(
   readFileSync("dist/manifest.json", "utf8"),
 );
