@@ -858,7 +858,10 @@ export class RunLearningTurn {
       });
       const rotateCursor = conversation.messages.length > 0 &&
         conversation.messages.length % 24 < 2 && conversation.messages.length >= 24;
-      const conversationId = lockedMode || program || rotateCursor || request.regenerate
+      // A restricted turn must not inherit provider-owned hidden conversation
+      // context from an earlier unrestricted turn, even when history is empty.
+      const conversationId = lockedMode || program ||
+        (authority && authority.kind !== "vault") || rotateCursor || request.regenerate
         ? undefined : conversation.conversationId;
       // CLI adapters own opaque provider history. On rotation, explicitly carry a
       // bounded digest rather than depending on unbounded hidden state.
