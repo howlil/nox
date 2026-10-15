@@ -25,10 +25,11 @@
     "test:integration": "node scripts/test.mjs integration",
     "test:all": "node scripts/test.mjs all",
     "bench:research": "node scripts/bench-research.mjs",
-    "verify": "pnpm check:boundaries && pnpm typecheck && pnpm lint && pnpm test:unit && pnpm test:integration && pnpm docs:check && pnpm release:check && pnpm build && pnpm test:artifacts",
+    "verify": "pnpm check:boundaries && pnpm typecheck && pnpm lint && pnpm lint:css && pnpm test:unit && pnpm test:integration && pnpm docs:check && pnpm release:check && pnpm build && pnpm test:artifacts",
     "test:artifacts": "node scripts/verify-artifacts.mjs",
     "docs:check": "node scripts/check-docs.mjs",
-    "release:check": "node scripts/check-release.mjs"
+    "release:check": "node scripts/check-release.mjs",
+    "lint:css": "node scripts/check-css-sources.mjs"
   },
   "keywords": [
     "obsidian",
