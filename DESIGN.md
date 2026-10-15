@@ -291,6 +291,9 @@ non-interactive status markers, not ordinary controls.
 Controls: 30px for icon actions, compact 28–30px for textual controls.
 Keyboard focus has **no outer outline/ring**: the focused surface must change
 to a solid purple-tinted fill, border, or text treatment that remains visible.
+High-contrast 2px inset outlines (negative outline offset) are allowed for
+compact keyboard actions and virtual-focus model options. They create no
+extra layout space, decorative glow, or outward halo.
 Cards, controls, and popovers have no shadows.
 
 Green = correct/success/applied.
@@ -463,7 +466,7 @@ stages, permanent animation, or hidden consequential actions.
 10. Capability cards and command rows use the same icon metadata.
 11. Command and model popovers use one Nox surface rule with no per-row shadow.
 12. No control creates an outer focus ring or decorative shadow.
-13. Keyboard focus is visible via an in-surface border/fill/text state.
+13. Keyboard focus is visible via an in-surface border/fill/text state or 2px inset outline, with at least 3:1 focus-indicator contrast.
 14. Textarea hover/focus never introduces an internal white rectangle.
 15. Capability cards and Token Usage fit the compact Obsidian sidebar.
 
