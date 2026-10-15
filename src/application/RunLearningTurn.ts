@@ -232,7 +232,7 @@ export class RunLearningTurn {
           } else if (!activeProgram ||
               (existingProgramScope && existingProgramScope.programId !== activeProgram.id &&
                 existingProgramScope.mode !== "FREE")) {
-            explanation = "The selected learning program is unavailable or has changed. Pause the old mode, then choose a program.";
+            explanation = "Select a learning program with /plan <goal> before starting assessment. If you switched programs, pause the old mode first.";
           } else {
             next = transitionProgramLearningScope(existingProgramScope, scopeCommand, activeProgram.id);
           }
