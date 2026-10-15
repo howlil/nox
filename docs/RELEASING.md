@@ -31,6 +31,8 @@ For a manual override or recovery, go to **GitHub → Actions → Prepare releas
 
 The workflow updates `manifest.json` and `package.json` together, generates a [changelog](../CHANGELOG.md) section from conventional commit subjects, maintains [versions.json](../versions.json) for Obsidian compatibility, records `.release-plan.json`, creates a `release/<version>` branch, and opens a reviewable PR. GitHub Actions must have **Read and write permissions**, **Allow GitHub Actions to create and approve pull requests**, and workflow-dispatch permission. The workflow explicitly dispatches CI for its own generated branch because `GITHUB_TOKEN`-created pull requests do not trigger normal `pull_request` events. If GitHub forbids bot-created PRs, update Actions permissions; inspect any existing release branch before attempting recovery. Existing release branches/tags are never overwritten.
 
+GitHub CI also runs Obsidian's official `obsidianmd/obsidian-workflows@v1` validator in advisory scanner mode. The existing pnpm checks remain authoritative for building, and policy warnings must be reviewed before approval.
+
 The release PR must be manually reviewed/merged. Before merge, confirm a disposable-vault installation, three assets, the exact version, license/credit notices, security/privacy policy, provider connectivity, and any backwards compatibility change. Add manual evidence to the PR.
 
 ## Automated publish
