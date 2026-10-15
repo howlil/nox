@@ -1,7 +1,6 @@
-import type { AgentContext, ApplyResult, ChatMessage, ChatSession, EditProposal, ResponseVersion } from "../types";
+import type { AgentContext, ApplyResult, ChatMessage, ChatSession, EditProposal, ResponseVersion, ResearchScope } from "../types";
 import type { ExplicitContextRef, LearningContext, LearningPolicy } from "../context/context-types";
 import type { ResearchResult } from "../context/LocalResearch";
-import type { ResearchScope } from "../types";
 import type { LearningState } from "../domain/learning-state/types";
 import type { TranscriptPart } from "../session/transcript-types";
 import type { LearningScopeState } from "../domain/practice/learning-scope";
