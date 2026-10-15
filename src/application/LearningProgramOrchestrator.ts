@@ -12,7 +12,8 @@ export class LearningProgramOrchestrator {
   private writing = false;
   private currentAbort?: AbortController;
   private mutationTail: Promise<void> = Promise.resolve();
-  // Runtime-owned timer (not bound to a DOM window): safe across Obsidian popout views.\n  private checkpointTimer?: ReturnType<typeof setInterval>;
+  // Runtime-owned timer (not bound to a DOM window): safe across Obsidian popout views.
+  private checkpointTimer?: ReturnType<typeof setInterval>;
   private activeAiTurnId?: string;
   constructor(private readonly runtime: AgentRuntimePort, private readonly contexts: ContextPort,
     private readonly learningState: LearningStatePort, private readonly store: ProgramStorePort,
