@@ -316,8 +316,10 @@ export class ChatView extends ItemView {
         }),
       );
       this.registerEvent(
-        this.app.workspace.on("editor-selection-change", () => {
-          void this.syncChips();
+        (this.app.workspace as typeof this.app.workspace & {
+          on(name: "editor-selection-change", callback: () => void): import("obsidian").EventRef;
+        }).on("editor-selection-change", () => {
+          void this.syncChips().catch(error => console.warn("[Nox] Selection sync failed", error));
         }),
       );
     }
