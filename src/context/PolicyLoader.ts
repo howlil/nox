@@ -8,6 +8,7 @@ import { LearningPolicy } from "./context-types";
  * into structured fields when application behavior truly needs those fields.
  */
 export class PolicyLoader {
+  private readonly skillCache = new Map<string, { mtime: number; size: number; content: string }>();
   private cached:
     | {
         mtime: number;
@@ -16,6 +17,27 @@ export class PolicyLoader {
     | undefined;
 
   constructor(private readonly app: App) {}
+
+  async loadSkill(kind: "assessment" | "teaching" | "review" | "research"):
+    Promise<{ path: string; content: string } | null> {
+    const path = `00-learning-os/skills/learning-${kind}/SKILL.md`;
+    const file = this.app.vault.getFileByPath(path);
+    if (!file || !(file instanceof TFile)) {
+      this.skillCache.delete(path);
+      return null;
+    }
+    if (file.stat.size > 12_000) throw new Error("Learning skill exceeds 12 KB limit: " + path);
+    const cached = this.skillCache.get(path);
+    if (cached && cached.mtime === file.stat.mtime && cached.size === file.stat.size) {
+      return { path, content: cached.content };
+    }
+    const content = await this.app.vault.cachedRead(file);
+    if (new TextEncoder().encode(content).length > 12_000) {
+      throw new Error("Learning skill exceeds 12 KB limit: " + path);
+    }
+    this.skillCache.set(path, { mtime: file.stat.mtime, size: file.stat.size, content });
+    return { path, content };
+  }
 
   async load(): Promise<LearningPolicy> {
     const file = this.app.vault.getFileByPath("AGENTS.md");
