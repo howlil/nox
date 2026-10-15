@@ -57,6 +57,14 @@ export function renderQuizCard(parent: HTMLElement, question: PracticeQuestion,
       "aria-label": "Choose an answer" } });
     const selected = actions.draft?.type === "multiple-choice"
       ? actions.draft.optionId : undefined;
+    // Explicit state classes avoid expensive :has() invalidation in a dense view.
+    const refreshOptionStates = () => {
+      group.querySelectorAll<HTMLLabelElement>(".nox-quiz-option").forEach(row => {
+        const control = row.querySelector<HTMLInputElement>("input");
+        row.toggleClass("is-checked", Boolean(control?.checked));
+        row.toggleClass("is-disabled", Boolean(control?.disabled));
+      });
+    };
     for (const [index, option] of input.options.entries()) {
       const row = group.createEl("label", { cls: "nox-quiz-option" });
       const radio = row.createEl("input", { type: "radio" });
@@ -67,9 +75,11 @@ export function renderQuizCard(parent: HTMLElement, question: PracticeQuestion,
       row.createSpan({ cls: "nox-quiz-option-key", text: String.fromCharCode(65 + index) });
       row.createSpan({ text: option.text });
       radio.addEventListener("change", () => {
+        refreshOptionStates();
         if (radio.checked) update({ type: "multiple-choice", optionId: option.id });
       });
     }
+    refreshOptionStates();
     if (selected) answer = { type: "multiple-choice", optionId: selected };
   } else if (input.type === "essay") {
     const editor = answerArea.createEl("textarea", { cls: "nox-quiz-editor" });
@@ -174,6 +184,7 @@ export function renderQuizCard(parent: HTMLElement, question: PracticeQuestion,
         submit.setText("Evaluated");
         card.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>("input,textarea")
           .forEach(control => { control.disabled = true; });
+        card.querySelectorAll<HTMLElement>(".nox-quiz-option").forEach(row => row.addClass("is-disabled"));
       } else {
         status.setText("The answer was not evaluated. You can retry.");
       }
