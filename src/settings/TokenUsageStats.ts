@@ -77,8 +77,11 @@ export function tokenUsageTimeline(
   const rangeDays = filters.range === "7d" ? 7 : filters.range === "30d" ? 30 : 14;
   const intervalDays = filters.range === "30d" ? 3 : 1;
   const currentDay = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
-  const recentDay = Math.max(...filtered.map(entry => Date.parse(entry.date + "T00:00:00Z"))
-    .filter(Number.isFinite));
+  const recentDay = filtered.reduce((latest, entry) => {
+    const day = Date.parse(entry.date + "T00:00:00Z");
+    return Number.isFinite(day) ? Math.max(latest, day) : latest;
+  }, -Infinity);
+  if (!Number.isFinite(recentDay)) return [];
   const end = filters.range === "all" ? Math.min(recentDay, currentDay) : currentDay;
   const first = end - (rangeDays - 1) * 86_400_000;
   const buckets: TokenDailyBucket[] = [];
