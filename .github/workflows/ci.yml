@@ -3,7 +3,12 @@ name: CI
 on:
   push:
     branches: [master]
+    # Cloudflare independently builds the Astro site in landing/.
+    paths-ignore:
+      - 'landing/**'
   pull_request:
+    paths-ignore:
+      - 'landing/**'
   workflow_dispatch:
 
 jobs:
