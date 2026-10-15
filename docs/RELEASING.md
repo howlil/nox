@@ -41,6 +41,20 @@ For desktop acceptance **before merging**, open the release PR's successful `CI`
 
 The release PR must be manually reviewed/merged. Before merge, confirm a disposable-vault installation, three assets, the exact version, license/credit notices, security/privacy policy, provider connectivity, and any backwards compatibility change. Add manual evidence to the PR.
 
+## Release provenance
+
+The Linux release-build job generates GitHub artifact attestations using `actions/attest@v4` for each exact distribution file: `main.js`, `manifest.json`, and `styles.css`. It has read-only source access plus scoped `id-token: write` and `attestations: write` permissions; only the publishing job has `contents: write`. The publishing job independently executes `gh attestation verify` for all three downloaded assets **before** creating or publishing a GitHub Release.
+
+To verify a downloaded release file from a trusted terminal:
+
+```sh
+gh attestation verify main.js --repo howlil/nox
+gh attestation verify manifest.json --repo howlil/nox
+gh attestation verify styles.css --repo howlil/nox
+```
+
+This pipeline applies **only to future releases generated after this workflow change**. Existing published `0.1.0` binaries are immutable and must not be silently replaced; ship a later patch version instead. Attestations establish build provenance, not permission safety or quality.
+
 ## Automated publish
 
 When the **release PR** merges, `Publish Obsidian plugin` runs on `master`. It:
