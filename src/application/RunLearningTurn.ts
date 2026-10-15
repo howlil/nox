@@ -15,7 +15,7 @@ import { formatReplyPrompt } from "./reply-context";
 import { PersistenceError } from "../persistence/PersistenceError";
 import { prepareContextEnvelope } from "../context/ContextBudget";
 import type { ResearchResult } from "../context/LocalResearch";
-import { parseResearchRequest, resolveResearchScope } from "../domain/research-scope";
+import { parseResearchRequest, resolveResearchScope } from "./research-scope";
 import {
   recordPracticeEvaluation,
   recordReviewFindings,
