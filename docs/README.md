@@ -12,6 +12,7 @@ Nox is an AI learning companion for Markdown notes in Obsidian desktop.
 - [Troubleshoot installation and providers](TROUBLESHOOTING.md).
 - [Develop and test the plugin](DEVELOPMENT.md).
 - [Publish an Obsidian Community release](RELEASING.md).
+- [Community scanner remediation and desktop QA checklist](COMMUNITY_REVIEW_QA.md).
 
 ## Reference
 - [Learning commands and evidence policy](LEARNING_ORCHESTRATOR.md).
