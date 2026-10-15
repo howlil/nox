@@ -2,6 +2,7 @@ import {
   existsSync,
   readFileSync,
 } from "fs";
+import { assertCompiledPluginCss } from "./css-artifact-policy.mjs";
 
 const required = [
   "dist/main.js",
@@ -29,7 +30,6 @@ if (existsSync("dist/forge.png")) {
 }
 
 // Community reviewers inspect the built CSS, not Tailwind input directives.
-import { assertCompiledPluginCss } from "./css-artifact-policy.mjs";
 assertCompiledPluginCss(readFileSync("dist/styles.css", "utf8"));
 
 const manifest = JSON.parse(
