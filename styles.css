@@ -1355,7 +1355,8 @@
   cursor: text;
 }
 .nox-composer-box:focus-within {
-  border-color: var(--nox-accent-border);
+  /* The focused composer is a 1px border, so use the contrast-safe token. */
+  border-color: var(--nox-accent-ink);
 }
 .nox-composer-box.is-expanded {
   padding: 8px 7px 7px 10px;
@@ -2114,7 +2115,7 @@
   opacity: .6;
 }
 
-.nox-model-menu-row {
+.nox-root .nox-model-menu-row {
   display: flex;
   width: 100%;
   min-height: 30px;
@@ -2122,31 +2123,35 @@
   justify-content: space-between;
   gap: 10px;
   padding: 5px 8px;
-  border: 0 !important;
+  border: 0;
   border-radius: var(--nox-radius-chip);
-  background: transparent !important;
+  background: transparent;
   color: var(--nox-ink);
   cursor: pointer;
   appearance: none;
   font: inherit;
   font-size: 12px;
   text-align: left;
-  box-shadow: none !important;
+  box-shadow: none;
 }
 
-.nox-model-menu-row:hover {
-  background: var(--nox-hover) !important;
+.nox-root .nox-model-menu-row:hover {
+  background: var(--nox-hover);
 }
 
-.nox-model-menu-row.is-active {
-  background: var(--nox-accent-tint) !important;
+.nox-root .nox-model-menu-row.is-active {
+  /* Arrow-key navigation keeps physical focus on the trigger. */
+  background: var(--nox-accent-tint);
   color: var(--nox-ink);
+  outline: 2px solid var(--nox-accent-ink);
+  outline-offset: -2px;
 }
 
-.nox-model-menu-row:focus-visible {
-  outline: none;
+.nox-root .nox-model-menu-row:focus-visible {
   background: var(--nox-accent-soft);
   color: var(--nox-accent-ink);
+  outline: 2px solid var(--nox-accent-ink);
+  outline-offset: -2px;
 }
 
 .nox-model-menu-name {
@@ -3940,11 +3945,11 @@
 /* History triage — native UIArc swipe-action interaction, flat NOX tokens. */
 .nox-history-menu { overscroll-behavior: contain; }
 .nox-history-header { align-items: center; }
-.nox-history-text-action,
-.nox-history-tab {
-  border: 0 !important;
-  box-shadow: none !important;
-  background: transparent !important;
+.nox-root .nox-history-text-action,
+.nox-root .nox-history-tab {
+  border: 0;
+  box-shadow: none;
+  background: transparent;
   color: var(--nox-ink-2);
   font: inherit;
   font-size: 11px;
@@ -3953,8 +3958,8 @@
   border-radius: var(--nox-radius-chip);
   cursor: pointer;
 }
-.nox-history-text-action:hover,
-.nox-history-tab:hover { background: var(--nox-hover) !important; color: var(--nox-ink); }
+.nox-root .nox-history-text-action:hover,
+.nox-root .nox-history-tab:hover { background: var(--nox-hover); color: var(--nox-ink); }
 .nox-history-tabs {
   display: flex;
   padding: 4px 3px;
@@ -3962,8 +3967,8 @@
   border-bottom: 1px solid var(--nox-line);
 }
 .nox-history-tab { flex: 1; }
-.nox-history-tab.is-current {
-  background: var(--nox-accent-soft) !important;
+.nox-root .nox-history-tab.is-current {
+  background: var(--nox-accent-soft);
   color: var(--nox-accent-ink);
   font-weight: 600;
 }
@@ -4019,7 +4024,7 @@
 .nox-history-swipe-front.is-gesturing { transition: none; }
 
 .nox-history-item.is-selected .nox-history-swipe-front { background: var(--nox-accent-soft); }
-.nox-history-entry {
+.nox-root .nox-history-entry {
   display: flex;
   align-items: center;
   gap: 7px;
@@ -4027,15 +4032,15 @@
   min-width: 0;
   min-height: 52px;
   padding: 5px 0;
-  background: transparent !important;
-  border: 0 !important;
-  box-shadow: none !important;
+  background: transparent;
+  border: 0;
+  box-shadow: none;
   text-align: left;
   color: var(--nox-ink);
   cursor: pointer;
 }
-.nox-history-entry:hover,
-.nox-history-more:hover { background: var(--nox-hover) !important; }
+.nox-root .nox-history-entry:hover,
+.nox-root .nox-history-more:hover { background: var(--nox-hover); }
 .nox-history-entry.is-current .nox-history-entry-icon { color: var(--nox-accent-ink); }
 .nox-history-entry-icon { color: var(--nox-ink-3); flex: 0 0 16px; }
 .nox-history-entry-copy { display: flex; flex: 1; flex-direction: column; gap: 2px; min-width: 0; }
@@ -4051,21 +4056,21 @@
   align-self: flex-start; flex: 0 0 auto;
   padding-top: 3px; font-size: 10px; color: var(--nox-ink-3);
 }
-.nox-history-more {
+.nox-root .nox-history-more {
   display: inline-flex; align-items: center; justify-content: center;
   flex: 0 0 28px; width: 28px; height: 28px;
   margin-right: 4px; padding: 5px;
   border-radius: var(--nox-radius-chip);
-  border: 0 !important; box-shadow: none !important;
-  background: transparent !important; color: var(--nox-ink-2);
+  border: 0; box-shadow: none;
+  background: transparent; color: var(--nox-ink-2);
   cursor: pointer;
 }
-.nox-history-action {
+.nox-root .nox-history-action {
   display: inline-flex; flex-direction: column;
   align-items: center; justify-content: center; gap: 3px;
   flex: 1; min-width: 0; padding: 4px 2px;
-  border: 0 !important; border-radius: 0;
-  box-shadow: none !important; cursor: pointer;
+  border: 0; border-radius: 0;
+  box-shadow: none; cursor: pointer;
   background: var(--nox-accent-soft);
   color: var(--nox-accent-ink);
   font-size: 10px; font-weight: 500;
@@ -4398,6 +4403,35 @@
   color: var(--nox-ink);
   background: var(--nox-hover);
 }
+
+/* Keyboard input is visually distinct from hover/selection, even under
+   Obsidian theme button resets. Keep markers inside compact controls. */
+.nox-root :is(
+  .nox-prompt-plus,
+  .nox-action-menu-btn,
+  .nox-model-trigger,
+  .nox-model-menu-retry,
+  .nox-model-menu-row,
+  .nox-history-entry,
+  .nox-history-more,
+  .nox-history-action,
+  .nox-history-tab,
+  .nox-history-text-action,
+  .nox-message-action,
+  .nox-send-btn:not(:disabled),
+  .nox-cancel-btn:not(:disabled)
+):focus-visible {
+  outline: 2px solid var(--nox-accent-ink);
+  outline-offset: -2px;
+}
+
+/* An inset light ring has stronger contrast on a filled primary/danger action. */
+.nox-root .nox-send-btn:not(:disabled):focus-visible,
+.nox-root .nox-history-action.is-danger:focus-visible {
+  outline-color: var(--nox-page);
+  outline-offset: -3px;
+}
+
 .nox-user-message-quote {
   max-width: 100%;
   color: var(--nox-ink-3);

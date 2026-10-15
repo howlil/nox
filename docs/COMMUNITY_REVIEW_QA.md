@@ -110,3 +110,65 @@ This change is a **new source patch on master**, not a mutation of previously di
 - Landing currently has no committed npm lockfile. Its CI job follows the
   independently deployed package's install approach, but it is not yet a
   fully reproducible dependency-resolution proof.
+
+
+## CSS keyboard and cascade hardening — 2026-10-16
+
+**Scope:** Nox plugin `styles.css`, model picker, history menu, composer.
+The companion Astro landing remains an independent build and is not part of the
+installable Obsidian CSS. This work does not change the plugin's visual layout,
+the learning workflow, or the minimum supported Obsidian version.
+
+### Verified source behavior
+
+- `src/chat/menu.ts`: model picker keeps keyboard focus on the trigger and
+  exposes the highlighted option using `aria-activedescendant`. Arrow movement
+  changes `.is-active`; selecting a model is a different operation.
+  Consequently `:focus-visible` on menu rows is insufficient. A high-contrast
+  inset outline is also attached to `.is-active` and tested with the menu state.
+- Keyboard-focus outlines are scoped to Nox buttons and actions affected by
+  the previous reset, not to all Obsidian controls. The accent-ink token has a
+  measured contrast above 3:1 against the default Nox page and soft accent fill.
+  Filled primary and destructive buttons use an inset light ring.
+- The composer keeps `.nox-composer-footer { display: contents; }`: this is a
+  neutral div wrapper that makes the attachment, model, and send controls direct
+  grid layout participants. Swapping this declaration for flex/grid would change
+  position, Tab order, and sizing. The focus-within border uses the dark accent
+  ink instead of the pale accent border.
+- Removed 19 blanket `!important` declarations from model picker and history
+  controls by increasing scoped selector specificity. Other `!important`
+  declarations remain until Obsidian desktop computed styles demonstrate
+  equivalence under native and community themes. Native Mermaid and
+  reduced-motion handling are intentionally left intact.
+
+### CSS warning policy
+
+| Scanner report | Decision | Boundary |
+| --- | --- | --- |
+| `@source` / `@theme` | Tailwind v4 **input directives**; keep them | Plugin build must reject uncompiled directives in `dist/styles.css` |
+| `text-decoration-color` | Decorative text-underline enhancement | Source compatibility warning; basic underline remains |
+| `column-gap` / multicolumn | Flexbox gap in quiz heading, not CSS multicolumn | Visual check at minimum supported version |
+| `display: contents` | Keep until an actual composer layout or accessibility regression is proven | Focus, layout, screen-reader desktop acceptance |
+| `clip-path` in `landing/` | Landing-only clip/morph/accessibility styles | Separate Astro React build; not the plugin artifact |
+| Remaining `!important` | Review by owned component, no blanket removal | Computed-style comparison under themes |
+
+### Proof and remaining acceptance
+
+Automated tests in `tests/chat/keyboard-css.test.ts` check focus rule
+presence, color contrast, active/selected styling boundaries, cascade scope
+and composer layout policy. `tests/chat/menu.test.ts` also checks the
+`openAt → setRows → move → syncTrigger → close` sequence. These are
+**source + state invariants**, not a substitute for computed browser styles.
+
+Before the next plugin release, manually exercise an installable CI artifact
+on the minimum supported Obsidian version and latest desktop version.
+In the main and popout window, check at least: Tab to model trigger, Arrow
+navigation with visually distinct active and selected models, Escape/Enter,
+history tabs/actions (including destructive action), composer short/multiline,
+attachment chips, disabled/hover/focus states, 320px sidebar, reduced-motion,
+default/light/dark and one community theme. Inspect `getComputedStyle` to
+confirm `outline-style: solid`, `outline-width: 2px`, and owner/theme
+colors; also verify that focusing a button does not change its box size.
+
+The following CSS warnings may remain after these changes. Warning count alone
+is neither security evidence nor a release-acceptance criterion.
