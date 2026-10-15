@@ -286,3 +286,21 @@ test("Codex diagnostic stderr never appears in user-visible failures", async () 
   assert.equal(events.at(-1)?.type, "failed");
   assert.doesNotMatch(JSON.stringify(events), /TOP-SECRET-REFRESH-TOKEN/);
 });
+
+test("Codex health probe rejects oversized stdout and never exposes stderr", async () => {
+  const probe = new FakeChild();
+  const runtime = adapter((_command, args) => {
+    assert.deepEqual(args, ["--version"]);
+    queueMicrotask(() => {
+      probe.stderr.emit("data", Buffer.from("SECRET_FAKE_CREDENTIAL"));
+      probe.stdout.emit("data", Buffer.alloc(65 * 1024, 65));
+    });
+    return probe;
+  });
+  const health = await runtime.check();
+  assert.equal(health.status, "misconfigured");
+  assert.equal(probe.killed, true);
+  assert.ok(health.status !== "ready");
+  assert.doesNotMatch(JSON.stringify(health), /SECRET_FAKE_CREDENTIAL/);
+  assert.match(JSON.stringify(health), /response limit/);
+});
