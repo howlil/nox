@@ -1,4 +1,4 @@
-![NOX — AI Learning Companion for Obsidian](docs/assets/nox-banner.svg)
+![NOX — AI Learning Companion for Obsidian](docs/assets/nox-banner.webp)
 
 # NOX
 
