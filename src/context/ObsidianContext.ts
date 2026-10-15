@@ -172,7 +172,7 @@ export class ObsidianContext {
     limit?: number;
   } = {}): Promise<ResearchResult> {
     const allowed = options.allowedPaths ? new Set(options.allowedPaths) : null;
-    const scope = options.scope ?? { kind: "vault" };
+    const scope: ResearchScope = options.scope ?? { kind: "vault" };
     const selected = scope.kind === "selected" ? new Set(scope.paths) : null;
     const inScope = (path: string): boolean =>
       (!allowed || allowed.has(path)) &&
