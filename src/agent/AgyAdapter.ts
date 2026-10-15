@@ -275,7 +275,6 @@ export class AgyAdapter implements AgentAdapter {
   ): AsyncIterable<AgentStreamEvent> {
     let buffer = "";
     const decoder = new StringDecoder("utf8");
-    let stderr = "";
     let exitCode: number | null = null;
     const processState: {
       spawnError?: Error;
@@ -312,14 +311,9 @@ export class AgyAdapter implements AgentAdapter {
       }
     });
 
-    proc.stderr?.on("data", (chunk: Buffer) => {
-      const message = chunk.toString();
-      stderr += message;
-      const trimmed = message.trim();
-      if (trimmed) {
-        console.warn("[Nox agent provider]", trimmed);
-      }
-    });
+    // Provider stderr may contain tokens, prompts or private local paths.
+    // Drain it without retaining or echoing it to the Obsidian console.
+    proc.stderr?.on("data", (_chunk: Buffer) => {});
 
     proc.stdin?.on("error", (error) => {
       processState.inputError = error;
@@ -383,7 +377,6 @@ export class AgyAdapter implements AgentAdapter {
           const detail =
             processState.inputError?.message ||
             processState.spawnError?.message ||
-            stderr.trim() ||
             (exitCode !== 0
               ? `AGY exited with code ${exitCode ?? "unknown"} before returning a result.`
               : "AGY exited without returning a result.");
