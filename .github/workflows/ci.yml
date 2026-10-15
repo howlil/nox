@@ -61,6 +61,15 @@ jobs:
 
       - name: Verify artifacts
         run: pnpm test:artifacts
+      - name: Reproducible production build
+        run: |
+          first="$(sha256sum dist/main.js dist/manifest.json dist/styles.css)"
+          pnpm build
+          second="$(sha256sum dist/main.js dist/manifest.json dist/styles.css)"
+          if [ "$first" != "$second" ]; then
+            echo "::error::Build changes for the same commit; Community Directory scanner will not match the release."
+            exit 1
+          fi
 
   # The Linux job cannot validate Windows PowerShell / DPAPI.
   # Run the actual local-credential OAuth roundtrip on Windows.
