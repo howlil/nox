@@ -36,7 +36,7 @@ export class NoxSettingsTab extends PluginSettingTab {
     const settings = this.nox.getSettings();
     containerEl.empty();
     containerEl.addClass("nox-settings");
-    containerEl.createEl("h2", { text: "Nox" });
+    new Setting(containerEl).setName("Nox").setHeading();
 
     const nav = containerEl.createDiv({ cls: "nox-settings-tabs", attr: {
       role: "tablist", "aria-label": "Nox settings sections",
