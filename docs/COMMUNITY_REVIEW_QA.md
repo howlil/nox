@@ -63,3 +63,50 @@ These are **not** claimed fixed by this patch:
 3. Merge remediation, then let `Prepare release PR` propose a patch bump from `0.1.0`.
 4. Review/merge the release PR only after acceptance. The publishing job signs and verifies artifacts before publication.
 5. Re-run community scanner on the newly published version and resolve remaining review items separately.
+
+## Follow-up: risk-focused hardening after 1.1.2 review
+
+This change is a **new source patch on master**, not a mutation of previously distributed 1.1.2 artifacts.
+
+- Plugin typed ESLint checks are deliberately strict only on the changed external
+  provider and preview-window boundaries. Legacy unsafe-type warnings elsewhere
+  require independent evidence before widening the gate. CI keeps the Community
+  Directory scan as a separate, non-blocking source of warning data.
+- `ChatGptAdapter` never sends arbitrary provider `message` / `code` strings,
+  network exception bodies, credentials, or paths to the UI; known error classes
+  map to stable messages. User cancellation is unchanged.
+- `CodexAdapter.probe` caps stdout at 64 KiB, drains stderr, and has a three-second
+  deadline. Its failures never forward a CLI-originating message.
+- Rich-card/chart/flow and code preview DOM nodes use the target Obsidian surface's
+  `ownerDocument`. Preview resize messages attach once per owner window, validate
+  origin, source and instance ID, then release listeners when all previews exit.
+- The Astro landing is tested in a **separate CI job** using the landing package's
+  own installation, lint, check, and production build. It is *not* added to the
+  Obsidian plugin's pnpm workspace or compiled plugin artifact.
+
+### Manual desktop acceptance before next release
+
+1. Install the GitHub Actions artifact from this commit into an isolated test vault.
+2. Open Nox in a main window and in an Obsidian pop-out: verify chart, flow,
+   card, Mermaid, copy button, and HTML/JS isolated preview sizing.
+3. Close and reopen both windows; verify there are no duplicate resize responses
+   or unhandled errors. Test disabled iframe, malicious postMessage source/ID.
+4. Force HTTP/SSE and network failures with synthetic secret strings: no full
+   provider message or credential should appear in the notice, chat, or logs.
+5. Run Codex with malformed executable output: the health probe must end with
+   a safe, bounded failure and should not send prompts.
+6. On Windows verify existing OAuth credential decrypt/recovery, plus native
+   Codex executable resolution. Do not substitute Linux-only process tests.
+
+### Residual issues
+
+- Obsidian capability warnings for approved local filesystem, subprocesses and
+  vault enumeration are **intentional** for desktop providers; they are not proof
+  that runtime controls can be removed.
+- Unsafe-type warnings in the separately built landing package require its own
+  correctly installed React/Motion/Astro type environment.
+- True popout compatibility requires a manual Obsidian/Electron smoke test;
+  fake-window tests prove listener ownership and cleanup only.
+- Landing currently has no committed npm lockfile. Its CI job follows the
+  independently deployed package's install approach, but it is not yet a
+  fully reproducible dependency-resolution proof.
