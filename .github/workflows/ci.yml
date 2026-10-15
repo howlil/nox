@@ -6,6 +6,15 @@ on:
   pull_request:
 
 jobs:
+  pr-title:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Enforce conventional PR title
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          node -e 'const t = process.env.PR_TITLE ?? ""; if (!/^(feat|fix|docs|chore|refactor|perf|test|ci|build)(\([a-z0-9./_-]+\))?!?: .{3,}$/.test(t)) { console.error("PR title must use Conventional Commits (e.g. feat(chat): add review), got:", t); process.exit(1); }'
   build:
     runs-on: ubuntu-latest
 
