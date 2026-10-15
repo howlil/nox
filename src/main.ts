@@ -1,4 +1,5 @@
 import { addIcon, FileSystemAdapter, TFile, Plugin, requestUrl } from "obsidian";
+import noxLogoDataUrl from "../public/nox.png";
 import { AgyAdapter } from "./agent/AgyAdapter";
 import { CodexAdapter } from "./agent/CodexAdapter";
 import { ChatGptAdapter } from "./agent/ChatGptAdapter";
@@ -174,8 +175,8 @@ export default class NoxPlugin extends Plugin {
     );
 
     this.addCommand({
-      id: "open-nox-sidebar",
-      name: "Open Nox sidebar",
+      id: "open-sidebar",
+      name: "Open sidebar",
       callback: () => this.activateView(),
     });
 
@@ -194,9 +195,8 @@ export default class NoxPlugin extends Plugin {
     });
 
     this.addCommand({
-      id: "focus-nox-composer",
-      name: "Focus Nox composer",
-      hotkeys: [{ modifiers: ["Mod"], key: "l" }],
+      id: "focus-composer",
+      name: "Focus composer",
       callback: async () => {
         await this.activateView();
 
@@ -269,8 +269,7 @@ export default class NoxPlugin extends Plugin {
   }
 
   getLogoUrl(): string {
-    const pluginPath = `${this.manifest.dir}/nox.png`;
-    return this.app.vault.adapter.getResourcePath(pluginPath);
+    return noxLogoDataUrl;
   }
 
   async updateSettings(update: Partial<NoxSettings>): Promise<void> {
