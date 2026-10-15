@@ -1,5 +1,6 @@
 {
   "version": "0.1.0",
   "previousVersion": "0.1.0",
-  "bump": "current"
+  "bump": "current",
+  "recovery": "docs-gate-2026-10-15"
 }

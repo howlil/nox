@@ -51,6 +51,9 @@ jobs:
       - name: Lint
         run: pnpm lint
 
+      - name: Documentation and release metadata checks
+        run: pnpm docs:check && pnpm release:check
+
       - name: Unit tests
         run: pnpm test:unit
 
