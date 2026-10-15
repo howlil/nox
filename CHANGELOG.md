@@ -4,7 +4,15 @@
 
 ### Fixes
 
-- repair CSS syntax and enforce Obsidian source quality gates
+- Fix malformed literal newline escapes in the landing dialog stylesheet.
+- Correct the production CSS validation so uncompiled Tailwind directives are rejected from release artifacts.
+- Use Obsidian font variables with compatible generic font fallbacks.
+
+### Quality and compatibility
+
+- Add regression coverage for malformed CSS and compiled-artifact validation.
+- Parse plugin and landing CSS in CI, including landing-only changes.
+- Document the runtime call graph and review decisions for privileged provider and vault boundaries.
 
 ## [1.1.0]
 
