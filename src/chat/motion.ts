@@ -16,15 +16,14 @@ function play(
 ): void {
   if (reducedMotion()) return;
 
-  element.style.willChange = "opacity, transform";
+  element.addClass("nox-motion-active");
   const animation = animate(element, keyframes, {
     duration,
     ease: EASE_OUT_STRONG,
   });
 
-  void animation.then(() => {
-    element.style.removeProperty("will-change");
-  });
+  const cleanup = () => element.removeClass("nox-motion-active");
+  void animation.then(cleanup, cleanup);
 }
 
 export function animateNoxEnter(element: HTMLElement, offset = 6): void {
