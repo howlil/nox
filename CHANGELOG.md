@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.0.1]
+
+### Fixes
+
+- community review compatibility, security, and UI remediation
+
 ## [1.0.0]
 
 ### First major release
