@@ -1,4 +1,4 @@
-import { App, Notice, PluginSettingTab, type SettingDefinitionItem } from "obsidian";
+import { App, Modal, Notice, PluginSettingTab, type SettingDefinitionItem } from "obsidian";
 import type { NoxSettings } from "./NoxSettings";
 import { mountTokenUsageSection, type TokenUsageHost } from "./TokenUsageSection";
 import { mountProviderUsageSection, type ProviderUsageHost } from "./ProviderUsageSection";
@@ -9,9 +9,11 @@ export interface NoxSettingsHost extends TokenUsageHost, ProviderUsageHost {
   getChatGPTConnection(): {
     connected: boolean; sharing: boolean; email?: string; description: string;
     lastFailure?: { stage: string; code: string; message: string };
+    storageRecoveryNeeded?: boolean;
   };
   connectChatGPT(): Promise<void>;
   disconnectChatGPT(): Promise<void>;
+  recoverChatGPTStorage(): void;
   getBuildDiagnostics(): {
     revision: string; builtAt: string; transport: string;
     pluginDir: string; vaultDir: string;
@@ -61,6 +63,7 @@ export class NoxSettingsTab extends PluginSettingTab {
           setting.addButton(button => button
             .setButtonText(connection.connected ? "Reconnect ChatGPT" : "Continue with ChatGPT")
             .setCta()
+            .setDisabled(Boolean(connection.storageRecoveryNeeded))
             .onClick(async () => {
               button.setDisabled(true);
               button.setButtonText("Waiting for ChatGPT...");
@@ -85,6 +88,35 @@ export class NoxSettingsTab extends PluginSettingTab {
               catch (error) {
                 new Notice(error instanceof Error ? error.message : "Unable to disconnect.");
               } finally { this.update(); }
+            }));
+        },
+      },
+      {
+        name: "ChatGPT credential recovery",
+        desc: "The local credential file cannot be read. Reset only after confirming; NOX keeps an encrypted or owner-only backup.",
+        visible: () => this.nox.getSettings().provider === "chatgpt" &&
+          Boolean(this.nox.getChatGPTConnection().storageRecoveryNeeded),
+        render: setting => {
+          setting.addButton(button => button
+            .setButtonText("Back up and reset credentials")
+            .onClick(() => {
+              const modal = new Modal(this.app);
+              modal.setTitle("Reset unreadable ChatGPT credentials?");
+              modal.contentEl.createEl("p", { text:
+                "NOX will preserve the unreadable file as a local recovery backup, disconnect ChatGPT, and allow a new sign-in. Other providers and notes are unchanged.",
+              });
+              const confirm = modal.contentEl.createEl("button", { text: "Back up and reset" });
+              confirm.addEventListener("click", () => {
+                try {
+                  this.nox.recoverChatGPTStorage();
+                  new Notice("Credential backup created. You can sign in again.");
+                  modal.close();
+                  this.update();
+                } catch {
+                  new Notice("Could not safely back up the credentials. The original file is unchanged.");
+                }
+              });
+              modal.open();
             }));
         },
       },
