@@ -120,7 +120,7 @@
   overflow: hidden;
   background: var(--nox-page);
   color: var(--nox-ink);
-  font-family: var(--font-interface, Inter, ui-sans-serif, system-ui, sans-serif);
+  font-family: var(--font-interface, sans-serif);
   font-size: 14px;
   letter-spacing: -0.01em;
 }
@@ -1939,14 +1939,14 @@
 .nox-prompt-menu-command {
   flex: 0 0 auto;
   color: var(--nox-ink-3);
-  font-family: var(--font-monospace), ui-monospace, monospace;
+  font-family: var(--font-monospace, monospace);
   font-size: 10px;
 }
 
 .nox-capability-command {
   flex: 0 0 auto;
   color: var(--nox-ink-3);
-  font-family: var(--font-monospace), ui-monospace, monospace;
+  font-family: var(--font-monospace, monospace);
   font-size: 10px;
 }
 
@@ -2032,7 +2032,7 @@
 }
 
 .nox-action-menu-key {
-  font-family: var(--font-interface, ui-sans-serif, system-ui, sans-serif);
+  font-family: var(--font-interface, sans-serif);
   font-size: 17px;
   font-weight: 500;
   line-height: 1;
@@ -2520,7 +2520,7 @@
 
 .nox-selection-actions-tag {
   color: var(--nox-accent-ink);
-  font-family: var(--font-monospace, ui-monospace, monospace);
+  font-family: var(--font-monospace, monospace);
   font-size: 10.5px;
   font-weight: 500;
 }
@@ -2535,7 +2535,7 @@
 .nox-selection-actions-meta {
   flex: 0 0 auto;
   color: var(--nox-ink-3);
-  font-family: var(--font-monospace, ui-monospace, monospace);
+  font-family: var(--font-monospace, monospace);
   font-size: 10px;
   font-variant-numeric: tabular-nums;
 }
@@ -2736,7 +2736,7 @@
   grid-column: 3;
   grid-row: 1;
   color: var(--nox-ink-3);
-  font-family: var(--font-monospace, ui-monospace, monospace);
+  font-family: var(--font-monospace, monospace);
   font-size: 10px;
 }
 
@@ -3844,7 +3844,7 @@
 .nox-settings {
   color: var(--nox-ink);
   background: var(--nox-page);
-  font-family: var(--font-interface, ui-sans-serif, system-ui, sans-serif);
+  font-family: var(--font-interface, sans-serif);
 }
 .nox-settings > h2 {
   color: var(--nox-ink);
