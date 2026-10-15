@@ -18,19 +18,6 @@ function currentRevision() {
   }
 }
 
-function sourceCommitTimestamp() {
-  // Obsidian's directory scanner rebuilds the release from source. Wall-clock
-  // production timestamps would change the binary for the same commit.
-  try {
-    return execFileSync("git", ["show", "-s", "--format=%cI", "HEAD"], {
-      encoding: "utf8", stdio: ["ignore", "pipe", "ignore"],
-    }).trim();
-  } catch {
-    // Deterministic fallback for source exports without Git metadata.
-    return "1970-01-01T00:00:00.000Z";
-  }
-}
-
 export function tailwindCliPath() {
   return path.resolve("node_modules", "@tailwindcss", "cli", "dist", "index.mjs");
 }
@@ -46,7 +33,8 @@ function compileProductionCss() {
  * and synchronized deployment to scripts/dev.mjs.
  */
 export function createNoxBuildOptions({ production = false, onStart, onBuild } = {}) {
-  const revision = currentRevision();
+  const releaseVersion = JSON.parse(fs.readFileSync("manifest.json", "utf8")).version;
+  const revision = production ? "release/" + releaseVersion : currentRevision();
   return {
     entryPoints: ["src/main.ts"],
     define: {
@@ -57,7 +45,7 @@ export function createNoxBuildOptions({ production = false, onStart, onBuild } =
         "data:image/png;base64," + fs.readFileSync(path.join("public", "nox.png")).toString("base64"),
       ),
       __NOX_BUILD_TIMESTAMP__: JSON.stringify(
-        production ? sourceCommitTimestamp() : BUILD_TIMESTAMP_PLACEHOLDER,
+        production ? "reproducible-release" : BUILD_TIMESTAMP_PLACEHOLDER,
       ),
       __NOX_BUILD_TRANSPORT__: JSON.stringify("NOX_RUNTIME_TRANSPORT_V3:node-https-sse"),
       __NOX_DEV_BUILD__: JSON.stringify(!production),
