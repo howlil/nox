@@ -15,9 +15,13 @@ pnpm build
 pnpm preview
 ```
 
-## Manual Cloudflare deployment (NO CI/CD)
+## Cloudflare-managed CI/CD
 
-Live production: https://nox.howlil.site (Cloudflare Worker name: `nox`). GitHub commits do **not** update the live site until `pnpm build && pnpm exec wrangler deploy` runs successfully.
+Live production: https://nox.howlil.site (Cloudflare Worker: `nox`). Landing builds and deployment are owned by **Cloudflare Workers Builds**, independently of GitHub Actions. Cloudflare determines branch and path build triggers in its project settings. Keep the build root set to `landing/` and the build/deploy commands aligned with this Astro project. GitHub plugin CI explicitly ignores `landing/**`-only changes.
+
+If an automatic Cloudflare build fails, diagnose it in the Cloudflare Workers Builds dashboard rather than adding a second deployment workflow in GitHub.
+
+### Manual recovery deployment
 
 Cloudflare **Workers Static Assets** serves Astro's pre-rendered `dist/` folder. No adapter or SSR worker is needed.
 
