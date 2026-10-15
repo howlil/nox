@@ -3,7 +3,7 @@ import path from "path";
 import { createHash } from "crypto";
 import { deployPlugin } from "./deploy-core.mjs";
 
-const PLUGIN_ID = "nox-obsidian";
+const PLUGIN_ID = "nox";
 
 const DEFAULT_VAULTS = [
   path.join(
