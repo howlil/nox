@@ -27,7 +27,7 @@ Go to **GitHub → Actions → Prepare release PR → Run workflow**, select bra
 | `minor` | Backward-compatible user feature | 0.2.0 |
 | `major` | Breaking changes, including data migration | 1.0.0 |
 
-The workflow updates `manifest.json` and `package.json` together, generates a [changelog](../CHANGELOG.md) section from conventional commit subjects, records `.release-plan.json`, creates a `release/<version>` branch, and opens a reviewable PR. If GitHub forbids bot-created PRs, change repository Actions permissions and rerun. Existing release branches/tags are not overwritten.
+The workflow updates `manifest.json` and `package.json` together, generates a [changelog](../CHANGELOG.md) section from conventional commit subjects, maintains [versions.json](../versions.json) for Obsidian compatibility, records `.release-plan.json`, creates a `release/<version>` branch, and opens a reviewable PR. If GitHub forbids bot-created PRs, change repository Actions permissions and rerun. Existing release branches/tags are not overwritten.
 
 The release PR must be manually reviewed/merged. Before merge, confirm a disposable-vault installation, three assets, the exact version, license/credit notices, security/privacy policy, provider connectivity, and any backwards compatibility change. Add manual evidence to the PR.
 
