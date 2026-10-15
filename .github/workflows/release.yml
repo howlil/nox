@@ -5,6 +5,9 @@ name: Publish Obsidian plugin
 on:
   push:
     branches: [master]
+    # Only a committed release plan can initiate a public plugin release.
+    paths:
+      - '.release-plan.json'
   workflow_dispatch:
 
 permissions:
