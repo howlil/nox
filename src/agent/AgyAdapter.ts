@@ -164,7 +164,7 @@ export class AgyAdapter implements AgentAdapter {
         if (receivedBytes > 64 * 1024) { finish(); return; }
         output += data.toString("utf8");
       });
-      child.stderr?.resume(); // Do not expose local PATH diagnostics.
+      child.stderr?.on("data", () => {}); // Discard private PATH diagnostics.
       child.on("error", () => finish());
       child.on("close", (code) => {
         const candidate = output.trim().split(/\r?\n/)[0];
@@ -463,7 +463,7 @@ export class AgyAdapter implements AgentAdapter {
         output += chunk.toString("utf8");
       });
       // CLI diagnostics can contain private paths, account data or credentials.
-      child.stderr?.resume();
+      child.stderr?.on("data", () => {});
       child.on("error", () => finish(new Error("AGY model discovery process failed.")));
       child.on("close", code => finish(code === 0
         ? undefined : new Error("AGY could not list models. Check the local CLI.")));
