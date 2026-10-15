@@ -40,6 +40,8 @@ test("changing adapter discards the previous catalog and sends through the new r
   for await (const event of runtime.send({ prompt: "hello", context: [] }, {}, new AbortController().signal)) events.push(event);
   assert.deepEqual(events, [{ type: "text", content: "codex" }]);
   await runtime.replaceAdapter(agy);
+  assert.deepEqual(runtime.getModels(), []);
+  await runtime.refreshModels();
   assert.deepEqual(runtime.getModels(), [{ id: "agy-model", name: "AGY model" }]);
 });
 
@@ -59,8 +61,11 @@ test("late old catalog cannot overwrite a new provider and disposal cancels disc
   assert.equal(oldSignal.aborted, true);
   resolveOld([{ id: "old", name: "Old model" }]);
   await pending;
+  assert.deepEqual(runtime.getModels(), []);
+  await runtime.refreshModels();
   assert.deepEqual(runtime.getModels(), [{ id: "new", name: "New model" }]);
-  const discovering = runtime.replaceAdapter(old);
+  await runtime.replaceAdapter(old);
+  const discovering = runtime.refreshModels();
   runtime.dispose();
   assert.equal(oldSignal.aborted, true);
   resolveOld([{ id: "old", name: "Old model" }]);
@@ -119,5 +124,21 @@ test("model discovery error is cleared on retry and never survives provider swap
   assert.equal(runtime.getModelDiscoveryError(), undefined);
   assert.deepEqual(runtime.getModels(), [{ id: "model-x", name: "Model X" }]);
   await runtime.replaceAdapter({ ...adapter, listModels: async () => [] });
+  assert.equal(runtime.getModelDiscoveryError(), undefined);
+  await runtime.refreshModels();
   assert.match(runtime.getModelDiscoveryError() ?? "", /No models available/);
+});
+
+test("provider replacement never launches model discovery before an explicit request", async () => {
+  let calls = 0;
+  const adapter: AgentAdapter = {
+    check: async () => ({ status: "ready" }),
+    listModels: async () => { calls++; return []; },
+    send: async function* () {},
+  };
+  const runtime = new AgentRuntime(adapter);
+  await runtime.replaceAdapter(adapter);
+  assert.equal(calls, 0);
+  await runtime.refreshModels();
+  assert.equal(calls, 1);
 });
