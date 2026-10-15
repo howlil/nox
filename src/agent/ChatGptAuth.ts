@@ -1,5 +1,5 @@
 import { createHash, createPublicKey, randomBytes, randomUUID, verify } from "crypto";
-import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "fs";
+import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "fs";
 import { createServer, type Server, type ServerResponse } from "http";
 import { execFileSync } from "child_process";
 import { homedir } from "os";
@@ -84,6 +84,7 @@ export type ChatGptConnection = {
   email?: string;
   description: string;
   lastFailure?: ChatGptAuthFailure;
+  storageRecoveryNeeded?: boolean;
 };
 
 /**
@@ -221,35 +222,78 @@ function credentialFileText(value: string, encrypt: boolean): string {
 
 /** Local OSS OAuth public client. No ChatGPT tokens are stored in the Obsidian vault. */
 export class ChatGptAuth {
-  private record: RecordOnDisk;
+  private record: RecordOnDisk = { hostId: "urn:uuid:" + randomUUID() };
   private readonly deps: ChatGptAuthDeps;
   private listener?: Server;
   private activeLogin = false;
   private refreshPending?: Promise<string>;
   private lastFailure?: ChatGptAuthFailure;
+  private loaded = false;
+  private storageIssue = false;
 
   constructor(deps: Partial<ChatGptAuthDeps> = {}) {
+    // Constructing NOX never performs filesystem I/O or starts PowerShell.
     this.deps = { fetch, now: Date.now, storageFile: storagePath(), ...deps };
-    if (existsSync(this.deps.storageFile)) {
-      const disk = object(JSON.parse(credentialFileText(readFileSync(this.deps.storageFile, "utf8"), false)));
+  }
+
+  private ensureLoaded(): void {
+    if (this.loaded) return;
+    this.loaded = true;
+    try {
+      if (!existsSync(this.deps.storageFile)) return;
+      const disk = object(JSON.parse(credentialFileText(
+        readFileSync(this.deps.storageFile, "utf8"), false,
+      )));
       this.record = {
         hostId: typeof disk.hostId === "string" && disk.hostId.startsWith("urn:uuid:")
           ? disk.hostId : "urn:uuid:" + randomUUID(),
         clientId: typeof disk.clientId === "string" ? disk.clientId : undefined,
         credentials: disk.credentials !== undefined ? decodeStoredCredentials(disk.credentials) : undefined,
       };
-    } else this.record = { hostId: "urn:uuid:" + randomUUID() };
+    } catch {
+      // Never overwrite unreadable credentials or let them prevent other
+      // providers and local sessions from loading. Recover only on user action.
+      this.storageIssue = true;
+      this.record.credentials = undefined;
+    }
   }
 
   private save(): void {
+    this.ensureLoaded();
+    if (this.storageIssue) {
+      throw new Error("Saved ChatGPT credentials cannot be loaded. Use credential recovery in Nox settings.");
+    }
     const file = this.deps.storageFile;
     mkdirSync(dirname(file), { recursive: true, mode: 0o700 });
     const temp = file + "." + randomBytes(8).toString("hex") + ".tmp";
-    writeFileSync(temp, credentialFileText(JSON.stringify(this.record), true), { encoding: "utf8", mode: 0o600 });
-    renameSync(temp, file);
+    try {
+      writeFileSync(temp, credentialFileText(JSON.stringify(this.record), true), { encoding: "utf8", mode: 0o600 });
+      renameSync(temp, file);
+    } catch (error) {
+      try { rmSync(temp, { force: true }); } catch { /* Preserve the original failure. */ }
+      throw error;
+    }
+  }
+
+  /** Explicit, user-approved recovery. Preserve old ciphertext before reset. */
+  repairStorage(): void {
+    this.ensureLoaded();
+    if (!this.storageIssue) return;
+    const file = this.deps.storageFile;
+    if (existsSync(file)) {
+      renameSync(file, file + ".recovery-" + randomBytes(8).toString("hex"));
+    }
+    this.record = { hostId: "urn:uuid:" + randomUUID() };
+    this.storageIssue = false;
+    this.lastFailure = undefined;
   }
 
   status(): ChatGptConnection {
+    this.ensureLoaded();
+    if (this.storageIssue) return {
+      connected: false, sharing: false, storageRecoveryNeeded: true,
+      description: "Saved ChatGPT credentials are unreadable. Back up and reset them in settings.",
+    };
     const c = this.record.credentials;
     if (!c) return { connected: false, sharing: false,
       description: "Sign in with ChatGPT to use your plan.", lastFailure: this.lastFailure };
@@ -261,6 +305,8 @@ export class ChatGptAuth {
   }
 
   async signIn(openBrowser: (url: string) => Promise<void>): Promise<ChatGptConnection> {
+    this.ensureLoaded();
+    if (this.storageIssue) throw new Error("Recover the unreadable ChatGPT credential file in settings before signing in.");
     if (this.activeLogin) throw new Error("A ChatGPT sign-in is already active.");
     this.activeLogin = true;
     const state = randomBase64Url(), nonce = randomBase64Url(), verifier = randomBase64Url();
@@ -465,6 +511,8 @@ export class ChatGptAuth {
   }
 
   async accessToken(): Promise<string> {
+    this.ensureLoaded();
+    if (this.storageIssue) throw new Error("Saved ChatGPT credentials need recovery in Nox settings.");
     const c = this.record.credentials;
     if (!c || !c.scopes.includes(PERMISSION)) throw new Error("Sign in and enable ChatGPT plan access in Nox settings.");
     if (this.deps.now() < c.expiresAt - 60000) return c.accessToken;
@@ -477,24 +525,33 @@ export class ChatGptAuth {
       }));
       const updated = this.credentialFrom(result, c.clientId, c.subject, c.email, c.idToken, c);
       if (!updated.scopes.includes(PERMISSION)) throw new Error("ChatGPT plan permission was revoked. Sign in again.");
+      const previous = this.record.credentials;
       this.record.credentials = updated;
-      this.save();
+      try { this.save(); }
+      catch (error) { this.record.credentials = previous; throw error; }
       return updated.accessToken;
     })();
     try { return await this.refreshPending; }
     catch (error) {
       if (error instanceof Error && /invalid_grant|invalid_refresh_token|refresh_token_invalidated|refresh_token_expired|refresh_token_reused|token_expired/i.test(error.message)) {
-        this.record.credentials = undefined; this.save();
+        const previous = this.record.credentials;
+        this.record.credentials = undefined;
+        try { this.save(); }
+        catch (saveError) { this.record.credentials = previous; throw saveError; }
       }
       throw error;
     } finally { this.refreshPending = undefined; }
   }
 
   signOut(): void {
+    this.ensureLoaded();
     if (this.activeLogin) throw new Error("Finish sign-in before disconnecting.");
+    if (this.storageIssue) throw new Error("Recover the unreadable ChatGPT credential file first.");
+    const previous = this.record.credentials;
     this.record.credentials = undefined;
     // Retain the issued client ID to let the same user reauthorize without a new registration.
-    this.save();
+    try { this.save(); }
+    catch (error) { this.record.credentials = previous; throw error; }
   }
 
   dispose(): void { this.listener?.close(); }
