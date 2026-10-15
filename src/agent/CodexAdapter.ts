@@ -236,7 +236,7 @@ export class CodexAdapter implements AgentAdapter {
     conversationId?: string): AsyncIterable<AgentStreamEvent> {
     const state: CodexProtocolState = { conversationId, messages: new Map(), completed: false };
     const decoder = new StringDecoder("utf8");
-    let buffer = "", stderr = "";
+    let buffer = "";
     let closed = false;
     let exitCode: number | null = null;
     let error: Error | undefined;
@@ -251,7 +251,8 @@ export class CodexAdapter implements AgentAdapter {
       lines.push(...parts.filter((line) => line.trim()));
       wake();
     };
-    const diagnostic = (chunk: Buffer) => { stderr = (stderr + chunk.toString()).slice(-8192); };
+    // CLI diagnostics are untrusted and may expose local credentials.
+    const diagnostic = (_chunk: Buffer) => {};
     const failed = (cause: Error) => { error = cause; wake(); };
     const close = (code: number | null) => {
       buffer += decoder.end();
@@ -282,8 +283,8 @@ export class CodexAdapter implements AgentAdapter {
           continue;
         }
         if (closed) {
-          if (exitCode !== 0) yield { type: "failed", failure: codexFailure(stderr.trim() || `Agent exited with code ${exitCode}.`) };
-          else if (!state.completed) yield { type: "failed", failure: codexFailure(stderr.trim() || "Agent exited without completing the turn.", "protocol-invalid") };
+          if (exitCode !== 0) yield { type: "failed", failure: codexFailure(`Agent exited with code ${exitCode}. Check local Codex logs.`) };
+          else if (!state.completed) yield { type: "failed", failure: codexFailure("Agent exited without completing the turn. Check local Codex logs.", "protocol-invalid") };
           else yield { type: "completed", conversationId: state.conversationId };
           return;
         }

@@ -269,3 +269,20 @@ test("real process cancellation releases the CLI process", { timeout: 5000 }, as
   await stream.return?.();
   await closed;
 });
+
+test("Codex diagnostic stderr never appears in user-visible failures", async () => {
+  const secret = "Bearer TOP-SECRET-REFRESH-TOKEN";
+  const runtime = adapter(() => {
+    const child = new FakeChild();
+    queueMicrotask(() => {
+      child.stderr.emit("data", Buffer.from(secret));
+      child.exitCode = 1;
+      child.emit("close", 1);
+    });
+    return child;
+  });
+  const events = await collectEvents(runtime.send(
+    { prompt: "safe prompt", context: [] }, {}, new AbortController().signal));
+  assert.equal(events.at(-1)?.type, "failed");
+  assert.doesNotMatch(JSON.stringify(events), /TOP-SECRET-REFRESH-TOKEN/);
+});

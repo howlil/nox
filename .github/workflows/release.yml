@@ -51,6 +51,10 @@ jobs:
     if: needs.detect.outputs.prepared == 'true'
     needs: detect
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -62,6 +66,19 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm docs:check && pnpm release:check && pnpm verify
+      # Attest the exact production bytes; no attestations are issued for CI preview builds.
+      - name: Attest plugin JavaScript
+        uses: actions/attest@v4
+        with:
+          subject-path: dist/main.js
+      - name: Attest plugin CSS
+        uses: actions/attest@v4
+        with:
+          subject-path: dist/styles.css
+      - name: Attest plugin manifest
+        uses: actions/attest@v4
+        with:
+          subject-path: dist/manifest.json
       - uses: actions/upload-artifact@v4
         with:
           name: nox-community-assets
@@ -100,12 +117,21 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      attestations: read
     steps:
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with:
           name: nox-community-assets
           path: dist
+      - name: Verify build provenance before publication
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          for file in main.js styles.css manifest.json; do
+            gh attestation verify "dist/$file" --repo "$GITHUB_REPOSITORY"
+          done
       - name: Extract changelog notes for this exact version
         env:
           RELEASE_VERSION: ${{ needs.detect.outputs.version }}
