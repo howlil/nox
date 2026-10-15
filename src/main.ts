@@ -210,7 +210,7 @@ export default class NoxPlugin extends Plugin {
     });
 
     if (__NOX_DEV_BUILD__ && this.consumeDevelopmentSidebarRestore()) {
-      this.app.workspace.onLayoutReady(() => { void this.activateView(); });
+      this.app.workspace.onLayoutReady(() => { void this.activateView().catch(error => console.warn("[Nox] Sidebar restore failed", error)); });
     }
   }
 
@@ -257,7 +257,7 @@ export default class NoxPlugin extends Plugin {
     const existing = workspace.getLeavesOfType(NOX_VIEW_TYPE);
 
     if (existing.length > 0) {
-      workspace.revealLeaf(existing[0]);
+      await workspace.revealLeaf(existing[0]);
       return;
     }
 
@@ -268,7 +268,7 @@ export default class NoxPlugin extends Plugin {
       type: NOX_VIEW_TYPE,
       active: true,
     });
-    workspace.revealLeaf(leaf);
+    await workspace.revealLeaf(leaf);
   }
 
   getSettings(): NoxSettings {
