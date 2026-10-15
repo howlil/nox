@@ -366,6 +366,8 @@ export class RunLearningTurn {
           ...(context.selection ? [context.selection.file] : []),
           ...(request.sourcePath ? [request.sourcePath] : []),
         ];
+        // With no attached or selected notes, the open note is the selected source.
+        if (!selectedPaths.length && context.activeNote) selectedPaths.push(context.activeNote.path);
         const scope = resolveResearchScope(research.scope, {
           selectedPaths,
           sourceBoundPaths: program?.constraints.sourceBound
