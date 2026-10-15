@@ -1,4 +1,4 @@
-import { App, Modal, Notice, PluginSettingTab, type SettingDefinitionItem } from "obsidian";
+import { App, Modal, Notice, PluginSettingTab, Setting, type SettingDefinitionItem } from "obsidian";
 import type { NoxSettings } from "./NoxSettings";
 import { mountTokenUsageSection, type TokenUsageHost } from "./TokenUsageSection";
 import { mountProviderUsageSection, type ProviderUsageHost } from "./ProviderUsageSection";
@@ -14,10 +14,6 @@ export interface NoxSettingsHost extends TokenUsageHost, ProviderUsageHost {
   connectChatGPT(): Promise<void>;
   disconnectChatGPT(): Promise<void>;
   recoverChatGPTStorage(): void;
-  getBuildDiagnostics(): {
-    revision: string; builtAt: string; transport: string;
-    pluginDir: string; vaultDir: string;
-  };
 }
 
 /**
@@ -32,7 +28,24 @@ export class NoxSettingsTab extends PluginSettingTab {
     super(app, nox);
   }
 
+  private selectedTab: "settings" | "usage" | "token" = "settings";
+  private releaseCurrentPanel: (() => void) | null = null;
+
+  /** One Obsidian 1.13+ setting definition owns one accessible tabbed surface.
+   * Native Setting rows remain the controls for all mutable configuration.
+   */
   getSettingDefinitions(): SettingDefinitionItem[] {
+    return [{
+      name: "Nox settings",
+      desc: "Agent provider, model, ChatGPT account, usage and token consumption.",
+      render: setting => this.mountSettingsSurface(setting),
+    }];
+  }
+
+  private settingsDefinitions(): Array<{
+    name: string; desc?: string; visible?: () => boolean;
+    render?: (setting: Setting) => void;
+  }> {
     return [
       {
         name: "Agent provider",
@@ -170,52 +183,74 @@ export class NoxSettingsTab extends PluginSettingTab {
             .onChange(async value => this.saveSettings({ preferredModel: value.trim() })));
         },
       },
-      {
-        type: "group",
-        heading: "Diagnostics",
-        items: [{
-          name: "Loaded plugin build",
-          desc: "Information to identify the installed runtime for support.",
-          render: setting => {
-            const build = this.nox.getBuildDiagnostics();
-            setting.setDesc((build.revision.startsWith("release/")
-              ? "Release: " + build.revision.slice(8) + " · Reproducible build"
-              : "Git: " + build.revision + " · Built: " + build.builtAt) +
-              " · Transport: " + build.transport +
-              " · Vault: " + build.vaultDir + " · Plugin: " + build.pluginDir);
-            setting.addButton(button => button
-              .setButtonText("Copy build diagnostic")
-              .onClick(async () => {
-                const report = "NOX loaded build: revision=" + build.revision +
-                  "; builtAt=" + build.builtAt + "; transport=" + build.transport +
-                  "; vault=" + build.vaultDir + "; plugin=" + build.pluginDir;
-                try {
-                  await navigator.clipboard.writeText(report);
-                  new Notice("NOX build diagnostic copied.");
-                } catch { new Notice("Could not copy NOX build diagnostic."); }
-              }));
-          },
-        }],
-      },
-      {
-        type: "page",
-        name: "Usage",
-        desc: "Provider usage and account limits.",
-        items: [{
-          name: "Provider usage",
-          render: setting => mountProviderUsageSection(setting.controlEl, this.nox),
-        }],
-      },
-      {
-        type: "page",
-        name: "Token",
-        desc: "Local token consumption across models.",
-        items: [{
-          name: "Token usage",
-          render: setting => mountTokenUsageSection(setting.controlEl, this.nox),
-        }],
-      },
     ];
+  }
+
+  private mountSettingsSurface(setting: Setting): void {
+    // Native SettingsTab.update() re-renders the definition: release any
+    // section that may still be receiving asynchronous quota/usage responses.
+    this.releaseCurrentPanel?.();
+    this.releaseCurrentPanel = null;
+    setting.settingEl.addClass("nox-settings-shell");
+    const surface = setting.controlEl.createDiv({ cls: "nox-settings-surface" });
+    const header = surface.createDiv({ cls: "nox-settings-heading" });
+    header.createEl("h2", { text: "Settings" });
+    header.createEl("p", { text: "Manage your agent runtime and review usage recorded through Nox." });
+
+    const tabs = surface.createDiv({ cls: "nox-settings-tabs",
+      attr: { role: "tablist", "aria-label": "Nox settings sections" } });
+    const panel = surface.createDiv({ cls: "nox-settings-panel",
+      attr: { role: "tabpanel", id: "nox-settings-panel", tabindex: "0" } });
+    const names = ["settings", "usage", "token"] as const;
+    const buttons: HTMLButtonElement[] = [];
+
+    const activate = (name: typeof names[number]): void => {
+      this.releaseCurrentPanel?.();
+      this.releaseCurrentPanel = null;
+      this.selectedTab = name;
+      buttons.forEach((button, index) => {
+        const active = names[index] === name;
+        button.setAttribute("aria-selected", String(active));
+        button.tabIndex = active ? 0 : -1;
+      });
+      panel.setAttribute("aria-labelledby", "nox-settings-tab-" + name);
+      panel.empty();
+      if (name === "settings") {
+        const form = panel.createDiv({ cls: "nox-settings-form" });
+        for (const definition of this.settingsDefinitions()) {
+          if (definition.visible && !definition.visible()) continue;
+          const row = new Setting(form).setName(definition.name);
+          if (definition.desc) row.setDesc(definition.desc);
+          definition.render?.(row);
+        }
+      } else if (name === "usage") {
+        this.releaseCurrentPanel = mountProviderUsageSection(panel, this.nox);
+      } else {
+        this.releaseCurrentPanel = mountTokenUsageSection(panel, this.nox);
+      }
+    };
+    names.forEach((name, index) => {
+      const button = tabs.createEl("button", {
+        cls: "nox-settings-tab",
+        text: name === "settings" ? "Settings" : name === "usage" ? "Usage" : "Token",
+        attr: { type: "button", role: "tab", id: "nox-settings-tab-" + name,
+          "aria-controls": "nox-settings-panel" },
+      });
+      button.addEventListener("click", () => activate(name));
+      button.addEventListener("keydown", event => {
+        let next = index;
+        if (event.key === "ArrowRight") next = (index + 1) % names.length;
+        else if (event.key === "ArrowLeft") next = (index + names.length - 1) % names.length;
+        else if (event.key === "Home") next = 0;
+        else if (event.key === "End") next = names.length - 1;
+        else return;
+        event.preventDefault();
+        activate(names[next]);
+        buttons[next]?.focus();
+      });
+      buttons.push(button);
+    });
+    activate(this.selectedTab);
   }
 
   private async saveSettings(update: Partial<NoxSettings>): Promise<void> {
