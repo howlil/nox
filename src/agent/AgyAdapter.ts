@@ -46,6 +46,7 @@ export interface AgyRuntimeDeps {
   homedir: typeof homedir;
   platform: NodeJS.Platform;
   env: NodeJS.ProcessEnv;
+  modelDiscoveryTimeoutMs: number;
 }
 
 const DEFAULT_RUNTIME_DEPS: AgyRuntimeDeps = {
@@ -54,6 +55,7 @@ const DEFAULT_RUNTIME_DEPS: AgyRuntimeDeps = {
   homedir,
   platform: process.platform,
   env: process.env,
+  modelDiscoveryTimeoutMs: 8_000,
 };
 
 export class AgyAdapter implements AgentAdapter {
@@ -452,7 +454,7 @@ export class AgyAdapter implements AgentAdapter {
         resolve(models);
       };
       const abort = () => finish(new Error("Model discovery cancelled."));
-      const timer = setTimeout(() => finish(new Error("Model discovery timed out.")), 8_000);
+      const timer = setTimeout(() => finish(new Error("Model discovery timed out.")), this.deps.modelDiscoveryTimeoutMs);
       child.stdout?.on("data", (chunk: Buffer) => {
         if (settled) return;
         bytes += chunk.length;
