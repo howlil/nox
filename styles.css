@@ -2406,7 +2406,7 @@
   width: auto;
   min-width: 5ch;
   min-height: 24px;
-  max-height: 80px;
+  max-height: 120px;
   height: var(--nox-input-height, auto);
   overflow-y: hidden;
   flex: 1 1 auto;
