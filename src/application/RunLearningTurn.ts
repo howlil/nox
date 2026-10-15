@@ -320,6 +320,7 @@ export class RunLearningTurn {
     let policy: Awaited<ReturnType<PolicyPort["load"]>>;
     let state: Awaited<ReturnType<LearningStatePort["load"]>>;
     let program: LearningProgram | undefined;
+    let selectedSkill: { path: string; content: string } | null = null;
 
     try {
       const refs = [...request.explicitContext];
@@ -362,6 +363,17 @@ export class RunLearningTurn {
         researchResult = await this.contexts.searchKnowledge(researchQuery, {
           limit: 8, allowedPaths: program?.constraints.sourceBound ? program.constraints.sourcePaths : undefined,
         });
+      }
+      // Optional vault-authored skills are contextual material, never scope authority.
+      // Strict locked practice and source-bound programs keep their original isolation.
+      if (!strictPractice && !program?.constraints.sourceBound && this.policies.loadSkill) {
+        const skillKind = researchQuery !== null ? "research"
+          : request.action === "review" ? "review"
+          : request.action === "explain" ? "teaching"
+          : request.action === "practice" && program && !activePracticeTurn &&
+              chooseNextActivity(program, state.evidence).kind === "diagnostic"
+            ? "assessment" : undefined;
+        if (skillKind) selectedSkill = await this.policies.loadSkill(skillKind);
       }
     } catch (error) {
       if (this.activeTurn === activeTurn) this.activeTurn = null;
@@ -450,6 +462,9 @@ export class RunLearningTurn {
       visible = [...selected, ...snippets, ...explicitSources, ...ambient];
     }
     const system: AgentContext[] = [];
+    if (selectedSkill?.content.trim()) {
+      system.push({ type: "note", file: selectedSkill.path, content: selectedSkill.content });
+    }
 
     if (policy.rawInstructions && !program?.constraints.sourceBound) {
       const alreadyIncluded = visible.some(

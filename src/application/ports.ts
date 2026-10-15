@@ -63,6 +63,10 @@ export interface RuntimeSettingsWrite {
   updateModel?: boolean;
   updateData?: (current: Record<string, unknown>) => Record<string, unknown>;
 }
-export interface PolicyPort { load(): Promise<LearningPolicy>; }
+export type LearningSkillKind = "assessment" | "teaching" | "review" | "research";
+export interface PolicyPort {
+  load(): Promise<LearningPolicy>;
+  loadSkill?(kind: LearningSkillKind): Promise<{ path: string; content: string } | null>;
+}
 export interface MutationPort { apply(proposal: EditProposal, mutableFile?: string): Promise<ApplyResult>; }
 export interface LearningStatePort { load(): Promise<LearningState>; save(state: LearningState): Promise<void>; }
