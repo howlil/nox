@@ -37,7 +37,7 @@ export class NoxSettingsTab extends PluginSettingTab {
   getSettingDefinitions(): SettingDefinitionItem[] {
     return [{
       name: "Nox settings",
-      desc: "Agent provider, model, ChatGPT account, usage and token consumption.",
+      desc: "Agent provider, agent executable, preferred model, ChatGPT account, provider usage and token usage.",
       render: setting => this.mountSettingsSurface(setting),
     }];
   }
