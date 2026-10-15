@@ -2,7 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { createHash } from "node:crypto";
 
-export const NOX_PLUGIN_ID = "nox-obsidian";
+export const NOX_PLUGIN_ID = "nox";
 export const REQUIRED_DEV_ARTIFACTS = ["manifest.json", "styles.css", "main.js"];
 
 export function validateDevVault(vaultPath) {
