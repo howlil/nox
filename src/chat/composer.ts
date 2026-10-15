@@ -281,7 +281,8 @@ export class NoxComposer {
 
   syncInputLayout(): void {
     const lineHeight = Number.parseFloat(getComputedStyle(this.input).lineHeight) || 20;
-    const maxHeight = 120;
+    // Keep the measured/scroll threshold aligned with .nox-input max-height in CSS.
+    const maxHeight = 80;
     const hasVisibleChips = [this.contextRow, this.intentEl, this.attachmentsEl]
       .some((row) => !row.hasClass("nox-hidden"));
 
