@@ -54,3 +54,23 @@ test("menu state wraps active rows and exposes the active descendant", () => {
   assert.equal(trigger.attributes.get("aria-expanded"), "false");
   assert.equal(trigger.attributes.has("aria-activedescendant"), false);
 });
+
+test("model picker opens on selected index before rows are rendered", () => {
+  const state = new NoxMenuState();
+  const trigger = createTrigger();
+  state.openAt(2);
+  state.setRows([createRow("model-a"), createRow("model-b"), createRow("model-c")]);
+
+  assert.equal(state.activeIndex, 2);
+  state.syncTrigger(trigger, "nox-model-menu");
+  assert.equal(trigger.attributes.get("aria-activedescendant"), "model-c");
+
+  // ArrowUp changes virtual focus only; choosing a model remains a separate action.
+  state.move(-1);
+  state.syncTrigger(trigger, "nox-model-menu");
+  assert.equal(trigger.attributes.get("aria-activedescendant"), "model-b");
+
+  state.close();
+  state.syncTrigger(trigger, "nox-model-menu");
+  assert.equal(trigger.attributes.has("aria-activedescendant"), false);
+});
