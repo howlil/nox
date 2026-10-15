@@ -4,30 +4,31 @@ import type { NoxCardSpec, NoxChartSpec, NoxFlowSpec } from "./response-spec";
 
 const NS = "http://www.w3.org/2000/svg";
 
-function el<K extends keyof HTMLElementTagNameMap>(tag: K, className?: string): HTMLElementTagNameMap[K] {
-  const node = document.createElement(tag);
+function el<K extends keyof HTMLElementTagNameMap>(doc: Document, tag: K, className?: string): HTMLElementTagNameMap[K] {
+  const node = doc.createElement(tag);
   if (className) node.className = className;
   return node;
 }
-function svgEl(tag: string, attrs: Record<string, string> = {}): SVGElement {
-  const node = document.createElementNS(NS, tag);
+function svgEl(doc, doc: Document, tag: string, attrs: Record<string, string> = {}): SVGElement {
+  const node = doc.createElementNS(NS, tag);
   for (const [key, value] of Object.entries(attrs)) node.setAttribute(key, value);
   return node;
 }
 function heading(root: HTMLElement, title: string, caption?: string): void {
-  const top = el("div", "nox-rich-heading");
-  const label = el("strong", "nox-rich-title");
+  const doc = root.ownerDocument;
+  const top = el(doc, "div", "nox-rich-heading");
+  const label = el(doc, "strong", "nox-rich-title");
   label.textContent = title;
   top.append(label);
   root.append(top);
   if (caption) {
-    const description = el("p", "nox-rich-caption");
+    const description = el(doc, "p", "nox-rich-caption");
     description.textContent = caption;
     root.append(description);
   }
 }
-function icon(name: string): HTMLElement {
-  const node = el("span", "nox-rich-icon");
+function icon(doc: Document, name: string): HTMLElement {
+  const node = el(doc, "span", "nox-rich-icon");
   setNoxIcon(node, name);
   node.setAttribute("aria-hidden", "true");
   return node;
@@ -40,34 +41,34 @@ const STATUS_ICON: Record<NonNullable<NoxCardSpec["items"][number]["status"]>, s
   error: "x-circle",
 };
 
-export function renderNoxCard(spec: NoxCardSpec): HTMLElement {
-  const root = el("section", "nox-visual nox-rich-card nox-rich-card--" + spec.kind);
+export function renderNoxCard(spec: NoxCardSpec, doc: Document = document): HTMLElement {
+  const root = el(doc, "section", "nox-visual nox-rich-card nox-rich-card--" + spec.kind);
   root.setAttribute("aria-label", spec.title);
   heading(root, spec.title, spec.description);
   if (spec.kind === "status-table") {
-    const scroll = el("div", "nox-response-table-scroll");
+    const scroll = el(doc, "div", "nox-response-table-scroll");
     scroll.setAttribute("role", "region");
     scroll.setAttribute("aria-label", spec.title + " table");
     scroll.tabIndex = 0;
-    const table = el("table", "nox-rich-status-table");
-    const thead = el("thead"), tr = el("tr");
+    const table = el(doc, "table", "nox-rich-status-table");
+    const thead = el(doc, "thead"), tr = el(doc, "tr");
     for (const name of ["Item", "Description", "Status"]) {
-      const th = el("th");
+      const th = el(doc, "th");
       th.scope = "col";
       th.textContent = name;
       tr.append(th);
     }
     thead.append(tr);
     table.append(thead);
-    const tbody = el("tbody");
+    const tbody = el(doc, "tbody");
     for (const entry of spec.items) {
-      const row = el("tr");
-      const name = el("td"), detail = el("td"), status = el("td", "nox-rich-status");
+      const row = el(doc, "tr");
+      const name = el(doc, "td"), detail = el(doc, "td"), status = el(doc, "td", "nox-rich-status");
       name.textContent = entry.label;
       detail.textContent = entry.detail ?? "";
       status.dataset.status = entry.status ?? "pending";
-      if (entry.status) status.append(icon(STATUS_ICON[entry.status]));
-      const label = el("span");
+      if (entry.status) status.append(icon(doc, STATUS_ICON[entry.status]));
+      const label = el(doc, "span");
       label.textContent = String(entry.value);
       status.append(label);
       row.append(name, detail, status);
@@ -77,23 +78,23 @@ export function renderNoxCard(spec: NoxCardSpec): HTMLElement {
     scroll.append(table);
     root.append(scroll);
   } else {
-    const grid = el("div", "nox-rich-metrics");
+    const grid = el(doc, "div", "nox-rich-metrics");
     for (const entry of spec.items) {
-      const item = el("div", "nox-rich-metric");
-      const label = el("span", "nox-rich-metric-label");
+      const item = el(doc, "div", "nox-rich-metric");
+      const label = el(doc, "span", "nox-rich-metric-label");
       label.textContent = entry.label;
-      const main = el("div", "nox-rich-metric-value");
-      const value = el("strong");
+      const main = el(doc, "div", "nox-rich-metric-value");
+      const value = el(doc, "strong");
       value.textContent = String(entry.value);
       main.append(value);
       if (entry.unit) {
-        const unit = el("span", "nox-rich-metric-unit");
+        const unit = el(doc, "span", "nox-rich-metric-unit");
         unit.textContent = entry.unit;
         main.append(unit);
       }
       item.append(label, main);
       if (entry.detail) {
-        const detail = el("span", "nox-rich-metric-detail");
+        const detail = el(doc, "span", "nox-rich-metric-detail");
         detail.textContent = entry.detail;
         item.append(detail);
       }
@@ -121,51 +122,51 @@ function wrapLabel(text: string): string[] {
   return lines;
 }
 
-export function renderNoxFlow(spec: NoxFlowSpec): HTMLElement {
+export function renderNoxFlow(spec: NoxFlowSpec, doc: Document = document): HTMLElement {
   const layout = layoutNoxFlow(spec);
-  const root = el("section", "nox-visual nox-rich-flow");
+  const root = el(doc, "section", "nox-visual nox-rich-flow");
   root.setAttribute("aria-label", spec.title ?? "Top-down flow diagram");
   heading(root, spec.title ?? "Flow diagram");
-  const viewport = el("div", "nox-rich-flow-viewport");
+  const viewport = el(doc, "div", "nox-rich-flow-viewport");
   viewport.style.setProperty("--nox-flow-width", layout.width + "px");
   viewport.tabIndex = 0;
   viewport.setAttribute("role", "region");
   viewport.setAttribute("aria-label", "Scroll vertically to inspect all diagram steps");
-  const svg = svgEl("svg", {
+  const svg = svgEl(doc, "svg", {
     viewBox: `0 0 ${layout.width} ${layout.height}`,
     width: String(layout.width), height: String(layout.height),
     role: "img", "aria-label": `${layout.nodes.length} steps, ${layout.edges.length} connections. Connections listed below.`,
   });
   svg.classList.add("nox-rich-flow-svg");
-  const defs = svgEl("defs");
+  const defs = svgEl(doc, "defs");
   const markerId = "nox-flow-arrow-" + crypto.randomUUID();
-  const marker = svgEl("marker", {
+  const marker = svgEl(doc, "marker", {
     id: markerId, viewBox: "0 0 10 10", refX: "9", refY: "5",
     markerWidth: "6", markerHeight: "6", orient: "auto-start-reverse",
   });
-  marker.append(svgEl("path", { d: "M 0 0 L 10 5 L 0 10 z", class: "nox-flow-arrow" }));
+  marker.append(svgEl(doc, "path", { d: "M 0 0 L 10 5 L 0 10 z", class: "nox-flow-arrow" }));
   defs.append(marker);
   svg.append(defs);
   for (const edge of layout.edges) {
-    const path = svgEl("path", { d: edge.path, class: "nox-flow-edge",
+    const path = svgEl(doc, "path", { d: edge.path, class: "nox-flow-edge",
       "marker-end": `url(#${markerId})` });
-    const title = svgEl("title");
+    const title = svgEl(doc, "title");
     title.textContent = edge.from + " → " + edge.to + (edge.label ? ": " + edge.label : "");
     path.append(title);
     svg.append(path);
   }
   for (const node of layout.nodes) {
-    const group = svgEl("g", { class: "nox-flow-node", "data-kind": node.kind ?? "default" });
-    const rect = svgEl("rect", {
+    const group = svgEl(doc, "g", { class: "nox-flow-node", "data-kind": node.kind ?? "default" });
+    const rect = svgEl(doc, "rect", {
       x: String(node.x), y: String(node.y), width: String(node.width),
       height: String(node.height), rx: "9",
     });
-    const title = svgEl("title");
+    const title = svgEl(doc, "title");
     title.textContent = node.label;
     group.append(rect, title);
     const lines = wrapLabel(node.label);
     for (const [index, line] of lines.entries()) {
-      const text = svgEl("text", {
+      const text = svgEl(doc, "text", {
         x: String(node.x + node.width / 2),
         y: String(node.y + node.height / 2 + (index - (lines.length - 1) / 2) * 14 + 4),
         "text-anchor": "middle",
@@ -177,11 +178,11 @@ export function renderNoxFlow(spec: NoxFlowSpec): HTMLElement {
   }
   viewport.append(svg);
   root.append(viewport);
-  const details = el("details", "nox-rich-flow-details");
-  const summary = el("summary");
+  const details = el(doc, "details", "nox-rich-flow-details");
+  const summary = el(doc, "summary");
   summary.textContent = "View steps and connections";
   details.append(summary);
-  const list = el("ol");
+  const list = el(doc, "ol");
   const incoming = new Map<string, string[]>();
   for (const edge of spec.edges) {
     const sources = incoming.get(edge.to) ?? [];
@@ -190,7 +191,7 @@ export function renderNoxFlow(spec: NoxFlowSpec): HTMLElement {
   }
   const names = new Map(spec.nodes.map(node => [node.id, node.label]));
   for (const node of layout.nodes) {
-    const li = el("li");
+    const li = el(doc, "li");
     const sources = incoming.get(node.id) ?? [];
     li.textContent = node.label + (sources.length
       ? " — from " + sources.map(id => names.get(id) ?? id).join(", ") : " — start");
@@ -202,45 +203,45 @@ export function renderNoxFlow(spec: NoxFlowSpec): HTMLElement {
 }
 
 /** Read-only proportional horizontal bars, with exact values mirrored in a data table. */
-export function renderNoxHorizontalChart(spec: NoxChartSpec): HTMLElement {
-  const root = el("section", "nox-visual nox-rich-chart");
+export function renderNoxHorizontalChart(spec: NoxChartSpec, doc: Document = document): HTMLElement {
+  const root = el(doc, "section", "nox-visual nox-rich-chart");
   root.setAttribute("aria-label", spec.title ?? "Horizontal bar chart");
   heading(root, spec.title ?? "Comparison");
-  const bars = el("div", "nox-rich-bars");
+  const bars = el(doc, "div", "nox-rich-bars");
   const max = Math.max(1, ...spec.values);
   for (const [index, label] of spec.labels.entries()) {
-    const row = el("div", "nox-rich-bar-row");
-    const name = el("span", "nox-rich-bar-label");
+    const row = el(doc, "div", "nox-rich-bar-row");
+    const name = el(doc, "span", "nox-rich-bar-label");
     name.textContent = label;
-    const track = el("div", "nox-rich-bar-track");
-    const fill = el("span", "nox-rich-bar-fill");
+    const track = el(doc, "div", "nox-rich-bar-track");
+    const fill = el(doc, "span", "nox-rich-bar-fill");
     fill.style.width = String(Math.max(0, Math.min(100, spec.values[index] / max * 100))) + "%";
     track.append(fill);
-    const value = el("span", "nox-rich-bar-value");
+    const value = el(doc, "span", "nox-rich-bar-value");
     value.textContent = spec.values[index].toLocaleString("en-US");
     row.append(name, track, value);
     bars.append(row);
   }
   root.append(bars);
-  const details = el("details", "nox-chart-data");
-  const summary = el("summary");
+  const details = el(doc, "details", "nox-chart-data");
+  const summary = el(doc, "summary");
   summary.textContent = "View data";
   details.append(summary);
-  const table = el("table");
-  const head = el("tr");
+  const table = el(doc, "table");
+  const head = el(doc, "tr");
   for (const name of ["Label", "Value"]) {
-    const th = el("th");
+    const th = el(doc, "th");
     th.textContent = name;
     th.scope = "col";
     head.append(th);
   }
-  const thead = el("thead");
+  const thead = el(doc, "thead");
   thead.append(head);
   table.append(thead);
-  const body = el("tbody");
+  const body = el(doc, "tbody");
   spec.labels.forEach((label, index) => {
-    const row = el("tr");
-    const name = el("td"), value = el("td");
+    const row = el(doc, "tr");
+    const name = el(doc, "td"), value = el(doc, "td");
     name.textContent = label;
     value.textContent = String(spec.values[index]);
     row.append(name, value);
@@ -254,9 +255,10 @@ export function renderNoxHorizontalChart(spec: NoxChartSpec): HTMLElement {
 
 /** Enhance only native Markdown tables, never mutate headings or data content. */
 export function enhanceNoxMarkdownTables(content: HTMLElement): void {
+  const doc = content.ownerDocument;
   for (const table of Array.from(content.querySelectorAll<HTMLTableElement>("table"))) {
     if (table.closest(".nox-visual") || table.closest(".nox-response-table-scroll")) continue;
-    const wrapper = el("div", "nox-response-table-scroll");
+    const wrapper = el(doc, "div", "nox-response-table-scroll");
     wrapper.tabIndex = 0;
     wrapper.setAttribute("role", "region");
     wrapper.setAttribute("aria-label", "Response table, scroll horizontally when needed");
@@ -279,7 +281,7 @@ export function enhanceNoxMarkdownTables(content: HTMLElement): void {
       const state = lookup[(td.textContent ?? "").trim().toLowerCase()];
       if (!state) continue;
       td.dataset.status = state.status;
-      const glyph = icon(state.icon);
+      const glyph = icon(doc, state.icon);
       glyph.classList.add("nox-rich-inline-status");
       td.prepend(glyph);
     }
