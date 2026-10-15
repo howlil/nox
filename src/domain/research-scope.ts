@@ -1,8 +1,5 @@
-/** Explicit vault search authority; a path is an Obsidian vault-relative path. */
-export type ResearchScope =
-  | { kind: "vault" }
-  | { kind: "selected"; paths: string[] }
-  | { kind: "folder"; path: string };
+/** Parse research scope without accessing the Obsidian runtime. */
+import type { ResearchScope } from "../types";
 
 export type RequestedResearchScope =
   | { kind: "vault" }
