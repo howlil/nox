@@ -256,7 +256,7 @@ export class NoxHistoryList {
           return;
         }
         this.closeSwipe(session.id);
-        front.style.transition = "none";
+        front.addClass("is-gesturing");
         try { front.setPointerCapture(event.pointerId); } catch { /* gesture may have ended */ }
       }
       const elapsed = Math.max(1, event.timeStamp - lastAt);
@@ -266,7 +266,7 @@ export class NoxHistoryList {
       const offset = swipeOffset(dx, startOffset);
       this.revealedId = session.id;
       this.revealDirection(item, offset >= 0 ? "leading" : "trailing", false);
-      front.style.transform = `translate3d(${offset}px, 0, 0)`;
+      front.setCssProps({ "--nox-history-swipe-x": `${offset}px` });
       event.preventDefault();
     });
 
@@ -277,7 +277,7 @@ export class NoxHistoryList {
       // Prevent a drag ending over a button from also selecting/opening the chat.
       suppressClick = true;
       window.setTimeout(() => { suppressClick = false; }, 0);
-      front.style.transition = "";
+      front.removeClass("is-gesturing");
       const dragged = startOffset + event.clientX - startX;
       const result = swipeRelease(dragged, velocityX, item.clientWidth);
       if (result.full) {
@@ -295,7 +295,7 @@ export class NoxHistoryList {
       if (pointerId !== event.pointerId) return;
       pointerId = -1;
       axis = "undecided";
-      front.style.transition = "";
+      front.removeClass("is-gesturing");
       this.closeSwipe();
     });
   }
@@ -331,8 +331,8 @@ export class NoxHistoryList {
     if (!row) return;
     const offset = side === "leading" ? HISTORY_SWIPE_LEADING :
       side === "trailing" ? -HISTORY_SWIPE_TRAILING : 0;
-    row.front.style.transition = immediate ? "none" : "";
-    row.front.style.transform = `translate3d(${offset}px, 0, 0)`;
+    row.front.toggleClass("is-gesturing", immediate);
+    row.front.setCssProps({ "--nox-history-swipe-x": `${offset}px` });
     this.revealDirection(row.item, side, true);
     if (side) this.revealedId = id;
     else if (this.revealedId === id) this.revealedId = null;
