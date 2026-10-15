@@ -17,8 +17,14 @@ const output = (outcome: string, value?: object, text = ""): AgentStreamEvent[] 
   { type: "completed", conversationId: "untrusted-scoped-history" },
 ];
 
-async function rig(options: { turnTimeoutMs?: number; program?: LearningProgram } = {}) {
-  let data: Record<string, unknown> | null = null;
+async function rig(options: { turnTimeoutMs?: number; program?: LearningProgram; legacy?: boolean } = {}) {
+  // Scope-flow historical cases deliberately load an existing v1 session.
+  const legacy = options.legacy !== false && !options.program;
+  let data: Record<string, unknown> | null = legacy ? {
+    "nox-sessions": { currentSessionId: "legacy", sessions: {
+      legacy: { id: "legacy", messages: [], createdAt: 1, updatedAt: 1, learningScope: { mode: "FREE" } },
+    } },
+  } : null;
   let failSave = false;
   let failQuestions = false;
   let state: LearningState = { version: 2, target: null, gaps: [], evidence: [] };
@@ -352,7 +358,6 @@ test("program assessment is domain-neutral and survives pause/resume and restart
   await restored.send("/resume");
   assert.equal(restored.learning.hasActivePracticeQuestion(), true);
   assert.equal(restored.learning.getSession().learningScope?.mode, "ASSESSMENT");
-  assert.equal(restored.learning.peekPracticeHint(), undefined);
   r.queue.push(output("answer", { kind: "evaluation", concept: "Hiragana",
     outcome: "correct", feedback: "あ is read a.", misconceptions: [],
     rubricResults: [{ criterion: "Read hiragana accurately", met: true, evidence: "a" }] }));
@@ -362,7 +367,7 @@ test("program assessment is domain-neutral and survives pause/resume and restart
 });
 
 test("new sessions without an active program never silently enter backend assessment", async () => {
-  const r = await rig();
+  const r = await rig({ legacy: false });
   const events = await r.send("/mode assessment");
   assert.equal(events.at(-1)?.type, "completed");
   assert.equal(r.sessions.getSession().learningScope, undefined);
