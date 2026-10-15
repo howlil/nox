@@ -105,7 +105,31 @@ session transaction via `SessionController.recordPracticeHint`. Only after
 persistence succeeds does `RunLearningTurn` mark the attempt assisted. A failed
 write cannot publish half a hint or mutate evidence eligibility.
 
-## Backend scope enforcement — 2026-10-14
+## Domain-neutral scoped programs — 2026-10-15
+
+Versioned `ProgramLearningScope` in `domain/practice/learning-scope.ts`
+binds a selected `programId` to `ASSESSMENT` / `FOCUSED` / `FREE`. The
+original unversioned `LegacyLearningScope` and serialized `scope:"backend"`
+remain compatible. `SessionStore` decodes both without remapping historical
+practice transcripts. `RunLearningTurn` gives free, legacy-backend and
+program-scoped questions distinct in-process registry identities, reconstructs
+pending questions from durable committed transcript parts, and retains strict
+single `learning-scope` output validation in both locked paths.
+
+The application's program store selects the goal and objective; prompt builder
+uses those values only as validated context. Program selection, timeboxes,
+source-bound note authorization, parse/terminal gates, and evidence recording
+remain with existing owners. Provider adapters are unchanged; program goals are
+never inferred from model or CLI. `ChatView` uses read-only program menu state
+to label the intent chip; async responses are guarded by session/program ID.
+A paused v2 scope can rebind explicitly on new assessment/focused entry; a
+locked scope cannot silently switch subjects.
+
+Integration regression for new domain-neutral sessions, v1 restart and scoped
+transcript roundtrip is required, plus real Windows Obsidian acceptance before
+Community plugin release.
+
+## Backend scope enforcement — 2026-10-14 (v1 compatibility)
 
 `domain/practice/learning-scope.ts` owns mode transitions and command meaning.
 `ChatSession` lives in `session/transcript-types.ts`, with a compatibility type
