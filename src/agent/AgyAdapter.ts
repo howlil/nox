@@ -46,6 +46,7 @@ export interface AgyRuntimeDeps {
   homedir: typeof homedir;
   platform: NodeJS.Platform;
   env: NodeJS.ProcessEnv;
+  modelDiscoveryTimeoutMs: number;
 }
 
 const DEFAULT_RUNTIME_DEPS: AgyRuntimeDeps = {
@@ -54,6 +55,7 @@ const DEFAULT_RUNTIME_DEPS: AgyRuntimeDeps = {
   homedir,
   platform: process.platform,
   env: process.env,
+  modelDiscoveryTimeoutMs: 8_000,
 };
 
 export class AgyAdapter implements AgentAdapter {
@@ -137,34 +139,38 @@ export class AgyAdapter implements AgentAdapter {
 
     return new Promise((resolve, reject) => {
       const locator = this.deps.platform === "win32" ? "where" : "which";
-      const child = this.deps.spawn(locator, ["agy"]);
-      let out = "";
+      let child: ChildProcess;
+      try {
+        child = this.deps.spawn(locator, ["agy"], {
+          windowsHide: true, shell: false, stdio: ["ignore", "pipe", "pipe"],
+        });
+      } catch {
+        reject(new Error("AGY executable discovery could not start."));
+        return;
+      }
+      let output = "";
+      let receivedBytes = 0;
       let settled = false;
-
-      const fail = () => {
+      const finish = (path?: string) => {
         if (settled) return;
         settled = true;
-        reject(
-          new Error(
-            "AGY CLI not found. Install it, restart Obsidian after changing PATH, or set AGY_PATH to the AGY executable.",
-          ),
-        );
+        clearTimeout(timer);
+        if (!path) {
+          child.kill();
+          reject(new Error("AGY CLI not found. Install it or configure its executable path."));
+        } else resolve(path);
       };
-
+      const timer = setTimeout(() => finish(), 3_000);
       child.stdout?.on("data", (data: Buffer) => {
-        out += data.toString();
+        receivedBytes += data.length;
+        if (receivedBytes > 64 * 1024) { finish(); return; }
+        output += data.toString("utf8");
       });
-      child.on("error", fail);
+      child.stderr?.on("data", () => {}); // Discard private PATH diagnostics.
+      child.on("error", () => finish());
       child.on("close", (code) => {
-        if (settled) return;
-
-        if (code === 0 && out.trim()) {
-          settled = true;
-          resolve(out.trim().split(/\r?\n/)[0]);
-          return;
-        }
-
-        fail();
+        const candidate = output.trim().split(/\r?\n/)[0];
+        finish(code === 0 && candidate ? candidate : undefined);
       });
     });
   }
@@ -409,57 +415,62 @@ export class AgyAdapter implements AgentAdapter {
     }
   }
 
-  async listModels(): Promise<AgentModel[]> {
-    const bin = await this.resolveBinary();
+  /** Catalog-only process. Errors never include untrusted stderr or model output. */
+  async listModels(signal?: AbortSignal): Promise<AgentModel[]> {
+    if (signal?.aborted) throw new Error("Model discovery cancelled.");
+    const binary = await this.resolveBinary();
+    if (signal?.aborted) throw new Error("Model discovery cancelled.");
 
     return new Promise((resolve, reject) => {
-      const child = this.deps.spawn(bin, ["models"], {
-        cwd: this.cwd,
-        windowsHide: true,
-      });
-      let out = "";
-      let err = "";
-
-      child.stdout?.on("data", (data: Buffer) => {
-        out += data.toString();
-      });
-      child.stderr?.on("data", (data: Buffer) => {
-        err += data.toString();
-      });
-      child.on("error", reject);
-      child.on("close", (code) => {
-        if (code !== 0) {
-          reject(
-            new Error(
-              err.trim() ||
-                `Failed to list AGY models (exit ${code ?? "unknown"}).`,
-            ),
-          );
+      let child: ChildProcess;
+      try {
+        child = this.deps.spawn(binary, ["models"], {
+          cwd: this.cwd, windowsHide: true, shell: false,
+          stdio: ["ignore", "pipe", "pipe"],
+        });
+      } catch {
+        reject(new Error("AGY model discovery could not start."));
+        return;
+      }
+      let output = "";
+      let bytes = 0;
+      let settled = false;
+      const finish = (error?: Error) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        signal?.removeEventListener("abort", abort);
+        if (error) {
+          child.kill();
+          reject(error);
           return;
         }
-
-        const models: AgentModel[] = out
-          .split(/\r?\n/)
-          .map((line) => line.trim())
-          .filter(Boolean)
-          .map((line) => {
-            const columns = line
-              .split(/\t+|\s{2,}/)
-              .filter(Boolean);
-
-            if (columns.length < 2) return null;
-
-            return {
-              id: columns[0].trim(),
-              name: columns.slice(1).join(" ").trim(),
-            };
-          })
-          .filter(
-            (model): model is AgentModel => model !== null,
-          );
-
+        // Parse only a bounded output produced by the selected executable.
+        const models: AgentModel[] = output.split(/\r?\n/)
+          .map(line => line.trim()).filter(Boolean)
+          .map(line => line.split(/\t+|\s{2,}/).filter(Boolean))
+          .filter(columns => columns.length >= 2)
+          .map(columns => ({ id: columns[0].trim(), name: columns.slice(1).join(" ").trim() }));
         resolve(models);
+      };
+      const abort = () => finish(new Error("Model discovery cancelled."));
+      const timer = setTimeout(() => finish(new Error("Model discovery timed out.")), this.deps.modelDiscoveryTimeoutMs);
+      child.stdout?.on("data", (chunk: Buffer) => {
+        if (settled) return;
+        bytes += chunk.length;
+        if (bytes > 256 * 1024) {
+          finish(new Error("Model catalog exceeded the response limit."));
+          return;
+        }
+        output += chunk.toString("utf8");
       });
+      // CLI diagnostics can contain private paths, account data or credentials.
+      child.stderr?.on("data", () => {});
+      child.on("error", () => finish(new Error("AGY model discovery process failed.")));
+      child.on("close", code => finish(code === 0
+        ? undefined : new Error("AGY could not list models. Check the local CLI.")));
+      signal?.addEventListener("abort", abort, { once: true });
+      if (signal?.aborted) abort();
     });
   }
 

@@ -211,3 +211,62 @@ test("agent subprocess stderr cannot leak secrets into a failure event", async (
   assert.equal(events.at(-1)?.type, "failed");
   assert.doesNotMatch(JSON.stringify(events), /TOP-SECRET-ACCESS-TOKEN/);
 });
+
+test("AGY model discovery timeout terminates an unresponsive subprocess", async () => {
+  const child = new FakeChild();
+  const adapter = new AgyAdapter(undefined, () => ({ executablePath: "/agy" }), {
+    spawn: (() => child) as never,
+    existsSync: () => true, platform: "linux", homedir: () => "/home/test",
+    env: {}, modelDiscoveryTimeoutMs: 5,
+  });
+  await assert.rejects(adapter.listModels(), /timed out/);
+  assert.equal(child.killed, true);
+});
+
+test("AGY model discovery respects cancellation after process creation", async () => {
+  const child = new FakeChild();
+  const controller = new AbortController();
+  const adapter = new AgyAdapter(undefined, () => ({ executablePath: "/agy" }), {
+    spawn: (() => child) as never,
+    existsSync: () => true, platform: "linux", homedir: () => "/home/test", env: {},
+  });
+  const discovery = adapter.listModels(controller.signal);
+  await new Promise<void>(resolve => setImmediate(resolve));
+  controller.abort();
+  await assert.rejects(discovery, /cancelled/);
+  assert.equal(child.killed, true);
+});
+
+test("AGY model discovery rejects oversized catalogs without buffering secrets", async () => {
+  const child = new FakeChild();
+  const adapter = new AgyAdapter(undefined, () => ({ executablePath: "/agy" }), {
+    spawn: (() => {
+      queueMicrotask(() => child.stdout.emit("data", Buffer.alloc(256 * 1024 + 1)));
+      return child;
+    }) as never,
+    existsSync: () => true, platform: "linux", homedir: () => "/home/test", env: {},
+  });
+  await assert.rejects(adapter.listModels(), /response limit/);
+  assert.equal(child.killed, true);
+});
+
+test("AGY catalog discovery does not propagate subprocess stderr into runtime diagnostics", async () => {
+  const child = new FakeChild();
+  const secret = "TOP-SECRET-AGY-TOKEN";
+  const adapter = new AgyAdapter(undefined, () => ({ executablePath: "/agy" }), {
+    spawn: (() => {
+      queueMicrotask(() => {
+        child.stderr.emit("data", Buffer.from(secret));
+        child.exitCode = 1;
+        child.emit("close", 1);
+      });
+      return child;
+    }) as never,
+    existsSync: () => true, platform: "linux", homedir: () => "/home/test", env: {},
+  });
+  await assert.rejects(adapter.listModels(), error => {
+    assert.ok(error instanceof Error);
+    assert.doesNotMatch(error.message, /TOP-SECRET-AGY-TOKEN/);
+    return true;
+  });
+});

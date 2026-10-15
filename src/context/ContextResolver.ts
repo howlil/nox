@@ -1,4 +1,4 @@
-import { AgentContext } from "../types";
+import { AgentContext, type ResearchScope } from "../types";
 import type { ObsidianContext } from "./ObsidianContext";
 import {
   ContextDocument,
@@ -62,7 +62,7 @@ export class ContextResolver {
     };
   }
 
-  searchKnowledge(query: string, options?: { allowedPaths?: string[]; limit?: number }): Promise<ResearchResult> {
+  searchKnowledge(query: string, options?: { allowedPaths?: string[]; scope?: ResearchScope; limit?: number }): Promise<ResearchResult> {
     return this.obsidian.searchKnowledge(query, options);
   }
 

@@ -39,10 +39,13 @@ export class AgentRuntime implements AgentRuntimePort {
     }) => Promise<void>) {}
 
   async replaceAdapter(adapter: AgentAdapter): Promise<void> {
+    // Provider changes only invalidate model state. Never execute a CLI during
+    // settings persistence or restore models from the previous provider.
+    this.discovery?.abort();
+    this.discovery = undefined;
     this.adapter = adapter;
     this.models = [];
     this.modelDiscoveryError = undefined;
-    await this.init();
   }
 
   async init(): Promise<void> {

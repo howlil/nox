@@ -37,7 +37,6 @@ declare const __NOX_LOGO_DATA_URI__: string;
 declare const __NOX_BUILD_REVISION__: string;
 declare const __NOX_BUILD_TIMESTAMP__: string;
 declare const __NOX_BUILD_TRANSPORT__: string;
-declare const __NOX_DEV_BUILD__: boolean;
 
 /**
  * Composition root.
@@ -78,10 +77,9 @@ export default class NoxPlugin extends Plugin {
       sessionStore,
     );
 
-    await Promise.all([
-      runtime.init(),
-      sessions.init(),
-    ]);
+    // Local sessions must load even if the selected CLI is absent or hung.
+    // Model discovery is performed only when the model picker is opened.
+    await sessions.init();
     await sessions.configureRuntime(this.noxSettings.provider, this.noxSettings.preferredModel || undefined);
     if (!sessions.getSession().model && this.noxSettings.preferredModel) {
       await sessions.setModel(this.noxSettings.preferredModel);
@@ -209,13 +207,9 @@ export default class NoxPlugin extends Plugin {
       },
     });
 
-    if (__NOX_DEV_BUILD__ && this.consumeDevelopmentSidebarRestore()) {
-      this.app.workspace.onLayoutReady(() => { void this.activateView().catch(error => console.warn("[Nox] Sidebar restore failed", error)); });
-    }
   }
 
   onunload(): void {
-    this.rememberDevelopmentSidebar();
     this.runtime?.dispose();
     this.quotaSync?.dispose();
     this.chatGptAuth.dispose();
@@ -229,27 +223,6 @@ export default class NoxPlugin extends Plugin {
         .finally(() => learning.dispose());
     }
     // Preserve workspace layout on plugin disable/reload; Obsidian owns leaf disposal.
-  }
-
-  private developmentSidebarKey(): string {
-    return "nox:dev-sidebar:" + this.manifest.id + ":" + (this.vaultPath ?? "unknown");
-  }
-
-  private rememberDevelopmentSidebar(): void {
-    if (!__NOX_DEV_BUILD__ || !this.app.workspace.getLeavesOfType(NOX_VIEW_TYPE).length) return;
-    try {
-      // Session-scoped intent, not a persisted preference or runtime state.
-      window.sessionStorage.setItem(this.developmentSidebarKey(), String(Date.now() + 12_000));
-    } catch { /* Storage can be unavailable; reloading must still succeed. */ }
-  }
-
-  private consumeDevelopmentSidebarRestore(): boolean {
-    try {
-      const key = this.developmentSidebarKey();
-      const value = window.sessionStorage.getItem(key);
-      window.sessionStorage.removeItem(key);
-      return value !== null && Number(value) > Date.now();
-    } catch { return false; }
   }
 
   private async activateView(): Promise<void> {
@@ -320,6 +293,8 @@ export default class NoxPlugin extends Plugin {
   }
 
   getChatGPTConnection(): ChatGptConnection { return this.chatGptAuth.status(); }
+
+  recoverChatGPTStorage(): void { this.chatGptAuth.repairStorage(); }
 
   async connectChatGPT(): Promise<void> {
     await this.chatGptAuth.signIn((url) => shell.openExternal(url));
