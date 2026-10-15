@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.1.2]
+
+### Fixes
+
+- harden agent lifecycle, OAuth recovery and scoped research
+
 ## [1.1.1]
 
 ### Fixes
