@@ -21,7 +21,7 @@ test("landing dialog CSS separates @supports with actual newline characters", ()
   const css = readFileSync("landing/src/components/arc/dialog/dialog.module.css", "utf8");
   assert.doesNotThrow(() => assertLandingDialogCss(css));
   assert.throws(
-    () => assertLandingDialogCss(String.raw`}.a{}\\n@supports (height: 100dvh) {}`),
+    () => assertLandingDialogCss(String.raw`}.a{}\n@supports (height: 100dvh) {}`),
     /literal newline escape/,
   );
 });
