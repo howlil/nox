@@ -8,7 +8,8 @@
     "build": "astro build",
     "preview": "astro preview",
     "check": "astro check",
-    "deploy": "pnpm build && wrangler deploy"
+    "deploy": "pnpm build && wrangler deploy",
+    "lint": "eslint src --max-warnings 0"
   },
   "dependencies": {
     "@astrojs/react": "^4.4.2",
@@ -26,6 +27,8 @@
     "@types/react": "^19.2.0",
     "@types/react-dom": "^19.2.0",
     "typescript": "^5.9.3",
-    "wrangler": "^4.68.0"
+    "wrangler": "^4.68.0",
+    "eslint": "^10.11.0",
+    "typescript-eslint": "^8.70.1"
   }
 }
