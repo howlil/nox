@@ -23,6 +23,24 @@ correctness, maintainability, and low regression risk.
 
 ---
 
+## Community release and public documentation rules
+
+- `docs/RELEASING.md` owns the publish process; regular feature merges must
+  never create public releases. Only a reviewed release-plan PR can trigger a
+  tag and the three installable Obsidian assets.
+- Never edit tags or published release binaries. The authoritative public ID
+  is `nox`, and package/manifest/tag must use the same `x.y.z` version.
+- Public docs start at `docs/README.md`. Keep a how-to focused on the user's
+  action; put architecture rationale in the existing canonical design files.
+- User-visible changes require docs or a stated reason why docs do not change.
+  Provider/network/privacy/file-access changes require explicit README or
+  `docs/PROVIDERS.md` disclosures in the same PR.
+- Never claim production compatibility or external-provider entitlement from
+  mocked CI. Record real desktop acceptance before approving a release PR.
+- Check `pnpm docs:check` and `pnpm release:check` alongside `pnpm verify`.
+
+---
+
 ## Canonical product context
 
 Before changing behavior, use these repository contracts:
