@@ -237,7 +237,7 @@ export class ChatView extends ItemView {
     this.transcriptSelection = new TranscriptSelectionController(root, this.thread, reference => {
       if (this.uiState === "RUNNING" ||
           reference.sourceSessionId !== this.learning.getSession().id) return;
-      if (isLockedLearningMode(this.learning.getSession().learningScope?.mode)) {
+      if (isActiveLearningScope(this.learning.getSession().learningScope)) {
         new Notice("Pause the assessment before asking about a chat quote.");
         return;
       }
