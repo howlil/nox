@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createSign, generateKeyPairSync } from "node:crypto";
@@ -174,20 +174,27 @@ test("truncated SSE response is not marked complete", async () => {
   assert.equal(events[1]?.type, "failed");
 });
 
-test("Windows credential corruption shows safe actionable error, never encoded PowerShell source", {
-  skip: process.platform !== "win32",
-}, () => {
-  const dir = mkdtempSync(join(tmpdir(), "nox-invalid-dpapi-"));
+test("unreadable credential files cannot break startup and are only reset after approval", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "nox-invalid-auth-"));
   const file = join(dir, "chatgpt-auth.json");
+  const original = process.platform === "win32" ? "invalid-dpapi-ciphertext" : "{ malformed-json";
   try {
-    writeFileSync(file, "invalid-dpapi-ciphertext", "utf8");
-    assert.throws(() => new ChatGptAuth({ storageFile: file }), (error: unknown) => {
-      assert.ok(error instanceof Error);
-      assert.match(error.message, /Windows DPAPI/);
-      assert.doesNotMatch(error.message, /-EncodedCommand|CLIXML|invalid-dpapi-ciphertext/);
-      return true;
-    });
-  } finally { rmSync(dir, { recursive: true, force: true }); }
+    writeFileSync(file, original, "utf8");
+    // Construction must not access the filesystem or fail the other providers.
+    const auth = new ChatGptAuth({ storageFile: file });
+    assert.equal(auth.status().storageRecoveryNeeded, true);
+    assert.equal(auth.status().connected, false);
+    await assert.rejects(auth.accessToken(), /recovery/);
+    await assert.rejects(auth.signIn(async () => {}), /Recover/);
+    assert.equal(readFileSync(file, "utf8"), original);
+    auth.repairStorage(); // Called only by user-confirmed settings action.
+    assert.equal(auth.status().storageRecoveryNeeded, undefined);
+    assert.equal(auth.status().connected, false);
+    const backups = readdirSync(dir).filter(name => name.startsWith("chatgpt-auth.json.recovery-"));
+    assert.equal(backups.length, 1);
+    assert.equal(readFileSync(join(dir, backups[0]), "utf8"), original);
+    auth.dispose();
+  } finally { rmSync(dir, { force: true, recursive: true }); }
 });
 
 test("browser callback never displays success when OAuth token exchange fails", async () => {
