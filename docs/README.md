@@ -24,6 +24,7 @@ Nox is an AI learning companion for Markdown notes in Obsidian desktop.
 - [Engineering boundaries](../.agents/ENGINEERING_DESIGN.md).
 - [Product behavior](../.agents/PRODUCT_DESIGN.md).
 - [Agent UI design](AGENTIC_UI_M0_M5.md).
+- [Branch triage and domain-agnostic legacy audit](BRANCH_LEGACY_AUDIT.md).
 - [Contributing](../CONTRIBUTING.md), [security reporting](../SECURITY.md), [changelog](../CHANGELOG.md).
 
 ## Writing rules
