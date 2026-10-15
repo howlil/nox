@@ -192,11 +192,15 @@ actual prompt.
 
 ## Context
 
-Backend modes reuse the intent chip and slash menu. Free is the default.
-`/mode assessment` and `/mode focused` are submitted commands. The chip shows
-`Backend · Assessment`, `Backend · Focused`, or `Backend · Paused`; its control
-prepares `/pause` or `/resume` for explicit submission. Another intent cannot
-clear the lock. The placeholder describes `/pause` as the escape route.
+Goal-based program modes reuse the intent chip and slash menu. New conversations
+start free. When a validated learning program is active, `/mode assessment` and
+`/mode focused` bind v2 scope to that program ID; the chip shows the program
+goal with Assessment, Focused or Paused. With no active program, mode entry
+offers `/plan` rather than assuming a backend course. Historical v1 sessions
+still show `Backend · Legacy Assessment`, `Backend · Legacy Focused`, or
+`Backend · Paused`, preserving their original meaning. `/pause` and
+`/resume` are explicit. Review/Edit are disabled in locked practice and cannot
+bypass the scope. Goal label lookup is read-only and session-ID-guarded.
 
 Locked responses stay behind the thinking trace until scope validation. OOS
 shows a brief plain response with the active question and `/pause`, with no
