@@ -47,7 +47,7 @@ function main() {
   const tags = git("tag", "--list").split("\n").filter(Boolean);
   const latest = latestVersionTag(tags);
   const messages = latest
-    ? git("log", latest + "..HEAD", "--no-merges", "--format=%B%x00")
+    ? git("log", latest + "..HEAD", "--no-merges", "--format=%B%x00", "--", ".", ":(exclude)landing/**")
       .split("\0").filter(Boolean)
     : [];
   process.stdout.write(recommendRelease({ current, plannedVersion, tags, messages }) + "\n");
