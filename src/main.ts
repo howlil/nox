@@ -200,7 +200,7 @@ export default class NoxPlugin extends Plugin {
       callback: async () => {
         await this.activateView();
 
-        setTimeout(() => {
+        window.setTimeout(() => {
           const leaves = this.app.workspace.getLeavesOfType(NOX_VIEW_TYPE);
           const view = leaves[0]?.view as ChatView | undefined;
           view?.focusComposer();
@@ -220,7 +220,7 @@ export default class NoxPlugin extends Plugin {
     this.chatGptAuth.dispose();
     try { await this.learning?.flushSessionTime(); }
     catch (error) { console.warn("[Nox] Final learning time checkpoint failed", error); }
-    this.app.workspace.detachLeavesOfType(NOX_VIEW_TYPE);
+    // Preserve workspace layout on plugin disable/reload; Obsidian owns leaf disposal.
     this.learning?.dispose();
   }
 
