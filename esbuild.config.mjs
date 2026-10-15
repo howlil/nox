@@ -45,6 +45,9 @@ export function createNoxBuildOptions({ production = false, onStart, onBuild } =
       __NOX_DEV_BUILD__: JSON.stringify(!production),
     },
     bundle: true,
+    // Obsidian Community installs only main.js, manifest.json and styles.css.
+    // Embed the Nox brand asset in main.js rather than fetching a fourth file.
+    loader: { ".png": "dataurl" },
     external: [
       "obsidian",
       "electron",
