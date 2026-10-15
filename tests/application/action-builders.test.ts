@@ -4,6 +4,7 @@ import {
   buildActionInstruction,
   buildPracticeEvaluationInstruction,
   buildPracticeQuestionInstruction,
+  buildProgramScopedPracticeInstruction,
 } from "../../src/application/action-builders";
 
 test("action instructions preserve each learning contract", () => {
@@ -72,4 +73,17 @@ test("visual affordances are restricted to ordinary narrative output", () => {
   assert.match(buildActionInstruction("explain"), /nox-chart/);
   assert.doesNotMatch(buildActionInstruction("review"), /html-preview/);
   assert.doesNotMatch(buildActionInstruction("edit"), /nox-chart/);
+});
+
+test("program scope uses goal and objective without the backend-only legacy policy", () => {
+  const result = buildProgramScopedPracticeInstruction({
+    mode: "ASSESSMENT", goal: "Learn Japanese N5",
+    objective: { outcome: "Recognize hiragana", rubric: ["Read common hiragana"] },
+    hasQuestion: false,
+  }, buildPracticeQuestionInstruction("Start"));
+  assert.match(result, /Learn Japanese N5/);
+  assert.match(result, /Recognize hiragana/);
+  assert.match(result, /learning-scope/);
+  assert.match(result, /learning-practice/);
+  assert.doesNotMatch(result, /backend engineering only/);
 });
