@@ -72,6 +72,17 @@ jobs:
             exit 1
           fi
 
+      - name: Upload installable assets for pre-release desktop acceptance
+        uses: actions/upload-artifact@v4
+        with:
+          name: nox-desktop-test-${{ github.sha }}
+          path: |
+            dist/main.js
+            dist/manifest.json
+            dist/styles.css
+          if-no-files-found: error
+          retention-days: 14
+
   # The Linux job cannot validate Windows PowerShell / DPAPI.
   # Run the actual local-credential OAuth roundtrip on Windows.
   windows-dpapi:
