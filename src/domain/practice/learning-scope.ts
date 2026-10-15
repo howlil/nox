@@ -75,7 +75,11 @@ export function transitionProgramLearningScope(
 ): ProgramLearningScope {
   if (!programId.trim()) throw new Error("Select a learning program first.");
   if (current && current.programId !== programId) {
-    throw new Error("This learning mode belongs to another program. Exit the mode before switching programs.");
+    if (current.mode === "FREE" && (command === "assessment" || command === "focused")) {
+      current = undefined; // An explicit new mode selection rebinds a paused, inactive scope.
+    } else {
+      throw new Error("This learning mode belongs to another program. Pause it before switching programs.");
+    }
   }
   const state: ProgramLearningScope = current ?? {
     version: 2, kind: "program", programId, mode: "FREE",
