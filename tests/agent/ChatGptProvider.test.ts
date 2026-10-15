@@ -390,3 +390,34 @@ test("stored OAuth credentials reject malformed scopes and expiry without exposi
         !error.message.includes("secret"));
   }
 });
+
+test("provider HTTP and SSE diagnostics never expose arbitrary private provider text", async () => {
+  const secret = "TOKEN_FAKE_SHOULD_NEVER_LEAK";
+  const auth = {
+    status: () => ({ sharing: true }),
+    accessToken: async () => "synthetic-access",
+  } as ChatGptAuth;
+  const sources: Array<() => Promise<Response>> = [
+    async () => new Response(JSON.stringify({ error: { message: secret, code: secret } }), {
+      status: 500, headers: { "Content-Type": "application/json" },
+    }),
+    async () => new Response('data: {"type":"response.failed","response":{"error":{"message":"' + secret + '"}}}\n\n', {
+      status: 200, headers: { "Content-Type": "text/event-stream" },
+    }),
+    async () => { throw new Error("connection failed with " + secret); },
+  ];
+  for (const response of sources) {
+    const adapter = new ChatGptAdapter(auth, { fetch: response as typeof fetch });
+    const events = await (async () => {
+      const result = [];
+      for await (const event of adapter.send(
+        { prompt: "hello", context: [] }, { model: "explicit-model" },
+        new AbortController().signal,
+      )) result.push(event);
+      return result;
+    })();
+    const failure = events.find(event => event.type === "failed");
+    assert.ok(failure && failure.type === "failed");
+    assert.doesNotMatch(JSON.stringify(failure), /TOKEN_FAKE_SHOULD_NEVER_LEAK/);
+  }
+});
