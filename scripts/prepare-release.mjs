@@ -82,6 +82,8 @@ export function prepare(bump) {
   const entry = releaseEntry(version, commits, bump === "current");
   const oldChangelog = fs.existsSync("CHANGELOG.md") ? fs.readFileSync("CHANGELOG.md","utf8") : "";
   const changelog = prependChangelog(oldChangelog, entry, version);
+  const versions = fs.existsSync("versions.json") ? JSON.parse(fs.readFileSync("versions.json", "utf8")) : {};
+  versions[version] = manifest.minAppVersion;
   manifest.version = version;
   pkg.version = version;
   // Compute all changes before writing.
@@ -89,6 +91,7 @@ export function prepare(bump) {
   fs.writeFileSync("manifest.json", JSON.stringify(manifest,null,2) + "\n");
   fs.writeFileSync("package.json", JSON.stringify(pkg,null,2) + "\n");
   fs.writeFileSync("CHANGELOG.md", changelog);
+  fs.writeFileSync("versions.json", JSON.stringify(versions, null, 2) + "\n");
   fs.writeFileSync(".release-plan.json", JSON.stringify(plan,null,2) + "\n");
   console.log("Prepared Nox release " + version + " (" + bump + ")");
   return plan;
