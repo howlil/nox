@@ -6,7 +6,7 @@ import type { AgentRuntimePort } from "../agent/AgentRuntime";
 import type { LearningEvent, LearningRequest, NoxProgramOverview } from "./learning-types";
 import type { PracticeOrigin, PracticeAnswer } from "../domain/practice/types";
 import { RunLearningTurn } from "./RunLearningTurn";
-import { isLockedLearningMode, parseScopeCommand } from "../domain/practice/learning-scope";
+import { isActiveLearningScope, isProgramLearningScope, isLockedLearningMode, parseScopeCommand } from "../domain/practice/learning-scope";
 import { parseProgramCommand } from "../domain/learning-program/commands";
 import { feasibility, objectiveProgress } from "../domain/learning-program/rules";
 import type { LearningProgramOrchestrator } from "./LearningProgramOrchestrator";
@@ -371,7 +371,14 @@ export class LearningController {
         yield { type: "failed", failure: { code: "busy", message: "Finish the active operation first." } };
         return;
       }
-      if (isLockedLearningMode(this.sessions.getSession().learningScope?.mode) &&
+      const currentScope = this.sessions.getSession().learningScope;
+      if (isProgramLearningScope(currentScope) && currentScope.mode !== "FREE" &&
+          (command.kind === "plan" || command.kind === "use-program")) {
+        yield { type: "failed", failure: { code: "busy",
+          message: "Pause the current learning mode before switching or creating a program." } };
+        return;
+      }
+      if (!isProgramLearningScope(currentScope) && isLockedLearningMode(currentScope?.mode) &&
           (command.kind === "next" || command.kind === "plan")) {
         yield { type: "failed", failure: { code: "busy",
           message: "Use /pause to leave the legacy backend-only learning lock before starting a general program." } };
@@ -518,9 +525,9 @@ export class LearningController {
         message: this.statusSyncFailure.message,
       };
     }
-    if (isLockedLearningMode(this.sessions.getSession().learningScope?.mode)) {
+    if (isActiveLearningScope(this.sessions.getSession().learningScope)) {
       return { ok: false, reason: "unauthorized",
-        message: "Backend learning is locked. Type /pause before applying a note edit." };
+        message: "Learning mode is locked. Type /pause before applying a note edit." };
     }
     if (this.turns.isRunning()) {
       return { ok: false, reason: "error",
