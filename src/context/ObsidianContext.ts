@@ -5,7 +5,7 @@ import {
   TFile,
 } from "obsidian";
 import { LocalResearchIndex, type ResearchResult } from "./LocalResearch";
-import type { ResearchScope } from "../domain/research-scope";
+import type { ResearchScope } from "../types";
 
 /**
  * Select the newest k files without sorting an entire large vault.
