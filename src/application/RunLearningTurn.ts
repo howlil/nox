@@ -27,8 +27,9 @@ import {
   buildPracticeEvaluationInstruction,
   buildPracticeQuestionInstruction,
   buildScopedPracticeInstruction,
+  buildProgramScopedPracticeInstruction,
 } from "./action-builders";
-import { isLockedLearningMode, parseScopeCommand, scopeDeflection, transitionLearningScope } from "../domain/practice/learning-scope";
+import { isLockedLearningMode, isProgramLearningScope, parseScopeCommand, scopeDeflection, transitionLearningScope, transitionProgramLearningScope } from "../domain/practice/learning-scope";
 import { toPromptLearningState } from "./learning-state-projection";
 import {
   LearningEvent,
@@ -108,8 +109,14 @@ export class RunLearningTurn {
 
   /** Reconstruct the active question from the same durable conversation transcript. */
   private practiceForSession(session: ChatSession): PracticeStateMachine {
-    const scoped = isLockedLearningMode(session.learningScope?.mode);
-    const practice = this.practices.forSession(scoped ? `${session.id}:backend` : session.id);
+    const legacy = !isProgramLearningScope(session.learningScope) &&
+      isLockedLearningMode(session.learningScope?.mode);
+    const programId = isProgramLearningScope(session.learningScope) &&
+      session.learningScope.mode !== "FREE" ? session.learningScope.programId : undefined;
+    const scoped = legacy || Boolean(programId);
+    const key = legacy ? `${session.id}:backend`
+      : programId ? JSON.stringify([session.id, "program", programId]) : session.id;
+    const practice = this.practices.forSession(key);
     if (practice.snapshot()) return practice;
     const inheritedCount = session.fork?.inheritedMessageCount ?? 0;
     for (let i = session.messages.length - 1; i >= inheritedCount; i--) {
@@ -122,7 +129,11 @@ export class RunLearningTurn {
       const parts = message.parts ?? [];
       for (let j = parts.length - 1; j >= 0; j--) {
         const part = parts[j];
-        if (part.type === "review-findings" || (part.scope === "backend") !== scoped) continue;
+        if (part.type === "review-findings") continue;
+        if (legacy ? part.scope !== "backend" : programId
+          ? part.scope !== "program" ||
+            (part.type === "practice-question" ? part.question.programId : part.evaluation.programId) !== programId
+          : part.scope === "backend" || part.scope === "program") continue;
         if (part.type === "practice-evaluation") return practice;
         if (part.type === "practice-question") {
           practice.start(part.origin);
@@ -199,44 +210,78 @@ export class RunLearningTurn {
     const scopeCommand = parseScopeCommand(request.prompt);
     if (scopeCommand) {
       try {
-        const next = transitionLearningScope(sessionAtStart.learningScope, scopeCommand);
-        const unavailableResume = scopeCommand === "resume" && next.mode === "FREE" && !next.resumeMode;
-        const question = this.practiceForSession({ ...sessionAtStart, learningScope: next }).snapshot()?.currentQuestion;
-        const reply = scopeCommand === "invalid"
+        const oldScope = sessionAtStart.learningScope;
+        const existingProgramScope = isProgramLearningScope(oldScope) ? oldScope : undefined;
+        const legacyScope = oldScope && !existingProgramScope ? oldScope : undefined;
+        let activeProgram: LearningProgram | undefined;
+        if ((existingProgramScope || (!legacyScope &&
+            (scopeCommand === "assessment" || scopeCommand === "focused"))) && this.programStore) {
+          const collection = await this.programStore.load();
+          activeProgram = collection.programs.find(item => item.id === collection.activeProgramId);
+        }
+        const wantsProgram = Boolean(existingProgramScope) || (!legacyScope &&
+          (scopeCommand === "assessment" || scopeCommand === "focused"));
+        let next = oldScope;
+        const invalid = scopeCommand === "invalid";
+        const unavailable = scopeCommand === "resume" &&
+          (!oldScope || oldScope.mode !== "FREE" || !oldScope.resumeMode);
+        let explanation: string | undefined;
+        if (!invalid && !unavailable && wantsProgram) {
+          if (!activeProgram || (existingProgramScope &&
+              existingProgramScope.programId !== activeProgram.id)) {
+            explanation = "The selected learning program is unavailable. Select a program or create one with /plan before changing learning mode.";
+          } else {
+            next = transitionProgramLearningScope(existingProgramScope, scopeCommand, activeProgram.id);
+          }
+        } else if (!invalid && !unavailable && legacyScope) {
+          next = transitionLearningScope(legacyScope, scopeCommand);
+        } else if (!invalid && !unavailable && !oldScope && scopeCommand !== "free") {
+          explanation = "Create a learning program with /plan, then start a session before entering a learning mode.";
+        }
+        const programMode = isProgramLearningScope(next);
+        const subject = programMode ? activeProgram?.goal ?? "learning program" : "backend";
+        const question = next ? this.practiceForSession({ ...sessionAtStart,
+          learningScope: next }).snapshot()?.currentQuestion : undefined;
+        const reply = invalid
           ? "Gunakan /mode assessment, /mode focused, /pause, /mode free, atau /resume."
-          : unavailableResume ? "Tidak ada mode backend yang dijeda. Gunakan /mode assessment atau /mode focused."
-          : next.mode === "FREE"
-            ? (next.resumeMode ? "Mode bebas. Pertanyaan backend disimpan; ketik /resume untuk melanjutkan."
-              : "Mode bebas. Ketik /mode assessment atau /mode focused untuk belajar backend.")
-            : `MODE: ${next.mode} · backend. ${question ? `Kembali ke pertanyaan: ${question}`
-              : "Kirim 'mulai' untuk pertanyaan backend pertama."} Ketik /pause untuk diskusi bebas.`;
-        if (scopeCommand === "invalid" || unavailableResume) {
+          : explanation ?? (unavailable
+          ? "Tidak ada mode belajar yang dijeda."
+          : !next || next.mode === "FREE"
+            ? (next?.resumeMode ? `Mode bebas. Pertanyaan ${subject} disimpan; ketik /resume untuk melanjutkan.`
+              : "Mode bebas. Gunakan /plan <goal> untuk memulai program belajar.")
+            : `MODE: ${next.mode} · ${subject}. ${question ? `Kembali ke pertanyaan: ${question}`
+              : programMode ? "Gunakan /start-session lalu /next untuk belajar." : "Kirim 'mulai' untuk pertanyaan backend pertama."} Ketik /pause untuk diskusi bebas.`);
+        if (invalid || unavailable || explanation || !next ||
+            (next === oldScope && scopeCommand === "free")) {
           if (!request.retry) await this.sessions.recordUserMessage(request.prompt, sessionAtStart.id, "ask", request.turnId);
           await this.sessions.recordAssistantMessage(reply, undefined, sessionAtStart.id);
         } else {
           await this.sessions.recordScopeChange(next, request.prompt, reply, sessionAtStart.id, request.turnId);
-          // An explicit mode transition exits ordinary Practice. The backend
-          // machine remains derived from its separately marked transcript parts.
           this.practices.reset(sessionAtStart.id);
         }
         yield { type: "response-delta", text: reply };
         yield { type: "completed" };
       } catch (error) {
         yield { type: "failed", failure: { code: "persistence-failed",
-          message: "Nox could not save the learning mode. The previous mode is still active.",
+          message: "Nox could not change the learning mode. Existing progress remains unchanged.",
           diagnostic: error instanceof Error ? error.message : String(error) } };
       } finally {
         if (this.activeTurn === activeTurn) this.activeTurn = null;
       }
       return;
     }
-    const mode = sessionAtStart.learningScope?.mode;
-    const lockedMode = isLockedLearningMode(mode) ? mode : undefined;
-    if (lockedMode) {
-      // All callers, including cards and selection shortcuts, obey the same lock.
+    const scope = sessionAtStart.learningScope;
+    const legacyLockedMode = !isProgramLearningScope(scope) && isLockedLearningMode(scope?.mode)
+      ? scope.mode : undefined;
+    const programScope = isProgramLearningScope(scope) && scope.mode !== "FREE" ? scope : undefined;
+    const lockedMode = legacyLockedMode ?? (programScope ? programScope.mode : undefined);
+    const teachingProgramTurn = Boolean(programScope && request.programActivity?.kind === "teach");
+    const strictPractice = Boolean(lockedMode) && !teachingProgramTurn;
+    if (strictPractice) {
       if (request.action === "edit" || request.action === "review") {
         try {
-          const reply = scopeDeflection(this.practiceForSession(sessionAtStart).snapshot()?.currentQuestion);
+          const reply = scopeDeflection(this.practiceForSession(sessionAtStart).snapshot()?.currentQuestion,
+            programScope ? "learning program" : undefined);
           if (!request.retry) await this.sessions.recordUserMessage(request.prompt, sessionAtStart.id, "practice", request.turnId);
           await this.sessions.recordAssistantMessage(reply, undefined, sessionAtStart.id);
           yield { type: "response-delta", text: reply };
