@@ -1,69 +1,142 @@
-name: Draft Obsidian release
+name: Publish Obsidian plugin
 
-# A pushed 0.1.0-style tag creates a DRAFT release only.
-# Review and publish the draft before submitting to community.obsidian.md.
+# Only merging a release PR changes .release-plan.json on master.
+# Ordinary code merges never create releases.
 on:
   push:
-    tags:
-      - '[0-9]*.[0-9]*.[0-9]*'
+    branches: [master]
+  workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
+concurrency:
+  group: nox-public-release
+  cancel-in-progress: false
 
 jobs:
-  release:
+  detect:
+    runs-on: ubuntu-latest
+    outputs:
+      prepared: ${{ steps.check.outputs.prepared }}
+      version: ${{ steps.check.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+      - name: Detect a merged release plan
+        id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          echo "prepared=false" >> "$GITHUB_OUTPUT"
+          if ! git rev-parse HEAD^ >/dev/null 2>&1; then exit 0; fi
+          if git diff --quiet HEAD^ HEAD -- .release-plan.json; then
+            echo "Normal merge: no release plan change."
+            exit 0
+          fi
+          node scripts/check-release.mjs
+          version="$(node -p 'JSON.parse(require("fs").readFileSync(".release-plan.json")).version')"
+          if gh release view "$version" --json isDraft --jq .isDraft 2>/dev/null | grep -qx false; then
+            echo "Already published: $version"
+            exit 0
+          fi
+          echo "prepared=true" >> "$GITHUB_OUTPUT"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+  linux:
+    if: needs.detect.outputs.prepared == 'true'
+    needs: detect
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout tagged revision
-        uses: actions/checkout@v4
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
         with:
           version: 10
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: pnpm
-
-      - name: Install reproducible dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Verify version and release tag
-        env:
-          RELEASE_TAG: ${{ github.ref_name }}
-        run: |
-          node --input-type=module <<'NODE'
-          import fs from 'node:fs';
-          const manifest = JSON.parse(fs.readFileSync('manifest.json', 'utf8'));
-          const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
-          if (!/^\d+\.\d+\.\d+$/.test(process.env.RELEASE_TAG)) {
-            throw new Error('Use an exact SemVer tag such as 0.1.0, without v prefix.');
-          }
-          if (process.env.RELEASE_TAG !== manifest.version || manifest.version !== pkg.version) {
-            throw new Error('Tag, manifest.json, and package.json versions must match.');
-          }
-          if (manifest.id !== 'nox') throw new Error('Unexpected public plugin ID.');
-          NODE
-
-      - name: Full verification and production build
-        run: pnpm verify
-
-      - name: Confirm release payload
-        run: |
-          test -s dist/main.js
-          test -s dist/manifest.json
-          test -s dist/styles.css
-
-      - name: Create draft GitHub release
-        uses: softprops/action-gh-release@v2
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm docs:check && pnpm release:check && pnpm verify
+      - uses: actions/upload-artifact@v4
         with:
-          draft: true
-          generate_release_notes: true
-          fail_on_unmatched_files: true
-          files: |
+          name: nox-community-assets
+          path: |
             dist/main.js
             dist/manifest.json
             dist/styles.css
+          if-no-files-found: error
+          retention-days: 7
+
+  windows:
+    if: needs.detect.outputs.prepared == 'true'
+    needs: detect
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Windows OAuth, DPAPI, and inference regressions
+        shell: pwsh
+        run: |
+          pnpm exec esbuild tests/agent/ChatGptProvider.test.ts --bundle --platform=node --format=esm --target=node22 --outfile=chatgpt-provider-test.mjs
+          pnpm exec esbuild tests/agent/ObsidianOAuthTransport.test.ts --bundle --platform=node --format=esm --target=node22 --outfile=obsidian-oauth-test.mjs
+          pnpm exec esbuild tests/agent/ObsidianInferenceTransport.test.ts --bundle --platform=node --format=esm --target=node22 --outfile=obsidian-inference-test.mjs
+          node --test chatgpt-provider-test.mjs obsidian-oauth-test.mjs obsidian-inference-test.mjs
+
+  release:
+    if: needs.detect.outputs.prepared == 'true'
+    needs: [detect, linux, windows]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: nox-community-assets
+          path: dist
+      - name: Extract changelog notes for this exact version
+        env:
+          RELEASE_VERSION: ${{ needs.detect.outputs.version }}
+        run: |
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          const src = fs.readFileSync('CHANGELOG.md', 'utf8');
+          const start = src.indexOf('## [' + process.env.RELEASE_VERSION + ']');
+          if (start < 0) throw new Error('Matching changelog section missing.');
+          const next = src.indexOf('\n## [', start + 4);
+          fs.writeFileSync('release-notes.md', src.slice(start, next < 0 ? undefined : next).trim() + '\n');
+          NODE
+      - name: Upload complete draft and publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_VERSION: ${{ needs.detect.outputs.version }}
+        run: |
+          set -euo pipefail
+          version="$RELEASE_VERSION"
+          if gh release view "$version" >/dev/null 2>&1; then
+            draft="$(gh release view "$version" --json isDraft --jq .isDraft)"
+            if [ "$draft" != true ]; then
+              echo "Already published; no mutation."
+              exit 0
+            fi
+            gh release upload "$version" dist/main.js dist/manifest.json dist/styles.css --clobber
+          else
+            gh release create "$version" dist/main.js dist/manifest.json dist/styles.css \
+              --title "Nox $version" --notes-file release-notes.md \
+              --target "$GITHUB_SHA" --draft
+          fi
+          assets="$(gh release view "$version" --json assets --jq '.assets[].name')"
+          for item in main.js manifest.json styles.css; do
+            grep -Fxq "$item" <<< "$assets" || { echo "::error::Missing $item"; exit 1; }
+          done
+          gh release edit "$version" --draft=false
+          echo "Published Nox $version with all three Community Directory assets."
