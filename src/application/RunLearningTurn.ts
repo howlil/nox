@@ -227,9 +227,12 @@ export class RunLearningTurn {
           (!oldScope || oldScope.mode !== "FREE" || !oldScope.resumeMode);
         let explanation: string | undefined;
         if (!invalid && !unavailable && wantsProgram) {
-          if (!activeProgram || (existingProgramScope &&
-              existingProgramScope.programId !== activeProgram.id)) {
-            explanation = "The selected learning program is unavailable. Select a program or create one with /plan before changing learning mode.";
+          if (existingProgramScope && scopeCommand === "free") {
+            next = transitionProgramLearningScope(existingProgramScope, "free", existingProgramScope.programId);
+          } else if (!activeProgram ||
+              (existingProgramScope && existingProgramScope.programId !== activeProgram.id &&
+                existingProgramScope.mode !== "FREE")) {
+            explanation = "The selected learning program is unavailable or has changed. Pause the old mode, then choose a program.";
           } else {
             next = transitionProgramLearningScope(existingProgramScope, scopeCommand, activeProgram.id);
           }
