@@ -75,11 +75,11 @@ export function setNoxIcon(element: HTMLElement, icon: IconName): void {
   svg.classList.add("nox-icon");
   svg.setAttribute("width", "16");
   svg.setAttribute("height", "16");
-  svg.style.setProperty("width", "16px", "important");
-  svg.style.setProperty("height", "16px", "important");
-  svg.style.setProperty("min-width", "16px", "important");
-  svg.style.setProperty("min-height", "16px", "important");
-  svg.style.setProperty("display", "block", "important");
+  // Scoped .nox-icon CSS owns SVG geometry.
+  // Scoped .nox-icon CSS owns SVG geometry.
+  // Scoped .nox-icon CSS owns SVG geometry.
+  // Scoped .nox-icon CSS owns SVG geometry.
+  // Scoped .nox-icon CSS owns SVG geometry.
 }
 
 export function createNoxIconButton(
