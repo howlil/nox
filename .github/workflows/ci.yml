@@ -105,3 +105,20 @@ jobs:
 
       - name: Windows DPAPI, OAuth and inference regressions
         run: node --test chatgpt-provider-test.mjs obsidian-oauth-test.mjs obsidian-inference-test.mjs
+
+  # Obsidian's own validator catches manifest/compatibility and scanner findings.
+  # Use Nox's existing pnpm pipeline for builds; avoid the validator's npm fallback.
+  community-readiness:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - name: Community Directory scanner validation
+        uses: obsidianmd/obsidian-workflows@v1
+        with:
+          build: "false"
+          lint: "false"
+          scanner-lint: "true"
+          strict: "false"
+
