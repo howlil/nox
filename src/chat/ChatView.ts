@@ -786,7 +786,7 @@ export class ChatView extends ItemView {
       });
       row.addEventListener("mousedown", (event) => event.preventDefault());
       row.addEventListener("click", () => {
-        void this.selectModel(model.id);
+        void this.selectModel(model.id).catch(error => console.warn("[Nox] Model selection failed", error));
       });
       rows.push(row);
     }
@@ -853,7 +853,7 @@ export class ChatView extends ItemView {
     if ((event.key === "Enter" || event.key === " ") && this.modelMenuState.isOpen) {
       event.preventDefault();
       const model = items[this.modelMenuState.activeIndex];
-      if (model) this.selectModel(model.id);
+      if (model) void this.selectModel(model.id).catch(error => console.warn("[Nox] Model selection failed", error));
       return;
     }
 
