@@ -289,17 +289,17 @@ export class NoxComposer {
     // expanded. This prevents the composer flickering between layouts when a
     // wrapped line fits once the input receives the expanded width.
     this.composerBox.removeClass("is-expanded");
-    this.input.style.height = "auto";
+    this.input.setCssProps({ "--nox-input-height": "auto" });
     const wrapsAtCapsuleWidth = this.input.scrollHeight > lineHeight + 4;
     const expanded = hasVisibleChips || this.input.value.includes("\n") ||
       wrapsAtCapsuleWidth;
     this.composerBox.toggleClass("is-expanded", expanded);
 
-    this.input.style.height = "auto";
-    const height = Math.min(this.input.scrollHeight, maxHeight);
-    this.input.style.height = `${Math.max(lineHeight, height)}px`;
-    this.input.style.overflowY = this.input.scrollHeight > maxHeight
-      ? "auto" : "hidden";
+    this.input.setCssProps({ "--nox-input-height": "auto" });
+    const measuredHeight = this.input.scrollHeight;
+    const height = Math.min(measuredHeight, maxHeight);
+    this.input.setCssProps({ "--nox-input-height": `${Math.max(lineHeight, height)}px` });
+    this.input.toggleClass("is-overflowing", measuredHeight > maxHeight);
   }
 
   setState({ busy, disabled, canSend }: {
