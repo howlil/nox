@@ -736,12 +736,29 @@ export class ChatView extends ItemView {
     this.modelTrigger.setAttribute("aria-label", `Learning model: ${label}`);
   }
 
+  private modelDiscoveryLoading = false;
+
+  private async discoverModels(): Promise<void> {
+    if (this.modelDiscoveryLoading) return;
+    this.modelDiscoveryLoading = true;
+    this.renderModelMenu();
+    try {
+      await this.learning.refreshModels();
+    } finally {
+      this.modelDiscoveryLoading = false;
+      await this.refreshModelList();
+    }
+  }
+
   private openModelMenu(): void {
     this.models = this.learning.getModels();
     this.closePromptMenu();
     this.modelMenuState.openAt(this.getSelectedModelIndex());
     this.syncModelTrigger();
     this.renderModelMenu();
+    if (!this.models.length && !this.learning.getModelDiscoveryError()) {
+      void this.discoverModels().catch(() => this.refreshModelList());
+    }
   }
 
   private closeModelMenu(): void {
@@ -794,7 +811,10 @@ export class ChatView extends ItemView {
     }
 
     const discoveryError = this.learning.getModelDiscoveryError();
-    if (!this.models.length && discoveryError) {
+    if (!this.models.length && this.modelDiscoveryLoading) {
+      this.modelMenuEl.createDiv({ cls: "nox-model-menu-status", text: "Discovering models…" });
+    }
+    if (!this.models.length && discoveryError && !this.modelDiscoveryLoading) {
       this.modelMenuEl.createDiv({ cls: "nox-model-menu-error", text: discoveryError });
       const retry = this.modelMenuEl.createEl("button", {
         cls: "nox-model-menu-retry",
@@ -803,8 +823,7 @@ export class ChatView extends ItemView {
       });
       retry.addEventListener("click", () => {
         retry.disabled = true;
-        void this.learning.refreshModels().then(() => this.refreshModelList())
-          .catch(() => this.refreshModelList());
+        void this.discoverModels().catch(() => this.refreshModelList());
       });
     }
     this.modelMenuState.setRows(rows);
