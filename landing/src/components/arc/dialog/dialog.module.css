@@ -34,4 +34,7 @@
   .close, .close:active { transition: none; }
   .close:active { transform: none; }
 }
-\n@supports (height: 100dvh) {\n  .content { max-height: calc(100dvh - var(--space-8)); }\n}\n
+
+@supports (height: 100dvh) {
+  .content { max-height: calc(100dvh - var(--space-8)); }
+}
