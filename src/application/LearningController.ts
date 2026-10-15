@@ -303,8 +303,14 @@ export class LearningController {
         // Release the budget before publishing a terminal event to the view.
         if (timingStarted && (event.type === "completed" || event.type === "failed" ||
             event.type === "cancelled")) {
-          await this.programs!.finishAiWait(id);
+          // A committed inference result cannot become a retryable failure
+          // because an ancillary timer checkpoint failed.
           timingStarted = false;
+          try {
+            await this.programs!.finishAiWait(id);
+          } catch {
+            console.warn("[Nox] Learning time checkpoint failed after the turn settled.");
+          }
         }
         yield event;
       }

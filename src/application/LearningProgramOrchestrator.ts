@@ -192,8 +192,12 @@ export class LearningProgramOrchestrator {
 
   async finishAiWait(runId: string): Promise<void> {
     if (this.activeAiTurnId !== runId) return;
-    await this.setPause("ai-running", false);
-    this.activeAiTurnId = undefined;
+    try {
+      await this.setPause("ai-running", false);
+    } finally {
+      // Persistent timing may need recovery, but the in-memory turn is over.
+      this.activeAiTurnId = undefined;
+    }
   }
 
   isPlanning() { return this.planning || this.writing; }

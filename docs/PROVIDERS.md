@@ -32,7 +32,7 @@ ChatGPT credentials are loaded only when needed. If the protected file cannot be
 - `/research --scope=folder:"Study Notes" question` — notes inside that vault-relative folder.
 - `/research --scope=vault question` — the existing vault search behavior.
 
-An active strict source-bound program overrides broader scopes. Switching scopes also filters cached research results. Search still enumerates Markdown file metadata through Obsidian's Vault API; it does not read file contents outside the effective scope.
+An active strict source-bound program overrides broader scopes. Switching scopes also filters cached research results. Selected/folder research additionally filters the final provider-bound note context (including ambient notes, attachments, vault policy/progress, and historical transcript history), and source-bound programs apply the same final-context restriction. User-typed prompt text is still sent verbatim. Search enumerates Markdown metadata using Obsidian's Vault API; automatically resolved ambient context may be read locally before provider filtering, so this is a provider-payload guarantee rather than a guarantee about every local Obsidian read.
 
 ## Desktop capabilities and threat boundaries
 

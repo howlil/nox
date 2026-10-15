@@ -166,19 +166,42 @@ export class CodexAdapter implements AgentAdapter {
 
   private probe(binary: string, args: string[]): Promise<string> {
     return new Promise((resolve, reject) => {
-      const child = this.deps.spawn(binary, args, { windowsHide: true, stdio: ["ignore", "pipe", "pipe"] });
+      let child: ChildProcess;
+      try {
+        child = this.deps.spawn(binary, args, {
+          windowsHide: true, shell: false, stdio: ["ignore", "pipe", "pipe"],
+        });
+      } catch {
+        reject(new Error("Codex executable check could not start."));
+        return;
+      }
       let output = "";
+      let bytes = 0;
       let settled = false;
       const finish = (error?: Error) => {
         if (settled) return;
         settled = true;
         clearTimeout(timer);
-        if (error) { child.kill(); reject(error); } else resolve(output);
+        if (error) { child.kill(); reject(error); }
+        else resolve(output);
       };
-      const timer = setTimeout(() => finish(new Error("Agent executable discovery timed out.")), 3000);
-      child.stdout?.on("data", (chunk) => { output += chunk.toString(); });
-      child.on("error", (error) => finish(error));
-      child.on("close", (code) => finish(code === 0 ? undefined : new Error(`Agent executable check failed (exit ${code}).`)));
+      const timer = setTimeout(
+        () => finish(new Error("Agent executable discovery timed out.")), 3_000,
+      );
+      child.stdout?.on("data", (chunk: Buffer) => {
+        if (settled) return;
+        bytes += chunk.length;
+        if (bytes > 64 * 1024) {
+          finish(new Error("Codex executable output exceeded the response limit."));
+          return;
+        }
+        output += chunk.toString("utf8");
+      });
+      // Never show CLI stderr in a plugin error or notice.
+      child.stderr?.on("data", () => {});
+      child.on("error", () => finish(new Error("Codex executable check failed.")));
+      child.on("close", code => finish(code === 0
+        ? undefined : new Error("Codex executable check exited unsuccessfully.")));
     });
   }
 

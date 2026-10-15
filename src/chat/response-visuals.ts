@@ -15,14 +15,14 @@ import type { IconName } from "obsidian";
 
 const SVG_NS = "http://www.w3.org/2000/svg";
 
-function element<K extends keyof HTMLElementTagNameMap>(tag: K, cls?: string): HTMLElementTagNameMap[K] {
-  const node = document.createElement(tag);
+function element<K extends keyof HTMLElementTagNameMap>(doc: Document, tag: K, cls?: string): HTMLElementTagNameMap[K] {
+  const node = doc.createElement(tag);
   if (cls) node.className = cls;
   return node;
 }
 
-function button(label: string, icon: IconName): HTMLButtonElement {
-  const node = element("button", "nox-visual-action");
+function button(doc: Document, label: string, icon: IconName): HTMLButtonElement {
+  const node = element(doc, "button", "nox-visual-action");
   node.type = "button";
   node.setAttribute("aria-label", label);
   node.title = label;
@@ -30,30 +30,31 @@ function button(label: string, icon: IconName): HTMLButtonElement {
   return node;
 }
 
-function svgNode(tag: string, attrs: Record<string, string>): SVGElement {
-  const node = document.createElementNS(SVG_NS, tag);
+function svgNode(doc: Document, tag: string, attrs: Record<string, string>): SVGElement {
+  const node = doc.createElementNS(SVG_NS, tag);
   for (const [name, value] of Object.entries(attrs)) node.setAttribute(name, value);
   return node;
 }
 
 function svgText(svg: SVGElement, x: number, y: number, value: string, anchor: string): void {
-  const label = svgNode("text", { x: String(x), y: String(y), "text-anchor": anchor,
+  const doc = svg.ownerDocument;
+  const label = svgNode(doc, "text", { x: String(x), y: String(y), "text-anchor": anchor,
     class: "nox-chart-text" });
   label.textContent = value;
   svg.appendChild(label);
 }
 
-function renderChart(spec: NoxChartSpec): HTMLElement {
-  const root = element("section", "nox-visual nox-chart");
+function renderChart(spec: NoxChartSpec, doc: Document): HTMLElement {
+  const root = element(doc, "section", "nox-visual nox-chart");
   root.setAttribute("aria-label", spec.title ?? spec.type + " chart");
 
-  const header = element("div", "nox-visual-header");
-  const title = element("span", "nox-visual-title");
+  const header = element(doc, "div", "nox-visual-header");
+  const title = element(doc, "span", "nox-visual-title");
   title.textContent = spec.title || (spec.type === "bar" ? "Bar chart" : "Line chart");
   header.appendChild(title);
   root.appendChild(header);
 
-  const svg = svgNode("svg", { viewBox: "0 0 360 190", role: "img",
+  const svg = svgNode(doc, "svg", { viewBox: "0 0 360 190", role: "img",
     "aria-label": (spec.title ?? spec.type + " chart") + "; data table follows" });
   svg.classList.add("nox-chart-svg");
   const width = 284, left = 54, top = 16, bottom = 144;
@@ -65,7 +66,7 @@ function renderChart(spec: NoxChartSpec): HTMLElement {
   for (let tick = 0; tick <= 4; tick++) {
     const value = ceiling * tick / 4;
     const yy = y(value);
-    svg.appendChild(svgNode("line", { x1: String(left), y1: String(yy),
+    svg.appendChild(svgNode(doc, "line", { x1: String(left), y1: String(yy),
       x2: String(left + width), y2: String(yy), class: "nox-chart-grid" }));
     svgText(svg, left - 8, yy + 3, Number(value.toPrecision(3)).toLocaleString("en-US"), "end");
   }
@@ -78,47 +79,47 @@ function renderChart(spec: NoxChartSpec): HTMLElement {
     svgText(svg, x, 166, caption, "middle");
     points.push(x + "," + yy);
     if (spec.type === "bar") {
-      const bar = svgNode("rect", { x: String(x - Math.min(12, step * 0.35)),
+      const bar = svgNode(doc, "rect", { x: String(x - Math.min(12, step * 0.35)),
         y: String(yy), width: String(Math.min(24, step * 0.7)),
         height: String(Math.max(0, bottom - yy)), rx: "2", class: "nox-chart-bar" });
-      const tooltip = svgNode("title", {});
+      const tooltip = svgNode(doc, "title", {});
       tooltip.textContent = spec.labels[index] + ": " + spec.values[index];
       bar.appendChild(tooltip);
       svg.appendChild(bar);
     } else {
-      const dot = svgNode("circle", { cx: String(x), cy: String(yy), r: "3.5",
+      const dot = svgNode(doc, "circle", { cx: String(x), cy: String(yy), r: "3.5",
         class: "nox-chart-dot" });
-      const tooltip = svgNode("title", {});
+      const tooltip = svgNode(doc, "title", {});
       tooltip.textContent = spec.labels[index] + ": " + spec.values[index];
       dot.appendChild(tooltip);
       svg.appendChild(dot);
     }
   }
   if (spec.type === "line") {
-    const line = svgNode("polyline", { points: points.join(" "), class: "nox-chart-line" });
+    const line = svgNode(doc, "polyline", { points: points.join(" "), class: "nox-chart-line" });
     svg.insertBefore(line, svg.querySelector(".nox-chart-dot"));
   }
   root.appendChild(svg);
 
-  const details = element("details", "nox-chart-data");
-  const summary = element("summary");
+  const details = element(doc, "details", "nox-chart-data");
+  const summary = element(doc, "summary");
   summary.textContent = "View data";
   details.appendChild(summary);
-  const table = element("table");
-  const head = element("thead");
-  const heading = element("tr");
+  const table = element(doc, "table");
+  const head = element(doc, "thead");
+  const heading = element(doc, "tr");
   for (const label of ["Label", "Value"]) {
-    const cell = element("th");
+    const cell = element(doc, "th");
     cell.textContent = label;
     heading.appendChild(cell);
   }
   head.appendChild(heading);
   table.appendChild(head);
-  const body = element("tbody");
+  const body = element(doc, "tbody");
   for (const [index, label] of spec.labels.entries()) {
-    const row = element("tr");
+    const row = element(doc, "tr");
     for (const text of [label, String(spec.values[index])]) {
-      const cell = element("td");
+      const cell = element(doc, "td");
       cell.textContent = text;
       row.appendChild(cell);
     }
@@ -131,23 +132,24 @@ function renderChart(spec: NoxChartSpec): HTMLElement {
 }
 
 function renderPreview(
-  kind: "html-preview" | "svg-preview" | "js-preview", source: string, original: HTMLPreElement,
+  kind: "html-preview" | "svg-preview" | "js-preview", source: string, original: HTMLElement,
 ): HTMLElement {
-  const root = element("section", "nox-visual nox-code-preview");
-  const header = element("div", "nox-visual-header");
-  const title = element("span", "nox-visual-title");
+  const doc = original.ownerDocument;
+  const root = element(doc, "section", "nox-visual nox-code-preview");
+  const header = element(doc, "div", "nox-visual-header");
+  const title = element(doc, "span", "nox-visual-title");
   title.textContent = kind === "svg-preview" ? "SVG preview" : kind === "js-preview" ? "JavaScript runner" : "HTML playground";
-  const controls = element("div", "nox-visual-controls");
-  const preview = button("Run preview", "play");
-  const code = button("Show source", "code-2");
-  const reset = button("Restart preview", "rotate-ccw");
+  const controls = element(doc, "div", "nox-visual-controls");
+  const preview = button(doc, "Run preview", "play");
+  const code = button(doc, "Show source", "code-2");
+  const reset = button(doc, "Restart preview", "rotate-ccw");
   code.setAttribute("aria-pressed", "true");
   preview.setAttribute("aria-pressed", "false");
   reset.hidden = true;
   controls.append(preview, code, reset);
   header.append(title, controls);
   root.appendChild(header);
-  const stage = element("div", "nox-visual-stage");
+  const stage = element(doc, "div", "nox-visual-stage");
   original.classList.add("nox-visual-source");
   root.appendChild(stage);
 
@@ -156,7 +158,7 @@ function renderPreview(
   let releaseFrame: (() => void) | null = null;
   if (!documentText) {
     preview.disabled = true;
-    const error = element("p", "nox-visual-warning");
+    const error = element(doc, "p", "nox-visual-warning");
     error.textContent = "Preview unavailable: source is empty or exceeds the 80 KB limit.";
     root.appendChild(error);
     return root;
@@ -167,7 +169,7 @@ function renderPreview(
     releaseFrame?.();
     releaseFrame = null;
     stage.replaceChildren();
-    const iframe = element("iframe", "nox-visual-frame");
+    const iframe = element(doc, "iframe", "nox-visual-frame");
     iframe.title = kind === "svg-preview" ? "Isolated SVG preview" : "Isolated code preview";
     iframe.setAttribute("sandbox", kind === "svg-preview" ? "" : "allow-scripts allow-forms");
     iframe.setAttribute("referrerpolicy", "no-referrer");
@@ -215,6 +217,7 @@ function intrinsicMermaidWidth(svg: SVGSVGElement): number {
 
 /** Obsidian owns Mermaid syntax/rendering; NOX owns responsive framing only. */
 export function enhanceNoxMermaidDiagrams(content: HTMLElement): number {
+  const doc = content.ownerDocument;
   let count = 0;
   for (const mermaid of Array.from(content.querySelectorAll<HTMLElement>(".mermaid"))) {
     if (mermaid.closest(".nox-diagram") || mermaid.closest(".nox-visual")) continue;
@@ -226,16 +229,16 @@ export function enhanceNoxMermaidDiagrams(content: HTMLElement): number {
       svg.setAttribute("viewBox", "0 0 " + width + " " + height);
     }
     const nativeWidth = intrinsicMermaidWidth(svg);
-    const root = element("section", "nox-diagram");
-    const toolbar = element("div", "nox-diagram-toolbar");
-    const viewport = element("div", "nox-diagram-viewport");
+    const root = element(doc, "section", "nox-diagram");
+    const toolbar = element(doc, "div", "nox-diagram-toolbar");
+    const viewport = element(doc, "div", "nox-diagram-viewport");
     viewport.tabIndex = 0;
     viewport.setAttribute("role", "region");
     viewport.setAttribute("aria-label", "Mermaid diagram; zoom to inspect");
-    const out = button("Zoom out", "minus");
-    const fit = button("Fit diagram", "scan");
-    const zoomIn = button("Zoom in", "plus");
-    const expand = button("Expand diagram", "maximize-2");
+    const out = button(doc, "Zoom out", "minus");
+    const fit = button(doc, "Fit diagram", "scan");
+    const zoomIn = button(doc, "Zoom in", "plus");
+    const expand = button(doc, "Expand diagram", "maximize-2");
     toolbar.append(out, fit, zoomIn, expand);
     mermaid.replaceWith(root);
     root.append(toolbar, viewport);
@@ -287,7 +290,9 @@ export function enhanceNoxMermaidDiagrams(content: HTMLElement): number {
         collapse();
       }
     });
-    const resize = new ResizeObserver(() => {
+    const ResizeObserverClass = doc.defaultView?.ResizeObserver;
+    if (!ResizeObserverClass) continue;
+    const resize = new ResizeObserverClass(() => {
       if (root.isConnected) measure();
       else resize.disconnect();
     });
@@ -300,20 +305,23 @@ export function enhanceNoxMermaidDiagrams(content: HTMLElement): number {
 
 /** Preserve native source selection; add one copy button at the top right. */
 function enhanceNoxCodeBlocks(content: HTMLElement): void {
+  const doc = content.ownerDocument;
   for (const pre of Array.from(content.querySelectorAll<HTMLPreElement>("pre"))) {
     if (pre.closest(".nox-code-block") || pre.closest(".nox-visual") ||
         pre.closest(".mermaid")) continue;
     const code = pre.querySelector("code");
     if (!code) continue;
-    const wrapper = element("section", "nox-code-block");
-    const bar = element("div", "nox-code-toolbar");
-    const copy = button("Copy code", "copy");
+    const wrapper = element(doc, "section", "nox-code-block");
+    const bar = element(doc, "div", "nox-code-toolbar");
+    const copy = button(doc, "Copy code", "copy");
     copy.addEventListener("click", () => {
-      void navigator.clipboard.writeText(code.textContent ?? "").then(() => {
+      const clipboard = copy.ownerDocument.defaultView?.navigator.clipboard;
+      if (!clipboard) return;
+      void clipboard.writeText(code.textContent ?? "").then(() => {
         copy.title = "Copied";
         copy.setAttribute("aria-label", "Copied");
         setNoxIcon(copy, "check");
-        window.setTimeout(() => {
+        copy.ownerDocument.defaultView?.setTimeout(() => {
           if (!copy.isConnected) return;
           copy.title = "Copy code";
           copy.setAttribute("aria-label", "Copy code");
@@ -332,8 +340,8 @@ function enhanceNoxCodeBlocks(content: HTMLElement): void {
     const previewId = crypto.randomUUID();
     const srcdoc = kind ? createNoxPreviewDocument(kind, source, previewId) : null;
     if (srcdoc) {
-      const run = button("Run isolated preview", "play");
-      const stage = element("div", "nox-visual-stage");
+      const run = button(doc, "Run isolated preview", "play");
+      const stage = element(doc, "div", "nox-visual-stage");
       let running = false;
       let releaseFrame: (() => void) | null = null;
       run.addEventListener("click", () => {
@@ -347,7 +355,7 @@ function enhanceNoxCodeBlocks(content: HTMLElement): void {
           setNoxIcon(run, "play");
           return;
         }
-        const iframe = element("iframe", "nox-visual-frame");
+        const iframe = element(doc, "iframe", "nox-visual-frame");
         iframe.title = "Isolated code execution";
         iframe.setAttribute("sandbox", "allow-scripts allow-forms");
         iframe.setAttribute("referrerpolicy", "no-referrer");
@@ -375,16 +383,17 @@ function enhanceNoxCodeBlocks(content: HTMLElement): void {
  * The same function is called for completed turns and restored transcripts.
  */
 export function enhanceNoxResponseVisuals(content: HTMLElement): number {
+  const doc = content.ownerDocument;
   let enhanced = 0;
   enhanceNoxMarkdownTables(content);
   for (const code of Array.from(content.querySelectorAll<HTMLElement>("pre > code"))) {
     const pre = code.parentElement;
-    if (!(pre instanceof HTMLPreElement)) continue;
+    if (!pre || pre.tagName !== "PRE") continue;
     const kind = visualKindFromClasses([...Array.from(code.classList), ...Array.from(pre.classList)]);
     if (!kind) continue;
     const source = code.textContent ?? "";
     if (source.length > MAX_VISUAL_SOURCE_CHARS) {
-      const warning = element("p", "nox-visual-warning");
+      const warning = element(doc, "p", "nox-visual-warning");
       warning.textContent = "Visual is too large; displaying its source instead.";
       pre.before(warning);
       continue;
@@ -392,32 +401,32 @@ export function enhanceNoxResponseVisuals(content: HTMLElement): number {
     if (kind === "nox-chart") {
       const chart = parseNoxChart(source);
       if (!chart) {
-        const warning = element("p", "nox-visual-warning");
+        const warning = element(doc, "p", "nox-visual-warning");
         warning.textContent = "Invalid chart data; displaying the original JSON.";
         pre.before(warning);
         continue;
       }
-      pre.replaceWith(chart.type === "horizontal-bar" ? renderNoxHorizontalChart(chart) : renderChart(chart));
+      pre.replaceWith(chart.type === "horizontal-bar" ? renderNoxHorizontalChart(chart, doc) : renderChart(chart, doc));
       enhanced++;
     } else if (kind === "nox-flow") {
       const flow = parseNoxFlow(source);
       if (!flow) {
-        const warning = element("p", "nox-visual-warning");
+        const warning = element(doc, "p", "nox-visual-warning");
         warning.textContent = "Invalid flow data; displaying the original JSON.";
         pre.before(warning);
         continue;
       }
-      pre.replaceWith(renderNoxFlow(flow));
+      pre.replaceWith(renderNoxFlow(flow, doc));
       enhanced++;
     } else if (kind === "nox-card") {
       const card = parseNoxCard(source);
       if (!card) {
-        const warning = element("p", "nox-visual-warning");
+        const warning = element(doc, "p", "nox-visual-warning");
         warning.textContent = "Invalid card data; displaying the original JSON.";
         pre.before(warning);
         continue;
       }
-      pre.replaceWith(renderNoxCard(card));
+      pre.replaceWith(renderNoxCard(card, doc));
       enhanced++;
     } else {
       const visual = renderPreview(kind, source, pre);
@@ -431,7 +440,9 @@ export function enhanceNoxResponseVisuals(content: HTMLElement): number {
   // Observe only pending diagrams, for at most three seconds, then disconnect.
   if (Array.from(content.querySelectorAll<HTMLElement>(".mermaid"))
       .some(node => !node.closest(".nox-diagram") && !node.querySelector("svg"))) {
-    const observer = new MutationObserver(() => {
+    const Observer = doc.defaultView?.MutationObserver;
+    if (!Observer) return enhanced;
+    const observer = new Observer(() => {
       if (!content.isConnected) { observer.disconnect(); return; }
       enhanceNoxMermaidDiagrams(content);
       if (!Array.from(content.querySelectorAll<HTMLElement>(".mermaid"))
@@ -440,7 +451,7 @@ export function enhanceNoxResponseVisuals(content: HTMLElement): number {
       }
     });
     observer.observe(content, { subtree: true, childList: true });
-    window.setTimeout(() => observer.disconnect(), 3000);
+    doc.defaultView?.setTimeout(() => observer.disconnect(), 3000);
   }
   enhanceNoxCodeBlocks(content);
   return enhanced;

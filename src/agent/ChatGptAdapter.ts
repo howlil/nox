@@ -42,11 +42,30 @@ export class SseDecoder {
   finish(): SseMessage[] { return this.push("\n\n"); }
 }
 
-function diagnostic(payload: unknown): string {
-  const data = payload && typeof payload === "object" ? payload as Record<string, unknown> : {};
-  const problem = data.error && typeof data.error === "object" ? data.error as Record<string, unknown> : data;
-  return typeof problem.code === "string" ? problem.code :
-    typeof problem.message === "string" ? problem.message : "ChatGPT request failed.";
+/** Provider bodies are untrusted; never surface arbitrary error.message/code strings. */
+function diagnostic(payload: unknown, status?: number): string {
+  const safeStatus = status === 401 ? "Authorization expired. Reconnect ChatGPT."
+    : status === 403 ? "ChatGPT plan permission is unavailable."
+    : status === 429 ? "Rate limit reached. Try again later."
+    : status !== undefined && status >= 500 ? "ChatGPT service is unavailable."
+    : undefined;
+  if (safeStatus) return safeStatus;
+
+  const data = payload && typeof payload === "object" && !Array.isArray(payload)
+    ? payload as Record<string, unknown> : {};
+  const problem = data.error && typeof data.error === "object" && !Array.isArray(data.error)
+    ? data.error as Record<string, unknown> : data;
+  const code = typeof problem.code === "string" ? problem.code : "";
+  const allowed: Record<string, string> = {
+    invalid_grant: "Authorization expired. Reconnect ChatGPT.",
+    invalid_scope: "Required ChatGPT permissions are unavailable.",
+    invalid_request: "ChatGPT rejected the request.",
+    rate_limit_exceeded: "Rate limit reached. Try again later.",
+    insufficient_quota: "ChatGPT quota is unavailable.",
+    server_error: "ChatGPT service is unavailable.",
+    temporarily_unavailable: "ChatGPT service is temporarily unavailable.",
+  };
+  return Object.prototype.hasOwnProperty.call(allowed, code) ? allowed[code] : "ChatGPT request failed.";
 }
 
 function failure(message: string, code: "runtime-unavailable" | "process-failed" = "process-failed"): AgentStreamEvent {
@@ -121,7 +140,8 @@ export class ChatGptAdapter implements AgentAdapter {
       });
       if (!response.ok) {
         let detail = "";
-        try { detail = diagnostic(await response.json()); } catch { /* HTTP status is sufficient */ }
+        try { detail = diagnostic(await response.json(), response.status); }
+        catch { detail = diagnostic(null, response.status); }
         yield failure("ChatGPT request failed (HTTP " + response.status + "): " + detail,
           response.status === 401 || response.status === 403 ? "runtime-unavailable" : "process-failed");
         return;
@@ -171,8 +191,16 @@ export class ChatGptAdapter implements AgentAdapter {
       else yield { type: "completed" };
     } catch (error) {
       if (signal.aborted) yield { type: "cancelled" };
-      else yield failure(error instanceof Error ? error.message : String(error),
-        /sign in|permission|oauth|credential/i.test(String(error)) ? "runtime-unavailable" : "process-failed");
+      else {
+        // Network and process errors may contain URLs, local paths or bearer
+        // tokens. Keep the full exception entirely inside the transport.
+        const authIssue = error instanceof Error &&
+          /sign in|permission|oauth|credential/i.test(error.message);
+        yield failure(authIssue
+          ? "ChatGPT authorization is unavailable. Reconnect your account."
+          : "ChatGPT transport failed. Check your connection and retry.",
+          authIssue ? "runtime-unavailable" : "process-failed");
+      }
     }
   }
 }
