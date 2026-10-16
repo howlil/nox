@@ -98,6 +98,10 @@ export interface LearningDecision {
   kind: ActivityKind;
   objective?: LearningObjective;
   reason: string;
+  /** Explicit evidence provenance for adaptive decisions. */
+  sourceEvidenceIds?: string[];
+  targetCriterionIds?: string[];
+  scaffoldLevel?: 1 | 2 | 3 | 4;
   dueAt?: number;
   minutesRemaining?: number;
 }
