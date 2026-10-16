@@ -1,11 +1,11 @@
 import type { LearningEvidence } from "../learning-state/types";
 import type { LearningDecision, LearningObjective, LearningProgram } from "./types";
 import { deriveObjectiveReadiness, objectiveEvidence, objectiveProgress,
-  type ObjectiveReadiness } from "./objective-readiness";
+  type ObjectiveReadiness, type RetentionPolicy } from "./objective-readiness";
 import { decideFeedback } from "../learner-model/feedback-policy";
 
 /** Policy configuration, not a second learning state or persisted learner preference. */
-export interface AdaptivePolicyOptions {
+export interface AdaptivePolicyOptions extends RetentionPolicy {
   /** Minimum clock distance already enforced by canonical mastery (never weaken it). */
   recallDueGraceMinutes?: number;
   /** Repeat failures before one targeted scaffold. The default is two failures. */
@@ -31,10 +31,10 @@ export function selectEligibleObjective(
   if (program.focus) {
     const focusObjective = program.objectives.find(item => item.id === program.focus?.objectiveId);
     return focusObjective && !focusObjective.deprecated
-      ? deriveObjectiveReadiness(program, focusObjective.id, evidence, now) : null;
+      ? deriveObjectiveReadiness(program, focusObjective.id, evidence, now, options) : null;
   }
   const candidates = program.objectives.filter(item => !item.deprecated)
-    .map(item => deriveObjectiveReadiness(program, item.id, evidence, now))
+    .map(item => deriveObjectiveReadiness(program, item.id, evidence, now, options))
     .filter(state => state.prerequisiteStatus === "eligible");
   const due = candidates.filter(state =>
     (state.progress.status === "mastered" || state.progress.status === "provisional") &&
@@ -124,14 +124,15 @@ export function decideFocusedLearningActivity(
     throw new Error("Focused objective is stale.");
   }
   return decideLearningActivity(program, deriveObjectiveReadiness(program, objective.id,
-    evidence, now), evidence, now, options);
+    evidence, now, options), evidence, now, options);
 }
 
 /** No eligible objective: do not thrash between completed topics before the next due recall. */
 export function nextEligibleRecallAt(program: LearningProgram,
-  evidence: readonly LearningEvidence[], now = Date.now()): number | undefined {
+  evidence: readonly LearningEvidence[], now = Date.now(),
+  options: AdaptivePolicyOptions = {}): number | undefined {
   return program.objectives.filter(item => !item.deprecated)
-    .map(item => objectiveProgress(program, item.id, [...evidence], now).dueAt)
+    .map(item => objectiveProgress(program, item.id, [...evidence], now, options).dueAt)
     .filter((due): due is number => due !== null && due > now)
     .sort((a,b)=>a-b)[0];
 }
