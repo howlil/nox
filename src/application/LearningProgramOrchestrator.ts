@@ -504,6 +504,11 @@ export class LearningProgramOrchestrator {
         const collection = await this.store.load();
         const previous = collection.programs.find(p => p.creationOperationId === operationId);
         if (previous) return previous;
+        // Activation is a global focus mutation, including onboarding approval.
+        // Paused focus is preserved and allows switching per the focus contract.
+        if (collection.programs.some(p => p.focus?.status === "active")) {
+          throw new Error("Pause or end the active focus before activating a new program.");
+        }
         const proposed = this.preparedDrafts.get(draftId);
         if (!proposed) throw new Error("The preview expired. Generate a fresh learning blueprint.");
         if (this.now() - proposed.createdAt > 15 * 60_000) {
