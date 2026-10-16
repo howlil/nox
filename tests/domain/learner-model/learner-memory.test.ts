@@ -127,5 +127,7 @@ test("relevant snapshot only includes current objective, required prerequisites,
   assert.equal(JSON.stringify(picked).includes("foreign"), false);
   assert.equal(JSON.stringify(picked).includes("unrelated"), false);
   assert.throws(() => selectRelevantLearnerState(current, projected, entries,
-    gaps, "network", { maxEpisodes: 2 }), /\b(?:never matches)\b/);
+    gaps, "unknown", { maxEpisodes: 2 }), /Unknown or deprecated/);
+  assert.deepEqual(selectRelevantLearnerState(current, projected, entries,
+    gaps, "transactions", { maxGaps: 0 }).gaps, []);
 });
