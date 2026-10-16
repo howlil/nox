@@ -53,6 +53,8 @@ export interface PracticeQuestion {
   input?: PracticeInput;
   programId?: string;
   objectiveId?: string;
+  /** Binds this pending question to the focus that created it. Optional for legacy transcripts. */
+  focusSessionId?: string;
   taskKind?: "diagnostic" | "guided-practice" | "recall" | "transfer";
 }
 
