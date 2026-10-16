@@ -47,15 +47,41 @@ export class VaultProgramStore {
     validateConstraints(program.constraints, new Date(program.createdAt));
     validateCurriculum({ kind: "curriculum", objectives: program.objectives }, program.constraints);
     if (program.focus) validateObjectiveFocus(program, program.focus);
+    const operationIds = new Set<string>();
+    let priorVersion = 1;
     for (const revision of program.curriculumRevisions ?? []) {
-      if (!revision.operationId || revision.kind !== "prerequisite-remediation" ||
+      if (!revision.operationId || operationIds.has(revision.operationId) ||
           !Number.isInteger(revision.fromVersion) || !Number.isInteger(revision.toVersion) ||
+          revision.fromVersion !== priorVersion ||
           revision.toVersion !== revision.fromVersion + 1 ||
           revision.toVersion > program.planVersion ||
-          !Array.isArray(revision.reasonEvidenceIds) || revision.reasonEvidenceIds.length < 2 ||
-          !program.objectives.some(item => item.id === revision.addedObjectiveId)) {
+          !Array.isArray(revision.reasonEvidenceIds)) {
         throw new Error("Invalid curriculum revision history.");
       }
+      operationIds.add(revision.operationId);
+      priorVersion = revision.toVersion;
+      if (revision.kind === "prerequisite-remediation") {
+        if (revision.reasonEvidenceIds.length < 2 ||
+            !program.objectives.some(item => item.id === revision.addedObjectiveId)) {
+          throw new Error("Invalid curriculum remediation history.");
+        }
+      } else if (["revise", "change-prerequisites", "deprecate"].includes(revision.kind)) {
+        if (revision.reasonEvidenceIds.length !== 0 ||
+            !revision.rationale || revision.rationale.trim().length < 8 ||
+            !revision.targetObjectiveId ||
+            !revision.before || !revision.after ||
+            revision.before.id !== revision.targetObjectiveId ||
+            revision.after.id !== revision.targetObjectiveId ||
+            !program.objectives.some(item => item.id === revision.targetObjectiveId) ||
+            revision.before.sourceRefs.join("\\0") !== revision.after.sourceRefs.join("\\0")) {
+          throw new Error("Invalid approved structural revision history.");
+        }
+      } else {
+        throw new Error("Unsupported curriculum revision kind.");
+      }
+    }
+    if (operationIds.size > 0 && priorVersion !== program.planVersion) {
+      throw new Error("Curriculum revision lineage does not match plan version.");
     }
     if (program.session) {
       const { startedAt, timeBudgetMinutes, timing } = program.session;
