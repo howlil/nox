@@ -55,7 +55,7 @@ test("migrates review evidence to material scope and removes review-only learner
     ],
   });
 
-  assert.equal(migrated.version, 2);
+  assert.equal(migrated.version, 3);
   assert.deepEqual(
     migrated.evidence.map((item) => [item.id, item.scope]),
     [
