@@ -26,6 +26,7 @@ export function proposeRemediationRevision(
   // Automatic maintenance must never prevent ending focus at the curriculum limit.
   if (program.objectives.length >= 60) return null;
   for (const objective of program.objectives) {
+    if (objective.deprecated) continue;
     if (automatic && objective.id !== automatic.objectiveId) continue;
     const rubricId = (index: number) => objective.criteria?.[index]?.id;
     const eligible = (item: LearningEvidence) =>
