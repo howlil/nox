@@ -47,6 +47,16 @@ export class VaultProgramStore {
     validateConstraints(program.constraints, new Date(program.createdAt));
     validateCurriculum({ kind: "curriculum", objectives: program.objectives }, program.constraints);
     if (program.focus) validateObjectiveFocus(program, program.focus);
+    for (const revision of program.curriculumRevisions ?? []) {
+      if (!revision.operationId || revision.kind !== "prerequisite-remediation" ||
+          !Number.isInteger(revision.fromVersion) || !Number.isInteger(revision.toVersion) ||
+          revision.toVersion !== revision.fromVersion + 1 ||
+          revision.toVersion > program.planVersion ||
+          !Array.isArray(revision.reasonEvidenceIds) || revision.reasonEvidenceIds.length < 2 ||
+          !program.objectives.some(item => item.id === revision.addedObjectiveId)) {
+        throw new Error("Invalid curriculum revision history.");
+      }
+    }
     if (program.session) {
       const { startedAt, timeBudgetMinutes, timing } = program.session;
       if (!Number.isFinite(startedAt) || startedAt < 0 ||

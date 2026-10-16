@@ -60,6 +60,14 @@ export interface FocusSession {
   pausedAt?: number;
 }
 
+export interface CurriculumRevisionRecord {
+  operationId: string;
+  fromVersion: number;
+  toVersion: number;
+  kind: "prerequisite-remediation";
+  reasonEvidenceIds: string[];
+  addedObjectiveId: string;
+}
 export interface LearningProgram {
   version: 1;
   id: string;
@@ -72,6 +80,8 @@ export interface LearningProgram {
   workspaceApproved?: boolean;
   /** v1-compatible optional lock; transcript evidence remains authoritative. */
   focus?: FocusSession;
+  /** Evidence-linked structural revisions, not a second source of truth. */
+  curriculumRevisions?: CurriculumRevisionRecord[];
   session?: LearningSession;
   sessionHistory?: Array<{ startedAt: number; endedAt: number; minutesSpent: number; activeMinutes?: number; aiWaitingMinutes?: number; objectiveActiveMinutes?: Record<string, number>; dailyActiveMs?: Record<string, number>; materialActiveMinutes?: Record<string, number> }>;
   instructionEvents?: Array<{ objectiveId: string; afterEvidenceAt: number; taughtAt: number }>;

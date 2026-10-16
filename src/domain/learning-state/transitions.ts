@@ -114,6 +114,22 @@ export function recordPracticeEvaluation(
     }
   }
 
+  // A single correct answer never resolves a misconception.
+  // Require two rubric-complete, unassisted outcomes at least 12h apart.
+  const independent = next.evidence.filter(item =>
+    item.scope === "learner" && item.type === "practice" &&
+    item.programId === input.programId && item.objectiveId === input.objectiveId &&
+    item.outcome === "correct" && !item.assisted && item.assessmentCoverage !== "single-item" &&
+    Boolean(item.rubricResults?.length) && item.rubricResults!.every(result => result.met))
+    .sort((a, b) => a.createdAt - b.createdAt);
+  const repeatVerified = independent.some(a =>
+    independent.some(b => b.createdAt - a.createdAt >= 12 * 3_600_000));
+  if (repeatVerified) {
+    for (const gap of next.gaps) {
+      if (gap.programId === input.programId && gap.objectiveId === input.objectiveId &&
+          gap.status === "improving") gap.status = "resolved";
+    }
+  }
   return next;
 }
 
