@@ -32,7 +32,9 @@ export interface ChatSession {
 export type TranscriptPart =
   | { type: "practice-question"; question: PracticeQuestion; questionId?: string; origin?: PracticeOrigin; scope?: "backend" | "program" }
   | { type: "practice-evaluation"; evaluation: PracticeEvaluation; questionId?: string;
-      operationId?: string; nextQuestionId?: string; sourcePath?: string; scope?: "backend" | "program" }
+      operationId?: string; nextQuestionId?: string; sourcePath?: string;
+      /** Time of the canonical outcome, never reconstructed from recovery time. */
+      committedAt?: number; scope?: "backend" | "program" }
   | { type: "review-findings"; findings: ReviewFinding[]; sourcePath?: string; reviewId?: string };
 
 export function findCommittedReview(
