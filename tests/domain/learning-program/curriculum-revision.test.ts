@@ -92,3 +92,18 @@ test("automatic structural replan is idempotent and never mutates focus or sourc
   assert.equal(applyCurriculumRevision(revised, proposed), revised);
   assert.equal(proposeRemediationRevision(revised, recorded, scope), null);
 });
+
+
+test("automatic remediation never blocks a full 60-objective curriculum", () => {
+  const full: LearningProgram = { ...program,
+    objectives: Array.from({ length: 60 }, (_, index) => ({
+      ...program.objectives[0], id: "objective-" + index,
+      prerequisiteIds: [], criteria: [{
+        id: "c1", description: "Explain each transformation", required: true,
+      }],
+    })),
+  };
+  assert.equal(proposeRemediationRevision(full, [], {
+    completedFocusId: "focus", objectiveId: "objective-0",
+  }), null);
+});
