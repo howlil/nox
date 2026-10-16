@@ -732,6 +732,11 @@ export class RunLearningTurn {
           "VERIFIED LEARNER CONTEXT: " + summarizeObjectiveContext(
             projectObjectiveLearnerModel(program, activeObjective.id, state.evidence, state.gaps)),
           `Activity: ${practiceAttempt ? "evaluate current answer" : decision?.kind}`,
+          ...(decision?.kind === "remediate" ? [
+            "CORRECTION: ask the learner to repair the prior failed reasoning without revealing a full solution.",
+            `Targeted criteria: ${JSON.stringify(decision.targetCriterionIds ?? [])}.`,
+            "Keep one question active; verify the learner's explanation independently.",
+          ] : []),
           "For guided practice use appropriate scaffolding; for transfer test application in a new context.",
           `Previously failed rubric criteria: ${JSON.stringify(missed)}. If remedial practice, target these first.`,
           `Source constraint: ${program.constraints.sourceBound
@@ -1068,7 +1073,8 @@ export class RunLearningTurn {
               ? { ...practiceBuffer.question, concept: objective.title, programId: program.id,
                   objectiveId: objective.id, focusSessionId: program.focus?.id,
                   taskKind: decision?.kind === "transfer" || decision?.kind === "recall" ||
-                    decision?.kind === "guided-practice" ? decision.kind : "diagnostic" as const }
+                    decision?.kind === "guided-practice" || decision?.kind === "remediate"
+                      ? "guided-practice" as const : "diagnostic" as const }
               : { ...practiceBuffer.question, programId: undefined, objectiveId: undefined };
             const questionId = crypto.randomUUID();
             await assertProgramAuthority(practiceBuffer.question.programId,
