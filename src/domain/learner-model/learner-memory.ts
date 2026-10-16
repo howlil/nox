@@ -202,9 +202,9 @@ export function selectRelevantLearnerState(
     };
   });
   const relevantIds = new Set(episodes.map(item => item.evidenceId));
-  const selectedGaps = gaps.filter(gap => gap.programId === program.id &&
+  const selectedGaps = (maxGaps === 0 ? [] : gaps.filter(gap => gap.programId === program.id &&
     gap.objectiveId === objectiveId && gap.status !== "resolved" &&
-    gap.evidenceIds.some(id => relevantIds.has(id))).slice(maxGaps === 0 ? 0 : -maxGaps)
+    gap.evidenceIds.some(id => relevantIds.has(id))).slice(-maxGaps))
     .map(gap => ({ gapId: gap.id, objectiveId, reason: gap.reason.slice(0, 240),
       evidenceIds: gap.evidenceIds.filter(id => relevantIds.has(id)).slice(-3) }));
   return {
