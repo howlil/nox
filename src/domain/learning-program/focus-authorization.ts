@@ -34,7 +34,8 @@ export function authorizeFocusIntent(
   }
   if (intent.kind === "switch-program" || intent.kind === "create-program" ||
       intent.kind === "ordinary-chat") return { allowed: false, reason: "focus-active" };
-  if (focus.chatSessionId && focus.chatSessionId !== intent.chatSessionId) {
+  if ("chatSessionId" in intent && focus.chatSessionId &&
+      focus.chatSessionId !== intent.chatSessionId) {
     return { allowed: false, reason: "wrong-chat" };
   }
   if (intent.kind === "submit-answer" &&
