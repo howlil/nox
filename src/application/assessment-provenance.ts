@@ -2,7 +2,8 @@ import type { LearningProgram } from "../domain/learning-program/types";
 import type { PracticeEvaluation } from "../domain/practice/types";
 import type { PracticeEvaluationAttempt } from "../domain/practice/PracticeStateMachine";
 
-type Evaluator = "deterministic" | "llm-review" | "verified-execution";
+// An executable grader needs a trusted sandbox receipt; this boundary cannot mint one.
+type Evaluator = "deterministic" | "llm-review";
 
 /** The application, never the provider, assigns identity and evaluator provenance. */
 export function attachAssessmentProvenance(
@@ -11,6 +12,9 @@ export function attachAssessmentProvenance(
   program: LearningProgram | undefined,
   evaluator: Evaluator,
 ): PracticeEvaluation {
+  if (evaluator !== "deterministic" && evaluator !== "llm-review") {
+    throw new Error("Verified execution requires a trusted sandbox receipt.");
+  }
   const objective = program?.objectives.find(item => item.id === attempt.objectiveId);
   if (attempt.programId && (!program || program.id !== attempt.programId || !objective)) {
     throw new Error("Cannot bind assessment to a missing learning objective.");
