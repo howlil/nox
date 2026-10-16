@@ -105,11 +105,13 @@ function makeRig(withProgram = false) {
 
   const pending: AgentStreamEvent[][] = [];
   let runtimeCalls = 0;
+  const promptInputs: string[] = [];
   const agent = {
     check: async () => ({ status: "ready" as const }),
     listModels: async () => [],
-    send: async function* () {
+    send: async function* (input: { prompt?: string }) {
       runtimeCalls++;
+      promptInputs.push(input.prompt ?? "");
       const events = pending.shift();
       if (!events) throw new Error("unexpected agent invocation");
       yield* events;
@@ -132,7 +134,10 @@ function makeRig(withProgram = false) {
           sourcePaths: [], sourceBound: false, excludedTopics: [] },
         objectives: [{ id: "atomicity", title: "Atomicity", outcome: "Explain atomicity",
           prerequisiteIds: [], estimatedMinutes: 45, rubric: ["Explain rollback"],
-          sourceRefs: [], priority: "core" as const }],
+          sourceRefs: [], priority: "core" as const },
+          { id: "network", title: "Network routing", outcome: "Explain network routing",
+            prerequisiteIds: [], estimatedMinutes: 40, rubric: ["Explain routing"],
+            sourceRefs: [], priority: "optional" as const }],
         createdAt: Date.now(), planVersion: 1,
         session: { startedAt: Date.now(), timeBudgetMinutes: 45 },
       }],
@@ -157,6 +162,7 @@ function makeRig(withProgram = false) {
     getEditedNote: () => editorBuffer,
     undoMockEditor: () => { if (undoBuffer !== null) editorBuffer = undoBuffer; },
     currentAgentCalls: () => runtimeCalls,
+    promptInputs: () => [...promptInputs],
     app,
   };
 }
