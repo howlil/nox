@@ -121,9 +121,21 @@ export function objectiveProgress(program: LearningProgram, objectiveId: string,
   const attempts = objectiveEvidence(program, objectiveId, evidence);
   if (!attempts.length) return { status: "unseen" as const, dueAt: null, attempts: 0 };
   const last = attempts[attempts.length - 1];
-  if (last.outcome !== "correct" || last.assisted || last.assessmentCoverage === "single-item") return { status: "remediate" as const, dueAt: null, attempts: attempts.length };
-  const correct = attempts.filter(e => e.outcome === "correct" && !e.assisted && e.assessmentCoverage !== "single-item");
-  const independent = correct.some(a => correct.some(b => b.createdAt - a.createdAt >= 12 * 3_600_000));
+  const rubric = program.objectives.find(item => item.id === objectiveId)?.rubric ?? [];
+  const complete = (item: LearningEvidence): boolean =>
+    rubric.length > 0 && rubric.every(criterion =>
+      item.rubricResults?.some(result => result.criterion === criterion && result.met));
+  if (last.outcome !== "correct" || last.assisted || last.assessmentCoverage === "single-item" ||
+      last.createdAt <= 0 || !complete(last)) {
+    return { status: "remediate" as const, dueAt: null, attempts: attempts.length };
+  }
+  const correct = attempts.filter(item => item.outcome === "correct" && !item.assisted &&
+    item.assessmentCoverage !== "single-item" && item.createdAt > 0 && complete(item));
+  // Repetition is not retention: only genuine delayed recall after earlier
+  // independent criterion-complete practice qualifies for mastery.
+  const independent = correct.some(first => first.taskKind !== "recall" &&
+    correct.some(recall => recall.taskKind === "recall" &&
+      recall.createdAt - first.createdAt >= 12 * 3_600_000));
   const dueAt = last.createdAt + (independent ? 3 : 1) * DAY;
   return { status: independent ? "mastered" as const : "provisional" as const,
     dueAt, attempts: attempts.length, due: now >= dueAt };
