@@ -15,7 +15,7 @@ This ledger is updated when code is committed. An item is checked only if the be
 - [ ] Integration/fault-injection proof for a changed focus during an in-flight provider response.
 - [ ] Explicit clarification/deferred-off-topic intent and legacy question compatibility acceptance.
 
-## M1 — Feedback & evidence (v3 core integrated; advanced assistance pending)
+## M1 — Feedback & evidence (v3 + progressive assistance implemented; verified executor pending)
 
 - [x] Criterion-complete independent answer followed by genuine delayed recall is required for objective mastery.
 - [x] Existing positive evidence cannot automatically resolve a newly opened misconception.
@@ -26,11 +26,16 @@ This ledger is updated when code is committed. An item is checked only if the be
 - [x] Versioned v1/v2/v3 decoder and migration; old evidence remains unmodified with unknown provenance.
 - [x] Stable criterion IDs are assigned to validated curricula and checked against revisioned v3 mastery evidence.
 - [x] App-assigned evaluator provenance (`deterministic` MCQ or `llm-review`), objective revision, question and focus IDs.
-- [x] Assistance metadata persists independent and observed hint level 0/1; provider cannot forge it.
+- [x] Assistance metadata persists independent and progressive hint levels 0–4; provider cannot forge it.
 - [x] End-to-end fault injection: committed transcript outcome replays identical timestamp, question ID and provenance after a failed progress write.
 - [x] Provider-facing parser and vault decoders reject malformed v3 provenance.
-- [ ] Interactive hint levels 2–4, verified-execution assessor, and corresponding end-to-end tests.
-- [ ] Acceptance of reworded/revised curriculum against historical rubric evidence in a real vault.
+- [x] Four-level hints are bounded, independently persisted, safely disclosed in quiz cards and reconstructed after restart.
+- [x] Idempotent repeated hint-turn IDs cannot skip a level; integration tests verify restart, exhaustion and recorded assistance.
+- [x] Reworded rubric retains mastery only through trusted stable criterion ID; legacy evidence uses its original text.
+- [x] Persistence tests reload programs.json and progress.json and reject false mastery when criterion identities change.
+- [x] Application cannot mint a verified-execution verdict without a trusted sandbox receipt.
+- [ ] Implement a sandbox-backed verified-execution assessor with real execution receipts and recovery tests.
+- [ ] Manual Obsidian desktop acceptance of reworded curricula, hint UI and historical vaults.
 
 ## M2 — Dynamic curriculum (existing micro-replan only)
 
@@ -62,16 +67,17 @@ This ledger is updated when code is committed. An item is checked only if the be
 
 - [x] Goal-first onboarding, focus actions and quiz/rubric feedback.
 - [x] Correction CTA routes to self-paced `/next` or `/resume-focus` rather than implicit timed session.
-- [ ] Graduated hint controls, clarification and revision diff UI.
+- [x] Graduated hint controls with durable disclosure and no answer-key auto reveal.
+- [ ] Clarification and curriculum revision diff UI.
 - [ ] Full Obsidian desktop accessibility and visual acceptance.
 
 ## M7 — Verification/release (open)
 
-- [x] CI including typecheck, lint, unit/integration and build passed at commit `c0e608f894fde67e1ac2c0587776bccd4d8c17ea`.
+- [x] CI including typecheck, lint, unit/integration and build passed at commit `3360bd8aea23a46738cd337b3f4bd53c75b31629`.
 - [ ] CI verified for current PR head (new documentation commit requires a run).
 - [x] Unit and integration tests for v3 migration, malformed metadata, provider attribution and transcript-success/progress-write-failure replay.
 - [ ] Full migration/restore and concurrency fault-injection matrix.
 - [ ] Manual Obsidian desktop provider and vault acceptance.
 - [ ] Release review and merge approval.
 
-**Policy:** Do not merge this draft PR solely because unit tests or CI pass. Remaining M1 hint/evaluator acceptance, M5 concurrency and M7 desktop acceptance remain release-critical.
+**Policy:** Do not merge this draft PR solely because unit tests or CI pass. Remaining verified-execution sandbox capability, M5 concurrency and M7 desktop acceptance remain release-critical.
