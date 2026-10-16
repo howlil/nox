@@ -53,3 +53,9 @@ test("question from another program is not attributed to current program", () =>
     { ...attempt, programId: "other" }, program, "llm-review"),
     /missing learning objective/);
 });
+
+
+test("application cannot mint verified execution without a sandbox receipt", () => {
+  assert.throws(() => attachAssessmentProvenance(evaluated, attempt,
+    program, "verified-execution" as never), /trusted sandbox receipt/);
+});
