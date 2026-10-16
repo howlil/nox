@@ -37,7 +37,11 @@ function createHarness(
     learningSaveFailures?: number;
     evaluationTranscriptFailures?: number;
     programTimer?: { beginAiWait(id: string): Promise<boolean>;
-      finishAiWait?(id: string): Promise<void>; isPlanning(): boolean };
+      finishAiWait?(id: string): Promise<void>; isPlanning(): boolean;
+      getActiveProgram?(): Promise<{ id: string; focus?: {
+        programId: string; objectiveId: string; chatSessionId?: string;
+        status: "active" | "paused";
+      } } | null> };
   } = {},
 ) {
   let session: ChatSession = {
@@ -1283,4 +1287,58 @@ test("failed ancillary timer commit never converts durable model success into fa
     event.type === "failed").map(event => event.type), ["completed"]);
   assert.equal(h.getSentContexts().length, 1);
   assert.equal(checkpoints, 1);
+});
+
+test("persisted objective focus rejects off-topic turns before invoking an agent", async () => {
+  const h = createHarness(async function* () {
+    yield { type: "text", content: "UNEXPECTED MODEL CALL" };
+    yield { type: "completed" };
+  }, { programTimer: {
+    beginAiWait: async () => false, isPlanning: () => false,
+    getActiveProgram: async () => ({ id: "p", focus: {
+      programId: "p", objectiveId: "prerequisites", status: "active",
+      chatSessionId: "session-1",
+    } }),
+  } });
+  const result = await collectEvents(h.controller.run({
+    prompt: "Let's discuss something else", action: "ask", explicitContext: [],
+  }));
+  assert.equal(result.at(-1)?.type, "failed");
+  assert.equal(h.prompts.length, 0);
+});
+
+test("focus authorization remains global across chat boundaries", async () => {
+  const h = createHarness(async function* () {
+    yield { type: "completed" };
+  }, { programTimer: {
+    beginAiWait: async () => false, isPlanning: () => false,
+    getActiveProgram: async () => ({ id: "p", focus: {
+      programId: "p", objectiveId: "prerequisites", status: "active",
+      chatSessionId: "original-chat",
+    } }),
+  } });
+  const result = await collectEvents(h.controller.run({
+    prompt: "/next", action: "ask", explicitContext: [],
+  }));
+  assert.equal(result.at(-1)?.type, "failed");
+  assert.equal(h.prompts.length, 0);
+});
+
+test("corrupted focus authority permits ordinary chat but rejects focus operations", async () => {
+  const h = createHarness(async function* () {
+    yield { type: "text", content: "Ordinary chat" };
+    yield { type: "completed" };
+  }, { programTimer: {
+    beginAiWait: async () => false, isPlanning: () => false,
+    getActiveProgram: async () => { throw new Error("Invalid persisted focus"); },
+  } });
+  const normal = await collectEvents(h.controller.run({
+    prompt: "Hello", action: "ask", explicitContext: [],
+  }));
+  assert.equal(normal.at(-1)?.type, "completed");
+  const focused = await collectEvents(h.controller.run({
+    prompt: "/next", action: "ask", explicitContext: [],
+  }));
+  assert.equal(focused.at(-1)?.type, "failed");
+  assert.equal(h.prompts.length, 1);
 });
