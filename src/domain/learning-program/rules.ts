@@ -98,6 +98,11 @@ export function validateCurriculum(value: unknown, constraints: ProgramConstrain
     };
   });
   const byId = new Map(objectives.map(o => [o.id, o]));
+  for (const objective of objectives) {
+    if (!objective.deprecated && objective.prerequisiteIds.some(id => byId.get(id)?.deprecated)) {
+      throw new Error("Active objectives cannot depend on deprecated prerequisites.");
+    }
+  }
   const visiting = new Set<string>(), visited = new Set<string>();
   function visit(id: string): void {
     if (visiting.has(id)) throw new Error(`Curriculum prerequisite cycle at ${id}.`);
