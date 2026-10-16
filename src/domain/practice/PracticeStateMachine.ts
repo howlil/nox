@@ -17,6 +17,7 @@ export interface PracticeEvaluationAttempt {
   programId?: string;
   objectiveId?: string;
   assisted?: boolean;
+  highestHintLevel?: 0 | 1 | 2 | 3 | 4;
   taskKind?: "diagnostic" | "guided-practice" | "recall" | "transfer";
 }
 
@@ -95,6 +96,7 @@ export class PracticeStateMachine {
     if (!current || !this.isWaitingForAnswer()) return undefined;
     if (!current.hint) return undefined;
     current.assisted = true;
+    current.highestHintLevel = Math.max(current.highestHintLevel ?? 0, 1) as 1 | 2 | 3 | 4;
     return current.hint;
   }
 
@@ -123,6 +125,8 @@ export class PracticeStateMachine {
       programId: session.turns[session.turns.length - 1]?.programId,
       objectiveId: session.turns[session.turns.length - 1]?.objectiveId,
       assisted: session.turns[session.turns.length - 1]?.assisted,
+      highestHintLevel: session.turns[session.turns.length - 1]?.highestHintLevel ??
+        (session.turns[session.turns.length - 1]?.assisted ? 1 : 0),
       taskKind: session.turns[session.turns.length - 1]?.taskKind,
     };
 
