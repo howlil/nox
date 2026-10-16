@@ -149,8 +149,13 @@ export class RunLearningTurn {
         if (part.type === "practice-question") {
           practice.start(part.origin);
           practice.acceptQuestion(part.question, part.questionId);
-          if (session.messages.slice(i + 1).some(item => item.role === "user" &&
-              item.content.trim().toLowerCase() === "/hint")) practice.markHintUsed();
+          // Every recorded hint is an atomic persisted disclosure. Replay exactly
+          // the acknowledged levels, never inferred help from model responses.
+          for (const item of session.messages.slice(i + 1)) {
+            if (item.role === "user" && item.content.trim().toLowerCase() === "/hint") {
+              practice.markHintUsed();
+            }
+          }
           return practice;
         }
       }
@@ -745,6 +750,7 @@ export class RunLearningTurn {
             : "Use provided material where available and distinguish assumptions."}`,
           "Evaluate the specific objective only. Do not change topics or declare mastery.",
           "When generating, ask exactly one question and avoid revealing its answer.",
+          "Provide hints as an array of four short distinct progressively more specific nudges, from conceptual cue to structured approach. Do not reveal the final answer, working solution, or answer key. If safe hints cannot be written, omit hints. The legacy single hint is optional; if both are supplied, hint must equal hints[0].",
           "When evaluating, give specific rubric feedback and no follow-up nextQuestion; the application chooses the next objective.",
           "Include rubricResults as [{criterion: exact criterion from the rubric, met: boolean, evidence: supporting text from the answer}].",
         ].join("\n");
