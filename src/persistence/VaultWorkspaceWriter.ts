@@ -74,7 +74,7 @@ export class VaultWorkspaceWriter {
         `Evidence: ${revision.reasonEvidenceIds.join(", ")}`,
         "",
         "## Updated objectives",
-        ...program.objectives.map(item => `- **${item.title.replace(/[\r\n]/g, " ")}** — ${item.outcome.replace(/[\r\n]/g, " ")}`),
+        ...program.objectives.map(item => `- **${item.title.replace(/[\r\n]/g, " ")}**${item.deprecated ? " (retired)" : ""} — ${item.outcome.replace(/[\r\n]/g, " ")}`),
         "",
         "Previous roadmap and your lesson notes have not been overwritten.",
         "",
