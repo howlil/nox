@@ -15,7 +15,7 @@ This ledger is updated when code is committed. An item is checked only if the be
 - [ ] Integration/fault-injection proof for a changed focus during an in-flight provider response.
 - [ ] Explicit clarification/deferred-off-topic intent and legacy question compatibility acceptance.
 
-## M1 — Feedback & evidence (correctness improvements; schema v3 pending)
+## M1 — Feedback & evidence (v3 core integrated; advanced assistance pending)
 
 - [x] Criterion-complete independent answer followed by genuine delayed recall is required for objective mastery.
 - [x] Existing positive evidence cannot automatically resolve a newly opened misconception.
@@ -23,9 +23,14 @@ This ledger is updated when code is committed. An item is checked only if the be
 - [x] Deterministic repair/scaffold/independent-check feedback policy with unit tests.
 - [x] Attach canonical commit time to new practice evaluations and reuse it during evidence replay.
 - [x] Add correction-first prompt policy without introducing another practice state machine.
-- [ ] Versioned evidence v3 decoder/migration, stable criterion IDs and evaluator provenance.
-- [ ] Multi-level hint/assistance history (currently only the assisted flag).
-- [ ] End-to-end recovery tests covering transcript-success/progress-write-failure.
+- [x] Versioned v1/v2/v3 decoder and migration; old evidence remains unmodified with unknown provenance.
+- [x] Stable criterion IDs are assigned to validated curricula and checked against revisioned v3 mastery evidence.
+- [x] App-assigned evaluator provenance (`deterministic` MCQ or `llm-review`), objective revision, question and focus IDs.
+- [x] Assistance metadata persists independent and observed hint level 0/1; provider cannot forge it.
+- [x] End-to-end fault injection: committed transcript outcome replays identical timestamp, question ID and provenance after a failed progress write.
+- [x] Provider-facing parser and vault decoders reject malformed v3 provenance.
+- [ ] Interactive hint levels 2–4, verified-execution assessor, and corresponding end-to-end tests.
+- [ ] Acceptance of reworded/revised curriculum against historical rubric evidence in a real vault.
 
 ## M2 — Dynamic curriculum (existing micro-replan only)
 
@@ -44,7 +49,7 @@ This ledger is updated when code is committed. An item is checked only if the be
 - [x] Objective pinning, diagnostic, recall, transfer, repair and scaffold decision flow.
 - [x] Feedback decisions carry specific failed criteria and evidence IDs.
 - [ ] Separate readiness, eligible-objective selection and learning-activity decision contracts.
-- [ ] Stable criterion IDs, anti-thrashing and configurable scaffolding/retention thresholds.
+- [ ] Criterion-ID-native feedback routing, anti-thrashing and configurable scaffolding/retention thresholds.
 
 ## M5 — Context and provider orchestration (partial)
 
@@ -62,10 +67,11 @@ This ledger is updated when code is committed. An item is checked only if the be
 
 ## M7 — Verification/release (open)
 
-- [x] CI including typecheck, lint, unit/integration and build passed at commit `59af18ee6426245691b1ed6df5d396673f73388e` (before the final UI edits).
-- [ ] CI verified for current PR head.
-- [ ] Migration/restore and fault-injection matrix.
+- [x] CI including typecheck, lint, unit/integration and build passed at commit `c0e608f894fde67e1ac2c0587776bccd4d8c17ea`.
+- [ ] CI verified for current PR head (new documentation commit requires a run).
+- [x] Unit and integration tests for v3 migration, malformed metadata, provider attribution and transcript-success/progress-write-failure replay.
+- [ ] Full migration/restore and concurrency fault-injection matrix.
 - [ ] Manual Obsidian desktop provider and vault acceptance.
 - [ ] Release review and merge approval.
 
-**Policy:** Do not merge this draft PR solely because unit tests or CI pass. M1 evidence identity, M5 concurrency and M7 desktop acceptance remain release-critical.
+**Policy:** Do not merge this draft PR solely because unit tests or CI pass. Remaining M1 hint/evaluator acceptance, M5 concurrency and M7 desktop acceptance remain release-critical.
