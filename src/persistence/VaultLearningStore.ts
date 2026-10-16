@@ -54,7 +54,8 @@ export class VaultLearningStore {
   async save(state: LearningState): Promise<void> {
     try {
       await this.ensureRoot();
-      const content = JSON.stringify(state, null, 2) + "\n";
+      // Promote legacy in-memory states on write; never fabricate missing provenance.
+      const content = JSON.stringify(decodeLearningState(state), null, 2) + "\n";
       const file = this.app.vault.getFileByPath(PROGRESS_PATH);
       if (file && file instanceof TFile) {
         await this.app.vault.modify(file, content);
