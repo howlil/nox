@@ -152,3 +152,19 @@ test("spaced guided answers cannot establish mastery without delayed recall", ()
   assert.equal(objectiveProgress(program(), "symbols", [first,
     { ...second, taskKind: "recall" }], now).status, "mastered");
 });
+ 
+test("v3 evidence with spoofed criterion ID or hint level cannot establish mastery", () => {
+  const earlier = event("symbols", "correct", now - 2 * 86_400_000);
+  const recalled = { ...event("symbols", "correct", now),
+    taskKind: "recall" as const, objectiveRevision: 1,
+    assistance: { highestHintLevel: 0 as const, independent: true },
+    rubricResults: [{ criterion: "Use notation correctly", criterionId: "wrong-id",
+      met: true, evidence: "Looks plausible" }],
+  };
+  assert.equal(objectiveProgress(program(), "symbols", [earlier, recalled], now).status, "remediate");
+  const corrected = { ...recalled, rubricResults: [{ ...recalled.rubricResults[0], criterionId: "c1" }] };
+  assert.equal(objectiveProgress(program(), "symbols", [earlier, corrected], now).status, "mastered");
+  const assisted = { ...corrected, assistance:
+    { highestHintLevel: 1 as const, independent: false } };
+  assert.equal(objectiveProgress(program(), "symbols", [earlier, assisted], now).status, "remediate");
+});
