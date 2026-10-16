@@ -114,21 +114,33 @@ export function recordPracticeEvaluation(
     }
   }
 
-  // A single correct answer never resolves a misconception.
-  // Require two rubric-complete, unassisted outcomes at least 12h apart.
-  const independent = next.evidence.filter(item =>
-    item.scope === "learner" && item.type === "practice" &&
-    item.programId === input.programId && item.objectiveId === input.objectiveId &&
-    item.outcome === "correct" && !item.assisted && item.assessmentCoverage !== "single-item" &&
-    Boolean(item.rubricResults?.length) && item.rubricResults!.every(result => result.met))
-    .sort((a, b) => a.createdAt - b.createdAt);
-  const repeatVerified = independent.some(a =>
-    independent.some(b => b.createdAt - a.createdAt >= 12 * 3_600_000));
-  if (repeatVerified) {
-    for (const gap of next.gaps) {
-      if (gap.programId === input.programId && gap.objectiveId === input.objectiveId &&
-          gap.status === "improving") gap.status = "resolved";
-    }
+  // A gap can only close from new evidence about its own failed criterion.
+  // Historical correct answers and ordinary spaced practice must not close it.
+  for (const gap of next.gaps) {
+    if (gap.status !== "improving" || gap.programId !== input.programId ||
+        gap.objectiveId !== input.objectiveId) continue;
+    const relatedFailures = next.evidence.filter(item =>
+      gap.evidenceIds.includes(item.id) && item.type === "practice" &&
+      (item.outcome === "incorrect" || item.outcome === "partial"))
+      .sort((left, right) => left.createdAt - right.createdAt);
+    const failed = relatedFailures.at(-1);
+    if (!failed || failed.createdAt <= 0) continue;
+    const failedCriteria = failed.rubricResults?.filter(item => !item.met)
+      .map(item => item.criterion) ?? [];
+    // Without unambiguous criterion attribution, retain the gap for review.
+    if (failedCriteria.length !== 1) continue;
+    const criterion = failedCriteria[0];
+    const independent = next.evidence.filter(item =>
+      item.scope === "learner" && item.type === "practice" &&
+      item.programId === input.programId && item.objectiveId === input.objectiveId &&
+      item.createdAt > failed.createdAt && item.outcome === "correct" &&
+      !item.assisted && item.assessmentCoverage !== "single-item" &&
+      Boolean(item.rubricResults?.length) && item.rubricResults!.every(result => result.met) &&
+      item.rubricResults!.some(result => result.criterion === criterion && result.met));
+    const verifiedRecall = independent.some(first => first.taskKind !== "recall" &&
+      independent.some(recall => recall.taskKind === "recall" &&
+        recall.createdAt - first.createdAt >= 12 * 3_600_000));
+    if (verifiedRecall) gap.status = "resolved";
   }
   return next;
 }
