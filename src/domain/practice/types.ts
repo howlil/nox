@@ -1,5 +1,7 @@
 export interface RubricResult {
   criterion: string;
+  /** Assigned by application from the validated objective, not by the provider. */
+  criterionId?: string;
   met: boolean;
   evidence: string;
 }
@@ -8,6 +10,7 @@ export function isRubricResults(value: unknown): value is RubricResult[] {
     if (!item || typeof item !== "object") return false;
     const r = item as Record<string, unknown>;
     return typeof r.criterion === "string" && r.criterion.trim().length > 0 &&
+      (r.criterionId === undefined || (typeof r.criterionId === "string" && r.criterionId.length > 0)) &&
       typeof r.met === "boolean" && typeof r.evidence === "string";
   });
 }
@@ -66,6 +69,10 @@ export interface PracticeEvaluation {
   misconceptions: string[];
   nextQuestion?: string;
   assisted?: boolean;
+  /** Application-authored metadata; absent in legacy evaluations. */
+  objectiveRevision?: number;
+  evaluator?: "deterministic" | "llm-review" | "verified-execution";
+  assistance?: { highestHintLevel: 0 | 1 | 2 | 3 | 4; independent: boolean };
   rubricResults?: RubricResult[];
   taskKind?: "diagnostic" | "guided-practice" | "recall" | "transfer";
   /** A single MCQ cannot prove a complete learning objective. */
