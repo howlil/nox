@@ -751,6 +751,14 @@ export class RunLearningTurn {
             }),
           ] : []),
           `Activity: ${practiceAttempt ? "evaluate current answer" : decision?.kind}`,
+          ...(decision?.targetCriterionIds?.length ? [
+            "TARGET RUBRIC (application-derived IDs mapped to their approved descriptions): " +
+              JSON.stringify((activeObjective.criteria ?? []).filter(item =>
+                decision.targetCriterionIds!.includes(item.id)).map(item =>
+                ({ criterionId: item.id, description: item.description }))),
+            "EVIDENCE REFERENCES (opaque IDs; not grader verdicts): " +
+              JSON.stringify(decision.sourceEvidenceIds ?? []),
+          ] : []),
           ...(decision?.kind === "remediate" ? [
             "CORRECTION: ask the learner to repair the prior failed reasoning without revealing a full solution.",
             `Targeted criteria: ${JSON.stringify(decision.targetCriterionIds ?? [])}.`,
