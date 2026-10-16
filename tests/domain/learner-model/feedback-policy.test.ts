@@ -38,3 +38,43 @@ test("hint assisted success requires independent variation", () => {
   const clean = attempt("2", "correct");
   assert.equal(decideFeedback(objective, [clean], clean).kind, "delayed-recall");
 });
+ 
+test("scaffolding increases only for distinct failed questions and resets after independent repair", () => {
+  const original = attempt("1", "incorrect", ["Identify races"]);
+  const duplicated = { ...attempt("2", "partial", ["Identify races"]), questionId: "same" };
+  const duplicatedOther = { ...attempt("3", "incorrect", ["Identify races"]),
+    questionId: "same" };
+  assert.equal(decideFeedback(objective, [original, duplicated, duplicatedOther],
+    duplicatedOther).kind, "scaffold");
+  const first = { ...original, questionId: "q1" };
+  const second = { ...duplicated, questionId: "q2" };
+  const third = { ...duplicatedOther, questionId: "q3" };
+  assert.deepEqual(decideFeedback(objective, [first, second, third], third), {
+    kind: "scaffold", level: 3, failedCriteria: ["Identify races"],
+    evidenceIds: ["2", "3"],
+  });
+  const recovered = { ...attempt("4", "correct"), questionId: "q4" };
+  const newFailure = { ...attempt("5", "incorrect", ["Identify races"]), questionId: "q5" };
+  assert.equal(decideFeedback(objective, [first, second, third, recovered, newFailure],
+    newFailure).kind, "repair");
+  assert.equal(decideFeedback(objective, [first, second], second,
+    { scaffoldAfterFailures: 3 }).kind, "repair");
+});
+
+test("revisioned evidence matches stable criterion IDs, not stale rubric prose", () => {
+  const updated: LearningObjective = { ...objective,
+    rubric: ["Explain transaction isolation", "Identify concurrency races"],
+    criteria: [
+      { id: "c1", description: "Explain transaction isolation", required: true },
+      { id: "c2", description: "Identify concurrency races", required: true },
+    ],
+  };
+  const current = { ...attempt("1", "incorrect", ["Identify races"]),
+    objectiveRevision: 2, rubricResults: [
+      { criterion: "Explain isolation", criterionId: "c1", met: true, evidence: "yes" },
+      { criterion: "Identify races", criterionId: "c2", met: false, evidence: "missed" },
+    ],
+  };
+  assert.deepEqual(decideFeedback(updated, [current], current).failedCriteria,
+    ["Identify concurrency races"]);
+});
