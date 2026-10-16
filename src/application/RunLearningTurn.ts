@@ -554,7 +554,7 @@ export class RunLearningTurn {
       type: "note",
       file: "00-learning-os/progress.json",
       content: JSON.stringify(
-        toPromptLearningState(state, program?.id),
+        toPromptLearningState(state),
         null,
         2,
       ),
