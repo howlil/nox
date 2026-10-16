@@ -95,6 +95,8 @@ export interface PracticeTurn {
   hint?: string;
   questionSpec?: PracticeQuestion;
   assisted?: boolean;
+  /** A legacy hint counts as level 1; higher levels need explicit UI events. */
+  highestHintLevel?: 0 | 1 | 2 | 3 | 4;
   answer?: string;
   evaluation?: PracticeEvaluation;
 }
