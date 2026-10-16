@@ -50,6 +50,8 @@ export interface PracticeQuestion {
   concept: string;
   question: string;
   hint?: string;
+  /** Progressive hints (1–4), revealed only after durable user intent. Legacy hint remains supported. */
+  hints?: string[];
   /** Structured learning brief. Existing plain-text questions remain valid. */
   instructions?: PracticeInstructions;
   /** Optional for backward-compatible question cards. */
