@@ -260,8 +260,12 @@ test("Practice persists one outcome and replays missing evidence after simulated
   assert.ok(failed.some((event) => event.type === "failed"));
   assert.equal((await first.learningState.load()).evidence.length, 0);
   const before = first.sessions.getSession();
-  assert.equal(before.messages.flatMap((message) => message.parts ?? [])
-    .filter((part) => part.type === "practice-evaluation").length, 1);
+  const committed = before.messages.flatMap(message => message.parts ?? [])
+    .find(part => part.type === "practice-evaluation");
+  assert.ok(committed && committed.type === "practice-evaluation");
+  assert.equal(typeof committed.committedAt, "number");
+  assert.equal(committed.evaluation.evaluator, "llm-review");
+  assert.deepEqual(committed.evaluation.assistance, { highestHintLevel: 0, independent: true });
 
   first.learning.dispose();
   const restored = await rig.createLearning();
@@ -273,6 +277,11 @@ test("Practice persists one outcome and replays missing evidence after simulated
   const evidence = (await restored.learningState.load()).evidence;
   assert.equal(evidence.length, 1);
   assert.equal(evidence[0]?.outcome, "correct");
+  assert.equal(evidence[0]?.createdAt, committed.committedAt);
+  assert.equal(evidence[0]?.questionId, committed.questionId);
+  assert.equal(evidence[0]?.evaluator, "llm-review");
+  assert.deepEqual(evidence[0]?.assistance, { highestHintLevel: 0, independent: true });
+  assert.equal((await restored.learningState.load()).version, 3);
   assert.equal(rig.currentAgentCalls(), 3);
 });
 
