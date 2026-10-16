@@ -66,3 +66,16 @@ test("PracticeStateMachine retains the typed question spec across answer/evaluat
   sm.rollbackEvaluation(attempt!);
   assert.equal(sm.isWaitingForAnswer(), true);
 });
+
+
+test("progressive hint payload accepts bounded distinct levels and legacy hint fallback", () => {
+  const hints = ["Observe the boundary", "Locate the invariant",
+    "Consider a counterexample", "Explain the missing condition"];
+  assert.equal(isPracticeQuestion({ ...essay, hints }), true);
+  assert.equal(isPracticeQuestion({ ...essay, hint: hints[0], hints }), true);
+  assert.equal(isPracticeQuestion({ ...essay, hints: [] }), false);
+  assert.equal(isPracticeQuestion({ ...essay, hints: [...hints, "Fifth"] }), false);
+  assert.equal(isPracticeQuestion({ ...essay, hints: ["same", "same"] }), false);
+  assert.equal(isPracticeQuestion({ ...essay, hint: "different", hints }), false);
+  assert.equal(isPracticeQuestion({ ...essay, hints: [""] }), false);
+});
