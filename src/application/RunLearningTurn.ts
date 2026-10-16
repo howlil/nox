@@ -33,7 +33,7 @@ import {
 } from "./action-builders";
 import { isLockedLearningMode, isProgramLearningScope, parseScopeCommand, scopeDeflection, transitionLearningScope, transitionProgramLearningScope } from "../domain/practice/learning-scope";
 import { toPromptLearningState } from "./learning-state-projection";
-import { projectObjectiveLearnerModel, summarizeObjectiveContext } from "../domain/learner-model/projection";
+import { projectLearnerModel, selectRelevantLearnerState } from "../domain/learner-model/learner-memory";
 import {
   LearningEvent,
   LearningRequest,
@@ -548,7 +548,9 @@ export class RunLearningTurn {
       }
     }
 
-    if (!program?.constraints.sourceBound) system.push({
+    // Program turns use a criterion- and prerequisite-scoped evidence projection below.
+    // Do not append the generic 20-event progress digest to the same prompt.
+    if (!program) system.push({
       type: "note",
       file: "00-learning-os/progress.json",
       content: JSON.stringify(
@@ -735,8 +737,10 @@ export class RunLearningTurn {
           `Program ID: ${program.id}. Goal: ${program.goal}`,
           `Objective ID: ${activeObjective.id}. Outcome: ${activeObjective.outcome}`,
           `Required rubric: ${JSON.stringify(activeObjective.rubric)}`,
-          "VERIFIED LEARNER CONTEXT: " + summarizeObjectiveContext(
-            projectObjectiveLearnerModel(program, activeObjective.id, state.evidence, state.gaps)),
+          "VERIFIED LEARNER CONTEXT (derived, read-only, bounded): " + JSON.stringify(
+            selectRelevantLearnerState(program,
+              projectLearnerModel(program, state.evidence, state.gaps),
+              state.evidence, state.gaps, activeObjective.id)),
           `Activity: ${practiceAttempt ? "evaluate current answer" : decision?.kind}`,
           ...(decision?.kind === "remediate" ? [
             "CORRECTION: ask the learner to repair the prior failed reasoning without revealing a full solution.",
