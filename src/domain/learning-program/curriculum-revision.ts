@@ -11,28 +11,48 @@ export interface CurriculumRevisionProposal {
   reasonEvidenceIds: string[];
 }
 
+export interface AutomaticRemediationScope {
+  /** Only a finished focus can trigger an automatic structural mutation. */
+  completedFocusId: string;
+  objectiveId: string;
+}
+
 /** Evidence-first micro-prerequisite proposal: no LLM authority or speculative skill labels. */
 export function proposeRemediationRevision(
   program: LearningProgram, evidence: readonly LearningEvidence[],
+  automatic?: AutomaticRemediationScope,
 ): CurriculumRevisionProposal | null {
   if (program.focus) return null; // Never replace the graph beneath an active/paused focus.
   for (const objective of program.objectives) {
-    const attempts = evidence.filter(item =>
+    if (automatic && objective.id !== automatic.objectiveId) continue;
+    const rubricId = (index: number) => objective.criteria?.[index]?.id;
+    const eligible = (item: LearningEvidence) =>
       item.scope === "learner" && item.type === "practice" &&
-      item.programId === program.id && item.objectiveId === objective.id &&
-      (item.outcome === "incorrect" || item.outcome === "partial"))
+      item.programId === program.id && item.objectiveId === objective.id;
+    const criterionMatched = (item: LearningEvidence, index: number, met: boolean) =>
+      item.rubricResults?.some(result => result.met === met &&
+        (automatic ? Boolean(rubricId(index) && result.criterionId === rubricId(index)) :
+          result.criterion === objective.rubric[index]));
+    const isTrustedFocusEvidence = (item: LearningEvidence) =>
+      !automatic || (item.focusSessionId === automatic.completedFocusId &&
+        item.objectiveRevision === program.planVersion &&
+        item.evaluator === "llm-review" &&
+        typeof item.questionId === "string" && item.questionId.length > 0 &&
+        item.createdAt > 0 && Number.isSafeInteger(item.createdAt));
+    const attempts = evidence.filter(item => eligible(item) && isTrustedFocusEvidence(item))
       .sort((a,b) => a.createdAt - b.createdAt);
     for (const [index, criterion] of objective.rubric.entries()) {
-      const failures = attempts.filter(item => item.rubricResults?.some(result =>
-        result.criterion === criterion && !result.met));
-      if (failures.length < 2) continue;
-      // A later, independent rubric-complete outcome may have already repaired this gap.
+      const failures = attempts.filter(item =>
+        (item.outcome === "incorrect" || item.outcome === "partial") &&
+        criterionMatched(item, index, false));
+      const recent = failures.slice(-2);
+      if (recent.length < 2 || recent[0].id === recent[1].id ||
+          (automatic && recent[0].questionId === recent[1].questionId)) continue;
+      // Any later independent recovery conservatively blocks structural mutation.
       const lastFailure = failures[failures.length - 1].createdAt;
-      if (evidence.some(item =>
-        item.scope === "learner" && item.type === "practice" &&
-        item.programId === program.id && item.objectiveId === objective.id &&
+      if (evidence.some(item => eligible(item) && isTrustedFocusEvidence(item) &&
         item.createdAt > lastFailure && item.outcome === "correct" && !item.assisted &&
-        Boolean(item.rubricResults?.some(result => result.criterion === criterion && result.met)))) continue;
+        item.assistance?.independent !== false && criterionMatched(item, index, true))) continue;
       const id = objective.id.slice(0, 47) + "-repair-" + (index + 1);
       const operationId = "repair:" + objective.id + ":" + index;
       if (program.objectives.some(item => item.id === id) ||
@@ -44,7 +64,7 @@ export function proposeRemediationRevision(
           outcome: "Demonstrate independently: " + criterion,
           prerequisiteIds: [...objective.prerequisiteIds], estimatedMinutes: 30,
           rubric: [criterion], sourceRefs: [...objective.sourceRefs], priority: "supporting" },
-        reasonEvidenceIds: failures.slice(-2).map(item => item.id),
+        reasonEvidenceIds: recent.map(item => item.id),
       };
     }
   }
