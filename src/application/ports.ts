@@ -15,6 +15,9 @@ export interface OnboardingStatePort {
 }
 export interface WorkspaceWriterPort {
   ensureObjective?(program: import("../domain/learning-program/types").LearningProgram, objectiveId: string): Promise<void>;
+  /** Idempotent create-only snapshot for an approved curriculum revision. */
+  ensureRevision?(program: import("../domain/learning-program/types").LearningProgram,
+    revision: import("../domain/learning-program/types").CurriculumRevisionRecord): Promise<void>;
   ensure(program: import("../domain/learning-program/types").LearningProgram): Promise<void>;
 }
 export interface ProgramStorePort {
