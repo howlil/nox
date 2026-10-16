@@ -78,13 +78,17 @@ This ledger is updated when code is committed. An item is checked only if the be
 - [ ] Product settings/UI for optional threshold configuration, and desktop acceptance of real-provider adaptive turns (especially legacy vaults).
 - [ ] Concurrency/fault-injection tests where evidence and focus change during an in-flight provider activity decision (tracked under M5/M7).
 
-## M5 — Context and provider orchestration (partial)
+## M5 — Context and provider orchestration (versioned core implemented; atomic race acceptance pending)
 
 - [x] Use existing provider runtime with source-bound prompt policy.
-- [x] Revalidate persisted authority at canonical practice commits.
-- [x] Use objective-scoped learner memory with bounded evidence episodes in program practice prompts.
-- [ ] Full `LearningAuthoritySnapshot` at all agent/write boundaries and race/fault proof.
-- [ ] Explicit versioned learning context builder with provenance and budget priorities.
+- [x] `LearningAuthoritySnapshot` v1 binds program identity, curriculum revision, objective, chat owner, focus ID/status, learning session identity, and M3 evidence+gap fingerprint.
+- [x] Revalidate the snapshot before provider inference, at canonical question/evaluation commits and at terminal narrative commits for program turns; stale results fail closed instead of rebinding.
+- [x] `buildLearningContext` v1 carries app-validated rubric IDs/descriptions, targeted evidence IDs, active question assistance, bounded M3 learner episodes, and explicit source policy.
+- [x] Strict provenance checks reject mismatched objective, program, plan and criterion identity; budget drops low-priority historical episodes before required rubric or active-question context.
+- [x] Preserve the existing `prepareContextEnvelope` source-bound enforcement and history isolation; no second provider session or memory database.
+- [x] Unit and integration tests cover snapshot drift, context priority/overflow and provider race injection: focus switch, curriculum revision and a different turn committing evidence while the provider streams.
+- [ ] Close the remaining cross-file check/commit race (atomicity of focus, evidence and transcript spans separate persistence stores). Re-check at the final write boundary and add concurrent commit fault-injection coverage.
+- [ ] Desktop acceptance using supported providers and a source-bound historical vault.
 
 ## M6 — Compact UX (partial)
 
@@ -103,6 +107,8 @@ This ledger is updated when code is committed. An item is checked only if the be
 - [x] Automated tests for approved structural revision diff/commit, tombstone scheduling, persistence and workspace no-overwrite guarantees.
 - [x] M3 tests for evidence-derived learner memory, program isolation, bounded provider context, fingerprint invalidation and reconstruction from persisted progress.
 - [x] M4 deterministic activity policy tests for criterion targeting, eligible objective priority, anti-thrashing and safe recall thresholds.
+- [x] M5 unit and integration proof for versioned bounded learning context and deterministic mid-inference focus/plan/evidence invalidation.
+- [ ] Atomic inter-store check-and-commit concurrency proof after transcript persistence and before progress projection.
 - [ ] Full migration/restore and concurrency fault-injection matrix.
 - [ ] Manual Obsidian desktop provider and vault acceptance.
 - [ ] Release review and merge approval.
