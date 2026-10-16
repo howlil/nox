@@ -33,6 +33,20 @@ export function isTranscriptPart(value: unknown): value is TranscriptPart {
       (e.programId === undefined || typeof e.programId === "string") &&
       (e.objectiveId === undefined || typeof e.objectiveId === "string") &&
       (e.assisted === undefined || typeof e.assisted === "boolean") &&
+      (e.objectiveRevision === undefined || (typeof e.objectiveRevision === "number" &&
+        Number.isSafeInteger(e.objectiveRevision) && e.objectiveRevision >= 1)) &&
+      (e.focusSessionId === undefined || (typeof e.focusSessionId === "string" &&
+        e.focusSessionId.length > 0)) &&
+      (e.evaluator === undefined || ["deterministic", "llm-review", "verified-execution"]
+        .includes(String(e.evaluator))) &&
+      (e.assistance === undefined || (typeof e.assistance === "object" &&
+        e.assistance !== null && !Array.isArray(e.assistance) && (() => {
+          const hint = e.assistance as Record<string, unknown>;
+          return typeof hint.highestHintLevel === "number" &&
+            Number.isInteger(hint.highestHintLevel) && hint.highestHintLevel >= 0 &&
+            hint.highestHintLevel <= 4 && typeof hint.independent === "boolean" &&
+            hint.independent === (hint.highestHintLevel === 0);
+        })())) &&
       (e.assessmentCoverage === undefined || e.assessmentCoverage === "single-item") &&
       (e.rubricResults === undefined || isRubricResults(e.rubricResults)) &&
       (part.questionId === undefined || typeof part.questionId === "string") &&
