@@ -183,3 +183,28 @@ test("stable criterion identifiers survive permitted rewording and reject duplic
   revised.objectives[0].criteria!.push({ id: "c1", description: "Explain units", required: true });
   assert.throws(() => validateCurriculum(revised, constraints), /Invalid stable criterion identities/);
 });
+
+
+test("rewording preserves mastered stable-ID evidence, but legacy text and replaced IDs do not", () => {
+  const original = program();
+  const earlier = { ...event("symbols", "correct", now - 2 * 86_400_000),
+    objectiveRevision: 1, rubricResults: [{ criterion: "Use notation correctly",
+      criterionId: "c1", met: true, evidence: "Worked example" }] };
+  const recall = { ...earlier, id: "later", createdAt: now, taskKind: "recall" as const };
+  const revised = structuredClone(original);
+  revised.planVersion = 2;
+  revised.objectives[0].rubric = ["Use precise notation"];
+  revised.objectives[0].criteria![0].description = "Use precise notation";
+  assert.equal(objectiveProgress(revised, "symbols", [earlier, recall], now).status, "mastered");
+  const legacy = [{ ...earlier, objectiveRevision: undefined, rubricResults: [{
+    criterion: "Use notation correctly", met: true, evidence: "Legacy work",
+  }] }, { ...recall, objectiveRevision: undefined, rubricResults: [{
+    criterion: "Use notation correctly", met: true, evidence: "Legacy recall",
+  }] }];
+  assert.equal(objectiveProgress(revised, "symbols", legacy, now).status, "remediate");
+  revised.objectives[0].criteria![0].id = "new-skill";
+  assert.equal(objectiveProgress(revised, "symbols", [earlier, recall], now).status, "remediate");
+  revised.objectives[0].criteria![0].id = "c1";
+  const future = { ...recall, objectiveRevision: 3 };
+  assert.equal(objectiveProgress(revised, "symbols", [earlier, future], now).status, "remediate");
+});
