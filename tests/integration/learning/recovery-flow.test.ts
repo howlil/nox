@@ -773,9 +773,10 @@ test("program inference receives bounded objective memory, never unrelated objec
   });
   rig.queue(practice({ kind: "question", concept: "Atomicity",
     question: "Explain why rollback preserves atomicity." }));
-  await collectEvents(learning.run({
+  const events = await collectEvents(learning.run({
     prompt: "Practice the current objective", action: "practice", explicitContext: [],
   }));
+  assert.ok(rig.promptInputs().length, "No provider invocation: " + JSON.stringify(events));
   const prompt = rig.promptInputs().at(-1)!;
   assert.match(prompt, /VERIFIED LEARNER CONTEXT/);
   assert.match(prompt, /relevant-atomicity/);
@@ -794,7 +795,8 @@ test("domain-neutral program practice commits objective-linked evidence and igno
     prompt: "Quiz me on the next eligible objective", action: "practice", explicitContext: [],
   }));
   const generated = asked.find(event => event.type === "practice-question");
-  assert.ok(generated && generated.type === "practice-question");
+  assert.ok(generated && generated.type === "practice-question",
+    "Question generation failed: " + JSON.stringify(asked));
   assert.equal(generated.question.programId, "acid-program");
   assert.equal(generated.question.objectiveId, "atomicity");
   assert.equal(generated.question.concept, "Atomicity");
