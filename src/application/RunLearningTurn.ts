@@ -332,6 +332,30 @@ export class RunLearningTurn {
     let program: LearningProgram | undefined;
     let selectedSkill: { path: string; content: string } | null = null;
 
+    // Before a canonical question/evaluation commit, re-check the persisted
+    // authority captured before inference. Provider output cannot unlock,
+    // switch or rebind an objective while the request is in flight.
+    const assertProgramAuthority = async (programId?: string, objectiveId?: string) => {
+      if (!programId || !this.programStore) return;
+      const collection = await this.programStore.load();
+      const latest = collection.programs.find(item => item.id === programId);
+      if (collection.activeProgramId !== programId || !latest) {
+        throw new Error("Learning program changed during inference. Retry from the current program.");
+      }
+      if (program?.focus && (latest.focus?.id !== program.focus.id ||
+          latest.focus.status !== "active" ||
+          latest.focus.curriculumRevision !== program.focus.curriculumRevision ||
+          latest.focus.chatSessionId !== program.focus.chatSessionId)) {
+        throw new Error("Objective focus changed during inference. The stale result was not committed.");
+      }
+      if (latest.focus?.status === "active" && latest.focus.objectiveId !== objectiveId) {
+        throw new Error("Inference result does not match the focused objective.");
+      }
+      if (latest.planVersion !== program?.planVersion) {
+        throw new Error("Curriculum revision changed during inference. Retry the current activity.");
+      }
+    };
+
     try {
       const refs = [...request.explicitContext];
       if (this.programStore && (request.programActivity || (request.action === "practice" && !request.freePractice && (!activePracticeTurn || activePracticeTurn.programId))) && !legacyLockedMode) {
@@ -1042,6 +1066,8 @@ export class RunLearningTurn {
                     decision?.kind === "guided-practice" ? decision.kind : "diagnostic" as const }
               : { ...practiceBuffer.question, programId: undefined, objectiveId: undefined };
             const questionId = crypto.randomUUID();
+            await assertProgramAuthority(practiceBuffer.question.programId,
+              practiceBuffer.question.objectiveId);
             await this.sessions.recordStructuredPart(
               { type: "practice-question", question: practiceBuffer.question,
                 questionId, origin: practice.snapshot()?.origin,
@@ -1067,6 +1093,7 @@ export class RunLearningTurn {
                   assisted: Boolean(practiceAttempt.assisted), taskKind: practiceAttempt.taskKind }
               : { ...practiceBuffer.evaluation,
                   programId: undefined, objectiveId: undefined, assisted: Boolean(practiceAttempt.assisted) };
+            await assertProgramAuthority(evaluation.programId, evaluation.objectiveId);
             for await (const mapped of this.commitPracticeOutcome(
               evaluation,
               snapshot,
