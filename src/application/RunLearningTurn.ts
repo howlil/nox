@@ -96,6 +96,13 @@ export class RunLearningTurn {
     return this.practiceForSession(this.sessions.getSession()).isWaitingForAnswer();
   }
 
+  activePracticeIdentity(): { programId?: string; objectiveId?: string } | null {
+    const practice = this.practiceForSession(this.sessions.getSession());
+    if (!practice.isWaitingForAnswer()) return null;
+    const turn = practice.snapshot()?.turns.at(-1);
+    return turn ? { programId: turn.programId, objectiveId: turn.objectiveId } : null;
+  }
+
   peekPracticeHint(): string | undefined {
     return this.practiceForSession(this.sessions.getSession()).peekHint();
   }
@@ -558,7 +565,7 @@ export class RunLearningTurn {
       ? chooseNextActivity(program, state.evidence)
       : undefined;
     const objective: LearningObjective | undefined = decision?.objective;
-    if (decision && (!objective || decision.kind === "timebox-ended")) {
+    if (decision && (!objective || decision.kind === "timebox-ended" || decision.kind === "wait")) {
       if (this.activeTurn === activeTurn) this.activeTurn = null;
       yield { type: "failed", failure: { code: "busy",
         message: decision.reason + " Use /progress to inspect the current plan." } };

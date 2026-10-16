@@ -336,15 +336,27 @@ export class LearningController {
     }
     // Persisted program focus takes precedence over per-chat scopes and provider actions.
     let focused = false;
+    let focusedProgramId: string | undefined;
+    let focusedObjectiveId: string | undefined;
     if (this.programs) {
       try {
         const active = await this.programs.getActiveProgram();
         focused = active?.focus?.status === "active";
+        focusedProgramId = active?.focus?.programId;
+        focusedObjectiveId = active?.focus?.objectiveId;
       } catch (error) {
-        yield { type: "failed", failure: { code: "persistence-failed",
-          message: "Cannot verify objective focus; restore the program file to continue.",
-          diagnostic: error instanceof Error ? error.message : String(error) } };
-        return;
+        // Preserve the pre-existing ordinary-chat availability boundary.
+        // Program-specific work must still fail closed when focus cannot be verified.
+        const learningIntent = Boolean(request.programActivity) ||
+          (request.action === "practice" && !request.freePractice) ||
+          /^\/(?:focus|next|start-session|pause-focus|resume-focus|end-focus|plan|use-program)(?:\s|$)/i.test(request.prompt.trim());
+        if (learningIntent) {
+          yield { type: "failed", failure: { code: "persistence-failed",
+            message: "Cannot verify objective focus; restore the program file to continue.",
+            diagnostic: error instanceof Error ? error.message : String(error) } };
+          return;
+        }
+        console.warn("[Nox] Learning program focus unavailable; continuing ordinary chat.", error);
       }
     }
     if (focused && (request.regenerate ||
@@ -354,6 +366,13 @@ export class LearningController {
       return;
     }
     if (focused && this.turns.hasActivePracticeQuestion() && !request.prompt.trim().startsWith("/")) {
+      const question = this.turns.activePracticeIdentity();
+      if (!question || question.programId !== focusedProgramId ||
+          question.objectiveId !== focusedObjectiveId) {
+        yield { type: "failed", failure: { code: "busy",
+          message: "This question belongs to another context. Return to the focused question or /pause-focus." } };
+        return;
+      }
       request = { ...request, action: "practice" };
     }
     if (request.prompt.trim().toLowerCase() === "/hint") {
@@ -444,6 +463,9 @@ export class LearningController {
           const selected = await this.programs.selectProgram(command.id);
           response = `Active program changed to: ${selected.goal}`;
         } else if (command.kind === "focus") {
+          if (this.turns.hasActivePracticeQuestion()) {
+            throw new Error("Finish the existing practice question before starting objective focus.");
+          }
           const program = await this.programs.startFocus(command.objectiveId);
           const objective = program.objectives.find(item => item.id === command.objectiveId)!;
           response = "Focused: **" + objective.title +
@@ -509,6 +531,9 @@ export class LearningController {
             }
             if (selected?.program && !selected.program.session && selected.program.focus?.status !== "active") {
               response = "Use /focus <objective-id> for self-paced study or /start-session for legacy timed study.";
+            } else if (selected?.decision.kind === "wait" ||
+                selected?.decision.kind === "timebox-ended") {
+              response = selected.decision.reason;
             } else if (selected?.decision.kind === "teach" && selected.decision.objective) {
               const objective = selected.decision.objective;
               const state = await this.learningState.load();

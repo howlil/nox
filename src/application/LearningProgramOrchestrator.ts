@@ -397,8 +397,13 @@ export class LearningProgramOrchestrator {
       `Feasibility: ${estimate}`,
       `Remaining work: ~${remainingEstimate.minutes} min (${remainingEstimate.basis}${remainingEstimate.basis === "calibrated" ? `, ${remainingEstimate.samples} measured objectives` : ""}).`,
       `Next: ${decision.kind} — ${decision.objective?.title ?? decision.reason}`,
+      ...(program.focus ? [`Objective focus: ${program.focus.status} — ${program.focus.objectiveId}`,
+        "Use /pause-focus, /resume-focus, or /end-focus to manage this lock."] :
+        ["Start self-paced learning with /focus <objective-id>."]),
+      "Objectives: " + program.objectives.map(item => item.id + " (" + item.title + ")").join(", "),
       ...(decision.dueAt ? [`Review due: ${new Date(decision.dueAt).toLocaleString()}`] : []),
-      `Session remaining: ${decision.minutesRemaining ?? program.constraints.minutesPerSession} minutes`,
+      ...(program.focus ? [] :
+        [`Session remaining: ${decision.minutesRemaining ?? program.constraints.minutesPerSession} minutes`]),
     ].join("\n");
   }
 
