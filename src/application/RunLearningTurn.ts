@@ -48,6 +48,7 @@ import { PracticeSessionRegistry } from "./PracticeSessionRegistry";
 import type { LearningProgram, LearningObjective } from "../domain/learning-program/types";
 import { chooseNextActivity } from "../domain/learning-program/rules";
 import { coversCriteria } from "../domain/learning-program/assessment-rubric";
+import { attachAssessmentProvenance } from "./assessment-provenance";
 import {
   StructuredStreamEvent,
   StructuredStreamParser,
@@ -865,13 +866,10 @@ export class RunLearningTurn {
           request.practiceSubmission) {
         const graded = gradeMultipleChoice(practiceAttempt.questionSpec,
           request.practiceSubmission.answer);
-        const evaluation: PracticeEvaluation = {
-          ...graded, programId: practiceAttempt.programId,
-          objectiveId: practiceAttempt.objectiveId,
-          assisted: Boolean(practiceAttempt.assisted),
-          taskKind: practiceAttempt.taskKind,
-          assessmentCoverage: practiceAttempt.programId ? "single-item" : undefined,
-        };
+        const evaluation = attachAssessmentProvenance({
+          ...graded, assessmentCoverage: practiceAttempt.programId ? "single-item" : undefined,
+        }, practiceAttempt, program, "deterministic");
+        await assertProgramAuthority(evaluation.programId, evaluation.objectiveId);
         for await (const item of this.commitPracticeOutcome(
           evaluation, snapshot, turnSessionId, practice, practiceAttempt,
           (legacyLockedMode ? "backend" : programScope ? "program" : undefined),
@@ -1098,12 +1096,8 @@ export class RunLearningTurn {
                 throw new InvalidLearningOutputError("Evaluation did not fully and consistently assess the objective rubric.");
               }
             }
-            const evaluation = practiceAttempt.programId
-              ? { ...practiceBuffer.evaluation, programId: practiceAttempt.programId,
-                  objectiveId: practiceAttempt.objectiveId, nextQuestion: undefined,
-                  assisted: Boolean(practiceAttempt.assisted), taskKind: practiceAttempt.taskKind }
-              : { ...practiceBuffer.evaluation,
-                  programId: undefined, objectiveId: undefined, assisted: Boolean(practiceAttempt.assisted) };
+            const evaluation = attachAssessmentProvenance(
+              practiceBuffer.evaluation, practiceAttempt, program, "llm-review");
             await assertProgramAuthority(evaluation.programId, evaluation.objectiveId);
             for await (const mapped of this.commitPracticeOutcome(
               evaluation,
@@ -1281,6 +1275,8 @@ export class RunLearningTurn {
             programId: part.evaluation.programId,
             objectiveId: part.evaluation.objectiveId,
             assisted: part.evaluation.assisted,
+            questionId: part.questionId,
+            focusSessionId: part.evaluation.focusSessionId,
           }, { now: () => part.committedAt ?? 0 });
           if (next.evidence.length !== state.evidence.length) {
             changed = true;
@@ -1372,6 +1368,8 @@ export class RunLearningTurn {
           programId: evaluationPart.evaluation.programId,
           objectiveId: evaluationPart.evaluation.objectiveId,
           assisted: evaluationPart.evaluation.assisted,
+          questionId: evaluationPart.questionId,
+          focusSessionId: evaluationPart.evaluation.focusSessionId,
         }, { now: () => evaluationPart.committedAt ?? 0 });
         if (nextState.evidence.length !== currentState.evidence.length) {
           await this.learningState.save(nextState);
