@@ -1,5 +1,6 @@
 import type { LearningEvidence, KnowledgeGap } from "../learning-state/types";
 import type { LearningProgram } from "../learning-program/types";
+import { projectLearnerModel } from "./learner-memory";
 
 export interface CriterionProjection {
   criterion: string;
@@ -23,24 +24,18 @@ export function projectObjectiveLearnerModel(
 ): ObjectiveProjection {
   const objective = program.objectives.find(item => item.id === objectiveId);
   if (!objective) throw new Error("Unknown learning objective.");
+  const derived = projectLearnerModel(program, evidence, gaps).objectives[objectiveId];
   const attempts = evidence.filter(item =>
     item.scope === "learner" && item.type === "practice" &&
     item.programId === program.id && item.objectiveId === objectiveId)
-    .sort((a,b) => a.createdAt - b.createdAt);
+    .sort((a, b) => a.createdAt - b.createdAt || a.id.localeCompare(b.id));
   return {
-    programId: program.id, objectiveId, attempts: attempts.length,
-    assistedAttempts: attempts.filter(item => item.assisted).length,
-    lastOutcome: attempts.at(-1)?.outcome,
-    criteria: objective.rubric.map(criterion => {
-      const observations = attempts.flatMap(item => (item.rubricResults ?? [])
-        .filter(result => result.criterion === criterion)
-        .map(result => ({ met: result.met, id: item.id, assisted: item.assisted })));
-      const latest = observations.at(-1);
-      const independent = observations.some(item => item.met && !item.assisted);
-      return { criterion, status: !latest ? "unseen" : !latest.met ? "needs-repair" :
-        independent ? "demonstrated" : "developing",
-        evidenceIds: observations.slice(-3).map(item => item.id) };
-    }),
+    programId: program.id, objectiveId, attempts: derived.attempts,
+    assistedAttempts: derived.assistedAttempts, lastOutcome: attempts.at(-1)?.outcome,
+    criteria: derived.criteria.map(item => ({
+      criterion: item.description, status: item.status,
+      evidenceIds: [...item.evidenceIds],
+    })),
     activeGapReasons: gaps.filter(item =>
       item.programId === program.id && item.objectiveId === objectiveId &&
       item.status !== "resolved").slice(-5).map(item => item.reason),
