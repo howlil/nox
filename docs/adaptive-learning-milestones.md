@@ -65,12 +65,18 @@ This ledger is updated when code is committed. An item is checked only if the be
 - [x] Unit, integration, and persistence tests verify isolation between programs/objectives, rubric rewording, future revisions, restart, stale fingerprint, retrieval budgets and absence of `memory.json`.
 - [ ] In-memory performance memoization only if profiling warrants it (must be disposable), and Obsidian desktop/provider acceptance.
 
-## M4 — Adaptive activity decision (partial)
+## M4 — Adaptive activity policy (pure domain core implemented; desktop acceptance pending)
 
-- [x] Objective pinning, diagnostic, recall, transfer, repair and scaffold decision flow.
-- [x] Feedback decisions carry specific failed criteria and evidence IDs.
-- [ ] Separate readiness, eligible-objective selection and learning-activity decision contracts.
-- [ ] Criterion-ID-native feedback routing, anti-thrashing and configurable scaffolding/retention thresholds.
+- [x] Canonical mastery and prerequisite-readiness extracted to pure `objective-readiness.ts`: `objectiveProgress` (backwards compatible), `deriveObjectiveReadiness`, stable failed criterion IDs, evidence IDs, and eligibility.
+- [x] Separate pure `selectEligibleObjective`, `decideLearningActivity`, and `decideFocusedLearningActivity` policies for deterministic activity selection and a strict objective-focus pin.
+- [x] Priority is explicit: due recall → repair of eligible objective → independent transfer → unseen required goal → unseen optional goal. Paused/active focus, deadlines and legacy timebox gates keep existing authority.
+- [x] Correction-first after a first failed criterion, progressive scaffold only after distinct failed questions, bounded level 2–4, no repeated teaching for the same evidence marker, and reset after verified independent recovery.
+- [x] Feedback matches current stable criterion IDs across rubric rewording. Recall, remediation, and transfer decisions carry targeted criterion IDs and supporting evidence IDs (read-only provenance).
+- [x] Configurable *pure policy* thresholds for scaffolding and retention, with a hard minimum 12h independent mastery gap; no mutable learner policy database or arbitrary timeout used to release focus.
+- [x] Program practice prompt maps criterion IDs to the approved rubric descriptions and includes opaque evidence references rather than invented provider verdicts.
+- [x] Unit and regression tests cover DAG eligibility, due recall priority, focus lock, source evidence, repeated decisions, scaffold escalation/reset, stale curriculum evidence, and non-weakenable retention thresholds.
+- [ ] Product settings/UI for optional threshold configuration, and desktop acceptance of real-provider adaptive turns (especially legacy vaults).
+- [ ] Concurrency/fault-injection tests where evidence and focus change during an in-flight provider activity decision (tracked under M5/M7).
 
 ## M5 — Context and provider orchestration (partial)
 
@@ -96,6 +102,7 @@ This ledger is updated when code is committed. An item is checked only if the be
 - [x] Automated tests for atomic focus-end auto-replan, evidence isolation and create-only revision note recovery.
 - [x] Automated tests for approved structural revision diff/commit, tombstone scheduling, persistence and workspace no-overwrite guarantees.
 - [x] M3 tests for evidence-derived learner memory, program isolation, bounded provider context, fingerprint invalidation and reconstruction from persisted progress.
+- [x] M4 deterministic activity policy tests for criterion targeting, eligible objective priority, anti-thrashing and safe recall thresholds.
 - [ ] Full migration/restore and concurrency fault-injection matrix.
 - [ ] Manual Obsidian desktop provider and vault acceptance.
 - [ ] Release review and merge approval.
