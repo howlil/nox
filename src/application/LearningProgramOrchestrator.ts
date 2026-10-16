@@ -454,7 +454,8 @@ export class LearningProgramOrchestrator {
     const { program, decision } = result;
     const state = await this.learningState.load();
     const { objectiveProgress } = await import("../domain/learning-program/rules");
-    const mastered = program.objectives.filter(o =>
+    const activeObjectives = program.objectives.filter(o => !o.deprecated);
+    const mastered = activeObjectives.filter(o =>
       objectiveProgress(program, o.id, state.evidence).status === "mastered").length;
     const f = feasibility(program);
     const remainingEstimate = estimateRemainingWork(program, state.evidence, this.now());
