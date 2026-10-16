@@ -741,6 +741,15 @@ export class RunLearningTurn {
             selectRelevantLearnerState(program,
               projectLearnerModel(program, state.evidence, state.gaps),
               state.evidence, state.gaps, activeObjective.id)),
+          ...(practiceAttempt ? [
+            "CURRENT QUESTION STATE: " + JSON.stringify({
+              questionId: practiceAttempt.questionId,
+              taskKind: practiceAttempt.taskKind,
+              assisted: Boolean(practiceAttempt.assisted),
+              highestHintLevel: practiceAttempt.highestHintLevel ??
+                (practiceAttempt.assisted ? 1 : 0),
+            }),
+          ] : []),
           `Activity: ${practiceAttempt ? "evaluate current answer" : decision?.kind}`,
           ...(decision?.kind === "remediate" ? [
             "CORRECTION: ask the learner to repair the prior failed reasoning without revealing a full solution.",
