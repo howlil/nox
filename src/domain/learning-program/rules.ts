@@ -203,8 +203,10 @@ export function chooseNextActivity(program: LearningProgram, evidence: LearningE
     const last = attempts[attempts.length - 1];
     const taught = program.instructionEvents?.some(item =>
       item.objectiveId === remediation.id && item.afterEvidenceAt === last.createdAt);
+    const previousFailures = attempts.filter(item =>
+      item.outcome !== "correct" && item.rubricResults?.some(result => !result.met));
     const kind = last.outcome === "correct" && (last.assisted || last.assessmentCoverage === "single-item") ? "guided-practice" :
-      taught ? "guided-practice" : "teach";
+      previousFailures.length < 2 || taught ? "guided-practice" : "teach";
     return { kind, objective: remediation,
       reason: kind === "teach" ? "Teach the missed concept before retrying." :
         "Guided practice should target the most recent failed criterion.",

@@ -448,7 +448,7 @@ export class LearningController {
             `**Time:** ${program.constraints.minutesPerSession} min/session, ${program.constraints.sessionsPerWeek} sessions/week`,
             f.feasible === false ? `**Schedule at risk:** ~${f.estimatedMinutes} min required, ~${f.availableMinutes} min available. Reduce scope, change the deadline, or increase your time budget.` :
               `**Estimated work including review:** ${f.estimatedMinutes} min.`,
-            "Use /start-session, then /next. Use /progress to inspect your plan.",
+            "Use /progress for objective IDs, then /focus <objective-id> and /next for self-paced learning.",
           ].join("\n\n");
         } else if (command.kind === "programs") {
           const collection = await this.programs.listPrograms();
@@ -462,6 +462,18 @@ export class LearningController {
           }
           const selected = await this.programs.selectProgram(command.id);
           response = `Active program changed to: ${selected.goal}`;
+        } else if (command.kind === "replan") {
+          if (this.turns.hasActivePracticeQuestion()) {
+            throw new Error("Finish the current challenge before revising the curriculum.");
+          }
+          const revised = await this.programs.replanFromEvidence();
+          const revision = revised?.curriculumRevisions?.at(-1);
+          response = revision
+            ? "Curriculum version " + revision.toVersion +
+              ": added prerequisite " + revision.addedObjectiveId +
+              " from evidence " + revision.reasonEvidenceIds.join(", ") +
+              ". Use /progress to inspect the revised objectives."
+            : "No repeated criterion gap requires structural curriculum revision yet.";
         } else if (command.kind === "focus") {
           if (this.turns.hasActivePracticeQuestion()) {
             throw new Error("Finish the existing practice question before starting objective focus.");

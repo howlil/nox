@@ -33,6 +33,7 @@ import {
 } from "./action-builders";
 import { isLockedLearningMode, isProgramLearningScope, parseScopeCommand, scopeDeflection, transitionLearningScope, transitionProgramLearningScope } from "../domain/practice/learning-scope";
 import { toPromptLearningState } from "./learning-state-projection";
+import { projectObjectiveLearnerModel, summarizeObjectiveContext } from "../domain/learner-model/projection";
 import {
   LearningEvent,
   LearningRequest,
@@ -517,7 +518,7 @@ export class RunLearningTurn {
       type: "note",
       file: "00-learning-os/progress.json",
       content: JSON.stringify(
-        toPromptLearningState(state),
+        toPromptLearningState(state, program?.id),
         null,
         2,
       ),
@@ -700,6 +701,8 @@ export class RunLearningTurn {
           `Program ID: ${program.id}. Goal: ${program.goal}`,
           `Objective ID: ${activeObjective.id}. Outcome: ${activeObjective.outcome}`,
           `Required rubric: ${JSON.stringify(activeObjective.rubric)}`,
+          "VERIFIED LEARNER CONTEXT: " + summarizeObjectiveContext(
+            projectObjectiveLearnerModel(program, activeObjective.id, state.evidence, state.gaps)),
           `Activity: ${practiceAttempt ? "evaluate current answer" : decision?.kind}`,
           "For guided practice use appropriate scaffolding; for transfer test application in a new context.",
           `Previously failed rubric criteria: ${JSON.stringify(missed)}. If remedial practice, target these first.`,

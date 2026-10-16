@@ -3,6 +3,7 @@ import type { ContextPort, LearningStatePort, ProgramStorePort } from "./ports";
 import type { LearningProgram, ProgramCollection, ProgramConstraints, LearningDecision, SessionPauseReason } from "../domain/learning-program/types";
 import { chooseNextActivity, feasibility, objectiveProgress, validateConstraints, validateCurriculum } from "../domain/learning-program/rules";
 import { startObjectiveFocus, transitionObjectiveFocus } from "../domain/learning-program/focus-transitions";
+import { applyCurriculumRevision, proposeRemediationRevision } from "../domain/learning-program/curriculum-revision";
 import { estimateRemainingWork } from "../domain/learning-program/estimate";
 import { checkpointTiming, focusSessionObjective, focusSessionMaterial, newSessionTiming, projectedTiming, recoverTiming, sessionRemainingMs, sessionTimeStatus, setTimingPause } from "../domain/learning-program/session-time";
 
@@ -262,6 +263,17 @@ export class LearningProgramOrchestrator {
     this.mutationTail = operation.then(() => {}, () => {});
     return operation;
   }
+  /** Derived from committed rubric failures; never mutate an in-progress objective. */
+  async replanFromEvidence(): Promise<LearningProgram | null> {
+    const state = await this.learningState.load();
+    const active = await this.getActiveProgram();
+    if (!active) throw new Error("Choose a learning program first.");
+    if (active.focus) throw new Error("End objective focus before revising the curriculum.");
+    const proposal = proposeRemediationRevision(active, state.evidence);
+    if (!proposal) return null;
+    return this.updateActive(program => applyCurriculumRevision(program, proposal));
+  }
+
   async startFocus(objectiveId: string): Promise<LearningProgram> {
     const state = await this.learningState.load();
     return this.updateActive(program => {

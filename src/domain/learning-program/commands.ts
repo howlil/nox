@@ -6,7 +6,7 @@ export type ProgramCommand =
   | { kind: "next" | "progress" | "start-session" | "pause-session" | "resume-session" | "session-time" | "end-session" | "review-due" | "programs" | "free-practice" }
   | { kind: "use-program"; id: string }
   | { kind: "focus"; objectiveId: string }
-  | { kind: "pause-focus" | "resume-focus" | "end-focus" }
+  | { kind: "pause-focus" | "resume-focus" | "end-focus" | "replan" }
   | { kind: "extend-session"; minutes: number };
 
 /** Explicit, human-auditable constraints; never hallucinate settings from a goal. */
@@ -26,6 +26,7 @@ export function parseProgramCommand(input: string): ProgramCommand | null {
     "/pause-session": "pause-session", "/resume-session": "resume-session", "/session-time": "session-time",
     "/end-session": "end-session", "/review-due": "review-due", "/programs": "programs", "/free-practice": "free-practice",
     "/pause-focus": "pause-focus", "/resume-focus": "resume-focus", "/end-focus": "end-focus",
+    "/replan": "replan",
   };
   if (commands[value.toLowerCase()]) return { kind: commands[value.toLowerCase()] } as ProgramCommand;
   if (!/^\/plan(?:\s|$)/i.test(value)) return null;
