@@ -99,3 +99,50 @@ test("accepts a valid v2 state and returns detached arrays", () => {
 
   assert.deepEqual(source.gaps[0].evidenceIds, ["e-1"]);
 });
+ 
+test("v2 to v3 retains historical evidence without invented criterion or evaluator metadata", () => {
+  const migrated = decodeLearningState({
+    version: 2, target: "SQL", gaps: [], evidence: [{
+      id: "old", type: "practice", scope: "learner", concept: "Locks",
+      source: "notes.md", outcome: "correct", createdAt: 100,
+      rubricResults: [{ criterion: "Define locking", met: true, evidence: "Answer" }],
+    }],
+  });
+  assert.equal(migrated.version, 3);
+  assert.equal(migrated.evidence[0].questionId, undefined);
+  assert.equal(migrated.evidence[0].evaluator, undefined);
+  assert.equal(migrated.evidence[0].assistance, undefined);
+  assert.equal(migrated.evidence[0].rubricResults?.[0].criterionId, undefined);
+});
+
+test("v3 round-trips explicit criterion, question, evaluator and assistance provenance", () => {
+  const original = {
+    version: 3, target: null, gaps: [], evidence: [{
+      id: "e-1", type: "practice", scope: "learner", concept: "Transactions",
+      source: "db.md", createdAt: 321, programId: "p", objectiveId: "o",
+      objectiveRevision: 2, questionId: "q-1", focusSessionId: "focus-1",
+      evaluator: "llm-review", assisted: true,
+      assistance: { highestHintLevel: 1, independent: false },
+      taskKind: "guided-practice",
+      rubricResults: [{ criterion: "Explain isolation", criterionId: "c1",
+        met: true, evidence: "Used an MVCC example" }],
+    }],
+  };
+  assert.deepEqual(decodeLearningState(original), original);
+});
+
+test("malformed v3 metadata is rejected rather than trusted", () => {
+  const base = { version: 3, target: null, gaps: [], evidence: [{
+    id: "e1", type: "practice", scope: "learner", concept: "C",
+    source: "src", createdAt: 10,
+  }] };
+  assert.throws(() => decodeLearningState({ ...base,
+    evidence: [{ ...base.evidence[0], evaluator: "provider-selected" }] }), /unsupported shape/);
+  assert.throws(() => decodeLearningState({ ...base,
+    evidence: [{ ...base.evidence[0], assistance:
+      { highestHintLevel: 1, independent: true } }] }), /unsupported shape/);
+  assert.throws(() => decodeLearningState({ ...base,
+    evidence: [{ ...base.evidence[0], rubricResults: [{
+      criterion: "C", criterionId: 123, met: true, evidence: "x",
+    }] }] }), /unsupported shape/);
+});
