@@ -1,0 +1,119 @@
+name: CI / Release
+
+# Run heavy release-candidate validation on release PRs or an explicit dispatch.
+# Bot-created PR events may require workflow approval in GitHub's merge UI.
+on:
+  pull_request:
+    branches: [master]
+    paths:
+      - '.release-plan.json'
+      - '.github/workflows/ci-release.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: nox-release-ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  policy:
+    if: github.event_name == 'workflow_dispatch' || startsWith(github.head_ref, 'release/')
+    name: release-policy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Release metadata and blocking P0 settings policy
+        run: pnpm docs:check && pnpm release:check && pnpm ci:critical
+      - name: Official Obsidian Community scanner (advisory legacy warnings)
+        uses: obsidianmd/obsidian-workflows@v1
+        with:
+          build: "false"
+          lint: "false"
+          scanner-lint: "true"
+          strict: "false"
+
+  artifacts:
+    if: github.event_name == 'workflow_dispatch' || startsWith(github.head_ref, 'release/')
+    name: release-artifacts
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm ci:critical && pnpm lint:typed && pnpm verify
+      - name: Prove deterministic production bundle
+        shell: bash
+        run: |
+          set -euo pipefail
+          first="$(sha256sum dist/main.js dist/manifest.json dist/styles.css)"
+          pnpm build
+          second="$(sha256sum dist/main.js dist/manifest.json dist/styles.css)"
+          if [ "$first" != "$second" ]; then
+            echo "::error::Release build is non-reproducible."
+            exit 1
+          fi
+      - uses: actions/upload-artifact@v4
+        with:
+          name: nox-candidate-${{ github.sha }}
+          path: |
+            dist/main.js
+            dist/manifest.json
+            dist/styles.css
+          if-no-files-found: error
+          retention-days: 14
+
+  windows-dpapi:
+    if: github.event_name == 'workflow_dispatch' || startsWith(github.head_ref, 'release/')
+    name: windows-dpapi
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Windows OAuth, DPAPI and inference regressions
+        shell: pwsh
+        run: |
+          pnpm exec esbuild tests/agent/ChatGptProvider.test.ts --bundle --platform=node --format=esm --target=node22 --outfile=chatgpt-provider-test.mjs
+          pnpm exec esbuild tests/agent/ObsidianOAuthTransport.test.ts --bundle --platform=node --format=esm --target=node22 --outfile=obsidian-oauth-test.mjs
+          pnpm exec esbuild tests/agent/ObsidianInferenceTransport.test.ts --bundle --platform=node --format=esm --target=node22 --outfile=obsidian-inference-test.mjs
+          node --test chatgpt-provider-test.mjs obsidian-oauth-test.mjs obsidian-inference-test.mjs
+
+  certified:
+    if: always() && (github.event_name == 'workflow_dispatch' || startsWith(github.head_ref, 'release/'))
+    needs: [policy, artifacts, windows-dpapi]
+    name: release-certified
+    runs-on: ubuntu-latest
+    steps:
+      - name: All three proofs must succeed
+        env:
+          POLICY: ${{ needs.policy.result }}
+          ARTIFACTS: ${{ needs.artifacts.result }}
+          WINDOWS: ${{ needs.windows-dpapi.result }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$POLICY" = success
+          test "$ARTIFACTS" = success
+          test "$WINDOWS" = success

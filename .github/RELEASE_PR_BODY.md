@@ -1,15 +1,21 @@
-## Public release checklist
+## Release candidate acceptance
 
-This PR updates the version manifest, package version, release plan, and changelog. Merging it will trigger a **public GitHub Release** if automated validation succeeds.
+**Merging this PR creates an attested DRAFT only, never a public release.**
+The final publish step is a separate manual workflow requiring the exact merged SHA and desktop acceptance.
 
-- [ ] Version is exactly `x.y.z` (no `v`), and changes are justified by SemVer.
-- [ ] Linux CI and Windows provider/DPAPI tests passed.
-- [ ] Installed **only** `main.js` + `manifest.json` + `styles.css` in a disposable Obsidian desktop vault.
-- [ ] Sidebar, logo, commands, settings, plan/practice, note edit approval, and plugin reload were checked.
-- [ ] Provider login, inference, streaming, and disconnect were exercised on the target platform.
-- [ ] Old plugin ID data migration considered; no data loss observed in the tested path.
-- [ ] README/disclosures and third-party license attribution updated as needed.
-- [ ] Release notes are accurate and omit unreleased/incomplete features.
-- [ ] Owner approved publication to the GitHub Releases page.
+- [ ] Dev CI passed for the PR
+- [ ] Release CI ran against the candidate SHA: policy, artifacts and Windows DPAPI passed
+- [ ] Official scanner findings reviewed (advisory warnings must not be called clean)
+- [ ] Version, manifest, compatibility mapping and changelog agree
+- [ ] Reviewed code diff and approved creation of the draft
 
-**Do not merge without recording manual desktop acceptance results.** A passing CI run is not a live Obsidian acceptance test.
+### After merging (before publication)
+
+- [ ] Draft contains three attested assets built on the merged master SHA
+- [ ] Installed those exact artifacts in an isolated Obsidian 1.13+ desktop vault
+- [ ] Verified core learning, settings tabs, keyboard, sign-in, streaming, reload and popout
+- [ ] Verified migration from the supported previous version without data loss
+- [ ] Recorded operating system, tested version, SHA and acceptance outcomes
+- [ ] Manually dispatched publish-release.yml against the exact merged master SHA
+
+See docs/RELEASE_CI.md. Never publish from the candidate PR's pre-merge SHA.

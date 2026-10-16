@@ -1,6 +1,7 @@
-name: Publish Obsidian plugin
+name: Prepare attested release draft
 
 # Only merging a release PR changes .release-plan.json on master.
+# This workflow creates a verified DRAFT only; publish-release.yml is explicitly manual.
 # Ordinary code merges never create releases.
 on:
   push:
@@ -65,7 +66,7 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: pnpm docs:check && pnpm release:check && pnpm verify
+      - run: pnpm docs:check && pnpm release:check && pnpm ci:critical && pnpm lint:typed && pnpm verify
       # Attest the exact production bytes; no attestations are issued for CI preview builds.
       - name: Attest plugin JavaScript
         uses: actions/attest@v4
@@ -88,6 +89,22 @@ jobs:
             dist/styles.css
           if-no-files-found: error
           retention-days: 7
+
+  community:
+    if: needs.detect.outputs.prepared == 'true'
+    needs: detect
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - name: Official Community scanner (legacy findings advisory)
+        uses: obsidianmd/obsidian-workflows@v1
+        with:
+          build: "false"
+          lint: "false"
+          scanner-lint: "true"
+          strict: "false"
 
   windows:
     if: needs.detect.outputs.prepared == 'true'
@@ -113,7 +130,7 @@ jobs:
 
   release:
     if: needs.detect.outputs.prepared == 'true'
-    needs: [detect, linux, windows]
+    needs: [detect, linux, windows, community]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -130,7 +147,7 @@ jobs:
         run: |
           set -euo pipefail
           for file in main.js styles.css manifest.json; do
-            gh attestation verify "dist/$file" --repo "$GITHUB_REPOSITORY"
+            gh attestation verify "dist/$file" --repo "$GITHUB_REPOSITORY" --source-digest "$GITHUB_SHA"
           done
       - name: Extract changelog notes for this exact version
         env:
@@ -144,7 +161,7 @@ jobs:
           const next = src.indexOf('\n## [', start + 4);
           fs.writeFileSync('release-notes.md', src.slice(start, next < 0 ? undefined : next).trim() + '\n');
           NODE
-      - name: Upload complete draft and publish
+      - name: Upload complete draft without publishing
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_VERSION: ${{ needs.detect.outputs.version }}
@@ -167,5 +184,4 @@ jobs:
           for item in main.js manifest.json styles.css; do
             grep -Fxq "$item" <<< "$assets" || { echo "::error::Missing $item"; exit 1; }
           done
-          gh release edit "$version" --draft=false
-          echo "Published Nox $version with all three Community Directory assets."
+          echo "Verified DRAFT Nox $version is ready for desktop acceptance."

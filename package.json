@@ -30,7 +30,8 @@
     "test:artifacts": "node scripts/verify-artifacts.mjs",
     "docs:check": "node scripts/check-docs.mjs",
     "release:check": "node scripts/check-release.mjs",
-    "lint:css": "node scripts/check-css-sources.mjs"
+    "lint:css": "node scripts/check-css-sources.mjs",
+    "ci:critical": "node scripts/ci/obsidian-critical-policy.mjs"
   },
   "keywords": [
     "obsidian",

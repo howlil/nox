@@ -194,7 +194,7 @@ export class NoxSettingsTab extends PluginSettingTab {
     setting.settingEl.addClass("nox-settings-shell");
     const surface = setting.controlEl.createDiv({ cls: "nox-settings-surface" });
     const header = surface.createDiv({ cls: "nox-settings-heading" });
-    header.createEl("h2", { text: "Settings" });
+    new Setting(header).setName("Settings").setHeading();
     header.createEl("p", { text: "Manage your agent runtime and review usage recorded through Nox." });
 
     const tabs = surface.createDiv({ cls: "nox-settings-tabs",

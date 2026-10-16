@@ -1,0 +1,109 @@
+name: Publish approved Obsidian release
+
+# No push or tag can publish a draft automatically.
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Release version, e.g. 1.1.3"
+        type: string
+        required: true
+      expected_sha:
+        description: "Full merged master commit SHA used for the draft"
+        type: string
+        required: true
+      desktop_acceptance:
+        description: "I tested the exact draft artifacts in Obsidian desktop"
+        type: boolean
+        required: true
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: nox-public-release
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    if: inputs.desktop_acceptance == true
+    runs-on: ubuntu-latest
+    environment: public-release
+    permissions:
+      contents: write
+      attestations: read
+    steps:
+      - name: Validate exact approved SHA before source checkout
+        env:
+          EXPECTED_SHA: ${{ inputs.expected_sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$EXPECTED_SHA" =~ ^[0-9a-f]{40}$ ]] || {
+            echo "::error::Supply a full lowercase 40-character approved commit SHA."
+            exit 1
+          }
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.expected_sha }}
+          persist-credentials: false
+      - name: Verify source and approved draft identity
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ inputs.version }}
+          EXPECTED_SHA: ${{ inputs.expected_sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || exit 1
+          [[ "$EXPECTED_SHA" =~ ^[0-9a-f]{40}$ ]] || exit 1
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA" || {
+            echo "::error::Checkout differs from the approved release SHA."
+            exit 1
+          }
+          test "$(gh release view "$VERSION" --json isDraft --jq '.isDraft')" = true || {
+            echo "::error::Release must exist and still be a draft."
+            exit 1
+          }
+          target="$(gh release view "$VERSION" --json targetCommitish --jq '.targetCommitish')"
+          test "$target" = "$EXPECTED_SHA" || {
+            echo "::error::Draft refers to another commit: $target"
+            exit 1
+          }
+          node scripts/check-release.mjs
+          test "$(node -p 'require("./package.json").version')" = "$VERSION"
+
+      - name: Download and attest the exact draft assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ inputs.version }}
+          EXPECTED_SHA: ${{ inputs.expected_sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          expected_assets="$(printf '%s\n' main.js manifest.json styles.css | LC_ALL=C sort)"
+          actual_assets="$(gh release view "$VERSION" --json assets --jq '.assets[].name' | LC_ALL=C sort)"
+          if [ "$actual_assets" != "$expected_assets" ]; then
+            echo "::error::Draft must contain exactly main.js, manifest.json and styles.css."
+            printf 'Received assets:\n%s\n' "$actual_assets"
+            exit 1
+          fi
+          mkdir -p dist
+          gh release download "$VERSION" --dir dist \
+            --pattern "main.js" --pattern "manifest.json" --pattern "styles.css"
+          for file in main.js manifest.json styles.css; do
+            test -s "dist/$file" || exit 1
+            gh attestation verify "dist/$file" --repo "$GITHUB_REPOSITORY" --source-digest "$EXPECTED_SHA"
+          done
+          test "$(node -p 'require("./dist/manifest.json").version')" = "$VERSION"
+
+      - name: Publish the already approved draft
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ inputs.version }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh release edit "$VERSION" --draft=false
+          echo "Published verified Nox $VERSION."
