@@ -26,15 +26,33 @@ export function decideFeedback(
         result.criterion === criterion));
   const failedCriteria = objective.rubric.filter((criterion, index) =>
     matched(latest, criterion, index, false));
-  const priorFailures = attempts.filter(item => item.id !== latest.id &&
-    item.outcome !== "correct" && failedCriteria.some(criterion =>
-      matched(item, criterion, objective.rubric.indexOf(criterion), false))).length;
+  // A demonstrated independent recovery resets scaffolding for this criterion.
+  // Evidence operations are unique; replay of a question must not count twice.
+  const recent = [...attempts].sort((a, b) =>
+    a.createdAt - b.createdAt || a.id.localeCompare(b.id));
+  const lastRepair = recent.findLast(item => item.createdAt <= latest.createdAt &&
+    item.id !== latest.id && item.outcome === "correct" && !item.assisted &&
+    item.assistance?.independent !== false && item.assessmentCoverage !== "single-item" &&
+    failedCriteria.every(criterion =>
+      matched(item, criterion, objective.rubric.indexOf(criterion), true)));
+  const since = recent.filter(item => (!lastRepair ||
+    item.createdAt > lastRepair.createdAt ||
+    (item.createdAt === lastRepair.createdAt && item.id > lastRepair.id)) &&
+    (item.createdAt < latest.createdAt ||
+      (item.createdAt === latest.createdAt && item.id <= latest.id)));
+  const failures = since.filter(item => item.outcome !== "correct" &&
+    failedCriteria.some(criterion =>
+      matched(item, criterion, objective.rubric.indexOf(criterion), false)));
+  const uniqueFailures = failures.filter((item, index, all) =>
+    all.findIndex(other => (other.questionId ?? other.id) === (item.questionId ?? item.id)) === index);
+  const failureCount = uniqueFailures.length;
   if (latest.outcome === "incorrect" || latest.outcome === "partial") {
-    if (failedCriteria.length > 0 && priorFailures + 1 >= threshold) {
+    if (failedCriteria.length > 0 && failureCount >= threshold) {
       // The first repeat receives a limited scaffold; higher levels require
       // explicit policy and hint UX so help cannot silently escalate.
-      return { kind: "scaffold", level: 2, failedCriteria,
-        evidenceIds: attempts.filter(item => item.outcome !== "correct").slice(-2).map(item => item.id) };
+      return { kind: "scaffold",
+        level: Math.min(4, failureCount - threshold + 2) as 1 | 2 | 3 | 4,
+        failedCriteria, evidenceIds: uniqueFailures.slice(-2).map(item => item.id) };
     }
     return { kind: "repair", failedCriteria, evidenceIds: [latest.id] };
   }
