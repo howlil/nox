@@ -245,7 +245,7 @@ export class LearningProgramOrchestrator {
     const collection = await this.store.load();
     return collection.programs.find(p => p.id === collection.activeProgramId) ?? null;
   }
-  private updateActive(edit: (program: LearningProgram) => LearningProgram): Promise<LearningProgram> {
+  private updateActive(edit: (program: LearningProgram) => LearningProgram | Promise<LearningProgram>): Promise<LearningProgram> {
     if (this.planning) return Promise.reject(new Error("Curriculum generation is in progress."));
     // Serialize the read-modify-write operation, not only the underlying vault write.
     const operation = this.mutationTail.then(async () => {
@@ -254,7 +254,7 @@ export class LearningProgramOrchestrator {
         const collection = await this.store.load();
         const index = collection.programs.findIndex(p => p.id === collection.activeProgramId);
         if (index === -1) throw new Error("No active learning program. Use /plan first.");
-        const next = edit(structuredClone(collection.programs[index]));
+        const next = await edit(structuredClone(collection.programs[index]));
         collection.programs[index] = next;
         await this.store.save(collection);
         return next;
@@ -293,7 +293,18 @@ export class LearningProgramOrchestrator {
     return this.updateActive(p => transitionObjectiveFocus(p, "resume", this.now()));
   }
   async endFocus(): Promise<LearningProgram> {
-    return this.updateActive(p => transitionObjectiveFocus(p, "end", this.now()));
+    // Focus transition and a conservative micro-replan commit in one serialized
+    // programs.json write. A failed save leaves both state changes unapplied.
+    return this.updateActive(async program => {
+      const completed = program.focus;
+      const ended = transitionObjectiveFocus(program, "end", this.now());
+      if (!completed) return ended;
+      const learning = await this.learningState.load();
+      const proposal = proposeRemediationRevision(ended, learning.evidence, {
+        completedFocusId: completed.id, objectiveId: completed.objectiveId,
+      });
+      return proposal ? applyCurriculumRevision(ended, proposal) : ended;
+    });
   }
   async startSession(): Promise<LearningProgram> {
     const result = await this.updateActive(program => {
