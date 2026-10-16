@@ -57,5 +57,13 @@ test("release requires verified attestations for the three official plugin asset
   }
   assert.match(workflow, /gh attestation verify "dist\/\$file"/);
   assert.ok(workflow.indexOf("Verify build provenance before publication") <
-    workflow.indexOf("Upload complete draft and publish"));
+    workflow.indexOf("Upload complete draft without publishing"));
+  assert.doesNotMatch(workflow, /gh release edit.*--draft=false/,
+    "Release plan merge may create a verified draft but may not publish it");
+
+  const publishing = source(".github/workflows/publish-release.yml");
+  assert.match(publishing, /workflow_dispatch:/);
+  assert.match(publishing, /desktop_acceptance/);
+  assert.match(publishing, /gh attestation verify/);
+  assert.match(publishing, /gh release edit "\$VERSION" --draft=false/);
 });
