@@ -71,6 +71,7 @@ export interface PracticeEvaluation {
   assisted?: boolean;
   /** Application-authored metadata; absent in legacy evaluations. */
   objectiveRevision?: number;
+  focusSessionId?: string;
   evaluator?: "deterministic" | "llm-review" | "verified-execution";
   assistance?: { highestHintLevel: 0 | 1 | 2 | 3 | 4; independent: boolean };
   rubricResults?: RubricResult[];
