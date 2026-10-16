@@ -23,6 +23,7 @@ const review = (payload: object): AgentStreamEvent[] => [
 ];
 
 function makeRig(withProgram = false) {
+  const programStartedAt = Date.now();
   let pluginData: Record<string, unknown> | null = null;
   let failProgressWrites = 0;
   let failProposalWrites = 0;
@@ -138,8 +139,8 @@ function makeRig(withProgram = false) {
           { id: "network", title: "Network routing", outcome: "Explain network routing",
             prerequisiteIds: [], estimatedMinutes: 40, rubric: ["Explain routing"],
             sourceRefs: [], priority: "optional" as const }],
-        createdAt: Date.now(), planVersion: 1,
-        session: { startedAt: Date.now(), timeBudgetMinutes: 45 },
+        createdAt: programStartedAt, planVersion: 1,
+        session: { startedAt: programStartedAt, timeBudgetMinutes: 45 },
       }],
     }) } : undefined;
     const learning = new LearningController(
