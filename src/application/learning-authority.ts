@@ -1,4 +1,4 @@
-import type { LearningEvidence } from "../domain/learning-state/types";
+import type { KnowledgeGap, LearningEvidence } from "../domain/learning-state/types";
 import type { LearningProgram, ProgramCollection } from "../domain/learning-program/types";
 import { projectLearnerModel } from "../domain/learner-model/learner-memory";
 
@@ -20,6 +20,7 @@ export interface LearningAuthoritySnapshot {
 
 export function captureLearningAuthority(program: LearningProgram,
   objectiveId: string, chatSessionId: string, evidence: readonly LearningEvidence[],
+  gaps: readonly KnowledgeGap[] = [],
 ): LearningAuthoritySnapshot {
   if (!program.objectives.some(o => o.id === objectiveId && !o.deprecated)) {
     throw new Error("Learning objective is no longer part of the active curriculum.");
@@ -40,14 +41,14 @@ export function captureLearningAuthority(program: LearningProgram,
       chatSessionId: program.focus.chatSessionId,
     } : null,
     sessionStartedAt: program.session?.startedAt ?? null,
-    evidenceRevision: projectLearnerModel(program, evidence).evidenceRevision,
+    evidenceRevision: projectLearnerModel(program, evidence, gaps).evidenceRevision,
   };
 }
 
 /** Fail-closed on any authority drift; never rebind a finished provider response. */
 export function assertLearningAuthority(snapshot: LearningAuthoritySnapshot,
   collection: ProgramCollection, evidence: readonly LearningEvidence[],
-  chatSessionId: string, objectiveId: string): void {
+  chatSessionId: string, objectiveId: string, gaps: readonly KnowledgeGap[] = []): void {
   if (snapshot.version !== 1 || snapshot.chatSessionId !== chatSessionId ||
       snapshot.objectiveId !== objectiveId ||
       collection.activeProgramId !== snapshot.programId) {
@@ -68,7 +69,7 @@ export function assertLearningAuthority(snapshot: LearningAuthoritySnapshot,
       (current.session?.startedAt ?? null) !== snapshot.sessionStartedAt) {
     throw new Error("Objective focus or learning session changed during inference.");
   }
-  const latest = projectLearnerModel(current, evidence).evidenceRevision;
+  const latest = projectLearnerModel(current, evidence, gaps).evidenceRevision;
   if (latest !== snapshot.evidenceRevision) {
     throw new Error("Learning evidence changed during inference. Select a new activity.");
   }
