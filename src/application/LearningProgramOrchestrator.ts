@@ -278,7 +278,7 @@ export class LearningProgramOrchestrator {
     const state = await this.learningState.load();
     return this.updateActive(program => {
       const objective = program.objectives.find(item => item.id === objectiveId);
-      if (!objective) throw new Error("Unknown objective ID.");
+      if (!objective || objective.deprecated) throw new Error("Unknown or deprecated objective ID.");
       if (!objective.prerequisiteIds.every(id =>
         objectiveProgress(program, id, state.evidence, this.now()).status === "mastered")) {
         throw new Error("Master the prerequisite objectives before focusing this objective.");
