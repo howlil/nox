@@ -2,6 +2,7 @@ import { App, TFile } from "obsidian";
 import type { LearningProgram, ProgramCollection } from "../domain/learning-program/types";
 import { validateConstraints, validateCurriculum } from "../domain/learning-program/rules";
 import { isValidSessionTiming } from "../domain/learning-program/session-time";
+import { validateObjectiveFocus } from "../domain/learning-program/focus-transitions";
 import { PersistenceError } from "./PersistenceError";
 
 const PATH = "00-learning-os/programs.json";
@@ -45,6 +46,7 @@ export class VaultProgramStore {
     }
     validateConstraints(program.constraints, new Date(program.createdAt));
     validateCurriculum({ kind: "curriculum", objectives: program.objectives }, program.constraints);
+    if (program.focus) validateObjectiveFocus(program, program.focus);
     if (program.session) {
       const { startedAt, timeBudgetMinutes, timing } = program.session;
       if (!Number.isFinite(startedAt) || startedAt < 0 ||

@@ -50,6 +50,16 @@ export interface CurriculumDraft {
   kind: "curriculum";
   objectives: LearningObjective[];
 }
+export interface FocusSession {
+  id: string;
+  programId: string;
+  objectiveId: string;
+  curriculumRevision: number;
+  status: "active" | "paused";
+  startedAt: number;
+  pausedAt?: number;
+}
+
 export interface LearningProgram {
   version: 1;
   id: string;
@@ -60,6 +70,8 @@ export interface LearningProgram {
   planVersion: number;
   creationOperationId?: string;
   workspaceApproved?: boolean;
+  /** v1-compatible optional lock; transcript evidence remains authoritative. */
+  focus?: FocusSession;
   session?: LearningSession;
   sessionHistory?: Array<{ startedAt: number; endedAt: number; minutesSpent: number; activeMinutes?: number; aiWaitingMinutes?: number; objectiveActiveMinutes?: Record<string, number>; dailyActiveMs?: Record<string, number>; materialActiveMinutes?: Record<string, number> }>;
   instructionEvents?: Array<{ objectiveId: string; afterEvidenceAt: number; taughtAt: number }>;

@@ -7,6 +7,7 @@ import type { LearningEvent, LearningRequest, NoxProgramOverview } from "./learn
 import type { PracticeOrigin, PracticeAnswer } from "../domain/practice/types";
 import { RunLearningTurn } from "./RunLearningTurn";
 import { isActiveLearningScope, isProgramLearningScope, isLockedLearningMode, parseScopeCommand } from "../domain/practice/learning-scope";
+import { allowsFocusedTurn } from "../domain/learning-program/focus-transitions";
 import { parseProgramCommand } from "../domain/learning-program/commands";
 import { feasibility, objectiveProgress } from "../domain/learning-program/rules";
 import type { LearningProgramOrchestrator } from "./LearningProgramOrchestrator";
@@ -333,6 +334,28 @@ export class LearningController {
       yield { type: "failed", failure: { code: "busy", message: "Wait for runtime settings to finish saving." } };
       return;
     }
+    // Persisted program focus takes precedence over per-chat scopes and provider actions.
+    let focused = false;
+    if (this.programs) {
+      try {
+        const active = await this.programs.getActiveProgram();
+        focused = active?.focus?.status === "active";
+      } catch (error) {
+        yield { type: "failed", failure: { code: "persistence-failed",
+          message: "Cannot verify objective focus; restore the program file to continue.",
+          diagnostic: error instanceof Error ? error.message : String(error) } };
+        return;
+      }
+    }
+    if (focused && (request.regenerate ||
+        !allowsFocusedTurn(request.prompt, this.turns.hasActivePracticeQuestion()))) {
+      yield { type: "failed", failure: { code: "busy",
+        message: "Objective focus locked. Answer the challenge, use /next, or /pause-focus." } };
+      return;
+    }
+    if (focused && this.turns.hasActivePracticeQuestion() && !request.prompt.trim().startsWith("/")) {
+      request = { ...request, action: "practice" };
+    }
     if (request.prompt.trim().toLowerCase() === "/hint") {
       if (this.turns.isRunning() || this.applyingProposals.size > 0) {
         yield { type: "failed", failure: { code: "busy", message: "Finish the active operation before requesting a hint." } };
@@ -420,6 +443,21 @@ export class LearningController {
           }
           const selected = await this.programs.selectProgram(command.id);
           response = `Active program changed to: ${selected.goal}`;
+        } else if (command.kind === "focus") {
+          const program = await this.programs.startFocus(command.objectiveId);
+          const objective = program.objectives.find(item => item.id === command.objectiveId)!;
+          response = "Focused: **" + objective.title +
+            "**. Use /next, /pause-focus, or /end-focus.";
+        } else if (command.kind === "pause-focus") {
+          await this.programs.pauseFocus();
+          response = "Objective focus paused. Use /resume-focus when ready.";
+        } else if (command.kind === "resume-focus") {
+          const program = await this.programs.resumeFocus();
+          response = "Resumed objective: " +
+            program.objectives.find(item => item.id === program.focus?.objectiveId)?.title;
+        } else if (command.kind === "end-focus") {
+          await this.programs.endFocus();
+          response = "Objective focus ended; learning evidence remains saved.";
         } else if (command.kind === "free-practice") {
           if (this.turns.hasActivePracticeQuestion()) throw new Error("Finish the active question before starting free practice.");
           yield* this.runTimedTurn({ ...request, action: "practice", freePractice: true,
@@ -457,7 +495,7 @@ export class LearningController {
             response = "Answer the active question first, or use /hint for a small nudge.";
           } else {
             const selected = await this.programs.getDecision();
-            if (selected?.program?.session && selected.decision.objective) {
+            if ((selected?.program?.session || selected?.program?.focus?.status === "active") && selected.decision.objective) {
               await this.programs.focusObjective(selected.decision.objective.id);
               if (selected.program.workspaceApproved) {
                 try {
@@ -469,8 +507,8 @@ export class LearningController {
                 }
               }
             }
-            if (selected?.program && !selected.program.session) {
-              response = "Start a timeboxed session first with /start-session.";
+            if (selected?.program && !selected.program.session && selected.program.focus?.status !== "active") {
+              response = "Use /focus <objective-id> for self-paced study or /start-session for legacy timed study.";
             } else if (selected?.decision.kind === "teach" && selected.decision.objective) {
               const objective = selected.decision.objective;
               const state = await this.learningState.load();
@@ -493,7 +531,7 @@ export class LearningController {
               yield* this.runTimedTurn({ ...request, action: "practice" });
               return;
             }
-            if (!selected?.program || selected.program.session) {
+            if (!selected?.program || selected.program.session || selected.program.focus) {
               response = selected?.decision.reason ?? "No active program. Use /plan <goal> first.";
             }
           }

@@ -333,7 +333,9 @@ export class RunLearningTurn {
           throw new Error("This learning mode belongs to another program. Switch back or leave this mode.");
         }
         if (request.programActivity && (request.programActivity.programId !== program?.id ||
-            !program.objectives.some(o => o.id === request.programActivity?.objectiveId))) {
+            !program.objectives.some(o => o.id === request.programActivity?.objectiveId) ||
+            (program.focus?.status === "active" &&
+              request.programActivity.objectiveId !== program.focus.objectiveId))) {
           throw new Error("Teaching task does not match the active program.");
         }
         if (activePracticeTurn?.programId && activePracticeTurn.programId !== program?.id) {
@@ -546,7 +548,8 @@ export class RunLearningTurn {
     const conversation = this.sessions.getSession();
     const turnSessionId = conversation.id;
     const practice = this.practiceForSession(conversation);
-    if (program && request.action === "practice" && !practice.isWaitingForAnswer() && !program.session) {
+    if (program && request.action === "practice" && !practice.isWaitingForAnswer() &&
+        !program.session && program.focus?.status !== "active") {
       if (this.activeTurn === activeTurn) this.activeTurn = null;
       yield { type: "failed", failure: { code: "busy", message: "Start a timeboxed session with /start-session before practicing your program." } };
       return;

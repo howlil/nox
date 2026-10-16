@@ -129,9 +129,50 @@ export function objectiveProgress(program: LearningProgram, objectiveId: string,
     dueAt, attempts: attempts.length, due: now >= dueAt };
 }
 
-/** Deterministic priority: timebox > overdue recall > remediation > next eligible concept. */
+/** A pinned objective is not released by a deadline, session timer, or another due topic. */
+export function chooseFocusedActivity(program: LearningProgram, evidence: LearningEvidence[],
+  now = Date.now()): LearningDecision {
+  const focus = program.focus;
+  if (!focus) throw new Error("No objective focus.");
+  if (focus.status === "paused") {
+    return { kind: "wait", reason: "Objective focus paused. Use /resume-focus." };
+  }
+  const objective = program.objectives.find(item => item.id === focus.objectiveId);
+  if (!objective || focus.curriculumRevision !== program.planVersion) {
+    throw new Error("Focused objective is stale.");
+  }
+  const progress = objectiveProgress(program, objective.id, evidence, now);
+  if (progress.status === "unseen") {
+    return { kind: "diagnostic", objective, reason: "Assess the pinned objective." };
+  }
+  if (progress.status === "remediate") {
+    const attempts = objectiveEvidence(program, objective.id, evidence);
+    const last = attempts[attempts.length - 1];
+    const taught = program.instructionEvents?.some(item =>
+      item.objectiveId === objective.id && item.afterEvidenceAt === last.createdAt);
+    const assisted = last.outcome === "correct" && (last.assisted || last.assessmentCoverage === "single-item");
+    return { kind: assisted || taught ? "guided-practice" : "teach", objective,
+      reason: assisted || taught ? "Retry independently." : "Repair the missed criterion." };
+  }
+  if (progress.dueAt !== null && now >= progress.dueAt) {
+    return { kind: "recall", objective, reason: "Delayed retrieval is due.", dueAt: progress.dueAt };
+  }
+  if (progress.status === "mastered" &&
+      !objectiveEvidence(program, objective.id, evidence).some(item =>
+        item.taskKind === "transfer" && item.outcome === "correct" && !item.assisted)) {
+    return { kind: "transfer", objective, reason: "Verify transfer on the pinned objective." };
+  }
+  if (progress.status === "provisional") {
+    return { kind: "guided-practice", objective, reason: "Practice independently before delayed recall." };
+  }
+  return { kind: "wait", objective, reason: "Objective checks complete. Use /end-focus to switch.",
+    dueAt: progress.dueAt ?? undefined };
+}
+
+/** Legacy timed sessions remain supported; objective focus is self-paced. */
 export function chooseNextActivity(program: LearningProgram, evidence: LearningEvidence[],
   now = Date.now()): LearningDecision {
+  if (program.focus) return chooseFocusedActivity(program, evidence, now);
   if (program.constraints.deadline &&
       new Date(now).toLocaleDateString("en-CA") > program.constraints.deadline) {
     return { kind: "wait", reason: "The program deadline has passed. Replan or create a new program before continuing." };

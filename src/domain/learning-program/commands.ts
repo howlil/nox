@@ -5,11 +5,16 @@ export type ProgramCommand =
   | { kind: "plan"; goal: string; constraints: ProgramConstraints }
   | { kind: "next" | "progress" | "start-session" | "pause-session" | "resume-session" | "session-time" | "end-session" | "review-due" | "programs" | "free-practice" }
   | { kind: "use-program"; id: string }
+  | { kind: "focus"; objectiveId: string }
+  | { kind: "pause-focus" | "resume-focus" | "end-focus" }
   | { kind: "extend-session"; minutes: number };
 
 /** Explicit, human-auditable constraints; never hallucinate settings from a goal. */
 export function parseProgramCommand(input: string): ProgramCommand | null {
   const value = input.trim();
+  const focus = /^\/focus\s+([a-z0-9][a-z0-9_-]{0,63})$/i.exec(value);
+  if (focus) return { kind: "focus", objectiveId: focus[1] };
+  if (/^\/focus(?:\s|$)/i.test(value)) throw new Error("Use /focus <objective-id> shown by /progress.");
   const extension = /^\/extend-session\s+(\d+)$/i.exec(value);
   if (extension) return { kind: "extend-session", minutes: Number(extension[1]) };
   if (/^\/extend-session(?:\s|$)/i.test(value)) throw new Error("Use /extend-session <minutes>.");
@@ -20,6 +25,7 @@ export function parseProgramCommand(input: string): ProgramCommand | null {
     "/next": "next", "/progress": "progress", "/start-session": "start-session",
     "/pause-session": "pause-session", "/resume-session": "resume-session", "/session-time": "session-time",
     "/end-session": "end-session", "/review-due": "review-due", "/programs": "programs", "/free-practice": "free-practice",
+    "/pause-focus": "pause-focus", "/resume-focus": "resume-focus", "/end-focus": "end-focus",
   };
   if (commands[value.toLowerCase()]) return { kind: commands[value.toLowerCase()] } as ProgramCommand;
   if (!/^\/plan(?:\s|$)/i.test(value)) return null;

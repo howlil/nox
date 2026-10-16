@@ -1,7 +1,8 @@
 import type { AgentRuntimePort } from "../agent/AgentRuntime";
 import type { ContextPort, LearningStatePort, ProgramStorePort } from "./ports";
 import type { LearningProgram, ProgramCollection, ProgramConstraints, LearningDecision, SessionPauseReason } from "../domain/learning-program/types";
-import { chooseNextActivity, feasibility, validateConstraints, validateCurriculum } from "../domain/learning-program/rules";
+import { chooseNextActivity, feasibility, objectiveProgress, validateConstraints, validateCurriculum } from "../domain/learning-program/rules";
+import { startObjectiveFocus, transitionObjectiveFocus } from "../domain/learning-program/focus-transitions";
 import { estimateRemainingWork } from "../domain/learning-program/estimate";
 import { checkpointTiming, focusSessionObjective, focusSessionMaterial, newSessionTiming, projectedTiming, recoverTiming, sessionRemainingMs, sessionTimeStatus, setTimingPause } from "../domain/learning-program/session-time";
 
@@ -65,9 +66,14 @@ export class LearningProgramOrchestrator {
     let changed = false;
     const now = this.now();
     for (const program of collection.programs) {
-      if (!program.session) continue;
-      program.session = { ...program.session, timing: recoverTiming(program.session, now) };
-      changed = true;
+      if (program.focus?.status === "active") {
+        program.focus = { ...program.focus, status: "paused", pausedAt: now };
+        changed = true;
+      }
+      if (program.session) {
+        program.session = { ...program.session, timing: recoverTiming(program.session, now) };
+        changed = true;
+      }
     }
     if (changed) await this.store.save(collection);
     this.stopCheckpointLoop();
@@ -101,6 +107,8 @@ export class LearningProgramOrchestrator {
 
   async focusObjective(objectiveId: string): Promise<void> {
     await this.updateActive(program => {
+      if (program.focus && program.focus.objectiveId !== objectiveId) throw new Error("Focused objective cannot change.");
+      if (program.focus && !program.session) return program;
       if (!program.session) throw new Error("Start a session before studying an objective.");
       if (!program.objectives.some(o => o.id === objectiveId)) throw new Error("Unknown objective.");
       const now = this.now();
@@ -211,6 +219,9 @@ export class LearningProgramOrchestrator {
         const collection = await this.store.load();
         const selected = collection.programs.find(p => p.id === id);
         if (!selected) throw new Error("Unknown program ID. Run /programs to list saved plans.");
+        if (collection.programs.some(p => p.id !== id && p.focus?.status === "active")) {
+          throw new Error("Pause or end the active focus before switching programs.");
+        }
         const previous = collection.programs.find(p => p.id === collection.activeProgramId);
         const now = this.now();
         if (previous?.session) {
@@ -250,6 +261,27 @@ export class LearningProgramOrchestrator {
     });
     this.mutationTail = operation.then(() => {}, () => {});
     return operation;
+  }
+  async startFocus(objectiveId: string): Promise<LearningProgram> {
+    const state = await this.learningState.load();
+    return this.updateActive(program => {
+      const objective = program.objectives.find(item => item.id === objectiveId);
+      if (!objective) throw new Error("Unknown objective ID.");
+      if (!objective.prerequisiteIds.every(id =>
+        objectiveProgress(program, id, state.evidence, this.now()).status === "mastered")) {
+        throw new Error("Master the prerequisite objectives before focusing this objective.");
+      }
+      return startObjectiveFocus(program, objectiveId, this.now(), crypto.randomUUID());
+    });
+  }
+  async pauseFocus(): Promise<LearningProgram> {
+    return this.updateActive(p => transitionObjectiveFocus(p, "pause", this.now()));
+  }
+  async resumeFocus(): Promise<LearningProgram> {
+    return this.updateActive(p => transitionObjectiveFocus(p, "resume", this.now()));
+  }
+  async endFocus(): Promise<LearningProgram> {
+    return this.updateActive(p => transitionObjectiveFocus(p, "end", this.now()));
   }
   async startSession(): Promise<LearningProgram> {
     const result = await this.updateActive(program => {
