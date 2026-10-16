@@ -78,8 +78,8 @@ This ledger is updated when code is committed. An item is checked only if the be
 
 ## M7 — Verification/release (open)
 
-- [x] CI including typecheck, lint, unit/integration and build passed at commit `59d064d79a92512910d94e06e9b4bc21011a42b5` (M2 revision tests).
-- [ ] CI verified for current PR head (new documentation commit requires a run).
+- [x] CI including typecheck, lint, unit/integration and build passed on implementation head `3961e423fafa0279da57c5b03195fc1dd258f154` (GitHub Actions run `38928965249`).
+- [ ] Reverify the final PR head and release-specific checks immediately before merging.
 - [x] Unit and integration tests for v3 migration, malformed metadata, provider attribution and transcript-success/progress-write-failure replay.
 - [x] Automated tests for atomic focus-end auto-replan, evidence isolation and create-only revision note recovery.
 - [ ] Full migration/restore and concurrency fault-injection matrix.
