@@ -530,6 +530,48 @@ export class LearningController {
           }
           const selected = await this.programs.selectProgram(command.id);
           response = `Active program changed to: ${selected.goal}`;
+        } else if (command.kind === "curriculum-preview") {
+          if (this.turns.hasActivePracticeQuestion()) {
+            throw new Error("Finish the active question before previewing structural curriculum changes.");
+          }
+          const preview = await this.programs.previewStructuralChange(
+            command.action, command.rationale, crypto.randomUUID());
+          response = [
+            "**Curriculum change preview — nothing has been saved**",
+            "Program: " + preview.programId,
+            "Version: " + preview.fromVersion + " → " + preview.toVersion,
+            "Operation: " + preview.kind + " · Objective: " + preview.before.id,
+            "Reason: " + preview.rationale,
+            "Changed fields:",
+            ...preview.changedFields.map(field => {
+              const name = field as keyof typeof preview.before;
+              return "- **" + field + "**: " +
+                JSON.stringify(preview.before[name] ?? null) + " → " +
+                JSON.stringify(preview.after[name] ?? null);
+            }),
+            "",
+            "To commit this exact validated preview, send:",
+            "`/curriculum-approve " + preview.operationId + "`",
+            "Approval expires after 15 minutes; focus locks and new plan revisions invalidate it.",
+          ].join("\n");
+        } else if (command.kind === "curriculum-approve") {
+          if (this.turns.hasActivePracticeQuestion()) {
+            throw new Error("Finish the active question before approving a structural revision.");
+          }
+          const updated = await this.programs.approveStructuralChange(command.operationId);
+          const revision = updated.curriculumRevisions?.find(item => item.operationId === command.operationId);
+          let workspaceWarning = "";
+          if (revision && updated.workspaceApproved && this.workspaceWriter?.ensureRevision) {
+            try { await this.workspaceWriter.ensureRevision(updated, revision); }
+            catch {
+              workspaceWarning = " Workspace notes could not be synchronized. The approved revision is saved and notes will be retried at startup.";
+            }
+          }
+          response = revision
+            ? "Approved " + revision.kind + " at curriculum v" + revision.toVersion +
+              " for " + (revision.targetObjectiveId ?? revision.addedObjectiveId) +
+              ". Evidence and previous notes remain preserved." + workspaceWarning
+            : "Revision approval already completed.";
         } else if (command.kind === "replan") {
           if (this.turns.hasActivePracticeQuestion()) {
             throw new Error("Finish the current challenge before revising the curriculum.");
