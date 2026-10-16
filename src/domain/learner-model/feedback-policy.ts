@@ -30,7 +30,7 @@ export function decideFeedback(
   // Evidence operations are unique; replay of a question must not count twice.
   const recent = [...attempts].sort((a, b) =>
     a.createdAt - b.createdAt || a.id.localeCompare(b.id));
-  const lastRepair = recent.findLast(item => item.createdAt <= latest.createdAt &&
+  const lastRepair = [...recent].reverse().find(item => item.createdAt <= latest.createdAt &&
     item.id !== latest.id && item.outcome === "correct" && !item.assisted &&
     item.assistance?.independent !== false && item.assessmentCoverage !== "single-item" &&
     failedCriteria.every(criterion =>
