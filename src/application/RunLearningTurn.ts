@@ -1275,7 +1275,7 @@ export class RunLearningTurn {
             programId: part.evaluation.programId,
             objectiveId: part.evaluation.objectiveId,
             assisted: part.evaluation.assisted,
-          });
+          }, { now: () => part.committedAt ?? 0 });
           if (next.evidence.length !== state.evidence.length) {
             changed = true;
             state = next;
@@ -1343,7 +1343,7 @@ export class RunLearningTurn {
         const parts: TranscriptPart[] = [
           { type: "practice-evaluation", evaluation: evaluation,
             questionId: practiceAttempt.questionId, operationId,
-            nextQuestionId: nextId, sourcePath: source,
+            nextQuestionId: nextId, sourcePath: source, committedAt: Date.now(),
             ...(scoped ? { scope: scoped } : {}) },
           ...(nextQuestion ? [{
             type: "practice-question" as const, question: nextQuestion,
@@ -1366,7 +1366,7 @@ export class RunLearningTurn {
           programId: evaluationPart.evaluation.programId,
           objectiveId: evaluationPart.evaluation.objectiveId,
           assisted: evaluationPart.evaluation.assisted,
-        });
+        }, { now: () => evaluationPart.committedAt ?? 0 });
         if (nextState.evidence.length !== currentState.evidence.length) {
           await this.learningState.save(nextState);
         }
