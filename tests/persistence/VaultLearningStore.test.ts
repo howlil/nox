@@ -48,7 +48,7 @@ test("returns default learning state when progress file is missing", async () =>
   const state = await store.load();
 
   assert.deepEqual(state, {
-    version: 2,
+    version: 3,
     target: null,
     gaps: [],
     evidence: [],
@@ -87,7 +87,7 @@ test("saves and reloads learning state without applying domain policy", async ()
 
   assert.equal(vault.folders.has("00-learning-os"), true);
   assert.ok(vault.files.has("00-learning-os/progress.json"));
-  assert.deepEqual(await store.load(), state);
+  assert.deepEqual(await store.load(), { ...state, version: 3 });
 });
 
 test("rejects malformed nested progress state", async () => {
