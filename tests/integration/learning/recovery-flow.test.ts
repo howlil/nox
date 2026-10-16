@@ -24,6 +24,9 @@ const review = (payload: object): AgentStreamEvent[] => [
 
 function makeRig(withProgram = false) {
   const programStartedAt = Date.now();
+  let planVersion = 1;
+  let activeFocus: { id: string; status: "active" | "paused" } | null = null;
+  let onProviderText: (() => Promise<void> | void) | undefined;
   let pluginData: Record<string, unknown> | null = null;
   let failProgressWrites = 0;
   let failProposalWrites = 0;
@@ -115,7 +118,14 @@ function makeRig(withProgram = false) {
       promptInputs.push(input.prompt ?? "");
       const events = pending.shift();
       if (!events) throw new Error("unexpected agent invocation");
-      yield* events;
+      for (const event of events) {
+        yield event;
+        if (event.type === "text" && onProviderText) {
+          const hook = onProviderText;
+          onProviderText = undefined;
+          await hook();
+        }
+      }
     },
   };
   const createLearning = async () => {
@@ -139,7 +149,11 @@ function makeRig(withProgram = false) {
           { id: "network", title: "Network routing", outcome: "Explain network routing",
             prerequisiteIds: [], estimatedMinutes: 40, rubric: ["Explain routing"],
             sourceRefs: [], priority: "optional" as const }],
-        createdAt: programStartedAt, planVersion: 1,
+        createdAt: programStartedAt, planVersion,
+        ...(activeFocus ? { focus: { id: activeFocus.id, status: activeFocus.status,
+          programId: "acid-program", objectiveId: "atomicity",
+          curriculumRevision: planVersion, chatSessionId: undefined,
+          startedAt: programStartedAt } } : {}),
         session: { startedAt: programStartedAt, timeBudgetMinutes: 45 },
       }],
     }) } : undefined;
@@ -164,6 +178,9 @@ function makeRig(withProgram = false) {
     undoMockEditor: () => { if (undoBuffer !== null) editorBuffer = undoBuffer; },
     currentAgentCalls: () => runtimeCalls,
     promptInputs: () => [...promptInputs],
+    changePlanVersion: (version: number) => { planVersion = version; },
+    changeFocus: (focus: { id: string; status: "active" | "paused" } | null) => { activeFocus = focus; },
+    afterProviderText: (hook: () => Promise<void> | void) => { onProviderText = hook; },
     app,
   };
 }
