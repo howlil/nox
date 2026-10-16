@@ -20,7 +20,8 @@ export function isTranscriptPart(value: unknown): value is TranscriptPart {
   }
   if (part.type === "practice-evaluation") {
     if (part.committedAt !== undefined &&
-        (!Number.isSafeInteger(part.committedAt) || part.committedAt < 0)) return false;
+        (typeof part.committedAt !== "number" ||
+          !Number.isSafeInteger(part.committedAt) || part.committedAt < 0)) return false;
     if (part.scope !== undefined && part.scope !== "backend" && part.scope !== "program") return false;
     const e = part.evaluation as Record<string, unknown> | undefined;
     if (part.scope === "program" && (typeof e?.programId !== "string" || !e.programId)) return false;
