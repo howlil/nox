@@ -37,3 +37,21 @@ test("objective focus and replan are explicit commands, not model prompts", () =
   assert.deepEqual(parseProgramCommand("/replan"), { kind: "replan" });
   assert.throws(() => parseProgramCommand("/focus ../vault"), /objective-id/);
 });
+
+test("curriculum preview commands require an explicit structured edit and separate approval", () => {
+  const action = { kind: "change-prerequisites", objectiveId: "apply",
+    prerequisiteIds: ["new-foundations"],
+    rationale: "The learner has an explicit new prerequisite" };
+  const parsed = parseProgramCommand("/curriculum-preview " + JSON.stringify(action));
+  assert.deepEqual(parsed, { kind: "curriculum-preview",
+    action: { kind: "change-prerequisites", objectiveId: "apply",
+      prerequisiteIds: ["new-foundations"] }, rationale: action.rationale });
+  assert.deepEqual(parseProgramCommand("/curriculum-approve manual:abc"),
+    { kind: "curriculum-approve", operationId: "manual:abc" });
+  assert.throws(() => parseProgramCommand("/curriculum-preview not-json"), /valid JSON/);
+  assert.throws(() => parseProgramCommand("/curriculum-preview {}"), /kind, objectiveId/);
+  assert.throws(() => parseProgramCommand("/curriculum-preview " + JSON.stringify({
+    ...action, unauthorized: "override",
+  })), /unsupported properties/);
+  assert.throws(() => parseProgramCommand("/curriculum-approve ../directory"), /operation-id/);
+});
