@@ -29,7 +29,9 @@ const event = (objectiveId: string, outcome: string, createdAt: number,
   assisted = false): LearningEvidence => ({
     id: `${objectiveId}:${createdAt}`, type: "practice", scope: "learner",
     programId: "math", objectiveId, concept: "Algebra", source: "notes.md",
-    outcome, assisted, createdAt,
+    outcome, assisted, createdAt, taskKind: "guided-practice",
+    rubricResults: [{ criterion: objectiveId === "symbols" ? "Use notation correctly" :
+      "Correct transformations", met: outcome === "correct", evidence: "Verified" }],
   });
 
 test("curriculum respects prerequisite DAG and cross-domain objectives", () => {
@@ -90,7 +92,7 @@ test("independent delayed recall is required for mastery; material reviews do no
   assert.equal(chooseNextActivity(program(), [first], now).kind, "recall");
   const material = { ...first, id: "review", type: "review" as const, scope: "material" as const };
   assert.equal(objectiveProgress(program(), "symbols", [material], now).status, "unseen");
-  const second = event("symbols", "correct", now);
+  const second = { ...event("symbols", "correct", now), taskKind: "recall" as const };
   assert.equal(objectiveProgress(program(), "symbols", [first, second], now).status, "mastered");
   assert.equal(chooseNextActivity(program(), [first, second], now).kind, "transfer");
 });
@@ -111,7 +113,7 @@ test("timebox expiry blocks new activity without erasing progress", () => {
 
 test("completed transfer task clears transfer gate for next eligible objective", () => {
   const first = event("symbols", "correct", now - 2 * 86_400_000);
-  const second = event("symbols", "correct", now - 1000);
+  const second = { ...event("symbols", "correct", now - 1000), taskKind: "recall" as const };
   const transfer = { ...event("symbols", "correct", now), taskKind: "transfer" as const };
   const next = chooseNextActivity(program(), [first, second, transfer], now);
   assert.equal(next.objective?.id, "equations");
@@ -139,4 +141,14 @@ test("correct single-item MCQ is formative evidence, not objective mastery", () 
   assert.equal(objectiveProgress(program(), "symbols", [one, two], now).status, "remediate");
   assert.equal(chooseNextActivity(program(), [one, two], now).kind, "guided-practice");
   assert.equal(chooseNextActivity(program(), [one, two], now).objective?.id, "symbols");
+});
+
+test("spaced guided answers cannot establish mastery without delayed recall", () => {
+  const first = event("symbols", "correct", now - 2 * 86_400_000);
+  const second = event("symbols", "correct", now);
+  assert.equal(objectiveProgress(program(), "symbols", [first, second], now).status, "provisional");
+  assert.equal(objectiveProgress(program(), "symbols", [first,
+    { ...second, taskKind: "recall", rubricResults: [] }], now).status, "remediate");
+  assert.equal(objectiveProgress(program(), "symbols", [first,
+    { ...second, taskKind: "recall" }], now).status, "mastered");
 });
