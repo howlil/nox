@@ -1,4 +1,5 @@
 import type { LearningEvidence } from "../learning-state/types";
+import { decideFeedback } from "../learner-model/feedback-policy";
 import { sessionRemainingMs } from "./session-time";
 import type { CurriculumDraft, LearningDecision, LearningObjective, LearningProgram, ProgramConstraints } from "./types";
 
@@ -162,13 +163,17 @@ export function chooseFocusedActivity(program: LearningProgram, evidence: Learni
     const last = attempts[attempts.length - 1];
     const taught = program.instructionEvents?.some(item =>
       item.objectiveId === objective.id && item.afterEvidenceAt === last.createdAt);
-    const assisted = last.outcome === "correct" && (last.assisted || last.assessmentCoverage === "single-item");
-    const repeatedFailure = attempts.filter(item =>
-      item.outcome !== "correct" && item.rubricResults?.some(result => !result.met)).length >= 2;
-    const kind = assisted || taught || !repeatedFailure ? "guided-practice" : "teach";
-    return { kind, objective, reason: kind === "guided-practice"
-      ? "Try a targeted correction or independent variation before revealing the explanation."
-      : "Repeated evidence suggests a targeted explanation is needed." };
+    const feedback = decideFeedback(objective, attempts, last);
+    const kind: LearningDecision["kind"] = feedback.kind === "repair" ? "remediate" :
+      feedback.kind === "scaffold" && !taught ? "teach" : "guided-practice";
+    return { kind, objective,
+      targetCriterionIds: feedback.failedCriteria,
+      sourceEvidenceIds: feedback.evidenceIds,
+      ...(feedback.kind === "scaffold" ? { scaffoldLevel: feedback.level } : {}),
+      reason: kind === "remediate"
+        ? "Explain the correction to the failed criterion in your own words."
+        : kind === "teach" ? "Repeated errors call for a limited targeted scaffold."
+          : "Verify an independent variation without the earlier hint." };
   }
   if (progress.dueAt !== null && now >= progress.dueAt) {
     return { kind: "recall", objective, reason: "Delayed retrieval is due.", dueAt: progress.dueAt };
