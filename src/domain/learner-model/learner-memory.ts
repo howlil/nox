@@ -87,8 +87,12 @@ function fingerprint(program: LearningProgram, evidence: readonly LearningEviden
     (b >>> 0).toString(16).padStart(8, "0") + ":" + evidence.length;
 }
 
-function matchingResult(item: LearningEvidence, criterionId: string, description: string) {
-  // Revisioned evidence without matching stable IDs must never silently match text.
+function matchingResult(item: LearningEvidence, criterionId: string,
+  description: string, planVersion: number) {
+  // Revisioned evidence without matching stable IDs, or from a future plan,
+  // must never silently match legacy text or confer demonstrated status.
+  if (item.objectiveRevision !== undefined &&
+      (item.objectiveRevision < 1 || item.objectiveRevision > planVersion)) return undefined;
   return item.rubricResults?.find(result => item.objectiveRevision !== undefined
     ? result.criterionId === criterionId : result.criterion === description);
 }
@@ -109,7 +113,7 @@ export function projectLearnerModel(program: LearningProgram,
     const criteria = objective.rubric.map((description, index): DerivedCriterionState => {
       const criterionId = objective.criteria?.[index]?.id ?? "legacy:" + (index + 1);
       const observations = attempts.flatMap(item => {
-        const result = matchingResult(item, criterionId, description);
+        const result = matchingResult(item, criterionId, description, program.planVersion);
         return result ? [{ item, met: result.met }] : [];
       });
       const latest = observations.at(-1);
@@ -209,7 +213,13 @@ export function selectRelevantLearnerState(
       evidenceIds: gap.evidenceIds.filter(id => relevantIds.has(id)).slice(-3) }));
   return {
     programId: program.id, objectiveId, curriculumRevision: model.curriculumRevision,
-    evidenceRevision: model.evidenceRevision, objective: structuredClone(objective),
+    evidenceRevision: model.evidenceRevision,
+    objective: { ...structuredClone(objective),
+      criteria: objective.criteria.slice(0, 12).map(item => ({
+        ...item, description: item.description.slice(0, 180),
+        evidenceIds: item.evidenceIds.slice(-4),
+        unresolvedGapIds: item.unresolvedGapIds.slice(-3),
+      })) },
     prerequisites: [...prerequisiteIds].slice(0, 6).map(id => ({
       objectiveId: id, recallReadiness: model.objectives[id].recallReadiness,
       evidenceIds: prereqs.filter(item => item.objectiveId === id).slice(-2).map(item => item.id),
