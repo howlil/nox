@@ -177,8 +177,9 @@ export function renderQuizCard(parent: HTMLElement, question: PracticeQuestion,
     hintControl.setAttribute("aria-expanded", "false");
     hintControl.addEventListener("click", () => { void (async () => {
       if (disabled || busy || hintPending) return;
-      if (hintLevel === 0 && !(await acknowledgeHint())) return;
-      else if (hintLevel > 0 && !hintVisible) {
+      if (hintLevel === 0) {
+        if (!(await acknowledgeHint())) return;
+      } else if (!hintVisible) {
         hintVisible = true;
         hintPanel.hidden = false;
       } else {
