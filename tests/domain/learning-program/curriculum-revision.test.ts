@@ -10,7 +10,9 @@ const program: LearningProgram = {
   constraints: { minutesPerSession: 45, sessionsPerWeek: 3, sourcePaths: [],
     sourceBound: false, excludedTopics: [] },
   objectives: [{ id: "equations", title: "Equations", outcome: "Solve equations",
-    rubric: ["Explain each transformation"], prerequisiteIds: [], sourceRefs: [],
+    rubric: ["Explain each transformation"],
+    criteria: [{ id: "c1", description: "Explain each transformation", required: true }],
+    prerequisiteIds: [], sourceRefs: [],
     estimatedMinutes: 40, priority: "core" }],
 };
 const failure = (id: string, createdAt: number): LearningEvidence => ({
