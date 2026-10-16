@@ -55,12 +55,22 @@ export function isPracticeQuestion(input: unknown): input is PracticeQuestion {
   if (!input || typeof input !== "object" || Array.isArray(input)) return false;
   const x = input as Record<string, unknown>;
   return x.kind === "question" && text(x.concept, 300) && text(x.question, 12000) &&
-    (x.hint === undefined || (typeof x.hint === "string" && x.hint.length <= 2000)) &&
+    (x.hint === undefined || text(x.hint, 2000)) &&
+    (x.hints === undefined || (Array.isArray(x.hints) &&
+      x.hints.length >= 1 && x.hints.length <= 4 &&
+      x.hints.every((hint: unknown) => text(hint, 2000)) &&
+      new Set(x.hints).size === x.hints.length &&
+      (x.hint === undefined || x.hint === x.hints[0]))) &&
     (x.instructions === undefined || isInstructions(x.instructions)) &&
     (x.input === undefined || isPracticeInput(x.input)) &&
     (x.programId === undefined || text(x.programId, 250)) &&
     (x.objectiveId === undefined || text(x.objectiveId, 250)) &&
     (x.focusSessionId === undefined || text(x.focusSessionId, 250));
+}
+
+/** Disclosure order is explicit, bounded and shared by UI and runtime. */
+export function availablePracticeHints(question: PracticeQuestion): string[] {
+  return question.hints?.length ? question.hints : question.hint ? [question.hint] : [];
 }
 
 export function isPracticeAnswer(input: unknown): input is PracticeAnswer {
