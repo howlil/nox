@@ -54,10 +54,16 @@ This ledger is updated when code is committed. An item is checked only if the be
 - [ ] Reversible rollback as a *new* versioned change; full historical roadmap reconciliation.
 - [ ] Compact non-JSON UI for structural edits, and Obsidian desktop acceptance including restart and legacy vaults.
 
-## M3 — Derived learner memory (partial)
+## M3 — Derived learner memory (read-only projection integrated; desktop acceptance pending)
 
-- [x] Program/objective-scoped evidence projection and bounded context.
-- [ ] Revision/fingerprint tracking, recall readiness and episodic evidence retrieval policy.
+- [x] Program-wide derived `LearnerModel` grouped by stable program, objective, criterion and current curriculum revision; objective tombstones retain history but do not schedule activity.
+- [x] Deterministic evidence fingerprint (IDs + outcome/rubric/assistance/evaluator provenance and active gaps) for cache invalidation; rejects stale projections after canonical evidence changes or plan revision.
+- [x] Derived criterion status, unresolved criterion-linked gap IDs, hint-assisted attempts, latest independent attempt, next recall date and recall readiness from existing mastery rules.
+- [x] `selectRelevantLearnerState()` prioritizes current failed criteria, recent independent evidence, active question, and prerequisite episodes with strict episode/gap/criterion bounds and stable evidence IDs.
+- [x] Program practice prompts use this read-only bounded snapshot rather than a separate generic 20-evidence progress digest; the active question hint level is included without full transcripts or inferred personality labels.
+- [x] Legacy objective projection delegates to the same canonical derived policy (no competing learner state).
+- [x] Unit, integration, and persistence tests verify isolation between programs/objectives, rubric rewording, future revisions, restart, stale fingerprint, retrieval budgets and absence of `memory.json`.
+- [ ] In-memory performance memoization only if profiling warrants it (must be disposable), and Obsidian desktop/provider acceptance.
 
 ## M4 — Adaptive activity decision (partial)
 
@@ -70,6 +76,7 @@ This ledger is updated when code is committed. An item is checked only if the be
 
 - [x] Use existing provider runtime with source-bound prompt policy.
 - [x] Revalidate persisted authority at canonical practice commits.
+- [x] Use objective-scoped learner memory with bounded evidence episodes in program practice prompts.
 - [ ] Full `LearningAuthoritySnapshot` at all agent/write boundaries and race/fault proof.
 - [ ] Explicit versioned learning context builder with provenance and budget priorities.
 
@@ -88,6 +95,7 @@ This ledger is updated when code is committed. An item is checked only if the be
 - [x] Unit and integration tests for v3 migration, malformed metadata, provider attribution and transcript-success/progress-write-failure replay.
 - [x] Automated tests for atomic focus-end auto-replan, evidence isolation and create-only revision note recovery.
 - [x] Automated tests for approved structural revision diff/commit, tombstone scheduling, persistence and workspace no-overwrite guarantees.
+- [x] M3 tests for evidence-derived learner memory, program isolation, bounded provider context, fingerprint invalidation and reconstruction from persisted progress.
 - [ ] Full migration/restore and concurrency fault-injection matrix.
 - [ ] Manual Obsidian desktop provider and vault acceptance.
 - [ ] Release review and merge approval.
