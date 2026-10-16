@@ -41,10 +41,13 @@ export function recordPracticeEvaluation(
     programId?: string;
     objectiveId?: string;
     assisted?: boolean;
+    questionId?: string;
+    focusSessionId?: string;
   },
   deps: LearningTransitionDeps = {},
 ): LearningState {
   const next = cloneState(state);
+  next.version = 3;
   if (input.evidenceId && next.evidence.some((evidence) => evidence.id === input.evidenceId)) {
     return next;
   }
@@ -58,6 +61,12 @@ export function recordPracticeEvaluation(
     source: input.source,
     outcome: input.evaluation.outcome,
     createdAt: resolved.now(),
+    ...(input.questionId ? { questionId: input.questionId } : {}),
+    ...(input.focusSessionId ? { focusSessionId: input.focusSessionId } : {}),
+    ...(input.evaluation.objectiveRevision ?
+      { objectiveRevision: input.evaluation.objectiveRevision } : {}),
+    ...(input.evaluation.evaluator ? { evaluator: input.evaluation.evaluator } : {}),
+    ...(input.evaluation.assistance ? { assistance: { ...input.evaluation.assistance } } : {}),
     ...(input.programId ? { programId: input.programId } : {}),
     ...(input.objectiveId ? { objectiveId: input.objectiveId } : {}),
     ...(input.assisted ? { assisted: true } : {}),
@@ -157,6 +166,7 @@ export function recordReviewFindings(
   if (input.findings.length === 0) return state;
 
   const next = cloneState(state);
+  next.version = 3;
   const resolved = resolveDeps(deps);
 
   for (const [index, finding] of input.findings.entries()) {
