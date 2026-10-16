@@ -1,3 +1,4 @@
+import { availablePracticeHints } from "./question-schema";
 import {
   PracticeEvaluation,
   PracticeQuestion,
@@ -88,16 +89,17 @@ export class PracticeStateMachine {
   /** Reading an available hint must not mutate evidence eligibility. */
   peekHint(): string | undefined {
     const current = this.session?.turns[this.session.turns.length - 1];
-    return this.isWaitingForAnswer() ? current?.hint : undefined;
+    if (!current || !this.isWaitingForAnswer() || !current.questionSpec) return undefined;
+    return availablePracticeHints(current.questionSpec)[current.highestHintLevel ?? 0];
   }
 
   markHintUsed(): string | undefined {
     const current = this.session?.turns[this.session.turns.length - 1];
-    if (!current || !this.isWaitingForAnswer()) return undefined;
-    if (!current.hint) return undefined;
+    const next = this.peekHint();
+    if (!current || !next) return undefined;
     current.assisted = true;
-    current.highestHintLevel = Math.max(current.highestHintLevel ?? 0, 1) as 1 | 2 | 3 | 4;
-    return current.hint;
+    current.highestHintLevel = ((current.highestHintLevel ?? 0) + 1) as 1 | 2 | 3 | 4;
+    return next;
   }
 
   beginEvaluation(
