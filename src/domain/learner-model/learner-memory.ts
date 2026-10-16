@@ -156,8 +156,12 @@ export function selectRelevantLearnerState(
   evidence: readonly LearningEvidence[], gaps: readonly KnowledgeGap[],
   objectiveId: string, options: { maxEpisodes?: number; maxGaps?: number } = {},
 ): SelectedLearnerContext {
-  if (model.programId !== program.id || model.curriculumRevision !== program.planVersion) {
-    throw new Error("Learner model is stale for the active curriculum.");
+  const scopedForCheck = canonicalProgramEvidence(program, evidence);
+  const relevantGaps = gaps.filter(gap => gap.programId === program.id &&
+    gap.status !== "resolved" && program.objectives.some(item => item.id === gap.objectiveId));
+  if (model.programId !== program.id || model.curriculumRevision !== program.planVersion ||
+      model.evidenceRevision !== fingerprint(program, scopedForCheck, relevantGaps)) {
+    throw new Error("Learner model is stale for the active curriculum or evidence.");
   }
   const active = program.objectives.find(item => item.id === objectiveId && !item.deprecated);
   const objective = model.objectives[objectiveId];
@@ -200,7 +204,7 @@ export function selectRelevantLearnerState(
   const relevantIds = new Set(episodes.map(item => item.evidenceId));
   const selectedGaps = gaps.filter(gap => gap.programId === program.id &&
     gap.objectiveId === objectiveId && gap.status !== "resolved" &&
-    gap.evidenceIds.some(id => relevantIds.has(id))).slice(-maxGaps)
+    gap.evidenceIds.some(id => relevantIds.has(id))).slice(maxGaps === 0 ? 0 : -maxGaps)
     .map(gap => ({ gapId: gap.id, objectiveId, reason: gap.reason.slice(0, 240),
       evidenceIds: gap.evidenceIds.filter(id => relevantIds.has(id)).slice(-3) }));
   return {
