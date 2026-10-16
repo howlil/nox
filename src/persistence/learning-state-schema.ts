@@ -87,7 +87,9 @@ function isEvidenceV3(value: unknown): value is LearningEvidence {
   if (!isEvidenceV2(value)) return false;
   const item = value as unknown as Record<string, unknown>;
   const assistance = item.assistance;
-  return (item.objectiveRevision === undefined ||
+  return (item.taskKind === undefined ||
+      ["diagnostic", "guided-practice", "recall", "transfer"].includes(String(item.taskKind))) &&
+    (item.objectiveRevision === undefined ||
       (Number.isSafeInteger(item.objectiveRevision) &&
         typeof item.objectiveRevision === "number" && item.objectiveRevision >= 1)) &&
     (item.questionId === undefined || (typeof item.questionId === "string" && item.questionId.length > 0)) &&
@@ -101,7 +103,8 @@ function isEvidenceV3(value: unknown): value is LearningEvidence {
         return Number.isInteger(a.highestHintLevel) &&
           typeof a.highestHintLevel === "number" && a.highestHintLevel >= 0 &&
           a.highestHintLevel <= 4 && typeof a.independent === "boolean" &&
-          a.independent === (a.highestHintLevel === 0);
+          a.independent === (a.highestHintLevel === 0) &&
+          (item.assisted === undefined || item.assisted === !a.independent);
       })())) &&
     (item.rubricResults === undefined || (Array.isArray(item.rubricResults) &&
       item.rubricResults.every((result: { criterionId?: unknown }) =>
@@ -145,7 +148,7 @@ function isV2(value: unknown): value is LearningState {
   return (
     state.version === 2 &&
     hasSharedShape(state) &&
-    (state.evidence as unknown[]).every(isEvidenceV2)
+    (state.evidence as unknown[]).every(isEvidenceV3)
   );
 }
 
