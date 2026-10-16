@@ -81,7 +81,9 @@ export class VaultWorkspaceWriter {
       ].join("\n");
       await this.app.vault.create(path, roadmap);
     }
-    await this.ensureObjective(program, revision.addedObjectiveId);
+    if (revision.kind === "prerequisite-remediation" && revision.addedObjectiveId) {
+      await this.ensureObjective(program, revision.addedObjectiveId);
+    }
   }
 
   async ensure(program: LearningProgram): Promise<void> {
