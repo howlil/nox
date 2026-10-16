@@ -1073,8 +1073,8 @@ export class RunLearningTurn {
               ? { ...practiceBuffer.question, concept: objective.title, programId: program.id,
                   objectiveId: objective.id, focusSessionId: program.focus?.id,
                   taskKind: decision?.kind === "transfer" || decision?.kind === "recall" ||
-                    decision?.kind === "guided-practice" || decision?.kind === "remediate"
-                      ? "guided-practice" as const : "diagnostic" as const }
+                    decision?.kind === "guided-practice" ? decision.kind :
+                    decision?.kind === "remediate" ? "guided-practice" as const : "diagnostic" as const }
               : { ...practiceBuffer.question, programId: undefined, objectiveId: undefined };
             const questionId = crypto.randomUUID();
             await assertProgramAuthority(practiceBuffer.question.programId,
