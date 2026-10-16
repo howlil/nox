@@ -43,6 +43,8 @@ export interface LearningObjective {
   prerequisiteIds: string[];
   estimatedMinutes: number;
   rubric: string[];
+  /** Stable within this objective; persist IDs so wording changes do not retarget evidence. */
+  criteria?: Array<{ id: string; description: string; required: boolean }>;
   sourceRefs: string[];
   priority: "core" | "supporting" | "optional";
 }
