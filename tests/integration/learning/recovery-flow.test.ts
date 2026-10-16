@@ -285,6 +285,55 @@ test("Practice persists one outcome and replays missing evidence after simulated
   assert.equal(rig.currentAgentCalls(), 3);
 });
 
+test("progressive hint levels survive restart and same-turn retry cannot escalate assistance", async () => {
+  const rig = makeRig();
+  const first = await rig.createLearning();
+  const hints = ["Find the invariant", "Compare snapshots", "Inspect a write skew", "Trace serialization"];
+  rig.queue(practice({ kind: "question", concept: "ACID", question: "Explain isolation.", hints }));
+  await collectEvents(first.learning.run({
+    prompt: "Practice", action: "practice", explicitContext: [],
+  }));
+  for (let level = 0; level < 2; level++) {
+    const result = await collectEvents(first.learning.run({
+      prompt: "/hint", action: "practice", turnId: "hint-" + level, explicitContext: [],
+    }));
+    assert.ok(result.some(item => item.type === "response-delta" &&
+      item.text === "Hint: " + hints[level]));
+  }
+  first.learning.dispose();
+  const restored = await rig.createLearning();
+  const third = await collectEvents(restored.learning.run({
+    prompt: "/hint", action: "practice", turnId: "hint-2", explicitContext: [],
+  }));
+  assert.ok(third.some(item => item.type === "response-delta" &&
+    item.text === "Hint: " + hints[2]));
+  const replay = await collectEvents(restored.learning.run({
+    prompt: "/hint", action: "practice", turnId: "hint-2", explicitContext: [],
+  }));
+  assert.ok(replay.some(item => item.type === "response-delta" &&
+    item.text === "Hint: " + hints[2]));
+  const fourth = await collectEvents(restored.learning.run({
+    prompt: "/hint", action: "practice", turnId: "hint-3", explicitContext: [],
+  }));
+  assert.ok(fourth.some(item => item.type === "response-delta" &&
+    item.text === "Hint: " + hints[3]));
+  const exhausted = await collectEvents(restored.learning.run({
+    prompt: "/hint", action: "practice", turnId: "hint-4", explicitContext: [],
+  }));
+  assert.ok(exhausted.some(item => item.type === "response-delta" &&
+    item.text === "No hint is available for this question."));
+  rig.queue(practice({ kind: "evaluation", concept: "ACID", outcome: "correct",
+    feedback: "Correct", misconceptions: [] }));
+  await collectEvents(restored.learning.run({
+    prompt: "Isolation controls anomalies", action: "practice", explicitContext: [],
+  }));
+  const recorded = (await restored.learningState.load()).evidence;
+  assert.equal(recorded.length, 1);
+  assert.equal(recorded[0].assistance?.highestHintLevel, 4);
+  assert.equal(recorded[0].assistance?.independent, false);
+  assert.equal(recorded[0].assisted, true);
+});
+
 test("Review is durable only on completion and reconciles once after vault failure", async () => {
   const rig = makeRig();
   const first = await rig.createLearning();
