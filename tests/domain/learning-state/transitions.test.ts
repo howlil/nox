@@ -169,11 +169,12 @@ test("review evidence is idempotent per logical review and preserves separate re
 
 test("misconception resolution needs repeated unassisted criterion-complete evidence", () => {
   const submit = (state: LearningState, at: number, outcome: "partial" | "correct",
-    assisted: boolean, misconception: string[]) => recordPracticeEvaluation(state, {
+    assisted: boolean, misconception: string[],
+    taskKind: "guided-practice" | "recall" = "guided-practice") => recordPracticeEvaluation(state, {
     source: "notes.md", programId: "p", objectiveId: "o", assisted,
     evaluation: {
       kind: "evaluation", concept: "Replication", outcome,
-      feedback: "Verified criterion", misconceptions: misconception,
+      feedback: "Verified criterion", misconceptions: misconception, taskKind,
       rubricResults: [{ criterion: "Explain conflicts", met: outcome === "correct",
         evidence: "Answer reasoning" }],
     },
@@ -184,8 +185,33 @@ test("misconception resolution needs repeated unassisted criterion-complete evid
   assert.equal(assisted.gaps[0].status, "improving");
   const one = submit(assisted, 300, "correct", false, []);
   assert.equal(one.gaps[0].status, "improving");
-  const two = submit(one, 300 + 12 * 3_600_000, "correct", false, []);
+  const two = submit(one, 300 + 12 * 3_600_000, "correct", false, [], "recall");
   assert.equal(two.gaps[0].status, "resolved");
   const reopened = submit(two, 300 + 24 * 3_600_000, "partial", false, ["Missed conflict"]);
   assert.equal(reopened.gaps[0].status, "open");
+});
+
+test("historical mastery cannot resolve a newly reopened misconception", () => {
+  const practice = (state: LearningState, at: number,
+    outcome: "incorrect" | "correct", kind: "guided-practice" | "recall") =>
+    recordPracticeEvaluation(state, {
+      programId: "p", objectiveId: "o", source: "lesson.md",
+      evaluation: {
+        kind: "evaluation", concept: "Isolation", outcome, taskKind: kind,
+        feedback: "Evidence checked",
+        misconceptions: outcome === "correct" ? [] : ["Missed lock ordering"],
+        rubricResults: [{ criterion: "Explain lock ordering", met: outcome === "correct",
+          evidence: "Attempt verified" }],
+      },
+    }, { now: () => at, uuid: () => "e-" + at });
+  const a = practice(baseState(), 100, "correct", "guided-practice");
+  const b = practice(a, 100 + 12 * 3_600_000, "correct", "recall");
+  const c = practice(b, 100 + 24 * 3_600_000, "incorrect", "guided-practice");
+  assert.equal(c.gaps[0]?.status, "open");
+  const d = practice(c, 100 + 25 * 3_600_000, "correct", "guided-practice");
+  assert.equal(d.gaps[0]?.status, "improving");
+  const e = practice(d, 100 + 26 * 3_600_000, "correct", "guided-practice");
+  assert.equal(e.gaps[0]?.status, "improving");
+  const f = practice(e, 100 + 38 * 3_600_000, "correct", "recall");
+  assert.equal(f.gaps[0]?.status, "resolved");
 });
