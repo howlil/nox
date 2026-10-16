@@ -196,3 +196,26 @@ test("structural replan stays opt-in and a paused focus blocks curriculum mutati
   await orchestrator.endFocus();
   orchestrator.dispose();
 });
+
+test("onboarding approval cannot switch an active focus; paused focus may switch and later resume", async () => {
+  const { orchestrator, stored } = rig();
+  const original = await orchestrator.createProgram("Spanish", base);
+  await orchestrator.startFocus("basic", "chat-owner");
+  const prepared = await orchestrator.prepareProgram("A new skill", base);
+  await assert.rejects(
+    orchestrator.commitPrepared(prepared.id, "approve:other"),
+    /Pause or end the active focus/,
+  );
+  assert.equal(stored().activeProgramId, original.id);
+  assert.equal(stored().programs.length, 1);
+
+  await orchestrator.pauseFocus();
+  const created = await orchestrator.commitPrepared(prepared.id, "approve:other");
+  assert.equal(stored().activeProgramId, created.id);
+  assert.equal(stored().programs.find(item => item.id === original.id)?.focus?.status, "paused");
+  await orchestrator.selectProgram(original.id);
+  assert.equal((await orchestrator.resumeFocus()).focus?.id,
+    stored().programs.find(item => item.id === original.id)?.focus?.id);
+  await orchestrator.endFocus();
+  orchestrator.dispose();
+});
