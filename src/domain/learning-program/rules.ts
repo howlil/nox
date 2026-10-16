@@ -1,9 +1,9 @@
 import type { LearningEvidence } from "../learning-state/types";
-import { decideFeedback } from "../learner-model/feedback-policy";
+import { decideFocusedLearningActivity, decideLearningActivity,
+  nextEligibleRecallAt, selectEligibleObjective } from "./activity-policy";
 import { sessionRemainingMs } from "./session-time";
 import type { CurriculumDraft, LearningDecision, LearningObjective, LearningProgram, ProgramConstraints } from "./types";
 
-const DAY = 86_400_000;
 const isText = (v: unknown): v is string => typeof v === "string" && v.trim().length > 0;
 const isStringList = (v: unknown): v is string[] => Array.isArray(v) && v.every(isText);
 const MAX_OBJECTIVES = 60;
@@ -134,98 +134,13 @@ export function feasibility(program: LearningProgram, now = Date.now()) {
   return { estimatedMinutes, availableMinutes, feasible: estimatedMinutes <= availableMinutes };
 }
 
-function objectiveEvidence(program: LearningProgram, objectiveId: string, evidence: LearningEvidence[]) {
-  return evidence
-    .filter(item => item.scope === "learner" && item.type === "practice" &&
-      item.programId === program.id && item.objectiveId === objectiveId)
-    .sort((a, b) => a.createdAt - b.createdAt);
-}
+// Historical callers keep this stable export; the pure policy owns implementation.
+export { objectiveProgress } from "./objective-readiness";
 
-export function objectiveProgress(program: LearningProgram, objectiveId: string,
-  evidence: LearningEvidence[], now = Date.now()) {
-  const attempts = objectiveEvidence(program, objectiveId, evidence);
-  if (!attempts.length) return { status: "unseen" as const, dueAt: null, attempts: 0 };
-  const last = attempts[attempts.length - 1];
-  const objective = program.objectives.find(item => item.id === objectiveId);
-  const rubric = objective?.rubric ?? [];
-  const independentAnswer = (item: LearningEvidence): boolean =>
-    !item.assisted && item.assistance?.independent !== false &&
-      (item.assistance?.highestHintLevel ?? 0) === 0;
-  const complete = (item: LearningEvidence): boolean =>
-    rubric.length > 0 && rubric.every((criterion, index) =>
-      item.rubricResults?.some(result => {
-        if (!result.met) return false;
-        const stableId = objective?.criteria?.[index]?.id;
-        // Rewording may preserve a stable criterion ID; changing its meaning
-        // must allocate a new ID. Legacy unversioned evidence is text-bound.
-        if (item.objectiveRevision !== undefined) {
-          return Boolean(stableId && result.criterionId === stableId &&
-            item.objectiveRevision >= 1 && item.objectiveRevision <= program.planVersion);
-        }
-        return result.criterion === criterion;
-      }));
-  if (last.outcome !== "correct" || !independentAnswer(last) || last.assessmentCoverage === "single-item" ||
-      last.createdAt <= 0 || !complete(last)) {
-    return { status: "remediate" as const, dueAt: null, attempts: attempts.length };
-  }
-  const correct = attempts.filter(item => item.outcome === "correct" && independentAnswer(item) &&
-    item.assessmentCoverage !== "single-item" && item.createdAt > 0 && complete(item));
-  // Repetition is not retention: only genuine delayed recall after earlier
-  // independent criterion-complete practice qualifies for mastery.
-  const independent = correct.some(first => first.taskKind !== "recall" &&
-    correct.some(recall => recall.taskKind === "recall" &&
-      recall.createdAt - first.createdAt >= 12 * 3_600_000));
-  const dueAt = last.createdAt + (independent ? 3 : 1) * DAY;
-  return { status: independent ? "mastered" as const : "provisional" as const,
-    dueAt, attempts: attempts.length, due: now >= dueAt };
-}
-
-/** A pinned objective is not released by a deadline, session timer, or another due topic. */
+/** Focus always pins the requested objective; pure policy prevents topic hopping. */
 export function chooseFocusedActivity(program: LearningProgram, evidence: LearningEvidence[],
   now = Date.now()): LearningDecision {
-  const focus = program.focus;
-  if (!focus) throw new Error("No objective focus.");
-  if (focus.status === "paused") {
-    return { kind: "wait", reason: "Objective focus paused. Use /resume-focus." };
-  }
-  const objective = program.objectives.find(item => item.id === focus.objectiveId);
-  if (!objective || objective.deprecated || focus.curriculumRevision !== program.planVersion) {
-    throw new Error("Focused objective is stale.");
-  }
-  const progress = objectiveProgress(program, objective.id, evidence, now);
-  if (progress.status === "unseen") {
-    return { kind: "diagnostic", objective, reason: "Assess the pinned objective." };
-  }
-  if (progress.status === "remediate") {
-    const attempts = objectiveEvidence(program, objective.id, evidence);
-    const last = attempts[attempts.length - 1];
-    const taught = program.instructionEvents?.some(item =>
-      item.objectiveId === objective.id && item.afterEvidenceAt === last.createdAt);
-    const feedback = decideFeedback(objective, attempts, last);
-    const kind: LearningDecision["kind"] = feedback.kind === "repair" ? "remediate" :
-      feedback.kind === "scaffold" && !taught ? "teach" : "guided-practice";
-    return { kind, objective,
-      targetCriterionIds: feedback.failedCriteria,
-      sourceEvidenceIds: feedback.evidenceIds,
-      ...(feedback.kind === "scaffold" ? { scaffoldLevel: feedback.level } : {}),
-      reason: kind === "remediate"
-        ? "Explain the correction to the failed criterion in your own words."
-        : kind === "teach" ? "Repeated errors call for a limited targeted scaffold."
-          : "Verify an independent variation without the earlier hint." };
-  }
-  if (progress.dueAt !== null && now >= progress.dueAt) {
-    return { kind: "recall", objective, reason: "Delayed retrieval is due.", dueAt: progress.dueAt };
-  }
-  if (progress.status === "mastered" &&
-      !objectiveEvidence(program, objective.id, evidence).some(item =>
-        item.taskKind === "transfer" && item.outcome === "correct" && !item.assisted)) {
-    return { kind: "transfer", objective, reason: "Verify transfer on the pinned objective." };
-  }
-  if (progress.status === "provisional") {
-    return { kind: "guided-practice", objective, reason: "Practice independently before delayed recall." };
-  }
-  return { kind: "wait", objective, reason: "Objective checks complete. Use /end-focus to switch.",
-    dueAt: progress.dueAt ?? undefined };
+  return decideFocusedLearningActivity(program, evidence, now);
 }
 
 /** Legacy timed sessions remain supported; objective focus is self-paced. */
@@ -245,42 +160,15 @@ export function chooseNextActivity(program: LearningProgram, evidence: LearningE
   if (program.session?.timing?.pauseReasons.some(reason => reason === "manual" || reason === "recovery" || reason === "app-inactive")) {
     return { kind: "wait", reason: "Learning session is paused. Use /resume-session to continue.", minutesRemaining: remaining };
   }
-  const states = new Map(program.objectives.map(item =>
-    [item.id, objectiveProgress(program, item.id, evidence, now)] as const));
-  const candidates = program.objectives.filter(item => !item.deprecated &&
-    item.prerequisiteIds.every(id =>
-    states.get(id)?.status === "mastered"));
-  const overdue = candidates.filter(item => {
-    const state = states.get(item.id);
-    return (state?.status === "mastered" || state?.status === "provisional") &&
-      state.dueAt !== null && now >= state.dueAt;
-  }).sort((a, b) => (states.get(a.id)?.dueAt ?? 0) - (states.get(b.id)?.dueAt ?? 0));
-  if (overdue[0]) return { kind: "recall", objective: overdue[0], reason: "Scheduled delayed retrieval is due.",
-    dueAt: states.get(overdue[0].id)?.dueAt ?? undefined, minutesRemaining: remaining };
-  const remediation = candidates.find(item => states.get(item.id)?.status === "remediate");
-  if (remediation) {
-    const attempts = objectiveEvidence(program, remediation.id, evidence);
-    const last = attempts[attempts.length - 1];
-    const taught = program.instructionEvents?.some(item =>
-      item.objectiveId === remediation.id && item.afterEvidenceAt === last.createdAt);
-    const kind = last.outcome === "correct" && (last.assisted || last.assessmentCoverage === "single-item") ? "guided-practice" :
-      taught ? "guided-practice" : "teach";
-    return { kind, objective: remediation,
-      reason: kind === "teach" ? "Teach the missed concept before retrying." :
-        "Guided practice should target the most recent failed criterion.",
-      minutesRemaining: remaining };
+  const selected = selectEligibleObjective(program, evidence, now);
+  if (selected) {
+    return { ...decideLearningActivity(program, selected, evidence, now), minutesRemaining: remaining };
   }
-  const transfer = candidates.find(item => states.get(item.id)?.status === "mastered" &&
-    !objectiveEvidence(program, item.id, evidence).some(attempt => attempt.taskKind === "transfer"));
-  if (transfer) return { kind: "transfer", objective: transfer,
-    reason: "Check whether knowledge transfers to a new situation.", minutesRemaining: remaining };
-  const eligible = candidates.find(item => states.get(item.id)?.status === "unseen" && item.priority !== "optional") ??
-    candidates.find(item => states.get(item.id)?.status === "unseen");
-  if (eligible) return { kind: "diagnostic", objective: eligible,
-    reason: "Prerequisites are satisfied; assess this objective before teaching.", minutesRemaining: remaining };
-  const pending = [...states.values()].filter(state => state.dueAt !== null)
-    .map(state => state.dueAt as number).sort((a, b) => a - b);
-  return { kind: "wait", reason: pending.length ? "No eligible activity is due. Next review is scheduled." :
-    "Prerequisites are not yet mastered or the program is complete.", dueAt: pending[0],
-    minutesRemaining: remaining };
+  const dueAt = nextEligibleRecallAt(program, evidence, now);
+  return {
+    kind: "wait", reason: dueAt !== undefined
+      ? "No eligible activity is due. Next review is scheduled."
+      : "Prerequisites are not yet mastered or the program is complete.",
+    dueAt, minutesRemaining: remaining,
+  };
 }
