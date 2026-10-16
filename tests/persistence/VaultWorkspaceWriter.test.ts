@@ -80,3 +80,65 @@ test("objective notes materialize on demand without overwriting learner notes", 
   await writer.ensureObjective(program, "greetings");
   assert.match(vault.files.get(lesson)!, /User notes/);
 });
+
+
+test("approved revision creates an independent roadmap and remedial lesson without overwriting notes", async () => {
+  const vault = new FakeVault();
+  const writer = new VaultWorkspaceWriter({ vault } as never);
+  const revision = {
+    operationId: "repair:greetings:0", fromVersion: 1, toVersion: 2,
+    kind: "prerequisite-remediation" as const,
+    reasonEvidenceIds: ["q1", "q2"], addedObjectiveId: "greetings-repair-1",
+  };
+  const revised: LearningProgram = { ...program, planVersion: 2,
+    workspaceApproved: true,
+    curriculumRevisions: [revision],
+    objectives: [
+      { ...program.objectives[0], prerequisiteIds: ["greetings-repair-1"] },
+      { id: "greetings-repair-1", title: "Repair greetings",
+        outcome: "Explain independently", prerequisiteIds: [],
+        estimatedMinutes: 30, rubric: ["Introduce yourself in context"],
+        sourceRefs: [], priority: "supporting" },
+    ] };
+  await writer.ensure(program);
+  const originalRoadmap = planWorkspace(program).files.find(item => item.path.endsWith("Roadmap.md"))!.path;
+  vault.files.set(originalRoadmap, vault.files.get(originalRoadmap)! + "\nLearner additions");
+  const original = vault.files.get(originalRoadmap);
+  const root = planWorkspace(program).root;
+  const revisionPath = root + "/Roadmap-v2.md";
+  const lesson = root + "/Lessons/greetings-repair-1.md";
+  vault.failureAt = vault.creates + 2;
+  await assert.rejects(writer.ensureRevision(revised, revision), /disk failed/);
+  assert.ok(vault.files.has(revisionPath), "committed snapshot can survive partial note failure");
+  assert.equal(vault.files.has(lesson), false);
+  vault.failureAt = undefined;
+  const savedSnapshot = vault.files.get(revisionPath);
+  await writer.ensureRevision(revised, revision);
+  assert.equal(vault.files.get(revisionPath), savedSnapshot);
+  assert.match(vault.files.get(lesson)!, /nox-objective-id: "greetings-repair-1"/);
+  assert.equal(vault.files.get(originalRoadmap), original);
+  const fileCount = vault.files.size;
+  await writer.ensureRevision(revised, revision);
+  assert.equal(vault.files.size, fileCount);
+  vault.files.set(revisionPath, "An unrelated note");
+  await assert.rejects(writer.ensureRevision(revised, revision), /conflicts with an unowned note/);
+  assert.equal(vault.files.get(revisionPath), "An unrelated note");
+});
+
+test("source-bound and unapproved revisions never materialize speculative notes", async () => {
+  const vault = new FakeVault();
+  const writer = new VaultWorkspaceWriter({ vault } as never);
+  const revision = {
+    operationId: "repair:greetings:0", fromVersion: 1, toVersion: 2,
+    kind: "prerequisite-remediation" as const,
+    reasonEvidenceIds: ["q1", "q2"], addedObjectiveId: "greetings-repair-1",
+  };
+  const sourceBound: LearningProgram = { ...program, planVersion: 2,
+    workspaceApproved: true, curriculumRevisions: [revision],
+    constraints: { ...program.constraints, sourceBound: true, sourcePaths: ["notes.md"] } };
+  await writer.ensureRevision(sourceBound, revision);
+  await writer.ensureRevision({ ...sourceBound, workspaceApproved: false,
+    constraints: { ...program.constraints } }, revision);
+  assert.equal(vault.files.size, 0);
+  assert.equal(vault.creates, 0);
+});
