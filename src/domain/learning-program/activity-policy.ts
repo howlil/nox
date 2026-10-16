@@ -70,6 +70,11 @@ export function decideLearningActivity(
   }
   const attempts = objectiveEvidence(program, objective.id, [...evidence]);
   const last = attempts.at(-1);
+  if (last?.objectiveRevision !== undefined &&
+      (last.objectiveRevision < 1 || last.objectiveRevision > program.planVersion)) {
+    return { kind: "guided-practice", objective, sourceEvidenceIds: [last.id],
+      reason: "Evidence revision is incompatible with the current curriculum; verify independently." };
+  }
   if (progress.status === "unseen") {
     return { kind: "diagnostic", objective, reason: "Prerequisites are satisfied; assess this objective first." };
   }
@@ -94,12 +99,17 @@ export function decideLearningActivity(
   }
   if (progress.dueAt !== null && now >= progress.dueAt + config.recallDueGraceMs) {
     return { kind: "recall", objective, dueAt: progress.dueAt,
+      targetCriterionIds: objective.criteria?.filter(item => item.required).map(item => item.id) ?? [],
+      sourceEvidenceIds: attempts.slice(-2).map(item => item.id),
       reason: "Criterion-complete delayed recall is due." };
   }
   if (progress.status === "mastered" && !attempts.some(item =>
     item.taskKind === "transfer" && item.outcome === "correct" && !item.assisted &&
     item.assistance?.independent !== false)) {
-    return { kind: "transfer", objective, reason: "Check independent transfer to a new context." };
+    return { kind: "transfer", objective,
+      targetCriterionIds: objective.criteria?.filter(item => item.required).map(item => item.id) ?? [],
+      sourceEvidenceIds: attempts.slice(-2).map(item => item.id),
+      reason: "Check independent transfer to a new context." };
   }
   if (progress.status === "provisional") {
     return { kind: "guided-practice", objective, reason: "Strengthen the skill independently before delayed recall." };
