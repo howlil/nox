@@ -426,6 +426,19 @@ export class LearningController {
       request = { ...request, action: "practice" };
     }
     if (request.prompt.trim().toLowerCase() === "/hint") {
+      // Retrying a durable hint turn must replay that exact disclosure, not
+      // advance to the next assistance level for the same request identity.
+      const messages = this.sessions.getSession().messages;
+      const acknowledged = request.turnId
+        ? messages.findIndex(item => item.role === "user" && item.id === request.turnId &&
+            item.content.trim().toLowerCase() === "/hint")
+        : -1;
+      if (acknowledged >= 0 && messages[acknowledged + 1]?.role === "assistant" &&
+          messages[acknowledged + 1].content.startsWith("Hint: ")) {
+        yield { type: "response-delta", text: messages[acknowledged + 1].content };
+        yield { type: "completed" };
+        return;
+      }
       if (this.turns.isRunning() || this.applyingProposals.size > 0) {
         yield { type: "failed", failure: { code: "busy", message: "Finish the active operation before requesting a hint." } };
         return;
