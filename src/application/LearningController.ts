@@ -338,12 +338,14 @@ export class LearningController {
     let focused = false;
     let focusedProgramId: string | undefined;
     let focusedObjectiveId: string | undefined;
+    let focusedChatSessionId: string | undefined;
     if (this.programs) {
       try {
         const active = await this.programs.getActiveProgram();
         focused = active?.focus?.status === "active";
         focusedProgramId = active?.focus?.programId;
         focusedObjectiveId = active?.focus?.objectiveId;
+        focusedChatSessionId = active?.focus?.chatSessionId;
       } catch (error) {
         // Preserve the pre-existing ordinary-chat availability boundary.
         // Program-specific work must still fail closed when focus cannot be verified.
@@ -363,6 +365,14 @@ export class LearningController {
         !allowsFocusedTurn(request.prompt, this.turns.hasActivePracticeQuestion()))) {
       yield { type: "failed", failure: { code: "busy",
         message: "Objective focus locked. Answer the challenge, use /next, or /pause-focus." } };
+      return;
+    }
+    if (focused && focusedChatSessionId &&
+        this.sessions.getSession().id !== focusedChatSessionId &&
+        !/^\/(?:progress|review-due|programs|session-time|pause-focus|end-focus)(?:\s|$)/i.test(request.prompt.trim())) {
+      yield { type: "failed", failure: { code: "busy",
+        message: "This focused challenge belongs to chat " + focusedChatSessionId +
+          ". Return to that chat, or /pause-focus and /end-focus to switch." } };
       return;
     }
     if (focused && this.turns.hasActivePracticeQuestion() && !request.prompt.trim().startsWith("/")) {
@@ -478,7 +488,7 @@ export class LearningController {
           if (this.turns.hasActivePracticeQuestion()) {
             throw new Error("Finish the existing practice question before starting objective focus.");
           }
-          const program = await this.programs.startFocus(command.objectiveId);
+          const program = await this.programs.startFocus(command.objectiveId, this.sessions.getSession().id);
           const objective = program.objectives.find(item => item.id === command.objectiveId)!;
           response = "Focused: **" + objective.title +
             "**. Use /next, /pause-focus, or /end-focus.";

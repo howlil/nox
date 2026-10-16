@@ -151,8 +151,12 @@ export function chooseFocusedActivity(program: LearningProgram, evidence: Learni
     const taught = program.instructionEvents?.some(item =>
       item.objectiveId === objective.id && item.afterEvidenceAt === last.createdAt);
     const assisted = last.outcome === "correct" && (last.assisted || last.assessmentCoverage === "single-item");
-    return { kind: assisted || taught ? "guided-practice" : "teach", objective,
-      reason: assisted || taught ? "Retry independently." : "Repair the missed criterion." };
+    const repeatedFailure = attempts.filter(item =>
+      item.outcome !== "correct" && item.rubricResults?.some(result => !result.met)).length >= 2;
+    const kind = assisted || taught || !repeatedFailure ? "guided-practice" : "teach";
+    return { kind, objective, reason: kind === "guided-practice"
+      ? "Try a targeted correction or independent variation before revealing the explanation."
+      : "Repeated evidence suggests a targeted explanation is needed." };
   }
   if (progress.dueAt !== null && now >= progress.dueAt) {
     return { kind: "recall", objective, reason: "Delayed retrieval is due.", dueAt: progress.dueAt };
@@ -203,10 +207,8 @@ export function chooseNextActivity(program: LearningProgram, evidence: LearningE
     const last = attempts[attempts.length - 1];
     const taught = program.instructionEvents?.some(item =>
       item.objectiveId === remediation.id && item.afterEvidenceAt === last.createdAt);
-    const previousFailures = attempts.filter(item =>
-      item.outcome !== "correct" && item.rubricResults?.some(result => !result.met));
     const kind = last.outcome === "correct" && (last.assisted || last.assessmentCoverage === "single-item") ? "guided-practice" :
-      previousFailures.length < 2 || taught ? "guided-practice" : "teach";
+      taught ? "guided-practice" : "teach";
     return { kind, objective: remediation,
       reason: kind === "teach" ? "Teach the missed concept before retrying." :
         "Guided practice should target the most recent failed criterion.",

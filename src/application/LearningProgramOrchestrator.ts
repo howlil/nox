@@ -274,7 +274,7 @@ export class LearningProgramOrchestrator {
     return this.updateActive(program => applyCurriculumRevision(program, proposal));
   }
 
-  async startFocus(objectiveId: string): Promise<LearningProgram> {
+  async startFocus(objectiveId: string, chatSessionId?: string): Promise<LearningProgram> {
     const state = await this.learningState.load();
     return this.updateActive(program => {
       const objective = program.objectives.find(item => item.id === objectiveId);
@@ -283,7 +283,7 @@ export class LearningProgramOrchestrator {
         objectiveProgress(program, id, state.evidence, this.now()).status === "mastered")) {
         throw new Error("Master the prerequisite objectives before focusing this objective.");
       }
-      return startObjectiveFocus(program, objectiveId, this.now(), crypto.randomUUID());
+      return startObjectiveFocus(program, objectiveId, this.now(), crypto.randomUUID(), chatSessionId);
     });
   }
   async pauseFocus(): Promise<LearningProgram> {

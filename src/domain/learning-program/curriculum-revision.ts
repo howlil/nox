@@ -26,6 +26,13 @@ export function proposeRemediationRevision(
       const failures = attempts.filter(item => item.rubricResults?.some(result =>
         result.criterion === criterion && !result.met));
       if (failures.length < 2) continue;
+      // A later, independent rubric-complete outcome may have already repaired this gap.
+      const lastFailure = failures[failures.length - 1].createdAt;
+      if (evidence.some(item =>
+        item.scope === "learner" && item.type === "practice" &&
+        item.programId === program.id && item.objectiveId === objective.id &&
+        item.createdAt > lastFailure && item.outcome === "correct" && !item.assisted &&
+        Boolean(item.rubricResults?.some(result => result.criterion === criterion && result.met)))) continue;
       const id = objective.id.slice(0, 47) + "-repair-" + (index + 1);
       const operationId = "repair:" + objective.id + ":" + index;
       if (program.objectives.some(item => item.id === id) ||

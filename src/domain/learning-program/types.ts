@@ -55,6 +55,8 @@ export interface FocusSession {
   programId: string;
   objectiveId: string;
   curriculumRevision: number;
+  /** The chat that owns the pending question and its transcript. */
+  chatSessionId?: string;
   status: "active" | "paused";
   startedAt: number;
   pausedAt?: number;

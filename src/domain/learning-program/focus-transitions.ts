@@ -2,12 +2,12 @@ import type { FocusSession, LearningProgram } from "./types";
 
 /** Persistent objective-level authorization, independent of chat mode and timers. */
 export function startObjectiveFocus(program: LearningProgram, objectiveId: string,
-  now: number, id: string): LearningProgram {
+  now: number, id: string, chatSessionId?: string): LearningProgram {
   if (program.focus) throw new Error("Objective focus already exists. End it before choosing another objective.");
   if (!program.objectives.some(item => item.id === objectiveId)) throw new Error("Unknown objective ID.");
   return { ...program, focus: {
     id, programId: program.id, objectiveId, curriculumRevision: program.planVersion,
-    status: "active", startedAt: now,
+    chatSessionId, status: "active", startedAt: now,
   } };
 }
 
@@ -35,6 +35,8 @@ export function validateObjectiveFocus(program: LearningProgram, focus: FocusSes
       !Number.isInteger(focus.curriculumRevision) ||
       focus.curriculumRevision !== program.planVersion ||
       (focus.status !== "active" && focus.status !== "paused") ||
+      (focus.chatSessionId !== undefined &&
+        (typeof focus.chatSessionId !== "string" || !focus.chatSessionId.trim())) ||
       !Number.isFinite(focus.startedAt) || focus.startedAt < 0 ||
       (focus.pausedAt !== undefined && (!Number.isFinite(focus.pausedAt) ||
         focus.pausedAt < focus.startedAt))) {
