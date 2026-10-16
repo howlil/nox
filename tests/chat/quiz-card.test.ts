@@ -199,3 +199,48 @@ test("a failed evaluation remains retryable, and code Tab is not trapped", async
     });
   assert.equal(code.findAll("textarea")[0].handlers.has("keydown"), false);
 });
+
+
+test("progressive hint card reveals only persisted levels and caps at four", async () => {
+  const root = new FakeElement();
+  let granted = true;
+  let acknowledged = 0;
+  const hints = ["Cue", "Identify the invariant", "Check a sample", "Explain the final link"];
+  renderQuizCard(dom(root), { ...question, hint: hints[0], hints }, {
+    questionId: "q-4", active: true,
+    onHint: async () => { if (!granted) return false; acknowledged++; return true; },
+    onDraft: () => {}, onSubmit: async () => false,
+  });
+  const panel = root.findClass("nox-quiz-hint-panel")!;
+  const text = root.findClass("nox-quiz-hint-text")!;
+  const first = root.findClass("nox-quiz-hint")!;
+  const next = root.findClass("nox-quiz-next-hint")!;
+  assert.equal(panel.hidden, true);
+  assert.equal(next.hidden, true);
+  granted = false;
+  first.trigger("click");
+  await new Promise<void>(resolve => setImmediate(resolve));
+  assert.equal(acknowledged, 0);
+  assert.equal(panel.hidden, true);
+  granted = true;
+  first.trigger("click");
+  await new Promise<void>(resolve => setImmediate(resolve));
+  assert.equal(acknowledged, 1);
+  assert.equal(panel.hidden, false);
+  assert.equal(text.text, hints[0]);
+  assert.equal(next.hidden, false);
+  for (let level = 2; level <= 4; level++) {
+    next.trigger("click");
+    await new Promise<void>(resolve => setImmediate(resolve));
+    assert.equal(text.text, hints[level - 1]);
+    assert.equal(acknowledged, level);
+  }
+  assert.equal(next.hidden, true);
+  first.trigger("click");
+  await new Promise<void>(resolve => setImmediate(resolve));
+  assert.equal(panel.hidden, true);
+  first.trigger("click");
+  await new Promise<void>(resolve => setImmediate(resolve));
+  assert.equal(panel.hidden, false);
+  assert.equal(acknowledged, 4, "local redisclosure does not create new evidence");
+});
