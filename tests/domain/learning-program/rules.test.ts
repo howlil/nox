@@ -80,9 +80,13 @@ test("deadline feasibility reports tradeoffs, not fictional completion", () => {
 
 test("incorrect response triggers targeted remediation, not progress", () => {
   const events = [event("symbols", "incorrect", now - 2000)];
-  assert.equal(chooseNextActivity(program(), events, now).kind, "teach");
+  assert.equal(chooseNextActivity(program(), events, now).kind, "remediate");
+  const result = chooseNextActivity(program(), events, now);
+  assert.deepEqual(result.targetCriterionIds, ["c1"]);
+  assert.deepEqual(result.sourceEvidenceIds, [events[0].id]);
   const taught = program({ instructionEvents: [{ objectiveId: "symbols", afterEvidenceAt: now - 2000, taughtAt: now - 1000 }] });
-  assert.equal(chooseNextActivity(taught, events, now).kind, "guided-practice");
+  assert.equal(chooseNextActivity(taught, events, now).kind, "remediate",
+    "One failure still requests learner self-correction rather than repeating a lecture");
   assert.equal(chooseNextActivity(program(), events, now).objective?.id, "symbols");
 });
 
