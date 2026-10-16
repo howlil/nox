@@ -1,7 +1,7 @@
 name: Prepare release PR
 
 # Ordinary pushes create a release PR only after master CI succeeds.
-# Publishing still requires review, manual desktop acceptance, and merging that PR.
+# Merging the PR creates an attested draft only; publication is explicitly manual.
 on:
   workflow_run:
     workflows: ["CI"]
@@ -84,7 +84,7 @@ jobs:
         run: |
           node scripts/check-release.mjs
           node scripts/check-docs.mjs
-      - name: Create release PR and explicitly trigger branch CI
+      - name: Create release PR and explicitly trigger candidate CI
         if: steps.select.outputs.bump != ''
         env:
           GH_TOKEN: ${{ github.token }}
@@ -110,6 +110,6 @@ jobs:
           gh pr create --base master --head "$branch" \
             --title "chore(release): prepare $version" \
             --body-file .github/RELEASE_PR_BODY.md
-          # GITHUB_TOKEN-created PRs do not automatically fire pull_request workflows.
-          # workflow_dispatch is explicitly allowed to start a fresh CI run.
-          gh workflow run ci.yml --ref "$branch"
+          # GITHUB_TOKEN PR checks may require approval. Dispatch an independent
+          # candidate run; do not substitute it for a required PR status.
+          gh workflow run ci-release.yml --ref "$branch"

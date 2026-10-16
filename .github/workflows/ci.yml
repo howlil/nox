@@ -1,9 +1,12 @@
 name: CI
 
+# Fast development checks; Windows and full Community validation run in CI / Release.
+
 on:
   push:
     branches: [master]
   pull_request:
+    branches: [master]
   workflow_dispatch:
 
 jobs:
@@ -49,6 +52,9 @@ jobs:
       - name: Typed trust-boundary lint
         run: pnpm lint:typed
 
+      - name: Critical Obsidian settings policy
+        run: pnpm ci:critical
+
       - name: Parse CSS source stylesheets
         run: pnpm lint:css
 
@@ -61,37 +67,11 @@ jobs:
       - name: Integration tests
         run: pnpm test:integration
 
-      # Diagnostic microbenchmark only; never assert a machine-dependent
-      # duration threshold in shared CI.
-      - name: Synthetic research benchmark
-        run: NOX_BENCH_FILES=200 pnpm bench:research
-
       - name: Build
         run: pnpm build
 
       - name: Verify artifacts
         run: pnpm test:artifacts
-      - name: Reproducible production build
-        run: |
-          first="$(sha256sum dist/main.js dist/manifest.json dist/styles.css)"
-          pnpm build
-          second="$(sha256sum dist/main.js dist/manifest.json dist/styles.css)"
-          if [ "$first" != "$second" ]; then
-            echo "::error::Build changes for the same commit; Community Directory scanner will not match the release."
-            exit 1
-          fi
-
-      - name: Upload installable assets for pre-release desktop acceptance
-        uses: actions/upload-artifact@v4
-        with:
-          name: nox-desktop-test-${{ github.sha }}
-          path: |
-            dist/main.js
-            dist/manifest.json
-            dist/styles.css
-          if-no-files-found: error
-          retention-days: 14
-
   # Landing is independently deployed by Cloudflare; do not add it to the
   # Obsidian plugin's pnpm workspace or release artifact.
   landing:
@@ -115,54 +95,4 @@ jobs:
         run: npm run lint
       - name: Landing production build
         run: npm run build
-
-  # The Linux job cannot validate Windows PowerShell / DPAPI.
-  # Run the actual local-credential OAuth roundtrip on Windows.
-  windows-dpapi:
-    runs-on: windows-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 10
-
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: pnpm
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Build ChatGPT provider regression tests
-        run: pnpm exec esbuild tests/agent/ChatGptProvider.test.ts --bundle --platform=node --format=esm --target=node22 --outfile=chatgpt-provider-test.mjs
-
-      - name: Build Obsidian OAuth transport regression tests
-        run: pnpm exec esbuild tests/agent/ObsidianOAuthTransport.test.ts --bundle --platform=node --format=esm --target=node22 --outfile=obsidian-oauth-test.mjs
-
-      - name: Build Obsidian inference regression tests
-        run: pnpm exec esbuild tests/agent/ObsidianInferenceTransport.test.ts --bundle --platform=node --format=esm --target=node22 --outfile=obsidian-inference-test.mjs
-
-      - name: Windows DPAPI, OAuth and inference regressions
-        run: node --test chatgpt-provider-test.mjs obsidian-oauth-test.mjs obsidian-inference-test.mjs
-
-  # Obsidian's own validator catches manifest/compatibility and scanner findings.
-  # Use Nox's existing pnpm pipeline for builds; avoid the validator's npm fallback.
-  community-readiness:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-    steps:
-      - uses: actions/checkout@v4
-      - name: Community Directory scanner validation
-        uses: obsidianmd/obsidian-workflows@v1
-        with:
-          build: "false"
-          lint: "false"
-          scanner-lint: "true"
-          strict: "false"
 
