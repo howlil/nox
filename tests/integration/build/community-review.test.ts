@@ -29,7 +29,7 @@ test("Obsidian community P0 style and settings findings cannot regress", () => {
   const settings = source("src/settings/SettingsTab.ts");
   assert.match(settings, /getSettingDefinitions\(\)/, "Use searchable Obsidian 1.13+ settings");
   assert.doesNotMatch(settings, /\.setName\("Nox"\)\.setHeading\(\)/, "Do not duplicate plugin name as heading");
-  assert.doesNotMatch(settings, /containerEl\.createEl\("h[1-6]"/);
+  assert.match(settings, /new Setting\(header\)\.setName\("Settings"\)\.setHeading\(\)/);
 });
 
 test("dynamic composer, swipe, icon and motion visuals have a scoped stylesheet contract", () => {
