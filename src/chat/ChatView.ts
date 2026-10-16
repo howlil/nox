@@ -24,6 +24,7 @@ import {
   PracticeQuestion,
 } from "../domain/practice/types";
 import { ReviewFinding } from "../domain/review/types";
+import { availablePracticeHints } from "../domain/practice/question-schema";
 import {
   renderPracticeQuestionCard,
   renderPracticeEvaluationCard,
@@ -2763,10 +2764,11 @@ export class ChatView extends ItemView {
         p.type === "practice-evaluation" && p.questionId === questionId)));
     const questionIndex = questionId ? session.messages.findIndex(m => m.parts?.some(p =>
       p.type === "practice-question" && p.questionId === questionId)) : -1;
-    const hintUsed = questionIndex >= 0 && session.messages.slice(questionIndex + 1)
-      .some(m => m.role === "user" && m.content.trim().toLowerCase() === "/hint");
+    const hintLevel = questionIndex >= 0 ? session.messages.slice(questionIndex + 1)
+      .filter(m => m.role === "user" && m.content.trim().toLowerCase() === "/hint").length : 0;
+    let acknowledgedLevel = Math.min(hintLevel, availablePracticeHints(question).length);
     renderPracticeQuestionCard(parent, question, questionId ? {
-      questionId, active, hintUsed, draft: session.practiceDrafts?.[questionId],
+      questionId, active, hintLevel: acknowledgedLevel, draft: session.practiceDrafts?.[questionId],
       onDraft: answer => {
         if (!active) return;
         if (this.quizDraftTimer !== null) window.clearTimeout(this.quizDraftTimer);
@@ -2779,6 +2781,8 @@ export class ChatView extends ItemView {
       onHint: async () => {
         if (this.uiState === "RUNNING" || !this.learning.hasActivePracticeQuestion()) return false;
         const before = this.learning.getSession().messages.length;
+        const expectedHint = availablePracticeHints(question)[acknowledgedLevel];
+        if (!expectedHint) return false;
         const request: LearningRequest = {
           prompt: "/hint", action: "practice", explicitContext: [],
           turnId: crypto.randomUUID(),
@@ -2787,8 +2791,10 @@ export class ChatView extends ItemView {
         await this.runTurn(request, true);
         // Do not reveal the hint when the transcript operation failed.
         const after = this.learning.getSession();
-        return after.id === session.id && after.messages.slice(before).some(
-          m => m.role === "assistant" && m.content === "Hint: " + question.hint);
+        const acknowledged = after.id === session.id && after.messages.slice(before).some(
+          m => m.role === "assistant" && m.content === "Hint: " + expectedHint);
+        if (acknowledged) acknowledgedLevel++;
+        return acknowledged;
       },
       onSubmit: async answer => {
         if (!active || this.uiState === "RUNNING") return false;
