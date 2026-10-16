@@ -146,10 +146,17 @@ export function objectiveProgress(program: LearningProgram, objectiveId: string,
       (item.assistance?.highestHintLevel ?? 0) === 0;
   const complete = (item: LearningEvidence): boolean =>
     rubric.length > 0 && rubric.every((criterion, index) =>
-      item.rubricResults?.some(result => result.criterion === criterion && result.met &&
-        // Only the application can bind IDs on new revisioned evidence.
-        (item.objectiveRevision === undefined || !objective?.criteria?.[index] ||
-          result.criterionId === objective.criteria[index].id)));
+      item.rubricResults?.some(result => {
+        if (!result.met) return false;
+        const stableId = objective?.criteria?.[index]?.id;
+        // Rewording may preserve a stable criterion ID; changing its meaning
+        // must allocate a new ID. Legacy unversioned evidence is text-bound.
+        if (item.objectiveRevision !== undefined) {
+          return Boolean(stableId && result.criterionId === stableId &&
+            item.objectiveRevision >= 1 && item.objectiveRevision <= program.planVersion);
+        }
+        return result.criterion === criterion;
+      }));
   if (last.outcome !== "correct" || !independentAnswer(last) || last.assessmentCoverage === "single-item" ||
       last.createdAt <= 0 || !complete(last)) {
     return { status: "remediate" as const, dueAt: null, attempts: attempts.length };
