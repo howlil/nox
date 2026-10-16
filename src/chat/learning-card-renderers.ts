@@ -85,11 +85,16 @@ export function renderPracticeEvaluationCard(
     }
   }
 
+  if (evaluation.programId && evaluation.outcome !== "correct") {
+    card.createDiv({ cls: "nox-evaluation-note",
+      text: "Next: repair the missed criterion in your own words. Nox will check it without assuming mastery." });
+  }
   if (options.onContinue) {
     const actions = card.createDiv({ cls: "nox-evaluation-actions" });
     const button = createNoxButton(actions, {
       cls: "nox-evaluation-continue", variant: "quiet",
-      text: "Prepare next activity", icon: "arrow-right",
+      text: evaluation.programId && evaluation.outcome !== "correct"
+        ? "Try a correction" : "Prepare next activity", icon: "arrow-right",
     });
     button.addEventListener("click", options.onContinue);
   }
