@@ -2834,12 +2834,15 @@ export class ChatView extends ItemView {
       onContinue: this.learning.hasActivePracticeQuestion() ? undefined : () => {
         if (this.uiState === "RUNNING") return;
         const sessionId = session.id;
-        void this.learning.getProgramMenuState().then(state => {
+        void this.learning.getProgramOverview().then(overview => {
           if (this.learning.getSession().id !== sessionId) return;
-          this.setAction(state.activeProgramId ? "ask" : "practice");
-          this.input.value = state.activeProgramId
-            ? (state.sessionActive ? "/next" : "/start-session")
-            : "Give me another practice question about " + evaluation.concept + ".";
+          this.setAction(overview ? "ask" : "practice");
+          this.input.value = overview?.focus?.status === "paused" ? "/resume-focus" :
+            overview?.focus?.status === "active" ? "/next" :
+            overview?.active ? "/next" :
+            overview?.next.objectiveId ? "/focus " + overview.next.objectiveId :
+            overview ? "/progress" :
+            "Give me another practice question about " + evaluation.concept + ".";
           this.onInput();
           this.focusComposer();
         }).catch(() => new Notice("Unable to prepare the next learning activity."));
