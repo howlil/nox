@@ -63,11 +63,17 @@ test("due recall is selected deterministically ahead of new topics, but not repe
   const first = selectEligibleObjective(p, previouslyMastered, now)!;
   assert.equal(first.objective.id, "foundation");
   assert.equal(first.progress.status, "mastered");
-  assert.equal(decideLearningActivity(p, first, previouslyMastered, now).kind, "recall");
+  const due = decideLearningActivity(p, first, previouslyMastered, now);
+  assert.equal(due.kind, "recall");
+  assert.deepEqual(due.targetCriterionIds, ["c1"]);
+  assert.deepEqual(due.sourceEvidenceIds, ["work", "recall"]);
   const newRecall = attempt("foundation", "retrieved", now, "correct", "recall");
   const second = selectEligibleObjective(p, [...previouslyMastered, newRecall], now)!;
   assert.equal(second.objective.id, "foundation");
-  assert.equal(decideLearningActivity(p, second, [...previouslyMastered, newRecall], now).kind, "transfer");
+  const transferDecision = decideLearningActivity(p, second,
+    [...previouslyMastered, newRecall], now);
+  assert.equal(transferDecision.kind, "transfer");
+  assert.deepEqual(transferDecision.targetCriterionIds, ["c1"]);
   const transferred = attempt("foundation", "transfer", now + 1, "correct", "transfer");
   const next = selectEligibleObjective(p, [...previouslyMastered, newRecall, transferred], now + 1)!;
   assert.equal(next.objective.id, "advanced");
@@ -166,4 +172,15 @@ test("retention thresholds remain configurable but never allow mastery before 12
     now, { minIndependentRecallHours: 10 }), /Invalid retention/);
   assert.throws(() => selectEligibleObjective(p, [], now,
     { masteredReviewHours: 10 }), /Invalid retention/);
+});
+
+test("future-revision evidence is not trusted to trigger a structural scaffold", () => {
+  const p = program();
+  const first = attempt("foundation", "invalid", now, "incorrect");
+  first.objectiveRevision = 3;
+  const readiness = deriveObjectiveReadiness(p, "foundation", [first], now);
+  const decision = decideLearningActivity(p, readiness, [first], now);
+  assert.equal(decision.kind, "guided-practice");
+  assert.match(decision.reason, /incompatible/);
+  assert.deepEqual(decision.sourceEvidenceIds, ["invalid"]);
 });
