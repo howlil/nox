@@ -49,6 +49,9 @@ import type { LearningProgram, LearningObjective } from "../domain/learning-prog
 import { chooseNextActivity } from "../domain/learning-program/rules";
 import { coversCriteria } from "../domain/learning-program/assessment-rubric";
 import { attachAssessmentProvenance } from "./assessment-provenance";
+import { captureLearningAuthority, assertLearningAuthority,
+  type LearningAuthoritySnapshot } from "./learning-authority";
+import { buildLearningContext } from "./learning-context-builder";
 import {
   StructuredStreamEvent,
   StructuredStreamParser,
@@ -336,30 +339,23 @@ export class RunLearningTurn {
     let policy: Awaited<ReturnType<PolicyPort["load"]>>;
     let state: Awaited<ReturnType<LearningStatePort["load"]>>;
     let program: LearningProgram | undefined;
+    let learningAuthority: LearningAuthoritySnapshot | undefined;
     let selectedSkill: { path: string; content: string } | null = null;
 
     // Before a canonical question/evaluation commit, re-check the persisted
     // authority captured before inference. Provider output cannot unlock,
     // switch or rebind an objective while the request is in flight.
     const assertProgramAuthority = async (programId?: string, objectiveId?: string) => {
-      if (!programId || !this.programStore) return;
-      const collection = await this.programStore.load();
-      const latest = collection.programs.find(item => item.id === programId);
-      if (collection.activeProgramId !== programId || !latest) {
-        throw new Error("Learning program changed during inference. Retry from the current program.");
+      if (!programId) return;
+      if (!this.programStore || !learningAuthority || !objectiveId) {
+        throw new Error("Missing learning authority for the provider outcome.");
       }
-      if (program?.focus && (latest.focus?.id !== program.focus.id ||
-          latest.focus.status !== "active" ||
-          latest.focus.curriculumRevision !== program.focus.curriculumRevision ||
-          latest.focus.chatSessionId !== program.focus.chatSessionId)) {
-        throw new Error("Objective focus changed during inference. The stale result was not committed.");
-      }
-      if (latest.focus?.status === "active" && latest.focus.objectiveId !== objectiveId) {
-        throw new Error("Inference result does not match the focused objective.");
-      }
-      if (latest.planVersion !== program?.planVersion) {
-        throw new Error("Curriculum revision changed during inference. Retry the current activity.");
-      }
+      const [collection, latestState] = await Promise.all([
+        this.programStore.load(), this.learningState.load(),
+      ]);
+      assertLearningAuthority(learningAuthority, collection,
+        latestState.evidence, this.sessions.getSession().id, objectiveId,
+        latestState.gaps);
     };
 
     try {
@@ -737,28 +733,21 @@ export class RunLearningTurn {
           `Program ID: ${program.id}. Goal: ${program.goal}`,
           `Objective ID: ${activeObjective.id}. Outcome: ${activeObjective.outcome}`,
           `Required rubric: ${JSON.stringify(activeObjective.rubric)}`,
-          "VERIFIED LEARNER CONTEXT (derived, read-only, bounded): " + JSON.stringify(
-            selectRelevantLearnerState(program,
+          buildLearningContext({
+            program, objective: activeObjective,
+            memory: selectRelevantLearnerState(program,
               projectLearnerModel(program, state.evidence, state.gaps),
-              state.evidence, state.gaps, activeObjective.id)),
-          ...(practiceAttempt ? [
-            "CURRENT QUESTION STATE: " + JSON.stringify({
+              state.evidence, state.gaps, activeObjective.id),
+            decision,
+            ...(practiceAttempt ? { question: {
               questionId: practiceAttempt.questionId,
               taskKind: practiceAttempt.taskKind,
               assisted: Boolean(practiceAttempt.assisted),
               highestHintLevel: practiceAttempt.highestHintLevel ??
                 (practiceAttempt.assisted ? 1 : 0),
-            }),
-          ] : []),
+            } } : {}),
+          }).serialized,
           `Activity: ${practiceAttempt ? "evaluate current answer" : decision?.kind}`,
-          ...(decision?.targetCriterionIds?.length ? [
-            "TARGET RUBRIC (application-derived IDs mapped to their approved descriptions): " +
-              JSON.stringify((activeObjective.criteria ?? []).filter(item =>
-                decision.targetCriterionIds!.includes(item.id)).map(item =>
-                ({ criterionId: item.id, description: item.description }))),
-            "EVIDENCE REFERENCES (opaque IDs; not grader verdicts): " +
-              JSON.stringify(decision.sourceEvidenceIds ?? []),
-          ] : []),
           ...(decision?.kind === "remediate" ? [
             "CORRECTION: ask the learner to repair the prior failed reasoning without revealing a full solution.",
             `Targeted criteria: ${JSON.stringify(decision.targetCriterionIds ?? [])}.`,
@@ -777,6 +766,14 @@ export class RunLearningTurn {
         ].join("\n");
       }
     }
+    if (program && !legacyLockedMode && (request.action === "practice" || request.programActivity)) {
+      const activeObjectiveId = practiceAttempt?.objectiveId ??
+        decision?.objective?.id ?? request.programActivity?.objectiveId;
+      if (!activeObjectiveId) throw new Error("Cannot authorize an unspecified program objective.");
+      learningAuthority = captureLearningAuthority(program, activeObjectiveId,
+        conversation.id, state.evidence, state.gaps);
+    }
+
     if (strictPractice && legacyLockedMode) {
       preparedPrompt = buildScopedPracticeInstruction(legacyLockedMode, preparedPrompt, Boolean(practiceAttempt));
     } else if (strictPractice && programScope) {
@@ -953,6 +950,9 @@ export class RunLearningTurn {
         preparationMs: performance.now() - runStartedAt,
         elapsedMs: 0,
       };
+      if (learningAuthority) {
+        await assertProgramAuthority(learningAuthority.programId, learningAuthority.objectiveId);
+      }
       // The runtime may still be authenticating or starting a CLI; do not claim
       // the model has received the request until output is observed.
       yield { type: "activity-phase", phase: "waiting-model", at: Date.now() };
@@ -1182,6 +1182,9 @@ export class RunLearningTurn {
               yield { type: "mutation-proposed",
                 edit: { id: editProposalId, proposal: committed.proposal } };
             }
+          }
+          if (learningAuthority) {
+            await assertProgramAuthority(learningAuthority.programId, learningAuthority.objectiveId);
           }
           const elapsedMs = performance.now() - runStartedAt;
           metrics.elapsedMs = elapsedMs;
