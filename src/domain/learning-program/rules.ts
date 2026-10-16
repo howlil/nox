@@ -122,7 +122,7 @@ export function validateCurriculum(value: unknown, constraints: ProgramConstrain
 
 export function feasibility(program: LearningProgram, now = Date.now()) {
   const requiredMinutes = program.objectives
-    .filter(item => item.priority !== "optional")
+    .filter(item => !item.deprecated && item.priority !== "optional")
     .reduce((sum, item) => sum + item.estimatedMinutes, 0);
   // Reserve review + formative assessment capacity; an estimate, not a promise.
   const estimatedMinutes = Math.ceil(requiredMinutes * 1.4);
