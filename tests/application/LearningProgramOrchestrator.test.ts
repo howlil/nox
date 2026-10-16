@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { LearningProgramOrchestrator } from "../../src/application/LearningProgramOrchestrator";
 import type { ProgramCollection, ProgramConstraints } from "../../src/domain/learning-program/types";
+import type { LearningEvidence } from "../../src/domain/learning-state/types";
 
 const base: ProgramConstraints = {
   minutesPerSession: 45, sessionsPerWeek: 3,
@@ -22,6 +23,8 @@ function rig(payload: unknown = draft(), success = true) {
   let currentTime = Date.now();
   let stored: ProgramCollection = { version: 1, programs: [] };
   let writes = 0;
+  let failWrites = 0;
+  let evidence: LearningEvidence[] = [];
   const context = { activeNote: { path: "notes/spanish.md", content: "Hola means hello." }, explicit: [] };
   const runtime = {
     send: async function* () {
@@ -34,14 +37,19 @@ function rig(payload: unknown = draft(), success = true) {
   const orchestrator = new LearningProgramOrchestrator(
     runtime as never,
     { resolve: async () => context } as never,
-    { load: async () => ({ evidence: [] }) } as never,
+    { load: async () => ({ evidence: structuredClone(evidence) }) } as never,
     { load: async () => structuredClone(stored),
-      save: async (next: ProgramCollection) => { stored = structuredClone(next); writes++; } } as never,
+      save: async (next: ProgramCollection) => {
+        if (failWrites > 0) { failWrites--; throw new Error("simulated program write failure"); }
+        stored = structuredClone(next); writes++;
+      } } as never,
     () => undefined,
     () => "chatgpt",
     () => currentTime,
   );
   return { orchestrator, stored: () => structuredClone(stored), writes: () => writes,
+    setEvidence: (items: LearningEvidence[]) => { evidence = structuredClone(items); },
+    failNextWrite: () => { failWrites++; },
     advance: (ms: number) => { currentTime += ms; } };
 }
 test("plan creation persists validated objectives, updates active identity and feasibility", async () => {
@@ -217,5 +225,65 @@ test("onboarding approval cannot switch an active focus; paused focus may switch
   assert.equal((await orchestrator.resumeFocus()).focus?.id,
     stored().programs.find(item => item.id === original.id)?.focus?.id);
   await orchestrator.endFocus();
+  orchestrator.dispose();
+});
+
+test("end-focus atomically inserts exactly one evidence-backed prerequisite after two committed errors", async () => {
+  const rigged = rig();
+  const { orchestrator, stored, writes, setEvidence } = rigged;
+  const program = await orchestrator.createProgram("Spanish", base);
+  const focused = await orchestrator.startFocus("basic", "chat-owner");
+  const focusId = focused.focus!.id;
+  const criterion = program.objectives.find(item => item.id === "basic")!.criteria![0];
+  const failures: LearningEvidence[] = ["question-1", "question-2"].map((questionId, index) => ({
+    id: "practice:" + questionId, type: "practice", scope: "learner",
+    programId: program.id, objectiveId: "basic", questionId, focusSessionId: focusId,
+    objectiveRevision: 1, evaluator: "llm-review",
+    concept: "Vocabulary", source: "lesson.md", outcome: "incorrect",
+    createdAt: 100 + index * 100,
+    rubricResults: [{ criterion: criterion.description, criterionId: criterion.id,
+      met: false, evidence: "Not yet recalled" }],
+  }));
+  setEvidence(failures);
+  const beforeWrites = writes();
+  const ended = await orchestrator.endFocus();
+  assert.equal(writes(), beforeWrites + 1, "end and revision use a single durable program write");
+  assert.equal(ended.focus, undefined);
+  assert.equal(ended.planVersion, 2);
+  assert.equal(ended.curriculumRevisions?.length, 1);
+  assert.deepEqual(ended.curriculumRevisions?.[0].reasonEvidenceIds,
+    failures.map(item => item.id));
+  assert.equal(ended.objectives.length, 3);
+  assert.ok(ended.objectives.find(item => item.id === "basic")?.prerequisiteIds
+    .includes(ended.curriculumRevisions![0].addedObjectiveId));
+  assert.equal(stored().programs[0].planVersion, 2);
+  orchestrator.dispose();
+});
+
+test("no replan from legacy, foreign-focus or repaired evidence; failed save retains original focus", async () => {
+  const { orchestrator, setEvidence, stored, failNextWrite } = rig();
+  const program = await orchestrator.createProgram("Spanish", base);
+  const started = await orchestrator.startFocus("basic", "chat-owner");
+  const criterion = program.objectives[0].criteria![0];
+  const sample = (id: string, focusSessionId: string): LearningEvidence => ({
+    id, type: "practice", scope: "learner", programId: program.id,
+    objectiveId: "basic", questionId: id, focusSessionId,
+    objectiveRevision: 1, evaluator: "llm-review", concept: "Vocabulary",
+    source: "notes.md", createdAt: id === "a" ? 100 : 200, outcome: "partial",
+    rubricResults: [{ criterion: criterion.description, criterionId: criterion.id,
+      met: false, evidence: "Incorrect" }],
+  });
+  setEvidence([sample("a", started.focus!.id), sample("b", "another-focus")]);
+  let ended = await orchestrator.endFocus();
+  assert.equal(ended.planVersion, 1);
+  const focus2 = await orchestrator.startFocus("basic", "chat-owner");
+  setEvidence([sample("a", focus2.focus!.id), sample("b", focus2.focus!.id)]);
+  failNextWrite();
+  await assert.rejects(orchestrator.endFocus(), /simulated program write failure/);
+  assert.equal(stored().programs[0].focus?.id, focus2.focus!.id);
+  assert.equal(stored().programs[0].planVersion, 1);
+  ended = await orchestrator.endFocus();
+  assert.equal(ended.planVersion, 2);
+  assert.equal(ended.curriculumRevisions?.length, 1);
   orchestrator.dispose();
 });
