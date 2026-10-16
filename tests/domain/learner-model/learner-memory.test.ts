@@ -131,3 +131,29 @@ test("relevant snapshot only includes current objective, required prerequisites,
   assert.deepEqual(selectRelevantLearnerState(current, projected, entries,
     gaps, "transactions", { maxGaps: 0 }).gaps, []);
 });
+
+
+test("memory retrieval rejects stale evidence fingerprints and retired objectives", () => {
+  const current = program();
+  const original = [evidence("old", "transactions", at - 100, "incorrect")];
+  const model = projectLearnerModel(current, original, [], at);
+  const newlyCommitted = [...original, evidence("new", "transactions", at)];
+  assert.throws(() => selectRelevantLearnerState(current, model, newlyCommitted,
+    [], "transactions"), /stale/);
+  const updated = projectLearnerModel(current, newlyCommitted, [], at);
+  assert.equal(selectRelevantLearnerState(current, updated, newlyCommitted, [],
+    "transactions").episodes[0].evidenceId, "old");
+  const retired = structuredClone(current);
+  retired.objectives[1].deprecated = true;
+  const retiredModel = projectLearnerModel(retired, newlyCommitted, [], at);
+  assert.throws(() => selectRelevantLearnerState(retired, retiredModel, newlyCommitted,
+    [], "transactions"), /deprecated/);
+});
+
+test("revisioned evidence from a future curriculum cannot demonstrate a criterion", () => {
+  const current = program("one", 2);
+  const impossible = { ...evidence("future", "transactions", at),
+    objectiveRevision: 3 };
+  assert.equal(projectLearnerModel(current, [impossible], [], at)
+    .objectives.transactions.criteria[0].status, "unseen");
+});
