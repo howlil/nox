@@ -292,6 +292,9 @@ export class LearningProgramOrchestrator {
 
   /** No approval is applied without its exact non-expired preview. */
   async approveStructuralChange(operationId: string): Promise<LearningProgram> {
+    if (this.isPlanning() || this.activeAiTurnId) {
+      throw new Error("Finish the current learning operation before approving curriculum changes.");
+    }
     const pending = this.pendingRevisions.get(operationId);
     if (!pending) {
       const existing = await this.getActiveProgram();
