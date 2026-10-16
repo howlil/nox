@@ -287,3 +287,61 @@ test("no replan from legacy, foreign-focus or repaired evidence; failed save ret
   assert.equal(ended.curriculumRevisions?.length, 1);
   orchestrator.dispose();
 });
+
+
+test("structural preview is read-only until approval, with idempotent commit and durable lineage", async () => {
+  const { orchestrator, stored, writes, failNextWrite } = rig();
+  const original = await orchestrator.createProgram("Spanish", base);
+  const priorWrites = writes();
+  const preview = await orchestrator.previewStructuralChange({
+    kind: "revise", objectiveId: "basic", changes: { title: "Core vocabulary" },
+  }, "Make this topic clearer for the learner", "manual:revise:1");
+  assert.equal(preview.fromVersion, 1);
+  assert.deepEqual(preview.changedFields, ["title"]);
+  assert.equal(writes(), priorWrites, "preview must never save the plan");
+  assert.equal(stored().programs[0].objectives[0].title, "Vocabulary");
+  failNextWrite();
+  await assert.rejects(orchestrator.approveStructuralChange(preview.operationId),
+    /simulated program write failure/);
+  assert.equal(stored().programs[0].planVersion, 1);
+  const approved = await orchestrator.approveStructuralChange(preview.operationId);
+  assert.equal(approved.planVersion, 2);
+  assert.equal(approved.objectives[0].title, "Core vocabulary");
+  assert.deepEqual(approved.curriculumRevisions?.[0].before?.rubric, original.objectives[0].rubric);
+  assert.equal(approved.curriculumRevisions?.[0].targetObjectiveId, "basic");
+  const afterWrites = writes();
+  assert.equal((await orchestrator.approveStructuralChange(preview.operationId)).planVersion, 2);
+  assert.equal(writes(), afterWrites, "retry may not create duplicate revision");
+  orchestrator.dispose();
+});
+
+test("approval rejects a stale diff and never bypasses paused focus locks", async () => {
+  const { orchestrator, stored, writes } = rig();
+  await orchestrator.createProgram("Spanish", base);
+  const preview = await orchestrator.previewStructuralChange({
+    kind: "change-prerequisites", objectiveId: "apply", prerequisiteIds: [],
+  }, "This prerequisite is no longer required", "manual:detach:1");
+  await orchestrator.startFocus("basic", "chat-owner");
+  await orchestrator.pauseFocus();
+  const beforeWrites = writes();
+  await assert.rejects(orchestrator.approveStructuralChange(preview.operationId), /End the active or paused focus/);
+  assert.equal(writes(), beforeWrites);
+  await orchestrator.endFocus();
+  const updated = await orchestrator.approveStructuralChange(preview.operationId);
+  assert.deepEqual(updated.objectives[1].prerequisiteIds, []);
+  const retire = await orchestrator.previewStructuralChange({
+    kind: "deprecate", objectiveId: "basic",
+  }, "This objective was superseded by the current curriculum", "manual:retire:1");
+  assert.equal(retire.kind, "deprecate");
+  await orchestrator.approveStructuralChange(retire.operationId);
+  assert.equal(stored().programs[0].objectives[0].deprecated, true);
+  const stale = await orchestrator.previewStructuralChange({
+    kind: "revise", objectiveId: "apply", changes: { title: "Dialogue practice" },
+  }, "Improve the objective title for clarity", "manual:stale:1");
+  await orchestrator.previewStructuralChange({
+    kind: "revise", objectiveId: "apply", changes: { estimatedMinutes: 45 },
+  }, "Adjust time based on learner feedback", "manual:competing:1");
+  await orchestrator.approveStructuralChange("manual:competing:1");
+  await assert.rejects(orchestrator.approveStructuralChange(stale.operationId), /version conflict/);
+  orchestrator.dispose();
+});
