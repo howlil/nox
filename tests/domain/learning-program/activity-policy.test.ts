@@ -145,3 +145,25 @@ test("next recall is scheduled and stable across repeated no-evidence decisions"
   retired.objectives[1].prerequisiteIds = [];
   assert.equal(selectEligibleObjective(retired, [], now)?.objective.id, "advanced");
 });
+ 
+test("retention thresholds remain configurable but never allow mastery before 12h", () => {
+  const p = program();
+  const first = attempt("foundation", "one", now - 18 * 3_600_000, "correct");
+  const recall = attempt("foundation", "two", now, "correct", "recall");
+  const defaults = deriveObjectiveReadiness(p, "foundation", [first, recall], now);
+  assert.equal(defaults.progress.status, "mastered");
+  const stricter = deriveObjectiveReadiness(p, "foundation", [first, recall], now,
+    { minIndependentRecallHours: 24, provisionalReviewHours: 48,
+      masteredReviewHours: 144 });
+  assert.equal(stricter.progress.status, "provisional");
+  assert.equal(stricter.progress.dueAt, now + 48 * 3_600_000);
+  const selected = selectEligibleObjective(p, [first, recall], now,
+    { minIndependentRecallHours: 24, provisionalReviewHours: 48,
+      masteredReviewHours: 144 });
+  assert.equal(selected?.objective.id, "optional",
+    "stricter recall proof keeps the blocked advanced objective unavailable");
+  assert.throws(() => deriveObjectiveReadiness(p, "foundation", [first, recall],
+    now, { minIndependentRecallHours: 10 }), /Invalid retention/);
+  assert.throws(() => selectEligibleObjective(p, [], now,
+    { masteredReviewHours: 10 }), /Invalid retention/);
+});
