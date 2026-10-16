@@ -168,3 +168,18 @@ test("v3 evidence with spoofed criterion ID or hint level cannot establish maste
     { highestHintLevel: 1 as const, independent: false } };
   assert.equal(objectiveProgress(program(), "symbols", [earlier, assisted], now).status, "remediate");
 });
+ 
+test("stable criterion identifiers survive permitted rewording and reject duplicate identities", () => {
+  const initial = validateCurriculum(goal, constraints);
+  const first = initial.objectives[0];
+  assert.deepEqual(first.criteria, [{
+    id: "c1", description: "Use notation correctly", required: true,
+  }]);
+  const revised = structuredClone(initial);
+  revised.objectives[0].rubric = ["Use precise notation"];
+  revised.objectives[0].criteria![0].description = "Use precise notation";
+  assert.equal(validateCurriculum(revised, constraints).objectives[0].criteria?.[0].id, "c1");
+  revised.objectives[0].rubric = ["Use precise notation", "Explain units"];
+  revised.objectives[0].criteria!.push({ id: "c1", description: "Explain units", required: true });
+  assert.throws(() => validateCurriculum(revised, constraints), /Invalid stable criterion identities/);
+});
