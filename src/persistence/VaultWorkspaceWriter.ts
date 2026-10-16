@@ -47,7 +47,7 @@ export class VaultWorkspaceWriter {
   /** Never rewrite Roadmap.md or a learner-edited lesson. New revisions are standalone snapshots. */
   async ensureRevision(program: LearningProgram, revision: CurriculumRevisionRecord): Promise<void> {
     if (!program.workspaceApproved || program.constraints.sourceBound) return;
-    if (revision.toVersion > program.planVersion ||
+    if (revision.toVersion !== program.planVersion ||
         !program.curriculumRevisions?.some(item => item.operationId === revision.operationId)) {
       throw new Error("Cannot materialize a revision that is not committed.");
     }
@@ -74,7 +74,7 @@ export class VaultWorkspaceWriter {
         `Evidence: ${revision.reasonEvidenceIds.join(", ")}`,
         "",
         "## Updated objectives",
-        ...program.objectives.map(item => `- **${item.title.replace(/[\\r\\n]/g, " ")}** — ${item.outcome.replace(/[\\r\\n]/g, " ")}`),
+        ...program.objectives.map(item => `- **${item.title.replace(/[\r\n]/g, " ")}** — ${item.outcome.replace(/[\r\n]/g, " ")}`),
         "",
         "Previous roadmap and your lesson notes have not been overwritten.",
         "",
