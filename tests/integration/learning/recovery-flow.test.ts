@@ -804,6 +804,62 @@ test("program inference receives bounded objective memory, never unrelated objec
     "program turns must not also add an unfiltered progress history digest");
 });
 
+test("stale provider question cannot commit after focus changes during inference", async () => {
+  const rig = makeRig(true);
+  const { learning, sessions } = await rig.createLearning();
+  rig.afterProviderText(() => rig.changeFocus({ id: "new-focus", status: "active" }));
+  rig.queue(practice({ kind: "question", concept: "Atomicity",
+    question: "Explain an all-or-nothing transaction" }));
+  const events = await collectEvents(learning.run({
+    prompt: "Practice", action: "practice", explicitContext: [],
+  }));
+  assert.ok(events.some(event => event.type === "failed"), JSON.stringify(events));
+  assert.equal(events.some(event => event.type === "practice-question"), false);
+  assert.equal(sessions.getSession().messages.flatMap(m => m.parts ?? [])
+    .filter(part => part.type === "practice-question").length, 0);
+  assert.equal(learning.hasActivePracticeQuestion(), false);
+});
+
+test("concurrent progress update invalidates stale question decision without erasing committed evidence", async () => {
+  const rig = makeRig(true);
+  const { learning, learningState, sessions } = await rig.createLearning();
+  const newEvidence = { id: "concurrent", type: "practice" as const,
+    scope: "learner" as const, programId: "acid-program", objectiveId: "atomicity",
+    concept: "Atomicity", source: "other-chat", outcome: "incorrect",
+    createdAt: Date.now(), rubricResults: [{ criterion: "Explain rollback",
+      met: false, evidence: "Still unclear" }] };
+  rig.afterProviderText(async () => {
+    await learningState.save({
+      version: 3, target: null, gaps: [], evidence: [newEvidence],
+    });
+  });
+  rig.queue(practice({ kind: "question", concept: "Atomicity",
+    question: "Explain rollback" }));
+  const events = await collectEvents(learning.run({
+    prompt: "Practice", action: "practice", explicitContext: [],
+  }));
+  assert.ok(events.some(event => event.type === "failed"), JSON.stringify(events));
+  assert.equal(events.some(event => event.type === "practice-question"), false);
+  assert.equal((await learningState.load()).evidence[0].id, "concurrent");
+  assert.equal(sessions.getSession().messages.flatMap(m => m.parts ?? [])
+    .filter(part => part.type === "practice-question").length, 0);
+});
+
+test("revision during model inference is rejected without stale transcript commit", async () => {
+  const rig = makeRig(true);
+  const { learning, sessions } = await rig.createLearning();
+  rig.afterProviderText(() => rig.changePlanVersion(2));
+  rig.queue(practice({ kind: "question", concept: "Atomicity",
+    question: "Why do atomic transactions roll back?" }));
+  const events = await collectEvents(learning.run({
+    prompt: "Practice", action: "practice", explicitContext: [],
+  }));
+  assert.ok(events.some(event => event.type === "failed"), JSON.stringify(events));
+  assert.equal(events.some(event => event.type === "practice-question"), false);
+  assert.equal(sessions.getSession().messages.flatMap(m => m.parts ?? [])
+    .filter(part => part.type === "practice-question").length, 0);
+});
+
 test("domain-neutral program practice commits objective-linked evidence and ignores model nextQuestion", async () => {
   const rig = makeRig(true);
   const { learning, learningState, sessions } = await rig.createLearning();
