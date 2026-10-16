@@ -66,13 +66,14 @@ function fingerprint(program: LearningProgram, evidence: readonly LearningEviden
     evidence: evidence.map(item => ({
       id: item.id, objectiveId: item.objectiveId, createdAt: item.createdAt,
       questionId: item.questionId, objectiveRevision: item.objectiveRevision,
-      outcome: item.outcome, taskKind: item.taskKind, assisted: item.assisted,
+      evaluator: item.evaluator, outcome: item.outcome, taskKind: item.taskKind,
+      assisted: item.assisted,
       assistance: item.assistance, coverage: item.assessmentCoverage,
       rubricResults: item.rubricResults?.map(r => [r.criterionId, r.criterion, r.met]),
     })),
     gaps: [...gaps].sort((a,b)=>a.id.localeCompare(b.id)).map(g => ({
       id: g.id, status: g.status, objectiveId: g.objectiveId,
-      evidenceIds: g.evidenceIds,
+      reason: g.reason, evidenceIds: g.evidenceIds,
     })),
   });
   // Two 32-bit deterministic accumulators; collision-tolerant because only
