@@ -160,7 +160,12 @@ export class LearningController {
     if (!this.programs || !this.workspaceWriter) return;
     const programs = await this.programs.listPrograms();
     for (const program of programs.programs) {
-      if (program.workspaceApproved) await this.workspaceWriter.ensure(program);
+      if (!program.workspaceApproved) continue;
+      await this.workspaceWriter.ensure(program);
+      // Recover the most recent committed snapshot after a crash between
+      // programs.json commit and the create-only workspace notes.
+      const latest = program.curriculumRevisions?.at(-1);
+      if (latest) await this.workspaceWriter.ensureRevision?.(program, latest);
     }
   }
 
@@ -531,11 +536,18 @@ export class LearningController {
           }
           const revised = await this.programs.replanFromEvidence();
           const revision = revised?.curriculumRevisions?.at(-1);
+          let workspaceWarning = "";
+          if (revision && revised?.workspaceApproved && this.workspaceWriter?.ensureRevision) {
+            try { await this.workspaceWriter.ensureRevision(revised, revision); }
+            catch {
+              workspaceWarning = " Workspace note sync failed; the committed plan remains saved and will be retried at startup.";
+            }
+          }
           response = revision
             ? "Curriculum version " + revision.toVersion +
               ": added prerequisite " + revision.addedObjectiveId +
               " from evidence " + revision.reasonEvidenceIds.join(", ") +
-              ". Use /progress to inspect the revised objectives."
+              ". Use /progress to inspect the revised objectives." + workspaceWarning
             : "No repeated criterion gap requires structural curriculum revision yet.";
         } else if (command.kind === "focus") {
           if (this.turns.hasActivePracticeQuestion()) {
@@ -553,8 +565,23 @@ export class LearningController {
           response = "Resumed objective: " +
             program.objectives.find(item => item.id === program.focus?.objectiveId)?.title;
         } else if (command.kind === "end-focus") {
-          await this.programs.endFocus();
-          response = "Objective focus ended; learning evidence remains saved.";
+          const previous = await this.programs.getActiveProgram();
+          const ended = await this.programs.endFocus();
+          const revision = ended.planVersion > (previous?.planVersion ?? 0)
+            ? ended.curriculumRevisions?.at(-1) : undefined;
+          let workspaceWarning = "";
+          if (revision && ended.workspaceApproved && this.workspaceWriter?.ensureRevision) {
+            try { await this.workspaceWriter.ensureRevision(ended, revision); }
+            catch {
+              workspaceWarning = " Workspace note sync failed; it will be retried on startup without overwriting your notes.";
+            }
+          }
+          response = revision
+            ? "Objective focus ended. Auto-replan added prerequisite " + revision.addedObjectiveId +
+              " (curriculum v" + revision.toVersion + ") from evidence " +
+              revision.reasonEvidenceIds.join(", ") +
+              ". Evidence is preserved; inspect the plan with /progress." + workspaceWarning
+            : "Objective focus ended; learning evidence remains saved. No structural revision was required.";
         } else if (command.kind === "free-practice") {
           if (this.turns.hasActivePracticeQuestion()) throw new Error("Finish the active question before starting free practice.");
           yield* this.runTimedTurn({ ...request, action: "practice", freePractice: true,
