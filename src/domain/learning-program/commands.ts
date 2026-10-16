@@ -1,4 +1,5 @@
 import type { ProgramConstraints } from "./types";
+import type { StructuralRevisionAction } from "./structural-revision";
 import { validateConstraints } from "./rules";
 
 export type ProgramCommand =
@@ -7,11 +8,51 @@ export type ProgramCommand =
   | { kind: "use-program"; id: string }
   | { kind: "focus"; objectiveId: string }
   | { kind: "pause-focus" | "resume-focus" | "end-focus" | "replan" }
-  | { kind: "extend-session"; minutes: number };
+  | { kind: "extend-session"; minutes: number }
+  | { kind: "curriculum-preview"; action: StructuralRevisionAction; rationale: string }
+  | { kind: "curriculum-approve"; operationId: string };
 
 /** Explicit, human-auditable constraints; never hallucinate settings from a goal. */
 export function parseProgramCommand(input: string): ProgramCommand | null {
   const value = input.trim();
+  const approval = /^\/curriculum-approve\s+([a-zA-Z0-9:_-]{6,100})$/.exec(value);
+  if (approval) return { kind: "curriculum-approve", operationId: approval[1] };
+  if (/^\/curriculum-approve(?:\s|$)/i.test(value)) {
+    throw new Error("Use /curriculum-approve <operation-id> from the validated preview.");
+  }
+  const revision = /^\/curriculum-preview\s+([\s\S]+)$/i.exec(value);
+  if (revision) {
+    let parsed: unknown;
+    try { parsed = JSON.parse(revision[1]); }
+    catch { throw new Error("Curriculum preview requires a valid JSON action."); }
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+      throw new Error("Curriculum preview requires a structured action.");
+    }
+    const p = parsed as Record<string, unknown>;
+    if (typeof p.objectiveId !== "string" || typeof p.rationale !== "string" ||
+        !["revise", "change-prerequisites", "deprecate"].includes(String(p.kind))) {
+      throw new Error("Revision needs kind, objectiveId and rationale.");
+    }
+    if (p.kind === "revise" &&
+        (!p.changes || typeof p.changes !== "object" || Array.isArray(p.changes))) {
+      throw new Error("Revise requires a changes object.");
+    }
+    if (p.kind === "change-prerequisites" && !Array.isArray(p.prerequisiteIds)) {
+      throw new Error("Prerequisite revision requires an array of objective IDs.");
+    }
+    const allowed = p.kind === "revise" ? ["kind", "objectiveId", "rationale", "changes"] :
+      p.kind === "change-prerequisites" ? ["kind", "objectiveId", "rationale", "prerequisiteIds"] :
+        ["kind", "objectiveId", "rationale"];
+    if (Object.keys(p).some(key => !allowed.includes(key))) {
+      throw new Error("Revision has unsupported properties.");
+    }
+    const { rationale, ...action } = p;
+    return { kind: "curriculum-preview", rationale,
+      action: action as unknown as StructuralRevisionAction };
+  }
+  if (/^\/curriculum-preview(?:\s|$)/i.test(value)) {
+    throw new Error('Use /curriculum-preview {"kind":"deprecate","objectiveId":"id","rationale":"Why this is obsolete"}');
+  }
   const focus = /^\/focus\s+([a-z0-9][a-z0-9_-]{0,63})$/i.exec(value);
   if (focus) return { kind: "focus", objectiveId: focus[1] };
   if (/^\/focus(?:\s|$)/i.test(value)) throw new Error("Use /focus <objective-id> shown by /progress.");
