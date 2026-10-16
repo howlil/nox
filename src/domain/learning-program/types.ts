@@ -47,6 +47,8 @@ export interface LearningObjective {
   criteria?: Array<{ id: string; description: string; required: boolean }>;
   sourceRefs: string[];
   priority: "core" | "supporting" | "optional";
+  /** Tombstone: retain historical evidence and objective IDs, but do not schedule it. */
+  deprecated?: boolean;
 }
 export interface CurriculumDraft {
   kind: "curriculum";
@@ -68,9 +70,14 @@ export interface CurriculumRevisionRecord {
   operationId: string;
   fromVersion: number;
   toVersion: number;
-  kind: "prerequisite-remediation";
+  kind: "prerequisite-remediation" | "revise" | "change-prerequisites" | "deprecate";
   reasonEvidenceIds: string[];
-  addedObjectiveId: string;
+  addedObjectiveId?: string;
+  /** Explicit learner-approved structural revisions retain before/after lineage. */
+  targetObjectiveId?: string;
+  before?: LearningObjective;
+  after?: LearningObjective;
+  rationale?: string;
 }
 export interface LearningProgram {
   version: 1;
