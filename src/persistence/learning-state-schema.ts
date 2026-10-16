@@ -83,6 +83,39 @@ function isEvidenceV2(
     (evidence.rubricResults === undefined || isRubricResults(evidence.rubricResults));
 }
 
+function isEvidenceV3(value: unknown): value is LearningEvidence {
+  if (!isEvidenceV2(value)) return false;
+  const item = value as unknown as Record<string, unknown>;
+  const assistance = item.assistance;
+  return (item.objectiveRevision === undefined ||
+      (Number.isSafeInteger(item.objectiveRevision) &&
+        typeof item.objectiveRevision === "number" && item.objectiveRevision >= 1)) &&
+    (item.questionId === undefined || (typeof item.questionId === "string" && item.questionId.length > 0)) &&
+    (item.focusSessionId === undefined ||
+      (typeof item.focusSessionId === "string" && item.focusSessionId.length > 0)) &&
+    (item.evaluator === undefined ||
+      ["deterministic", "llm-review", "verified-execution"].includes(String(item.evaluator))) &&
+    (assistance === undefined || (typeof assistance === "object" && assistance !== null &&
+      !Array.isArray(assistance) && (() => {
+        const a = assistance as Record<string, unknown>;
+        return Number.isInteger(a.highestHintLevel) &&
+          typeof a.highestHintLevel === "number" && a.highestHintLevel >= 0 &&
+          a.highestHintLevel <= 4 && typeof a.independent === "boolean" &&
+          a.independent === (a.highestHintLevel === 0);
+      })())) &&
+    (item.rubricResults === undefined || (Array.isArray(item.rubricResults) &&
+      item.rubricResults.every((result: { criterionId?: unknown }) =>
+        result.criterionId === undefined ||
+          (typeof result.criterionId === "string" && result.criterionId.length > 0))));
+}
+
+function isV3(value: unknown): value is LearningState {
+  if (!value || typeof value !== "object") return false;
+  const state = value as Record<string, unknown>;
+  return state.version === 3 && hasSharedShape(state) &&
+    (state.evidence as unknown[]).every(isEvidenceV3);
+}
+
 function hasSharedShape(value: Record<string, unknown>): boolean {
   return (
     (value.target === null || typeof value.target === "string") &&
@@ -146,7 +179,7 @@ export function migrateLearningStateV1(
   });
 
   return {
-    version: 2,
+    version: 3,
     target: state.target,
     currentTopic: state.currentTopic,
     gaps,
@@ -157,9 +190,10 @@ export function migrateLearningStateV1(
 export function decodeLearningState(
   value: unknown,
 ): LearningState {
-  if (isV2(value)) {
+  if (isV3(value) || isV2(value)) {
     return {
       ...value,
+      version: 3,
       gaps: value.gaps.map((gap) => ({
         ...gap,
         evidenceIds: [...gap.evidenceIds],
