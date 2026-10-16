@@ -29,7 +29,7 @@ export function estimateRemainingWork(
     }
   }
 
-  const mandatory = program.objectives.filter(o => o.priority !== "optional");
+  const mandatory = program.objectives.filter(o => !o.deprecated && o.priority !== "optional");
   const completed = mandatory.filter(o => objectiveProgress(program, o.id, evidence, now).status === "mastered");
   const ratios = completed.flatMap(o => {
     const actual = measured.get(o.id) ?? 0;
