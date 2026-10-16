@@ -37,7 +37,7 @@ This ledger is updated when code is committed. An item is checked only if the be
 - [ ] Implement a sandbox-backed verified-execution assessor with real execution receipts and recovery tests.
 - [ ] Manual Obsidian desktop acceptance of reworded curricula, hint UI and historical vaults.
 
-## M2 — Dynamic curriculum (automatic bounded micro-replan implemented; general revisions pending)
+## M2 — Dynamic curriculum (bounded automatic + explicitly approved structural edits; rollback pending)
 
 - [x] Pure DAG-safe evidence-based prerequisite-remediation proposal and explicit `/replan`.
 - [x] At `/end-focus`, conservative automatic micro-replan uses two distinct committed LLM-reviewed failures from the same completed focus, stable criterion ID and current plan revision; legacy/foreign evidence does not trigger it.
@@ -45,9 +45,14 @@ This ledger is updated when code is committed. An item is checked only if the be
 - [x] Automatic proposal skips recovered criteria and full (60-objective) curricula instead of blocking focus end.
 - [x] Approved, non-source-bound workspaces receive a create-only Roadmap-vN.md snapshot and remedial lesson, with startup recovery and conflict-safe retry; existing Roadmap.md and personal notes are preserved.
 - [x] Domain, persistence and orchestrator tests cover provenance, idempotency, invalid evidence, failed program writes and partial vault note creation.
-- [ ] General `revise`, `change-prerequisites`, and `deprecate` operations.
-- [ ] Versioned diff preview/approval for large changes, rollback/lineage and full historical roadmap synchronization.
-- [ ] Obsidian desktop acceptance for automatic revision and recovery after restart.
+- [x] Manual `revise` (non-rubric metadata only), `change-prerequisites` (DAG/active prerequisite checks) and `deprecate` (tombstone, no dependent active objectives), without rewriting historic evidence.
+- [x] `/curriculum-preview <JSON>` computes a pure versioned before/after diff and creates no files; `/curriculum-approve <operation-id>` is a separate, 15-minute-limited serialized commit.
+- [x] Approval rejects stale versions, program switches and paused/active focus; retry is idempotent after failure. Revision history preserves before/after snapshots and rationale.
+- [x] Retired objectives are excluded from adaptive scheduling, feasibility and remaining-work/mastery totals, while their evidence remains accessible.
+- [x] Create-only Roadmap-vN.md snapshots reconcile explicit revisions and label retired objectives; source-bound and learner-edited notes stay untouched.
+- [x] Unit, orchestrator and vault tests cover preview purity, retries, dependency cycles, collisions, tombstones, version conflicts, lineage and safe workspace snapshots.
+- [ ] Reversible rollback as a *new* versioned change; full historical roadmap reconciliation.
+- [ ] Compact non-JSON UI for structural edits, and Obsidian desktop acceptance including restart and legacy vaults.
 
 ## M3 — Derived learner memory (partial)
 
@@ -82,6 +87,7 @@ This ledger is updated when code is committed. An item is checked only if the be
 - [ ] Reverify the final PR head and release-specific checks immediately before merging.
 - [x] Unit and integration tests for v3 migration, malformed metadata, provider attribution and transcript-success/progress-write-failure replay.
 - [x] Automated tests for atomic focus-end auto-replan, evidence isolation and create-only revision note recovery.
+- [x] Automated tests for approved structural revision diff/commit, tombstone scheduling, persistence and workspace no-overwrite guarantees.
 - [ ] Full migration/restore and concurrency fault-injection matrix.
 - [ ] Manual Obsidian desktop provider and vault acceptance.
 - [ ] Release review and merge approval.
