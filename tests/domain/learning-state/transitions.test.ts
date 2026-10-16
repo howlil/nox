@@ -166,3 +166,26 @@ test("review evidence is idempotent per logical review and preserves separate re
   });
   assert.equal(second.evidence.length, 2);
 });
+
+test("misconception resolution needs repeated unassisted criterion-complete evidence", () => {
+  const submit = (state: LearningState, at: number, outcome: "partial" | "correct",
+    assisted: boolean, misconception: string[]) => recordPracticeEvaluation(state, {
+    source: "notes.md", programId: "p", objectiveId: "o", assisted,
+    evaluation: {
+      kind: "evaluation", concept: "Replication", outcome,
+      feedback: "Verified criterion", misconceptions: misconception,
+      rubricResults: [{ criterion: "Explain conflicts", met: outcome === "correct",
+        evidence: "Answer reasoning" }],
+    },
+  }, { now: () => at, uuid: () => "evt-" + at });
+  const initial = submit(baseState(), 100, "partial", false, ["Missed conflict"]);
+  assert.equal(initial.gaps[0].status, "open");
+  const assisted = submit(initial, 200, "correct", true, []);
+  assert.equal(assisted.gaps[0].status, "improving");
+  const one = submit(assisted, 300, "correct", false, []);
+  assert.equal(one.gaps[0].status, "improving");
+  const two = submit(one, 300 + 12 * 3_600_000, "correct", false, []);
+  assert.equal(two.gaps[0].status, "resolved");
+  const reopened = submit(two, 300 + 24 * 3_600_000, "partial", false, ["Missed conflict"]);
+  assert.equal(reopened.gaps[0].status, "open");
+});

@@ -27,3 +27,13 @@ test("plain requests and known learning commands are distinct", () => {
   assert.deepEqual(parseProgramCommand("/next"), { kind: "next" });
   assert.deepEqual(parseProgramCommand("/start-session"), { kind: "start-session" });
 });
+
+test("objective focus and replan are explicit commands, not model prompts", () => {
+  assert.deepEqual(parseProgramCommand("/focus evidence_1"),
+    { kind: "focus", objectiveId: "evidence_1" });
+  assert.deepEqual(parseProgramCommand("/pause-focus"), { kind: "pause-focus" });
+  assert.deepEqual(parseProgramCommand("/resume-focus"), { kind: "resume-focus" });
+  assert.deepEqual(parseProgramCommand("/end-focus"), { kind: "end-focus" });
+  assert.deepEqual(parseProgramCommand("/replan"), { kind: "replan" });
+  assert.throws(() => parseProgramCommand("/focus ../vault"), /objective-id/);
+});

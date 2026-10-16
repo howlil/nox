@@ -165,3 +165,34 @@ test("cancelled or invalid preview never writes a program", async () => {
   await assert.rejects(orchestrator.prepareProgram("Learn something", base), /1–60/);
   assert.equal(writes(), 0);
 });
+
+test("persisted objective focus is self-paced, chat-owned and recovery pauses it", async () => {
+  const { orchestrator, stored } = rig();
+  await orchestrator.createProgram("Speak Spanish", base);
+  const started = await orchestrator.startFocus("basic", "chat-first");
+  assert.equal(started.focus?.objectiveId, "basic");
+  assert.equal(started.focus?.chatSessionId, "chat-first");
+  assert.equal(started.session, undefined);
+  assert.equal((await orchestrator.getDecision())?.decision.objective?.id, "basic");
+  await assert.rejects(orchestrator.startFocus("basic", "chat-second"), /already exists/);
+  await assert.rejects(orchestrator.startFocus("apply"), /prerequisite/i);
+  await orchestrator.recoverSessions();
+  assert.equal(stored().programs[0].focus?.status, "paused");
+  assert.equal((await orchestrator.getDecision())?.decision.kind, "wait");
+  await orchestrator.resumeFocus();
+  assert.equal(stored().programs[0].focus?.status, "active");
+  await orchestrator.endFocus();
+  assert.equal(stored().programs[0].focus, undefined);
+  orchestrator.dispose();
+});
+
+test("structural replan stays opt-in and a paused focus blocks curriculum mutation", async () => {
+  const { orchestrator } = rig();
+  await orchestrator.createProgram("Speak Spanish", base);
+  assert.equal(await orchestrator.replanFromEvidence(), null);
+  await orchestrator.startFocus("basic", "chat-1");
+  await orchestrator.pauseFocus();
+  await assert.rejects(orchestrator.replanFromEvidence(), /End objective focus/);
+  await orchestrator.endFocus();
+  orchestrator.dispose();
+});

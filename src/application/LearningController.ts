@@ -339,6 +339,7 @@ export class LearningController {
     }
     // Persisted program focus takes precedence over per-chat scopes and provider actions.
     let focused = false;
+    let pausedFocus = false;
     let focusedProgramId: string | undefined;
     let focusedObjectiveId: string | undefined;
     let focusedChatSessionId: string | undefined;
@@ -346,6 +347,7 @@ export class LearningController {
       try {
         const active = await this.programs.getActiveProgram();
         focused = active?.focus?.status === "active";
+        pausedFocus = active?.focus?.status === "paused";
         focusedProgramId = active?.focus?.programId;
         focusedObjectiveId = active?.focus?.objectiveId;
         focusedChatSessionId = active?.focus?.chatSessionId;
@@ -363,6 +365,17 @@ export class LearningController {
         }
         console.warn("[Nox] Learning program focus unavailable; continuing ordinary chat.", error);
       }
+    }
+    // Pausing a focus suspends new evaluated answers, even in the owning chat.
+    // The existing question survives in the transcript until explicitly resumed.
+    const pending = this.turns.activePracticeIdentity();
+    if (pausedFocus && pending?.programId === focusedProgramId &&
+        pending?.objectiveId === focusedObjectiveId &&
+        (request.action === "practice" || request.practiceSubmission ||
+          (!request.prompt.trim().startsWith("/") && pending))) {
+      yield { type: "failed", failure: { code: "busy",
+        message: "Objective focus is paused. Use /resume-focus before answering this challenge." } };
+      return;
     }
     if (focused && (request.regenerate ||
         !allowsFocusedTurn(request.prompt, this.turns.hasActivePracticeQuestion()))) {
