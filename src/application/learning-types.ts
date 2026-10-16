@@ -16,6 +16,7 @@ import type { LearningObjective, ActivityKind } from "../domain/learning-program
 export interface NoxProgramOverview {
   goal: string;
   active: boolean;
+  focus?: { objectiveId: string; status: "active" | "paused"; chatSessionId?: string };
   sessionTime?: {
     budgetMs: number; activeMs: number; remainingMs: number; aiWaitingMs: number;
     status: "active" | "waiting-ai" | "paused" | "recovered" | "exhausted";

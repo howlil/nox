@@ -85,7 +85,7 @@ export class LearningProgramOrchestrator {
     status: "active" | "waiting-ai" | "paused" | "recovered" | "exhausted";
   } | null> {
     const program = await this.getActiveProgram();
-    if (!program?.session) return null;
+    if (!program?.session || program.focus) return null;
     const current = projectedTiming(program.session, this.now());
     return {
       budgetMs: program.session.timeBudgetMinutes * 60_000,

@@ -107,7 +107,7 @@ export class LearningController {
     const active = collection.programs.find(item => item.id === collection.activeProgramId);
     return {
       activeProgramId: active?.id,
-      sessionActive: Boolean(active?.session),
+      sessionActive: Boolean(active?.session || active?.focus?.status === "active"),
       programs: collection.programs.map(item => ({ id: item.id, goal: item.goal })),
     };
   }
@@ -172,8 +172,11 @@ export class LearningController {
     const next = selected?.decision;
     return {
       goal: program.goal,
-      active: Boolean(program.session),
-      ...(program.session ? { sessionTime: (await this.programs.getSessionTime()) ?? undefined } : {}),
+      active: Boolean(program.session || program.focus?.status === "active"),
+      ...(program.focus ? { focus: { objectiveId: program.focus.objectiveId,
+        status: program.focus.status, chatSessionId: program.focus.chatSessionId } } : {}),
+      ...(program.session && !program.focus ?
+        { sessionTime: (await this.programs.getSessionTime()) ?? undefined } : {}),
       next: { kind: next?.kind ?? "wait", objectiveId: next?.objective?.id,
         reason: next?.reason ?? "No activity is available." },
       objectives: program.objectives.map(objective => {

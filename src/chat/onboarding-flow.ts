@@ -127,8 +127,7 @@ export class OnboardingFlow {
     try {
       const constraints = {
         minutesPerSession: this.draft.minutesPerSession, sessionsPerWeek: this.draft.sessionsPerWeek,
-        startingLevel: this.draft.level,
-        ...(this.draft.deadline ? { deadline: this.draft.deadline } : {}),
+        // Goal-first onboarding must not assume prior competence or impose schedules.
         sourceBound: this.draft.sourceBound,
         sourcePaths: this.draft.sourcePath ? [this.draft.sourcePath] : [], excludedTopics: [],
       };
@@ -226,39 +225,8 @@ export class OnboardingFlow {
       this.header(panel, "Build your learning path",
         "Your goal becomes measurable objectives and prerequisite relationships.");
       this.field(panel, "What would you like to achieve?", this.draft.goal, v => { this.draft.goal = v; });
-      panel.createDiv({ cls: "nox-onboarding-label", text: "Current level (self-reported)" });
-      const levels = panel.createDiv({ cls: "nox-onboarding-chips" });
-      for (const item of ["beginner", "intermediate", "advanced"] as const) {
-        const btn = this.button(levels, item, () => {
-          this.draft.level = item; this.persist(); this.render();
-        });
-        btn.toggleClass("is-selected", this.draft.level === item);
-      }
-      const limits = panel.createDiv({ cls: "nox-onboarding-limits" });
-      for (const spec of [
-        { name: "Minutes / session", key: "minutesPerSession" as const, list: [25, 30, 45, 60, 90] },
-        { name: "Sessions / week", key: "sessionsPerWeek" as const, list: [1, 2, 3, 4, 5, 6, 7] },
-      ]) {
-        const field = limits.createDiv();
-        field.createEl("label", { cls: "nox-onboarding-label", text: spec.name });
-        const select = field.createEl("select", { cls: "nox-onboarding-field" });
-        for (const n of spec.list) {
-          const option = select.createEl("option", { value: String(n), text: String(n) });
-          option.selected = this.draft[spec.key] === n;
-        }
-        select.addEventListener("change", () => {
-          this.draft[spec.key] = Number(select.value);
-          this.persist();
-        });
-      }
-      panel.createEl("label", { cls: "nox-onboarding-label", text: "Deadline (optional)", attr: { for: "nox-learning-deadline" } });
-      const deadline = panel.createEl("input", { cls: "nox-onboarding-field",
-        attr: { id: "nox-learning-deadline", type: "date" } });
-      deadline.value = this.draft.deadline ?? "";
-      deadline.addEventListener("change", () => {
-        this.draft.deadline = deadline.value || undefined;
-        this.persist();
-      });
+      panel.createDiv({ cls: "nox-onboarding-help",
+        text: "Self-paced learning. No timebox, weekly schedule, or deadline required." });
       if (this.draft.sourceBound) panel.createDiv({ cls: "nox-onboarding-help", text: `Source: ${this.draft.sourcePath ?? "active note"}` });
       this.actions(panel, "Generate blueprint", () => void this.prepare(),
         this.draft.sourceBound ? "notes" : "welcome");
@@ -276,13 +244,10 @@ export class OnboardingFlow {
       const p = this.preview;
       this.header(panel, "Review your learning blueprint", p.goal);
       const details = panel.createDiv({ cls: "nox-onboarding-summary" });
-      details.createDiv({ text: `${p.objectives.length} objectives · ${p.constraints.minutesPerSession} min · ${p.constraints.sessionsPerWeek} sessions/week` });
+      details.createDiv({ text: `${p.objectives.length} measurable objectives · self-paced` });
       const work = feasibility(p);
-      details.createDiv({ text: `Estimated total: ${work.estimatedMinutes} min including review` });
-      if (work.feasible === false) details.createDiv({
-        cls: "nox-onboarding-risk",
-        text: "Schedule at risk. Reduce scope or increase time before approving.",
-      });
+      details.createDiv({ text: `Rough estimate: ${work.estimatedMinutes} min including review (not a requirement)` });
+      // Pacing is learner-controlled. Estimates are never treated as obligations.
       const list = panel.createDiv({ cls: "nox-onboarding-objectives" });
       p.objectives.forEach((objective, index) => {
         const row = list.createDiv({ cls: "nox-onboarding-objective" });

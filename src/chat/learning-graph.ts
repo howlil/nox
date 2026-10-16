@@ -81,6 +81,7 @@ export function renderLearningGraph(
   overview: NoxProgramOverview | null,
   onClose: () => void,
   onNext: () => void,
+  onCommand?: (command: string) => void,
 ): HTMLElement {
   const root = parent.createDiv({ cls: "nox-learning-graph" });
   parent.prepend(root);
@@ -93,6 +94,8 @@ export function renderLearningGraph(
     return root;
   }
   root.createDiv({ cls: "nox-learning-graph-goal", text: overview.goal });
+  if (overview.focus) root.createDiv({ cls: "nox-inspector-muted",
+    text: "Focus: " + overview.focus.objectiveId + " · " + overview.focus.status + " · self-paced" });
   const mastered = overview.objectives.filter(item => item.status === "mastered").length;
   root.createDiv({ cls: "nox-inspector-muted", text: `${mastered} of ${overview.objectives.length} mastered · Mastery requires independent recall` });
   const track = root.createDiv({ cls: "nox-learning-graph-track", attr: { role: "progressbar",
@@ -129,12 +132,26 @@ export function renderLearningGraph(
       text: "Next recall: " + new Date(item.dueAt).toLocaleString() });
     if (item.objective.sourceRefs.length) body.createDiv({ cls: "nox-inspector-muted",
       text: "Sources: " + item.objective.sourceRefs.join(", ") });
+    if (onCommand && overview.focus?.objectiveId === item.objective.id) {
+      const toggle = createNoxButton(body, { variant: "secondary",
+        text: overview.focus.status === "paused" ? "Resume focus" : "Pause focus" });
+      toggle.addEventListener("click", () => onCommand(
+        overview.focus?.status === "paused" ? "/resume-focus" : "/pause-focus"));
+      const end = createNoxButton(body, { variant: "quiet", text: "End focus" });
+      end.addEventListener("click", () => onCommand("/end-focus"));
+    } else if (onCommand && !overview.focus && item.status !== "mastered" &&
+        item.objective.prerequisiteIds.every(id =>
+          overview.objectives.some(o => o.objective.id === id && o.status === "mastered"))) {
+      const start = createNoxButton(body, { variant: "secondary", text: "Focus here" });
+      start.addEventListener("click", () => onCommand("/focus " + item.objective.id));
+    }
   }
   const next = root.createDiv({ cls: "nox-graph-next" });
   next.createDiv({ cls: "nox-inspector-heading", text: "Recommended next" });
   next.createDiv({ text: overview.next.reason });
   const action = createNoxButton(next, { variant: "secondary",
-    text: overview.active ? "Continue" : "Start session" });
+    text: overview.focus?.status === "paused" ? "Resume focus" :
+      overview.active ? "Continue" : overview.next.objectiveId ? "Start focus" : "View progress" });
   action.addEventListener("click", onNext);
   return root;
 }
