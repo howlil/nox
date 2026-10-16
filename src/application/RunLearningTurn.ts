@@ -373,6 +373,10 @@ export class RunLearningTurn {
         if (activePracticeTurn?.programId && activePracticeTurn.programId !== program?.id) {
           throw new Error("The active question belongs to another learning program. Switch back to that program before answering.");
         }
+        if (activePracticeTurn?.questionSpec?.focusSessionId &&
+            activePracticeTurn.questionSpec.focusSessionId !== program?.focus?.id) {
+          throw new Error("The pending question belongs to a previous objective focus. Resume that focus or start a new challenge.");
+        }
         if (program?.constraints.sourceBound && sessionAtStart.runtimeProvider !== "chatgpt") {
           throw new Error("Strict source-bound learning requires the ChatGPT provider without vault filesystem tools. Local CLI agents can read beyond selected notes.");
         }
@@ -1062,7 +1066,8 @@ export class RunLearningTurn {
           if (practiceBuffer.question) {
             practiceBuffer.question = program && objective
               ? { ...practiceBuffer.question, concept: objective.title, programId: program.id,
-                  objectiveId: objective.id, taskKind: decision?.kind === "transfer" || decision?.kind === "recall" ||
+                  objectiveId: objective.id, focusSessionId: program.focus?.id,
+                  taskKind: decision?.kind === "transfer" || decision?.kind === "recall" ||
                     decision?.kind === "guided-practice" ? decision.kind : "diagnostic" as const }
               : { ...practiceBuffer.question, programId: undefined, objectiveId: undefined };
             const questionId = crypto.randomUUID();
