@@ -4,12 +4,18 @@ import type { LearningProgram, ProgramCollection, ProgramConstraints, LearningDe
 import { chooseNextActivity, feasibility, objectiveProgress, validateConstraints, validateCurriculum } from "../domain/learning-program/rules";
 import { startObjectiveFocus, transitionObjectiveFocus } from "../domain/learning-program/focus-transitions";
 import { applyCurriculumRevision, proposeRemediationRevision } from "../domain/learning-program/curriculum-revision";
+import { applyStructuralRevision, previewStructuralRevision,
+  type StructuralRevisionAction, type StructuralRevisionProposal,
+  type StructuralRevisionPreview } from "../domain/learning-program/structural-revision";
 import { estimateRemainingWork } from "../domain/learning-program/estimate";
 import { checkpointTiming, focusSessionObjective, focusSessionMaterial, newSessionTiming, projectedTiming, recoverTiming, sessionRemainingMs, sessionTimeStatus, setTimingPause } from "../domain/learning-program/session-time";
 
 /** Program planning and session selection. The model generates content, never transitions. */
 export class LearningProgramOrchestrator {
   private readonly preparedDrafts = new Map<string, LearningProgram>();
+  private readonly pendingRevisions = new Map<string, {
+    proposal: StructuralRevisionProposal; preview: StructuralRevisionPreview; preparedAt: number;
+  }>();
   private planning = false;
   private writing = false;
   private currentAbort?: AbortController;
@@ -28,6 +34,7 @@ export class LearningProgramOrchestrator {
     this.checkpointTimer = undefined;
     this.cancel();
     this.preparedDrafts.clear();
+    this.pendingRevisions.clear();
   }
 
   private startCheckpointLoop(): void {
@@ -263,6 +270,54 @@ export class LearningProgramOrchestrator {
     this.mutationTail = operation.then(() => {}, () => {});
     return operation;
   }
+  /** Show a typed, versioned diff before any structural curriculum write. */
+  async previewStructuralChange(action: StructuralRevisionAction,
+    rationale: string, operationId: string): Promise<StructuralRevisionPreview> {
+    if (this.isPlanning() || this.activeAiTurnId) {
+      throw new Error("Finish the current learning operation before revising.");
+    }
+    const active = await this.getActiveProgram();
+    if (!active) throw new Error("Choose a learning program first.");
+    const proposal: StructuralRevisionProposal = {
+      operationId, programId: active.id, baseVersion: active.planVersion,
+      rationale, action: structuredClone(action),
+    };
+    const preview = previewStructuralRevision(active, proposal);
+    this.pendingRevisions.set(operationId, {
+      proposal: structuredClone(proposal), preview: structuredClone(preview),
+      preparedAt: this.now(),
+    });
+    return preview;
+  }
+
+  /** No approval is applied without its exact non-expired preview. */
+  async approveStructuralChange(operationId: string): Promise<LearningProgram> {
+    const pending = this.pendingRevisions.get(operationId);
+    if (!pending) {
+      const existing = await this.getActiveProgram();
+      if (existing?.curriculumRevisions?.some(item => item.operationId === operationId)) return existing;
+      throw new Error("No matching preview. Preview the revision again.");
+    }
+    if (this.now() - pending.preparedAt > 15 * 60_000) {
+      this.pendingRevisions.delete(operationId);
+      throw new Error("Curriculum preview expired. Generate a fresh preview.");
+    }
+    const result = await this.updateActive(program => {
+      if (program.id !== pending.proposal.programId) {
+        throw new Error("Active program changed after preview.");
+      }
+      const updated = applyStructuralRevision(program, pending.proposal);
+      const applied = updated.curriculumRevisions?.at(-1);
+      if (!applied || JSON.stringify(applied.after) !== JSON.stringify(pending.preview.after) ||
+          applied.fromVersion !== pending.preview.fromVersion) {
+        throw new Error("Curriculum proposal drifted since preview.");
+      }
+      return updated;
+    });
+    this.pendingRevisions.delete(operationId);
+    return result;
+  }
+
   /** Derived from committed rubric failures; never mutate an in-progress objective. */
   async replanFromEvidence(): Promise<LearningProgram | null> {
     const state = await this.learningState.load();
