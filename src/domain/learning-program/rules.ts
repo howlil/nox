@@ -4,6 +4,7 @@ import { decideFocusedLearningActivity, decideLearningActivity,
 import { sessionRemainingMs } from "./session-time";
 import type { CurriculumDraft, LearningDecision, LearningObjective, LearningProgram, ProgramConstraints } from "./types";
 
+const DAY = 86_400_000;
 const isText = (v: unknown): v is string => typeof v === "string" && v.trim().length > 0;
 const isStringList = (v: unknown): v is string[] => Array.isArray(v) && v.every(isText);
 const MAX_OBJECTIVES = 60;
