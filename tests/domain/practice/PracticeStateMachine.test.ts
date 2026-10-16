@@ -132,3 +132,39 @@ test("hint inspection is pure; only acknowledged intent marks a practice attempt
   assert.equal(attempt?.assisted, true);
   assert.equal(machine.peekHint(), undefined, "no help can be requested while evaluating");
 });
+
+
+test("four progressively acknowledged hints increase assistance without leaking a fifth", () => {
+  const machine = new PracticeStateMachine(ids());
+  const hints = ["Look for boundaries", "Find an invariant",
+    "Compare two transactions", "Explain one violating interleaving"];
+  machine.start();
+  machine.acceptQuestion({ kind: "question", concept: "isolation",
+    question: "Explain serializability", hints }, "question-progressive");
+  assert.equal(machine.peekHint(), hints[0]);
+  for (let index = 0; index < hints.length; index++) {
+    assert.equal(machine.peekHint(), hints[index]);
+    assert.equal(machine.markHintUsed(), hints[index]);
+    assert.equal(machine.snapshot()?.turns.at(-1)?.highestHintLevel, index + 1);
+  }
+  assert.equal(machine.peekHint(), undefined);
+  assert.equal(machine.markHintUsed(), undefined);
+  const attempt = machine.beginEvaluation("My reasoning");
+  assert.equal(attempt?.highestHintLevel, 4);
+  assert.equal(attempt?.assisted, true);
+});
+
+test("legacy single hints remain one-level and independent answers remain level zero", () => {
+  const machine = new PracticeStateMachine(ids());
+  machine.start();
+  machine.acceptQuestion({ kind: "question", concept: "HTTP",
+    question: "Define idempotency", hint: "Think about retries" }, "legacy-q");
+  assert.equal(machine.markHintUsed(), "Think about retries");
+  assert.equal(machine.markHintUsed(), undefined);
+  assert.equal(machine.beginEvaluation("Same output")?.highestHintLevel, 1);
+  const independent = new PracticeStateMachine(ids());
+  independent.start();
+  independent.acceptQuestion({ kind: "question", concept: "HTTP",
+    question: "Define idempotency" }, "clean-q");
+  assert.equal(independent.beginEvaluation("Same output")?.highestHintLevel, 0);
+});
