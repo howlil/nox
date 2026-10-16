@@ -56,6 +56,7 @@ export function validateCurriculum(value: unknown, constraints: ProgramConstrain
         (o.estimatedMinutes as number) < 5 || (o.estimatedMinutes as number) > 1200 ||
         !isStringList(o.prerequisiteIds) || !isStringList(o.rubric) || o.rubric.length < 1 || new Set(o.rubric).size !== o.rubric.length ||
         !isStringList(o.sourceRefs) ||
+        (o.deprecated !== undefined && typeof o.deprecated !== "boolean") ||
         !["core", "supporting", "optional"].includes(String(o.priority))) {
       throw new Error(`Invalid objective contract: ${o.id}`);
     }
@@ -93,6 +94,7 @@ export function validateCurriculum(value: unknown, constraints: ProgramConstrain
       rubric: [...rubric],
       criteria: criteria.map((entry: { id: string; description: string; required: boolean }) => ({ ...entry })),
       sourceRefs, priority: o.priority as LearningObjective["priority"],
+      ...(o.deprecated === true ? { deprecated: true } : {}),
     };
   });
   const byId = new Map(objectives.map(o => [o.id, o]));
@@ -182,7 +184,7 @@ export function chooseFocusedActivity(program: LearningProgram, evidence: Learni
     return { kind: "wait", reason: "Objective focus paused. Use /resume-focus." };
   }
   const objective = program.objectives.find(item => item.id === focus.objectiveId);
-  if (!objective || focus.curriculumRevision !== program.planVersion) {
+  if (!objective || objective.deprecated || focus.curriculumRevision !== program.planVersion) {
     throw new Error("Focused objective is stale.");
   }
   const progress = objectiveProgress(program, objective.id, evidence, now);
@@ -240,7 +242,8 @@ export function chooseNextActivity(program: LearningProgram, evidence: LearningE
   }
   const states = new Map(program.objectives.map(item =>
     [item.id, objectiveProgress(program, item.id, evidence, now)] as const));
-  const candidates = program.objectives.filter(item => item.prerequisiteIds.every(id =>
+  const candidates = program.objectives.filter(item => !item.deprecated &&
+    item.prerequisiteIds.every(id =>
     states.get(id)?.status === "mastered"));
   const overdue = candidates.filter(item => {
     const state = states.get(item.id);
