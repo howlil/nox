@@ -4,6 +4,7 @@ import { TFile } from "obsidian";
 import { VaultProgramStore } from "../../src/persistence/VaultProgramStore";
 import { VaultLearningStore } from "../../src/persistence/VaultLearningStore";
 import { objectiveProgress } from "../../src/domain/learning-program/rules";
+import { applyStructuralRevision } from "../../src/domain/learning-program/structural-revision";
 import type { LearningProgram } from "../../src/domain/learning-program/types";
 
 const PATH = "00-learning-os/programs.json";
@@ -131,4 +132,40 @@ test("vault reload preserves mastery across rubric rewording only when stable cr
   await programs.save({ version: 1, activeProgramId: "p", programs: [reworded] });
   assert.equal(objectiveProgress((await programs.load()).programs[0],
     "o", saved.evidence, now).status, "remediate");
+});
+
+
+test("programs.json round-trips approved structural lineage and retains objective tombstones", async () => {
+  const vault = new MemoryVault();
+  const store = new VaultProgramStore({ vault } as never);
+  const created = Date.UTC(2026, 9, 16);
+  const original: LearningProgram = {
+    version: 1, id: "p", goal: "Learn SQL", createdAt: created,
+    planVersion: 1, constraints: { minutesPerSession: 45, sessionsPerWeek: 3,
+      sourcePaths: [], sourceBound: false, excludedTopics: [] },
+    objectives: [{ id: "sql", title: "SQL", outcome: "Understand queries",
+      prerequisiteIds: [], estimatedMinutes: 30,
+      rubric: ["Write basic SQL"], sourceRefs: [], priority: "core",
+      criteria: [{ id: "c1", description: "Write basic SQL", required: true }] }],
+  };
+  const revision = applyStructuralRevision(original, {
+    operationId: "manual:deprecate:1", programId: original.id, baseVersion: 1,
+    rationale: "This objective has been superseded",
+    action: { kind: "deprecate", objectiveId: "sql" },
+  });
+  await store.save({ version: 1, programs: [revision], activeProgramId: "p" });
+  const loaded = await store.load();
+  assert.equal(loaded.programs[0].planVersion, 2);
+  assert.equal(loaded.programs[0].objectives[0].deprecated, true);
+  assert.equal(loaded.programs[0].curriculumRevisions?.[0].kind, "deprecate");
+  assert.deepEqual(loaded.programs[0].curriculumRevisions?.[0].before,
+    original.objectives[0]);
+  assert.deepEqual(loaded.programs[0].curriculumRevisions?.[0].after,
+    revision.objectives[0]);
+  const damaged = structuredClone(revision);
+  damaged.curriculumRevisions![0].fromVersion = 88;
+  await assert.rejects(store.save({
+    version: 1, activeProgramId: "p", programs: [damaged],
+  }), /revision history|lineage/);
+  assert.equal((await store.load()).programs[0].planVersion, 2);
 });
