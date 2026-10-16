@@ -752,6 +752,39 @@ test("an empty but well-formed Review payload is successful", async () => {
     .filter((part) => part.type === "review-findings").length, 1);
 });
 
+test("program inference receives bounded objective memory, never unrelated objective or other-program evidence", async () => {
+  const rig = makeRig(true);
+  const { learning, learningState } = await rig.createLearning();
+  await learningState.save({
+    version: 3, target: null, gaps: [],
+    evidence: [
+      { id: "unrelated-network-secret", type: "practice", scope: "learner",
+        programId: "acid-program", objectiveId: "network", concept: "NEVER_INCLUDE_NETWORK",
+        source: "notes/network.md", outcome: "incorrect", createdAt: 100 },
+      { id: "unrelated-foreign-secret", type: "practice", scope: "learner",
+        programId: "foreign-program", objectiveId: "atomicity", concept: "NEVER_INCLUDE_FOREIGN",
+        source: "notes/foreign.md", outcome: "incorrect", createdAt: 200 },
+      { id: "relevant-atomicity", type: "practice", scope: "learner",
+        programId: "acid-program", objectiveId: "atomicity", concept: "Atomicity",
+        source: "notes/acid.md", outcome: "incorrect", createdAt: 300,
+        rubricResults: [{ criterion: "Explain rollback", met: false,
+          evidence: "No rollback explanation" }] },
+    ],
+  });
+  rig.queue(practice({ kind: "question", concept: "Atomicity",
+    question: "Explain why rollback preserves atomicity." }));
+  await collectEvents(learning.run({
+    prompt: "Practice the current objective", action: "practice", explicitContext: [],
+  }));
+  const prompt = rig.promptInputs().at(-1)!;
+  assert.match(prompt, /VERIFIED LEARNER CONTEXT/);
+  assert.match(prompt, /relevant-atomicity/);
+  assert.doesNotMatch(prompt, /unrelated-network-secret|NEVER_INCLUDE_NETWORK/);
+  assert.doesNotMatch(prompt, /unrelated-foreign-secret|NEVER_INCLUDE_FOREIGN/);
+  assert.doesNotMatch(prompt, /"recentEvidence"/,
+    "program turns must not also add an unfiltered progress history digest");
+});
+
 test("domain-neutral program practice commits objective-linked evidence and ignores model nextQuestion", async () => {
   const rig = makeRig(true);
   const { learning, learningState, sessions } = await rig.createLearning();
