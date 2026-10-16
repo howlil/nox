@@ -1,5 +1,5 @@
 import type { PracticeAnswer, PracticeQuestion } from "../domain/practice/types";
-import { validatePracticeAnswer } from "../domain/practice/question-schema";
+import { availablePracticeHints, validatePracticeAnswer } from "../domain/practice/question-schema";
 import { renderPracticeInstructions } from "./practice-instructions";
 import { createNoxButton, createNoxSurface } from "./primitives";
 
@@ -9,6 +9,8 @@ export interface QuizCardActions {
   draft?: PracticeAnswer;
   /** Derived from the persisted /hint turn, never a second durable state. */
   hintUsed?: boolean;
+  /** Number of acknowledged disclosures reconstructed from the active question transcript. */
+  hintLevel?: number;
   onDraft: (answer: PracticeAnswer) => void;
   onSubmit: (answer: PracticeAnswer) => Promise<boolean>;
   /** Resolve true only after the canonical /hint operation has been persisted. */
@@ -111,27 +113,62 @@ export function renderQuizCard(parent: HTMLElement, question: PracticeQuestion,
     }));
   }
 
-  // The hint body is intentionally absent from the visible UI until the
-  // persisted /hint command confirms assisted practice. It is not an answer key.
-  const hintPanel = question.hint
-    ? card.createDiv({ cls: "nox-quiz-hint-panel" }) : null;
+  // No hint is displayed until its own transcript operation is durable.
+  const hints = availablePracticeHints(question);
+  const hintPanel = hints.length ? card.createDiv({ cls: "nox-quiz-hint-panel" }) : null;
+  const hintTitle = hintPanel?.createDiv({ cls: "nox-quiz-hint-title", text: "A small nudge" });
+  const hintText = hintPanel?.createDiv({ cls: "nox-quiz-hint-text", text: "" });
   if (hintPanel) {
     hintPanel.hidden = true;
-    hintPanel.createDiv({ cls: "nox-quiz-hint-title", text: "A small nudge" });
-    hintPanel.createDiv({ cls: "nox-quiz-hint-text", text: question.hint });
     hintPanel.createDiv({ cls: "nox-quiz-hint-note",
-      text: "Using a hint makes this attempt assisted, not independent recall." });
+      text: "Hints make this attempt assisted, not independent recall." });
   }
 
   const footer = card.createDiv({ cls: "nox-quiz-actions" });
-  let hintUsed = Boolean(actions.hintUsed);
+  let hintLevel = Math.min(hints.length, Math.max(0,
+    actions.hintLevel ?? (actions.hintUsed ? 1 : 0)));
   let hintVisible = false;
   let hintButton: HTMLButtonElement | null = null;
+  let nextHintButton: HTMLButtonElement | null = null;
+  const syncHints = () => {
+    if (hintLevel > 0) {
+      hintTitle?.setText("Hint " + hintLevel + " of " + hints.length);
+      hintText?.setText(hints[hintLevel - 1]);
+    }
+    if (nextHintButton) {
+      nextHintButton.hidden = !hintVisible || hintLevel < 1 || hintLevel >= hints.length;
+      nextHintButton.disabled = busy || hintPending;
+    }
+  };
+  const acknowledgeHint = async (): Promise<boolean> => {
+    hintPending = true;
+    if (hintButton) hintButton.disabled = true;
+    if (nextHintButton) nextHintButton.disabled = true;
+    try {
+      if (await actions.onHint() !== true) {
+        status.setText("Hint could not be saved. Try again.");
+        return false;
+      }
+      hintLevel++;
+      hintVisible = true;
+      if (hintPanel) hintPanel.hidden = false;
+      syncHints();
+      status.setText("");
+      return true;
+    } catch (error) {
+      status.setText(error instanceof Error ? error.message : "Unable to open hint.");
+      return false;
+    } finally {
+      hintPending = false;
+      if (hintButton) hintButton.disabled = busy;
+      if (nextHintButton) nextHintButton.disabled = busy;
+    }
+  };
   if (hintPanel && actions.active) {
     hintButton = createNoxButton(footer, {
       cls: "nox-quiz-hint", variant: "quiet",
-      text: hintUsed ? "Show hint" : "Get hint",
-      label: hintUsed ? "Show the previously requested hint" : "Request a hint; this marks the answer assisted",
+      text: hintLevel > 0 ? "Show hint" : "Get hint",
+      label: "Reveal an acknowledged hint; requesting new hints marks the attempt assisted",
     });
     const hintControl = hintButton;
     const hintId = "nox-hint-" + actions.questionId;
@@ -140,30 +177,37 @@ export function renderQuizCard(parent: HTMLElement, question: PracticeQuestion,
     hintControl.setAttribute("aria-expanded", "false");
     hintControl.addEventListener("click", () => { void (async () => {
       if (disabled || busy || hintPending) return;
-      if (!hintUsed) {
-        hintPending = true;
-        hintControl.disabled = true;
-        hintControl.setText("Opening hint…");
-        try {
-          if (await actions.onHint() !== true) {
-            status.setText("Hint could not be saved. Try again.");
-            return;
-          }
-          hintUsed = true;
-        } catch (error) {
-          status.setText(error instanceof Error ? error.message : "Unable to open hint.");
-          return;
-        } finally {
-          hintPending = false;
-          hintControl.disabled = busy;
-        }
+      if (hintLevel === 0 && !(await acknowledgeHint())) return;
+      else if (hintLevel > 0 && !hintVisible) {
+        hintVisible = true;
+        hintPanel.hidden = false;
+      } else {
+        hintVisible = false;
+        hintPanel.hidden = true;
       }
-      hintVisible = !hintVisible;
-      hintPanel.hidden = !hintVisible;
+      // First disclosure is already visible after acknowledgement.
+      // Subsequent clicks only toggle local visibility.
       hintControl.setAttribute("aria-expanded", String(hintVisible));
       hintControl.setText(hintVisible ? "Hide hint" : "Show hint");
-      status.setText("");
+      syncHints();
     })().catch(error => console.warn("[Nox] Quiz action failed", error)); });
+
+    if (hints.length > 1) {
+      nextHintButton = createNoxButton(footer, {
+        cls: "nox-quiz-next-hint", variant: "quiet", text: "Next hint",
+        label: "Request the next progressive hint; this increases assistance level",
+      });
+      const nextControl = nextHintButton;
+      nextControl.addEventListener("click", () => { void (async () => {
+        if (disabled || busy || hintPending || hintLevel >= hints.length) return;
+        if (await acknowledgeHint()) {
+          hintControl.setAttribute("aria-expanded", "true");
+          hintControl.setText("Hide hint");
+          syncHints();
+        }
+      })().catch(error => console.warn("[Nox] Quiz action failed", error)); });
+    }
+    syncHints();
   }
 
   submit = createNoxButton(footer, {
