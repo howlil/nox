@@ -59,7 +59,23 @@ export function validateCurriculum(value: unknown, constraints: ProgramConstrain
         !["core", "supporting", "optional"].includes(String(o.priority))) {
       throw new Error(`Invalid objective contract: ${o.id}`);
     }
-    const titleAndOutcome = String(o.title) + " " + String(o.outcome) + " " + (o.rubric as string[]).join(" ");
+    const rubric = o.rubric as string[];
+    // Assign IDs once for new drafts; persisted IDs remain fixed across wording edits.
+    const criteria = o.criteria === undefined
+      ? rubric.map((description, index) => ({ id: "c" + (index + 1), description, required: true }))
+      : o.criteria;
+    if (!Array.isArray(criteria) || criteria.length !== rubric.length ||
+        new Set(criteria.map((entry: unknown) =>
+          entry && typeof entry === "object" ? (entry as { id?: unknown }).id : undefined)).size !== rubric.length ||
+        !criteria.every((entry: unknown, index: number) => {
+          if (!entry || typeof entry !== "object") return false;
+          const item = entry as Record<string, unknown>;
+          return typeof item.id === "string" && /^[a-z0-9][a-z0-9_-]{0,63}$/.test(item.id) &&
+            item.description === rubric[index] && typeof item.required === "boolean";
+        })) {
+      throw new Error("Invalid stable criterion identities for objective " + o.id);
+    }
+    const titleAndOutcome = String(o.title) + " " + String(o.outcome) + " " + rubric.join(" ");
     for (const topic of constraints.excludedTopics) {
       if (titleAndOutcome.toLowerCase().includes(topic.toLowerCase())) {
         throw new Error("Objective includes excluded topic: " + topic);
@@ -74,8 +90,9 @@ export function validateCurriculum(value: unknown, constraints: ProgramConstrain
       id: o.id, title: o.title, outcome: o.outcome,
       prerequisiteIds: [...new Set(o.prerequisiteIds as string[])],
       estimatedMinutes: o.estimatedMinutes as number,
-      rubric: o.rubric as string[], sourceRefs,
-      priority: o.priority as LearningObjective["priority"],
+      rubric: [...rubric],
+      criteria: criteria.map((entry: { id: string; description: string; required: boolean }) => ({ ...entry })),
+      sourceRefs, priority: o.priority as LearningObjective["priority"],
     };
   });
   const byId = new Map(objectives.map(o => [o.id, o]));
