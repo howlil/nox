@@ -139,15 +139,22 @@ export function objectiveProgress(program: LearningProgram, objectiveId: string,
   const attempts = objectiveEvidence(program, objectiveId, evidence);
   if (!attempts.length) return { status: "unseen" as const, dueAt: null, attempts: 0 };
   const last = attempts[attempts.length - 1];
-  const rubric = program.objectives.find(item => item.id === objectiveId)?.rubric ?? [];
+  const objective = program.objectives.find(item => item.id === objectiveId);
+  const rubric = objective?.rubric ?? [];
+  const independentAnswer = (item: LearningEvidence): boolean =>
+    !item.assisted && item.assistance?.independent !== false &&
+      (item.assistance?.highestHintLevel ?? 0) === 0;
   const complete = (item: LearningEvidence): boolean =>
-    rubric.length > 0 && rubric.every(criterion =>
-      item.rubricResults?.some(result => result.criterion === criterion && result.met));
-  if (last.outcome !== "correct" || last.assisted || last.assessmentCoverage === "single-item" ||
+    rubric.length > 0 && rubric.every((criterion, index) =>
+      item.rubricResults?.some(result => result.criterion === criterion && result.met &&
+        // Only the application can bind IDs on new revisioned evidence.
+        (item.objectiveRevision === undefined || !objective?.criteria?.[index] ||
+          result.criterionId === objective.criteria[index].id)));
+  if (last.outcome !== "correct" || !independentAnswer(last) || last.assessmentCoverage === "single-item" ||
       last.createdAt <= 0 || !complete(last)) {
     return { status: "remediate" as const, dueAt: null, attempts: attempts.length };
   }
-  const correct = attempts.filter(item => item.outcome === "correct" && !item.assisted &&
+  const correct = attempts.filter(item => item.outcome === "correct" && independentAnswer(item) &&
     item.assessmentCoverage !== "single-item" && item.createdAt > 0 && complete(item));
   // Repetition is not retention: only genuine delayed recall after earlier
   // independent criterion-complete practice qualifies for mastery.
