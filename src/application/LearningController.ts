@@ -8,6 +8,8 @@ import type { PracticeOrigin, PracticeAnswer } from "../domain/practice/types";
 import { RunLearningTurn } from "./RunLearningTurn";
 import { isActiveLearningScope, isProgramLearningScope, isLockedLearningMode, parseScopeCommand } from "../domain/practice/learning-scope";
 import { allowsFocusedTurn } from "../domain/learning-program/focus-transitions";
+import { authorizeFocusIntent } from "../domain/learning-program/focus-authorization";
+import type { FocusSession } from "../domain/learning-program/types";
 import { parseProgramCommand } from "../domain/learning-program/commands";
 import { feasibility, objectiveProgress } from "../domain/learning-program/rules";
 import type { LearningProgramOrchestrator } from "./LearningProgramOrchestrator";
@@ -343,9 +345,13 @@ export class LearningController {
     let focusedProgramId: string | undefined;
     let focusedObjectiveId: string | undefined;
     let focusedChatSessionId: string | undefined;
+    let activeProgramId: string | undefined;
+    let focusSnapshot: FocusSession | undefined;
     if (this.programs) {
       try {
         const active = await this.programs.getActiveProgram();
+        activeProgramId = active?.id;
+        focusSnapshot = active?.focus;
         focused = active?.focus?.status === "active";
         pausedFocus = active?.focus?.status === "paused";
         focusedProgramId = active?.focus?.programId;
@@ -369,6 +375,24 @@ export class LearningController {
     // Pausing a focus suspends new evaluated answers, even in the owning chat.
     // The existing question survives in the transcript until explicitly resumed.
     const pending = this.turns.activePracticeIdentity();
+    if (pending?.programId && activeProgramId && pending.programId !== activeProgramId &&
+        (request.action === "practice" || Boolean(request.practiceSubmission))) {
+      yield { type: "failed", failure: { code: "busy",
+        message: "This question belongs to a different program. Switch back and resume its focus before answering." } };
+      return;
+    }
+    if (focused && pending && (request.practiceSubmission ||
+        !request.prompt.trim().startsWith("/"))) {
+      const admission = authorizeFocusIntent(focusSnapshot, {
+        kind: "submit-answer", chatSessionId: this.sessions.getSession().id,
+        programId: pending.programId ?? "", objectiveId: pending.objectiveId ?? "",
+      });
+      if (!admission.allowed) {
+        yield { type: "failed", failure: { code: "busy",
+          message: "Focused answer denied: " + admission.reason + "." } };
+        return;
+      }
+    }
     if (pausedFocus && pending?.programId === focusedProgramId &&
         pending?.objectiveId === focusedObjectiveId &&
         (request.action === "practice" || request.practiceSubmission ||
@@ -447,7 +471,7 @@ export class LearningController {
       }
       const currentScope = this.sessions.getSession().learningScope;
       if (isProgramLearningScope(currentScope) && currentScope.mode !== "FREE" &&
-          (command.kind === "plan" || command.kind === "use-program")) {
+          (command.kind === "plan" || command.kind === "use-program") && !pausedFocus) {
         yield { type: "failed", failure: { code: "busy",
           message: "Pause the current learning mode before switching or creating a program." } };
         return;
@@ -483,7 +507,7 @@ export class LearningController {
                 `${p.id === collection.activeProgramId ? "**Active** " : ""}${p.goal} (ID: ${p.id})`).join("\n\n")
             : "No saved learning programs yet. Use /plan <goal>.";
         } else if (command.kind === "use-program") {
-          if (this.turns.hasActivePracticeQuestion()) {
+          if (this.turns.hasActivePracticeQuestion() && !pausedFocus) {
             throw new Error("Finish the current practice question before switching programs.");
           }
           const selected = await this.programs.selectProgram(command.id);
