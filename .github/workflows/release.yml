@@ -147,7 +147,7 @@ jobs:
         run: |
           set -euo pipefail
           for file in main.js styles.css manifest.json; do
-            gh attestation verify "dist/$file" --repo "$GITHUB_REPOSITORY"
+            gh attestation verify "dist/$file" --repo "$GITHUB_REPOSITORY" --source-digest "$GITHUB_SHA"
           done
       - name: Extract changelog notes for this exact version
         env:

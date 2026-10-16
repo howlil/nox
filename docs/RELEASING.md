@@ -102,15 +102,17 @@ acceptance evidence before issuing the manual publication command.
 
 ## Manual public publication
 
-Run GitHub Actions → **Publish approved Obsidian release** on the exact
-merged `master` SHA. Supply:
+Run GitHub Actions → **Publish approved Obsidian release** from the workflow on
+`master` and supply the **approved earlier merged commit SHA**. The job checks
+out that exact SHA, even if `master` has advanced during desktop acceptance. Supply:
 - `version`: exact version (e.g., `1.1.3`)
 - `expected_sha`: full 40-character merged commit SHA
 - `desktop_acceptance`: only set true after the actual desktop check
 
-The job checks that the workflow SHA matches approval, the release is still
-a draft, the draft points at that SHA, and all three assets pass GitHub
-attestation verification. It then publishes the *existing* draft.
+The job checks out the approved SHA, verifies the draft targets that SHA,
+requires exactly three expected assets (no unverified extras), and checks
+that each asset's GitHub attestation was generated for that same source SHA.
+It then publishes the *existing* draft.
 
 To verify provenance locally:
 ```sh

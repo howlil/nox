@@ -15,7 +15,7 @@ prepare-release.yml keeps its master CI-success → automatic release PR trigger
 1. Review and merge release/x.y.z only after its candidate checks pass.
 2. .github/workflows/release.yml runs on the merged release plan: critical policy, full verification, Windows DPAPI, advisory scanner and attestation. It creates a GitHub Release DRAFT only; its code never makes the release public.
 3. Download exactly the three GitHub draft assets (main.js, manifest.json, styles.css) into a disposable Obsidian desktop vault. Record the OS, Obsidian version, version/SHA, scenarios and actual outcomes. Do not test an independently rebuilt binary and call it equivalent.
-4. Run .github/workflows/publish-release.yml manually on the matching master SHA. Provide version, full commit SHA and explicit desktop-acceptance confirmation. That job downloads the existing draft assets and verifies SHA, version and GitHub attestations before publication.
+4. Run .github/workflows/publish-release.yml manually from master with the approved full merged SHA and explicit desktop-acceptance confirmation. The job checks out that SHA even if master moved later, rejects unexpected assets, and verifies each asset attestation's exact source digest before publication.
 5. Configure GitHub Settings → Environments → public-release with required reviewer approval. Creating the environment and repository branch rules is a GitHub settings operation, not something this source PR can enforce. Without required reviewers, the manual dispatch + explicit acceptance input still prevents push-triggered publication but is not independent approval.
 
 For a small single-maintainer repository, prevent-self-review may block progress if enabled without another reviewer. Consider reviewer ownership accordingly.

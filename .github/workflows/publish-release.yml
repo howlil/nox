@@ -34,7 +34,20 @@ jobs:
       contents: write
       attestations: read
     steps:
+      - name: Validate exact approved SHA before source checkout
+        env:
+          EXPECTED_SHA: ${{ inputs.expected_sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$EXPECTED_SHA" =~ ^[0-9a-f]{40}$ ]] || {
+            echo "::error::Supply a full lowercase 40-character approved commit SHA."
+            exit 1
+          }
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.expected_sha }}
+          persist-credentials: false
       - name: Verify source and approved draft identity
         env:
           GH_TOKEN: ${{ github.token }}
@@ -46,14 +59,14 @@ jobs:
           [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || exit 1
           [[ "$EXPECTED_SHA" =~ ^[0-9a-f]{40}$ ]] || exit 1
           test "$(git rev-parse HEAD)" = "$EXPECTED_SHA" || {
-            echo "::error::Dispatch must use the exact merged master commit."
+            echo "::error::Checkout differs from the approved release SHA."
             exit 1
           }
           test "$(gh release view "$VERSION" --json isDraft --jq '.isDraft')" = true || {
             echo "::error::Release must exist and still be a draft."
             exit 1
           }
-          target="$(gh api "repos/$GITHUB_REPOSITORY/releases/tags/$VERSION" --jq '.target_commitish')"
+          target="$(gh release view "$VERSION" --json targetCommitish --jq '.targetCommitish')"
           test "$target" = "$EXPECTED_SHA" || {
             echo "::error::Draft refers to another commit: $target"
             exit 1
@@ -65,15 +78,23 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           VERSION: ${{ inputs.version }}
+          EXPECTED_SHA: ${{ inputs.expected_sha }}
         shell: bash
         run: |
           set -euo pipefail
+          expected_assets="$(printf '%s\n' main.js manifest.json styles.css | LC_ALL=C sort)"
+          actual_assets="$(gh release view "$VERSION" --json assets --jq '.assets[].name' | LC_ALL=C sort)"
+          if [ "$actual_assets" != "$expected_assets" ]; then
+            echo "::error::Draft must contain exactly main.js, manifest.json and styles.css."
+            printf 'Received assets:\n%s\n' "$actual_assets"
+            exit 1
+          fi
           mkdir -p dist
           gh release download "$VERSION" --dir dist \
             --pattern "main.js" --pattern "manifest.json" --pattern "styles.css"
           for file in main.js manifest.json styles.css; do
             test -s "dist/$file" || exit 1
-            gh attestation verify "dist/$file" --repo "$GITHUB_REPOSITORY"
+            gh attestation verify "dist/$file" --repo "$GITHUB_REPOSITORY" --source-digest "$EXPECTED_SHA"
           done
           test "$(node -p 'require("./dist/manifest.json").version')" = "$VERSION"
 

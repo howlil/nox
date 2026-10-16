@@ -31,6 +31,11 @@ test("the release-plan merge only creates a draft, while publication is explicit
   assert.match(publish, /desktop_acceptance/);
   assert.match(publish, /expected_sha/);
   assert.match(publish, /environment: public-release/);
+  assert.match(publish, /ref: \$\{\{ inputs\.expected_sha \}\}/);
+  assert.match(publish, /--source-digest "\$EXPECTED_SHA"/);
+  assert.match(publish, /--json targetCommitish/);
+  assert.match(publish, /--json assets/);
+  assert.match(publish, /Draft must contain exactly/);
   assert.match(publish, /gh attestation verify/);
   assert.match(publish, /^\s*gh release edit "\$VERSION" --draft=false/m);
 });
