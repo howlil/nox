@@ -56,7 +56,7 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: pnpm ci:critical && pnpm verify
+      - run: pnpm ci:critical && pnpm lint:typed && pnpm verify
       - name: Prove deterministic production bundle
         shell: bash
         run: |
