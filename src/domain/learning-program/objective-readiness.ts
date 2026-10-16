@@ -1,7 +1,23 @@
 import type { LearningEvidence } from "../learning-state/types";
 import type { LearningProgram, LearningObjective } from "./types";
 
-const DAY = 86_400_000;
+export interface RetentionPolicy {
+  minIndependentRecallHours?: number;
+  provisionalReviewHours?: number;
+  masteredReviewHours?: number;
+}
+export function normalizeRetentionPolicy(options: RetentionPolicy = {}) {
+  const gap = options.minIndependentRecallHours ?? 12;
+  const provisional = options.provisionalReviewHours ?? 24;
+  const mastered = options.masteredReviewHours ?? 72;
+  if (![gap, provisional, mastered].every(Number.isInteger) ||
+      gap < 12 || gap > 168 || provisional < 12 || provisional > 168 ||
+      mastered < 24 || mastered > 720 || mastered < provisional) {
+    throw new Error("Invalid retention thresholds; delayed recall must remain >= 12 hours.");
+  }
+  return { minGapMs: gap * 3_600_000, provisionalMs: provisional * 3_600_000,
+    masteredMs: mastered * 3_600_000 };
+}
 
 /** Canonical, read-only mastery policy; legacy outcomes remain conservatively text-bound. */
 export function objectiveEvidence(program: LearningProgram, objectiveId: string, evidence: LearningEvidence[]) {
@@ -12,7 +28,8 @@ export function objectiveEvidence(program: LearningProgram, objectiveId: string,
 }
 
 export function objectiveProgress(program: LearningProgram, objectiveId: string,
-  evidence: LearningEvidence[], now = Date.now()) {
+  evidence: LearningEvidence[], now = Date.now(), retention: RetentionPolicy = {}) {
+  const schedule = normalizeRetentionPolicy(retention);
   const attempts = objectiveEvidence(program, objectiveId, evidence);
   if (!attempts.length) return { status: "unseen" as const, dueAt: null, attempts: 0 };
   const last = attempts[attempts.length - 1];
@@ -44,8 +61,8 @@ export function objectiveProgress(program: LearningProgram, objectiveId: string,
   // independent criterion-complete practice qualifies for mastery.
   const independent = correct.some(first => first.taskKind !== "recall" &&
     correct.some(recall => recall.taskKind === "recall" &&
-      recall.createdAt - first.createdAt >= 12 * 3_600_000));
-  const dueAt = last.createdAt + (independent ? 3 : 1) * DAY;
+      recall.createdAt - first.createdAt >= schedule.minGapMs));
+  const dueAt = last.createdAt + (independent ? schedule.masteredMs : schedule.provisionalMs);
   return { status: independent ? "mastered" as const : "provisional" as const,
     dueAt, attempts: attempts.length, due: now >= dueAt };
 }
@@ -63,16 +80,16 @@ export interface ObjectiveReadiness {
 
 export function deriveObjectiveReadiness(
   program: LearningProgram, objectiveId: string, evidence: readonly LearningEvidence[],
-  now = Date.now(),
+  now = Date.now(), retention: RetentionPolicy = {},
 ): ObjectiveReadiness {
   const objective = program.objectives.find(item => item.id === objectiveId);
   if (!objective || objective.deprecated) throw new Error("Unknown or deprecated learning objective.");
   const source = [...evidence];
-  const progress = objectiveProgress(program, objectiveId, source, now);
+  const progress = objectiveProgress(program, objectiveId, source, now, retention);
   const blockedBy = objective.prerequisiteIds.filter(id => {
     const required = program.objectives.find(item => item.id === id);
     return !required || required.deprecated ||
-      objectiveProgress(program, id, source, now).status !== "mastered";
+      objectiveProgress(program, id, source, now, retention).status !== "mastered";
   });
   const attempts = objectiveEvidence(program, objectiveId, source);
   const last = attempts.at(-1);
