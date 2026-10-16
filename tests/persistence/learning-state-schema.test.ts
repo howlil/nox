@@ -146,3 +146,13 @@ test("malformed v3 metadata is rejected rather than trusted", () => {
       criterion: "C", criterionId: 123, met: true, evidence: "x",
     }] }] }), /unsupported shape/);
 });
+ 
+test("v2 files cannot smuggle malformed v3 provenance into a promoted state", () => {
+  assert.throws(() => decodeLearningState({
+    version: 2, target: null, gaps: [], evidence: [{
+      id: "historical", type: "practice", scope: "learner",
+      source: "note", concept: "C", createdAt: 100,
+      assistance: { highestHintLevel: 4, independent: true },
+    }],
+  }), /unsupported shape/);
+});
