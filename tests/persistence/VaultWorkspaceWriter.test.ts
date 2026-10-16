@@ -4,6 +4,7 @@ import { TFile, TFolder } from "obsidian";
 import { VaultWorkspaceWriter } from "../../src/persistence/VaultWorkspaceWriter";
 import type { LearningProgram } from "../../src/domain/learning-program/types";
 import { planWorkspace } from "../../src/domain/workspace/plan";
+import { applyStructuralRevision } from "../../src/domain/learning-program/structural-revision";
 
 const program: LearningProgram = {
   version: 1, id: "11111111-1111-4111-8111-111111111111",
@@ -141,4 +142,33 @@ test("source-bound and unapproved revisions never materialize speculative notes"
     constraints: { ...program.constraints } }, revision);
   assert.equal(vault.files.size, 0);
   assert.equal(vault.creates, 0);
+});
+
+
+test("manual revision snapshots use create-only roadmap without a speculative new lesson", async () => {
+  const vault = new FakeVault();
+  const writer = new VaultWorkspaceWriter({ vault } as never);
+  const original = { ...program, workspaceApproved: true };
+  await writer.ensure(original);
+  const roadmap = planWorkspace(original).files.find(file => file.path.endsWith("/Roadmap.md"))!.path;
+  vault.files.set(roadmap, vault.files.get(roadmap)! + "\nLearner-owned additions");
+  const unchanged = vault.files.get(roadmap);
+  const revised = applyStructuralRevision(original, {
+    operationId: "manual:rewrite:1", programId: original.id, baseVersion: 1,
+    rationale: "Make the existing learning outcome clearer",
+    action: { kind: "revise", objectiveId: "greetings",
+      changes: { title: "Core introductions" } },
+  });
+  const revision = revised.curriculumRevisions![0];
+  const before = vault.files.size;
+  await writer.ensureRevision(revised, revision);
+  assert.equal(vault.files.size, before + 1,
+    "metadata change produces one versioned snapshot, not a new lesson");
+  assert.equal(vault.files.get(roadmap), unchanged);
+  const snapshot = planWorkspace(original).root + "/Roadmap-v2.md";
+  assert.match(vault.files.get(snapshot)!, /Core introductions/);
+  vault.files.set(snapshot, vault.files.get(snapshot)! + "\nLearner commentary");
+  await writer.ensureRevision(revised, revision);
+  assert.match(vault.files.get(snapshot)!, /Learner commentary/);
+  assert.equal(vault.files.get(roadmap), unchanged);
 });
