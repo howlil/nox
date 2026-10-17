@@ -45,7 +45,7 @@ import {
 } from "../domain/practice/PracticeStateMachine";
 import { PracticeSessionRegistry } from "./PracticeSessionRegistry";
 import type { LearningProgram, LearningObjective } from "../domain/learning-program/types";
-import { chooseNextActivity } from "../domain/learning-program/rules";
+import { chooseNextActivity, chooseFocusedActivity } from "../domain/learning-program/rules";
 import { coversCriteria } from "../domain/learning-program/assessment-rubric";
 import {
   StructuredStreamEvent,
@@ -68,6 +68,29 @@ class InvalidLearningOutputError extends Error {}
 
 export class RunLearningTurn {
   private readonly practices = new PracticeSessionRegistry();
+  private currentFocusId: string | null = null;
+
+  /** Old focus challenges must never be inherited by a replacement focus. */
+  syncFocusSessionId(id?: string): void {
+    const next = id ?? null;
+    if (next !== this.currentFocusId) {
+      this.practices.clear();
+      this.currentFocusId = next;
+    }
+  }
+
+  private async assertFocusAuthority(expected: NonNullable<LearningProgram["focus"]>, chatSessionId: string): Promise<void> {
+    if (!this.programStore) throw new Error("Focus persistence is unavailable.");
+    const collection = await this.programStore.load();
+    const current = collection.programs.find(p => p.id === expected.programId);
+    if (collection.activeProgramId !== expected.programId || current?.focus?.id !== expected.id ||
+        current.focus.status !== "active" || current.focus.chatSessionId !== chatSessionId ||
+        current.focus.objectiveId !== expected.objectiveId ||
+        current.focus.curriculumRevision !== expected.curriculumRevision ||
+        current.planVersion !== expected.curriculumRevision) {
+      throw new Error("The focused objective changed during inference; discard stale model output.");
+    }
+  }
   private activeTurn: {
     controller: AbortController;
     cancelReason?: "user" | "timeout" | "dispose";
@@ -136,7 +159,11 @@ export class RunLearningTurn {
           ? part.scope !== "program" ||
             (part.type === "practice-question" ? part.question.programId : part.evaluation.programId) !== programId
           : part.scope === "backend" || part.scope === "program") continue;
+        if (part.type === "practice-evaluation" && part.evaluation.focusSessionId &&
+            part.evaluation.focusSessionId !== this.currentFocusId) continue;
         if (part.type === "practice-evaluation") return practice;
+        if (part.type === "practice-question" && part.question.focusSessionId &&
+            part.question.focusSessionId !== this.currentFocusId) continue;
         if (part.type === "practice-question") {
           practice.start(part.origin);
           practice.acceptQuestion(part.question, part.questionId);
@@ -338,6 +365,15 @@ export class RunLearningTurn {
         }
         if (activePracticeTurn?.programId && activePracticeTurn.programId !== program?.id) {
           throw new Error("The active question belongs to another learning program. Switch back to that program before answering.");
+        }
+        if (activePracticeTurn?.questionSpec?.focusSessionId &&
+            activePracticeTurn.questionSpec.focusSessionId !== program?.focus?.id) {
+          throw new Error("This question belongs to a previous objective focus.");
+        }
+        if (program?.focus && (program.focus.status !== "active" ||
+            program.focus.chatSessionId !== sessionAtStart.id ||
+            (request.programActivity && request.programActivity.objectiveId !== program.focus.objectiveId))) {
+          throw new Error("The persisted objective focus does not authorize this turn.");
         }
         if (program?.constraints.sourceBound && sessionAtStart.runtimeProvider !== "chatgpt") {
           throw new Error("Strict source-bound learning requires the ChatGPT provider without vault filesystem tools. Local CLI agents can read beyond selected notes.");
@@ -546,16 +582,17 @@ export class RunLearningTurn {
     const conversation = this.sessions.getSession();
     const turnSessionId = conversation.id;
     const practice = this.practiceForSession(conversation);
-    if (program && request.action === "practice" && !practice.isWaitingForAnswer() && !program.session) {
+    if (program && request.action === "practice" && !practice.isWaitingForAnswer() &&
+        !program.session && program.focus?.status !== "active") {
       if (this.activeTurn === activeTurn) this.activeTurn = null;
       yield { type: "failed", failure: { code: "busy", message: "Start a timeboxed session with /start-session before practicing your program." } };
       return;
     }
     const decision = program && request.action === "practice" && !practice.isWaitingForAnswer()
-      ? chooseNextActivity(program, state.evidence)
+      ? program.focus ? chooseFocusedActivity(program, state.evidence) : chooseNextActivity(program, state.evidence)
       : undefined;
     const objective: LearningObjective | undefined = decision?.objective;
-    if (decision && (!objective || decision.kind === "timebox-ended")) {
+    if (decision && (!objective || decision.kind === "timebox-ended" || decision.kind === "wait")) {
       if (this.activeTurn === activeTurn) this.activeTurn = null;
       yield { type: "failed", failure: { code: "busy",
         message: decision.reason + " Use /progress to inspect the current plan." } };
@@ -823,6 +860,7 @@ export class RunLearningTurn {
           ...graded, programId: practiceAttempt.programId,
           objectiveId: practiceAttempt.objectiveId,
           assisted: Boolean(practiceAttempt.assisted),
+          focusSessionId: practiceAttempt.focusSessionId,
           taskKind: practiceAttempt.taskKind,
           assessmentCoverage: practiceAttempt.programId ? "single-item" : undefined,
         };
@@ -1022,10 +1060,11 @@ export class RunLearningTurn {
 
           // A parsed question is only a candidate until the agent completes.
           // Never leave a durable or visible unanswered question after failure.
+          if (program?.focus) await this.assertFocusAuthority(program.focus, turnSessionId);
           if (practiceBuffer.question) {
             practiceBuffer.question = program && objective
               ? { ...practiceBuffer.question, concept: objective.title, programId: program.id,
-                  objectiveId: objective.id, taskKind: decision?.kind === "transfer" || decision?.kind === "recall" ||
+                  objectiveId: objective.id, focusSessionId: program.focus?.id, taskKind: decision?.kind === "transfer" || decision?.kind === "recall" ||
                     decision?.kind === "guided-practice" ? decision.kind : "diagnostic" as const }
               : { ...practiceBuffer.question, programId: undefined, objectiveId: undefined };
             const questionId = crypto.randomUUID();
@@ -1051,6 +1090,7 @@ export class RunLearningTurn {
             const evaluation = practiceAttempt.programId
               ? { ...practiceBuffer.evaluation, programId: practiceAttempt.programId,
                   objectiveId: practiceAttempt.objectiveId, nextQuestion: undefined,
+                  focusSessionId: practiceAttempt.focusSessionId,
                   assisted: Boolean(practiceAttempt.assisted), taskKind: practiceAttempt.taskKind }
               : { ...practiceBuffer.evaluation,
                   programId: undefined, objectiveId: undefined, assisted: Boolean(practiceAttempt.assisted) };
@@ -1294,6 +1334,15 @@ export class RunLearningTurn {
           ? { kind: "question", concept: evaluation.concept, question: nextText }
           : undefined;
         const nextId = nextQuestion ? crypto.randomUUID() : undefined;
+        if (practiceAttempt.focusSessionId) {
+          if (!this.programStore) throw new Error("Focus persistence is unavailable.");
+          const collection = await this.programStore.load();
+          const current = collection.programs.find(p => p.id === practiceAttempt.programId);
+          if (!current?.focus || current.focus.id !== practiceAttempt.focusSessionId) {
+            throw new Error("Cannot commit evaluation from a replaced objective focus.");
+          }
+          await this.assertFocusAuthority(current.focus, sessionId);
+        }
         const operationId = `practice:${sessionId}:${practiceAttempt.questionId}`;
         const parts: TranscriptPart[] = [
           { type: "practice-evaluation", evaluation: evaluation,

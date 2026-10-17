@@ -53,6 +53,8 @@ export interface PracticeQuestion {
   input?: PracticeInput;
   programId?: string;
   objectiveId?: string;
+  /** Application-bound focus ID; never trusted from provider output. */
+  focusSessionId?: string;
   taskKind?: "diagnostic" | "guided-practice" | "recall" | "transfer";
 }
 
@@ -70,6 +72,7 @@ export interface PracticeEvaluation {
   assessmentCoverage?: "single-item";
   programId?: string;
   objectiveId?: string;
+  focusSessionId?: string;
 }
 
 export type PracticePayload =
