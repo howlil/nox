@@ -398,7 +398,7 @@ export class LearningController {
         // Program-specific work must still fail closed when focus cannot be verified.
         const learningIntent = Boolean(request.programActivity) ||
           (request.action === "practice" && !request.freePractice) ||
-          /^\/(?:focus|next|start-session|pause-focus|resume-focus|end-focus|plan|use-program)(?:\s|$)/i.test(request.prompt.trim());
+          /^\/(?:focus|next|start-session|pause-focus|resume-focus|end-focus|defer|deferred|plan|use-program)(?:\s|$)/i.test(request.prompt.trim());
         if (learningIntent) {
           yield { type: "failed", failure: { code: "persistence-failed",
             message: "Cannot verify objective focus; restore the program file to continue.",
@@ -655,6 +655,16 @@ export class LearningController {
               revision.reasonEvidenceIds.join(", ") +
               ". Evidence is preserved; inspect the plan with /progress." + workspaceWarning
             : "Objective focus ended; learning evidence remains saved. No structural revision was required.";
+        } else if (command.kind === "defer") {
+          await this.programs.deferFocusNote(
+            command.text, request.turnId ?? crypto.randomUUID(), this.sessions.getSession().id);
+          response = "Saved for later without invoking an agent. Focus stays on the current objective. Use /deferred to review.";
+        } else if (command.kind === "deferred") {
+          const notes = await this.programs.getDeferredNotes();
+          response = notes.length
+            ? "**Deferred notes**\n" + notes.slice(-20).map((note, index) =>
+              (index + 1) + ". [" + note.objectiveId + "] " + JSON.stringify(note.text)).join("\n")
+            : "No deferred notes for this learning program.";
         } else if (command.kind === "free-practice") {
           if (this.turns.hasActivePracticeQuestion()) throw new Error("Finish the active question before starting free practice.");
           yield* this.runTimedTurn({ ...request, action: "practice", freePractice: true,
