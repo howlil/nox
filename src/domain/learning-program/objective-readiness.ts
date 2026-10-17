@@ -55,10 +55,19 @@ export function objectiveProgress(program: LearningProgram, objectiveId: string,
       last.createdAt <= 0 || !complete(last)) {
     return { status: "remediate" as const, dueAt: null, attempts: attempts.length };
   }
-  const correct = attempts.filter(item => item.outcome === "correct" && independentAnswer(item) &&
+  // Any new failed assessment revokes historical retention proof. A subsequent
+  // independent correction must be followed by a NEW delayed recall; otherwise
+  // an old recall pair could silently re-master a reopened misconception.
+  // Use event ordering (not timestamps alone) so replay with equal timestamps
+  // never reuses an earlier proof after a failure.
+  const lastBlockingFailure = attempts.findLastIndex(item =>
+    item.outcome === "incorrect" || item.outcome === "partial" ||
+    item.rubricResults?.some(result => !result.met) === true);
+  const recoveryWindow = attempts.slice(lastBlockingFailure + 1);
+  const correct = recoveryWindow.filter(item => item.outcome === "correct" && independentAnswer(item) &&
     item.assessmentCoverage !== "single-item" && item.createdAt > 0 && complete(item));
-  // Repetition is not retention: only genuine delayed recall after earlier
-  // independent criterion-complete practice qualifies for mastery.
+  // Repetition is not retention: only genuine delayed recall AFTER the last
+  // blocking failure and independent recovery qualifies for mastery.
   const independent = correct.some(first => first.taskKind !== "recall" &&
     correct.some(recall => recall.taskKind === "recall" &&
       recall.createdAt - first.createdAt >= schedule.minGapMs));

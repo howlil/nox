@@ -212,3 +212,36 @@ test("rewording preserves mastered stable-ID evidence, but legacy text and repla
   const future = { ...recall, objectiveRevision: 3 };
   assert.equal(objectiveProgress(revised, "symbols", [earlier, future], now).status, "remediate");
 });
+
+test("reopened misconception revokes old mastery until new independent correction and delayed recall", () => {
+  const first = event("symbols", "correct", now - 7 * 86_400_000);
+  const earlierRecall = { ...event("symbols", "correct", now - 6 * 86_400_000),
+    taskKind: "recall" as const };
+  const failed = event("symbols", "incorrect", now - 3 * 86_400_000);
+  const correction = event("symbols", "correct", now - 2 * 86_400_000);
+  const evidence = [first, earlierRecall, failed, correction];
+  assert.equal(objectiveProgress(program(), "symbols", [first, earlierRecall], now).status, "mastered");
+  assert.equal(objectiveProgress(program(), "symbols", evidence, now).status, "provisional",
+    "historical recall must not prove a competence after a later misconception");
+  assert.equal(chooseNextActivity(program(), evidence, now).kind, "recall");
+  assert.equal(chooseNextActivity(program(), evidence, now).objective?.id, "symbols",
+    "the prerequisite must stay in verification before moving to equations");
+  const repeat = { ...event("symbols", "correct", now - 1 * 86_400_000),
+    taskKind: "recall" as const };
+  assert.equal(objectiveProgress(program(), "symbols", [...evidence, repeat], now).status, "mastered");
+});
+
+test("a failed recall after independent practice invalidates the prior recovery window", () => {
+  const baseline = event("symbols", "correct", now - 5 * 86_400_000);
+  const recall = { ...event("symbols", "correct", now - 4 * 86_400_000),
+    taskKind: "recall" as const };
+  const reopened = { ...event("symbols", "partial", now - 3 * 86_400_000),
+    taskKind: "recall" as const };
+  const fresh = event("symbols", "correct", now - 2 * 86_400_000);
+  assert.equal(objectiveProgress(program(), "symbols", [baseline, recall, reopened, fresh], now).status,
+    "provisional");
+  const newRecall = { ...event("symbols", "correct", now - 1 * 86_400_000),
+    taskKind: "recall" as const };
+  assert.equal(objectiveProgress(program(), "symbols", [baseline, recall, reopened, fresh, newRecall], now).status,
+    "mastered");
+});

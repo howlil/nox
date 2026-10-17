@@ -19,6 +19,7 @@ This ledger is updated when code is committed. An item is checked only if the be
 
 - [x] Criterion-complete independent answer followed by genuine delayed recall is required for objective mastery.
 - [x] Existing positive evidence cannot automatically resolve a newly opened misconception.
+- [x] Mastery proof is scoped to the latest blocking failure: old independent/recall pairs cannot re-master a reopened misconception after one correction (regression tests).
 - [x] Gap resolution requires unassisted correction and criterion-specific delayed recall after latest failure.
 - [x] Deterministic repair/scaffold/independent-check feedback policy with unit tests.
 - [x] Attach canonical commit time to new practice evaluations and reuse it during evidence replay.
