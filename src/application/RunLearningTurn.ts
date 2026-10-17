@@ -730,7 +730,7 @@ export class RunLearningTurn {
           item.programId === program.id && item.objectiveId === activeObjective.id).slice(-1)[0];
         const missed = lastEvidence?.rubricResults?.filter(result => !result.met).map(result => result.criterion) ?? [];
         const feedback = !practiceAttempt && lastEvidence?.evidenceVersion === 3 &&
-          lastEvidence.objectiveRevision === program.planVersion
+          lastEvidence.objectiveRevision === (activeObjective.objectiveRevision ?? program.planVersion)
           ? decideFeedback(activeObjective, state.evidence, lastEvidence) : undefined;
         preparedPrompt += [
           "\n\nLEARNING PROGRAM CONTRACT (set by the application, not user-provided notes):",
@@ -1080,7 +1080,7 @@ export class RunLearningTurn {
             practiceBuffer.question = program && objective
               ? { ...practiceBuffer.question, concept: objective.title, programId: program.id,
                   objectiveId: objective.id, focusSessionId: program.focus?.id,
-                  objectiveRevision: program.planVersion, taskKind: decision?.kind === "transfer" || decision?.kind === "recall" ||
+                  objectiveRevision: objective.objectiveRevision ?? program.planVersion, taskKind: decision?.kind === "transfer" || decision?.kind === "recall" ||
                     decision?.kind === "guided-practice" ? decision.kind : "diagnostic" as const }
               : { ...practiceBuffer.question, programId: undefined, objectiveId: undefined };
             const questionId = crypto.randomUUID();

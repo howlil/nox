@@ -52,7 +52,12 @@ export function validateCurriculum(value: unknown, constraints: ProgramConstrain
       throw new Error("Objective IDs must be unique, stable ASCII identifiers.");
     }
     seen.add(o.id);
-    if (!isText(o.title) || !isText(o.outcome) || !Number.isInteger(o.estimatedMinutes) ||
+    if ((o.objectiveRevision !== undefined &&
+          (!Number.isInteger(o.objectiveRevision) || (o.objectiveRevision as number) < 1)) ||
+        (o.deprecated !== undefined && typeof o.deprecated !== "boolean") ||
+        (o.replacementIds !== undefined && !isStringList(o.replacementIds)) ||
+        (o.requiresTransfer !== undefined && typeof o.requiresTransfer !== "boolean") ||
+        !isText(o.title) || !isText(o.outcome) || !Number.isInteger(o.estimatedMinutes) ||
         (o.estimatedMinutes as number) < 5 || (o.estimatedMinutes as number) > 1200 ||
         !isStringList(o.prerequisiteIds) || !isStringList(o.rubric) || o.rubric.length < 1 || new Set(o.rubric).size !== o.rubric.length ||
         !isStringList(o.sourceRefs) ||
@@ -76,6 +81,10 @@ export function validateCurriculum(value: unknown, constraints: ProgramConstrain
       estimatedMinutes: o.estimatedMinutes as number,
       rubric: o.rubric as string[], sourceRefs,
       priority: o.priority as LearningObjective["priority"],
+      ...(o.objectiveRevision !== undefined ? { objectiveRevision: o.objectiveRevision as number } : {}),
+      ...(o.deprecated !== undefined ? { deprecated: o.deprecated as boolean } : {}),
+      ...(o.replacementIds !== undefined ? { replacementIds: o.replacementIds as string[] } : {}),
+      ...(o.requiresTransfer !== undefined ? { requiresTransfer: o.requiresTransfer as boolean } : {}),
     };
   });
   const byId = new Map(objectives.map(o => [o.id, o]));
@@ -117,14 +126,18 @@ function objectiveEvidence(program: LearningProgram, objectiveId: string, eviden
     .sort((a, b) => a.createdAt - b.createdAt || a.id.localeCompare(b.id));
   // M1: never allow an earlier rubric revision to satisfy current criteria.
   // Historical v2-only programs retain their original non-destructive projection.
+  const expectedRevision = program.objectives.find(o => o.id === objectiveId)?.objectiveRevision ??
+    program.planVersion;
   return attempts.some(item => item.evidenceVersion === 3)
     ? attempts.filter(item => item.evidenceVersion === 3 &&
-        item.objectiveRevision === program.planVersion)
+        item.objectiveRevision === expectedRevision)
     : attempts;
 }
 
 export function objectiveProgress(program: LearningProgram, objectiveId: string,
   evidence: LearningEvidence[], now = Date.now()) {
+  const target = program.objectives.find(item => item.id === objectiveId);
+  if (target?.deprecated) return { status: "unseen" as const, dueAt: null, attempts: 0 };
   const attempts = objectiveEvidence(program, objectiveId, evidence);
   if (!attempts.length) return { status: "unseen" as const, dueAt: null, attempts: 0 };
   const latestV3 = [...attempts].reverse().find(item => item.evidenceVersion === 3);
@@ -169,7 +182,7 @@ export function chooseNextActivity(program: LearningProgram, evidence: LearningE
   }
   const states = new Map(program.objectives.map(item =>
     [item.id, objectiveProgress(program, item.id, evidence, now)] as const));
-  const candidates = program.objectives.filter(item => item.prerequisiteIds.every(id =>
+  const candidates = program.objectives.filter(item => !item.deprecated && item.prerequisiteIds.every(id =>
     states.get(id)?.status === "mastered"));
   const overdue = candidates.filter(item => {
     const state = states.get(item.id);
@@ -224,7 +237,7 @@ export function chooseFocusedActivity(program: LearningProgram, evidence: Learni
   const focus = program.focus;
   if (!focus || focus.status !== "active") return { kind: "wait", reason: "Resume objective focus first." };
   const objective = program.objectives.find(o => o.id === focus.objectiveId);
-  if (!objective || focus.curriculumRevision !== program.planVersion) {
+  if (!objective || objective.deprecated || focus.curriculumRevision !== program.planVersion) {
     return { kind: "wait", reason: "The focus no longer matches the curriculum." };
   }
   const history = objectiveEvidence(program, objective.id, evidence);

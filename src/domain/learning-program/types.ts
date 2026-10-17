@@ -38,6 +38,11 @@ export interface LearningSession {
 
 export interface LearningObjective {
   id: string;
+  /** Per-objective learning contract revision, independent of global plan edits. */
+  objectiveRevision?: number;
+  /** Historical lineage is retained; deprecated objectives are never hard-deleted. */
+  deprecated?: boolean;
+  replacementIds?: string[];
   title: string;
   outcome: string;
   prerequisiteIds: string[];
@@ -75,6 +80,7 @@ export interface LearningProgram {
   creationOperationId?: string;
   workspaceApproved?: boolean;
   focus?: FocusSession;
+  curriculumRevisions?: import("./curriculum-revision").AppliedCurriculumRevision[];
   session?: LearningSession;
   sessionHistory?: Array<{ startedAt: number; endedAt: number; minutesSpent: number; activeMinutes?: number; aiWaitingMinutes?: number; objectiveActiveMinutes?: Record<string, number>; dailyActiveMs?: Record<string, number>; materialActiveMinutes?: Record<string, number> }>;
   instructionEvents?: Array<{ objectiveId: string; afterEvidenceAt: number; taughtAt: number }>;
