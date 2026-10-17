@@ -482,6 +482,25 @@ export class LearningController {
           await this.programs.endFocus();
           this.turns.syncFocusSessionId(undefined);
           response = "Objective focus ended. Committed learning evidence remains saved.";
+          // M2: automatically offer a structural preview after a completed focus,
+          // never commit a provider proposal without explicit learner approval.
+          const gap = await this.programs.detectRevisionCandidate();
+          if (gap) {
+            try {
+              const preview = await this.programs.prepareCurriculumRevision();
+              response += "\n\nEvidence suggests **" + preview.reason +
+                "**. Proposed curriculum v" + preview.toVersion +
+                " with " + preview.operations.length + " structural operation(s).\n" +
+                "Preview diff: " + JSON.stringify(preview.operations) +
+                "\nApprove: /approve-replan " + preview.operationId +
+                "\nReject: /cancel-replan " + preview.operationId;
+            } catch (error) {
+              // Focus termination is already durable. Model/provider failure
+              // must not roll it back or report the entire operation as failed.
+              response += "\n\nStructural gap detected, but a revision preview could not be created. " +
+                "Use /replan to retry. " + (error instanceof Error ? error.message : "");
+            }
+          }
         } else if (command.kind === "replan") {
           if (this.turns.hasActivePracticeQuestion()) {
             throw new Error("Finish the pending practice question or end its focus before replanning.");
