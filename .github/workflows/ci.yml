@@ -1,12 +1,14 @@
 name: CI
 
-# Fast development checks; Windows and full Community validation run in CI / Release.
+# Obsidian plugin only. Cloudflare owns landing CI/CD.
 
 on:
   push:
     branches: [master]
+    paths-ignore: ['landing/**']
   pull_request:
     branches: [master]
+    paths-ignore: ['landing/**']
   workflow_dispatch:
 
 jobs:
