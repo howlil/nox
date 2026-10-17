@@ -152,8 +152,14 @@ export function renderLearningGraph(
       start.addEventListener("click", () => onCommand("/focus " + item.objective.id));
     }
     if (revisions && !overview.focus) {
-      renderCurriculumRevisionEditor(body, item.objective,
-        overview.objectives.map(entry => entry.objective), revisions);
+      // Defer native controls until the detail is opened, even for 60-objective plans.
+      let hasEditor = false;
+      node.addEventListener("toggle", () => {
+        if (!node.open || hasEditor) return;
+        hasEditor = true;
+        renderCurriculumRevisionEditor(body, item.objective,
+          overview.objectives.map(entry => entry.objective), revisions);
+      });
     }
   }
   const next = root.createDiv({ cls: "nox-graph-next" });
