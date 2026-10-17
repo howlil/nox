@@ -32,7 +32,10 @@ test("Obsidian community P0 style and settings findings cannot regress", () => {
   assert.match(settings, /nox-settings-native-row/, "Native Obsidian setting rows must be mounted");
   assert.doesNotMatch(settings, /new Setting\(form\)/, "Avoid shadow settings outside the definitions");
   assert.doesNotMatch(settings, /\.setName\("Nox"\)\.setHeading\(\)/, "Do not duplicate plugin name as heading");
-  assert.match(settings, /new Setting\(header\)\.setName\("Settings"\)\.setHeading\(\)/);
+  assert.doesNotMatch(settings, /new Setting\(header\)\.setName\("Settings"\)\.setHeading\(\)/,
+    "Community review 1.1.3 rejection must not reappear");
+  assert.match(settings, /header\.createEl\("p"/,
+    "Keep the explanatory copy without a redundant top-level heading");
 });
 
 test("dynamic composer, swipe, icon and motion visuals have a scoped stylesheet contract", () => {
