@@ -70,4 +70,8 @@ export interface PolicyPort {
   loadSkill?(kind: LearningSkillKind): Promise<{ path: string; content: string } | null>;
 }
 export interface MutationPort { apply(proposal: EditProposal, mutableFile?: string): Promise<ApplyResult>; }
-export interface LearningStatePort { load(): Promise<LearningState>; save(state: LearningState): Promise<void>; }
+export interface LearningStatePort {
+  load(): Promise<LearningState>;
+  /** Compare the authoritative loaded snapshot and reject lost updates. */
+  save(state: LearningState, expected?: LearningState): Promise<void>;
+}
