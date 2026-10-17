@@ -30,7 +30,7 @@ export function parseProgramCommand(input: string): ProgramCommand | null {
     }
     const p = parsed as Record<string, unknown>;
     if (typeof p.objectiveId !== "string" || typeof p.rationale !== "string" ||
-        !["revise", "change-prerequisites", "deprecate"].includes(String(p.kind))) {
+        !["revise", "change-prerequisites", "deprecate", "rollback"].includes(String(p.kind))) {
       throw new Error("Revision needs kind, objectiveId and rationale.");
     }
     if (p.kind === "revise" &&
@@ -40,8 +40,14 @@ export function parseProgramCommand(input: string): ProgramCommand | null {
     if (p.kind === "change-prerequisites" && !Array.isArray(p.prerequisiteIds)) {
       throw new Error("Prerequisite revision requires an array of objective IDs.");
     }
+    if (p.kind === "rollback" &&
+        (typeof p.targetOperationId !== "string" ||
+          !/^[a-zA-Z0-9:_-]{6,100}$/.test(p.targetOperationId))) {
+      throw new Error("Rollback requires a valid prior operation ID.");
+    }
     const allowed = p.kind === "revise" ? ["kind", "objectiveId", "rationale", "changes"] :
       p.kind === "change-prerequisites" ? ["kind", "objectiveId", "rationale", "prerequisiteIds"] :
+        p.kind === "rollback" ? ["kind", "objectiveId", "rationale", "targetOperationId"] :
         ["kind", "objectiveId", "rationale"];
     if (Object.keys(p).some(key => !allowed.includes(key))) {
       throw new Error("Revision has unsupported properties.");

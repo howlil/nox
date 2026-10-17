@@ -49,7 +49,8 @@ export class VaultProgramStore {
     if (program.focus) validateObjectiveFocus(program, program.focus);
     const operationIds = new Set<string>();
     let priorVersion = 1;
-    for (const revision of program.curriculumRevisions ?? []) {
+    const revisions = program.curriculumRevisions ?? [];
+    for (const [index, revision] of revisions.entries()) {
       if (!revision.operationId || operationIds.has(revision.operationId) ||
           !Number.isInteger(revision.fromVersion) || !Number.isInteger(revision.toVersion) ||
           revision.fromVersion !== priorVersion ||
@@ -65,7 +66,7 @@ export class VaultProgramStore {
             !program.objectives.some(item => item.id === revision.addedObjectiveId)) {
           throw new Error("Invalid curriculum remediation history.");
         }
-      } else if (["revise", "change-prerequisites", "deprecate"].includes(revision.kind)) {
+      } else if (["revise", "change-prerequisites", "deprecate", "rollback"].includes(revision.kind)) {
         if (revision.reasonEvidenceIds.length !== 0 ||
             !revision.rationale || revision.rationale.trim().length < 8 ||
             !revision.targetObjectiveId ||
@@ -75,6 +76,15 @@ export class VaultProgramStore {
             !program.objectives.some(item => item.id === revision.targetObjectiveId) ||
             revision.before.sourceRefs.join("\\0") !== revision.after.sourceRefs.join("\\0")) {
           throw new Error("Invalid approved structural revision history.");
+        }
+        if (revision.kind === "rollback") {
+          const previous = revisions[index - 1];
+          if (!previous || previous.operationId !== revision.revertedOperationId ||
+              !previous.before || !previous.after ||
+              JSON.stringify(previous.after) !== JSON.stringify(revision.before) ||
+              JSON.stringify(previous.before) !== JSON.stringify(revision.after)) {
+            throw new Error("Rollback must reverse the immediately preceding approved structural revision.");
+          }
         }
       } else {
         throw new Error("Unsupported curriculum revision kind.");

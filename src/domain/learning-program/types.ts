@@ -70,11 +70,13 @@ export interface CurriculumRevisionRecord {
   operationId: string;
   fromVersion: number;
   toVersion: number;
-  kind: "prerequisite-remediation" | "revise" | "change-prerequisites" | "deprecate";
+  kind: "prerequisite-remediation" | "revise" | "change-prerequisites" | "deprecate" | "rollback";
   reasonEvidenceIds: string[];
   addedObjectiveId?: string;
   /** Explicit learner-approved structural revisions retain before/after lineage. */
   targetObjectiveId?: string;
+  /** A rollback is a new version; the previous operation remains in history. */
+  revertedOperationId?: string;
   before?: LearningObjective;
   after?: LearningObjective;
   rationale?: string;

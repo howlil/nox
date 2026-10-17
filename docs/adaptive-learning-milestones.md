@@ -52,7 +52,8 @@ This ledger is updated when code is committed. An item is checked only if the be
 - [x] Retired objectives are excluded from adaptive scheduling, feasibility and remaining-work/mastery totals, while their evidence remains accessible.
 - [x] Create-only Roadmap-vN.md snapshots reconcile explicit revisions and label retired objectives; source-bound and learner-edited notes stay untouched.
 - [x] Unit, orchestrator and vault tests cover preview purity, retries, dependency cycles, collisions, tombstones, version conflicts, lineage and safe workspace snapshots.
-- [ ] Reversible rollback as a *new* versioned change; full historical roadmap reconciliation.
+- [x] Latest approved structural revision can be rolled back via a *new*, versioned, validated and idempotent change with explicit preview/approval; preserves lineage and DAG/source invariants.
+- [ ] Generalized rollback of older/non-adjacent revisions and full historical roadmap reconciliation (requires dependency-aware rebase).
 - [x] Compact non-JSON structural edit UI in Learning Map (typed field/prerequisite/retire controls, rationale, pure diff preview, separate approval and safe retry); editors load lazily when expanded.
 - [ ] Obsidian desktop acceptance including restarts and legacy vaults.
 

@@ -55,3 +55,13 @@ test("curriculum preview commands require an explicit structured edit and separa
   })), /unsupported properties/);
   assert.throws(() => parseProgramCommand("/curriculum-approve ../directory"), /operation-id/);
 });
+
+test("rollback preview parses a constrained source operation and rejects unexpected fields", () => {
+  const request = parseProgramCommand('/curriculum-preview {"kind":"rollback","objectiveId":"basics","targetOperationId":"manual:one","rationale":"Undo last structural change"}');
+  assert.deepEqual(request, {
+    kind: "curriculum-preview", rationale: "Undo last structural change",
+    action: { kind: "rollback", objectiveId: "basics", targetOperationId: "manual:one" },
+  });
+  assert.throws(() => parseProgramCommand('/curriculum-preview {"kind":"rollback","objectiveId":"basics","rationale":"Undo last change"}'), /prior operation ID/);
+  assert.throws(() => parseProgramCommand('/curriculum-preview {"kind":"rollback","objectiveId":"basics","targetOperationId":"manual:one","rationale":"Undo last change","foo":true}'), /unsupported properties/);
+});

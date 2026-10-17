@@ -5,7 +5,8 @@ export type StructuralRevisionAction =
   | { kind: "revise"; objectiveId: string;
       changes: Partial<Pick<LearningObjective, "title" | "outcome" | "estimatedMinutes" | "priority">> }
   | { kind: "change-prerequisites"; objectiveId: string; prerequisiteIds: string[] }
-  | { kind: "deprecate"; objectiveId: string };
+  | { kind: "deprecate"; objectiveId: string }
+  | { kind: "rollback"; objectiveId: string; targetOperationId: string };
 
 export interface StructuralRevisionProposal {
   operationId: string;
@@ -25,6 +26,7 @@ export interface StructuralRevisionPreview {
   before: LearningObjective;
   after: LearningObjective;
   changedFields: string[];
+  revertedOperationId?: string;
 }
 
 /**
@@ -47,7 +49,7 @@ export function previewStructuralRevision(
   const action = proposal.action;
   const before = program.objectives.find(item => item.id === action.objectiveId);
   if (!before) throw new Error("Unknown revision objective.");
-  if (before.deprecated) throw new Error("Cannot revise a deprecated objective.");
+  if (before.deprecated && action.kind !== "rollback") throw new Error("Cannot revise a deprecated objective.");
   let after: LearningObjective;
   if (action.kind === "revise") {
     const allowed = ["title", "outcome", "estimatedMinutes", "priority"];
@@ -70,6 +72,19 @@ export function previewStructuralRevision(
       throw new Error("Rewire dependent objectives before deprecating this objective.");
     }
     after = { ...structuredClone(before), deprecated: true };
+  } else if (action.kind === "rollback") {
+    // Limit v1 rollback to the latest approved structural mutation. This prevents
+    // undoing an older step while keeping newer dependent revisions in place.
+    const previous = program.curriculumRevisions?.at(-1);
+    if (!previous || previous.operationId !== action.targetOperationId ||
+        previous.targetObjectiveId !== before.id || !previous.before || !previous.after ||
+        !["revise", "change-prerequisites", "deprecate", "rollback"].includes(previous.kind)) {
+      throw new Error("Rollback requires the latest approved structural revision on this objective.");
+    }
+    if (JSON.stringify(before) !== JSON.stringify(previous.after)) {
+      throw new Error("Rollback target changed since the recorded revision.");
+    }
+    after = structuredClone(previous.before);
   } else {
     throw new Error("Unsupported structural revision action.");
   }
@@ -86,6 +101,7 @@ export function previewStructuralRevision(
     kind: action.kind, rationale: proposal.rationale,
     before: structuredClone(before), after: structuredClone(after),
     changedFields,
+    ...(action.kind === "rollback" ? { revertedOperationId: action.targetOperationId } : {}),
   };
 }
 
@@ -95,7 +111,9 @@ export function applyStructuralRevision(
   const prior = program.curriculumRevisions?.find(item => item.operationId === proposal.operationId);
   if (prior) {
     if (prior.kind !== proposal.action.kind || prior.targetObjectiveId !== proposal.action.objectiveId ||
-        prior.fromVersion !== proposal.baseVersion || prior.rationale !== proposal.rationale) {
+        prior.fromVersion !== proposal.baseVersion || prior.rationale !== proposal.rationale ||
+        (proposal.action.kind === "rollback" &&
+          prior.revertedOperationId !== proposal.action.targetOperationId)) {
       throw new Error("Revision operation identity was reused for different content.");
     }
     return program;
@@ -106,6 +124,7 @@ export function applyStructuralRevision(
     toVersion: preview.toVersion, kind: proposal.action.kind,
     reasonEvidenceIds: [], targetObjectiveId: proposal.action.objectiveId,
     before: preview.before, after: preview.after, rationale: preview.rationale,
+    ...(preview.revertedOperationId ? { revertedOperationId: preview.revertedOperationId } : {}),
   };
   return {
     ...program,

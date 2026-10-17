@@ -101,3 +101,50 @@ test("structural approval rejects wrong program, focus, invalid rationale, no-op
     focus: { id: "f", programId: "prog", objectiveId: "basics",
       curriculumRevision: 1, status: "paused", startedAt: 100 } }, req), /End the active or paused focus/);
 });
+
+test("approved rollback is a new version and restores the latest structural snapshot", () => {
+  const renamed = applyStructuralRevision(program, proposal({
+    kind: "revise", objectiveId: "basics", changes: { title: "New foundations" },
+  }));
+  const undo: StructuralRevisionProposal = { ...proposal({
+    kind: "rollback", objectiveId: "basics", targetOperationId: "manual:one",
+  }, "manual:undo"), baseVersion: renamed.planVersion };
+  const preview = previewStructuralRevision(renamed, undo);
+  assert.equal(preview.kind, "rollback");
+  assert.equal(preview.revertedOperationId, "manual:one");
+  assert.deepEqual(preview.changedFields, ["title"]);
+  const restored = applyStructuralRevision(renamed, undo);
+  assert.equal(restored.planVersion, 3, "undo appends history, it must not decrement planVersion");
+  assert.equal(restored.objectives[0].title, "Basics");
+  assert.equal(restored.curriculumRevisions?.length, 2);
+  assert.equal(restored.curriculumRevisions?.[1].revertedOperationId, "manual:one");
+  assert.equal(applyStructuralRevision(restored, undo), restored, "retry is idempotent");
+  assert.equal(renamed.objectives[0].title, "New foundations", "previous snapshot is immutable");
+});
+
+test("rollback cannot bypass focus, revision order, or DAG requirements", () => {
+  const first = applyStructuralRevision(program, proposal({
+    kind: "change-prerequisites", objectiveId: "advanced", prerequisiteIds: [],
+  }));
+  const second = applyStructuralRevision(first, { ...proposal({
+    kind: "deprecate", objectiveId: "basics",
+  }, "manual:two"), baseVersion: first.planVersion });
+  const undo: StructuralRevisionProposal = { ...proposal({
+    kind: "rollback", objectiveId: "basics", targetOperationId: "manual:two",
+  }, "manual:undo"), baseVersion: second.planVersion };
+  const restored = applyStructuralRevision(second, undo);
+  assert.equal(restored.objectives[0].deprecated, undefined, "rollback restores a retired objective");
+  assert.deepEqual(restored.objectives[1].prerequisiteIds, [],
+    "unrelated previous revisions remain unchanged");
+  assert.throws(() => previewStructuralRevision(second, { ...undo,
+    action: { kind: "rollback", objectiveId: "basics", targetOperationId: "manual:one" },
+  }), /latest approved/);
+  assert.throws(() => previewStructuralRevision({ ...second,
+    focus: { id: "focus", programId: second.id, objectiveId: "advanced",
+      curriculumRevision: second.planVersion, status: "paused", startedAt: 100 },
+  }, undo), /End the active or paused focus/);
+  assert.throws(() => previewStructuralRevision(second, { ...undo,
+    baseVersion: 1,
+  }), /version conflict/);
+  assert.throws(() => previewStructuralRevision(program, undo), /version conflict/);
+});
