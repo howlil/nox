@@ -127,6 +127,9 @@ export function buildLearningContextPackage(request: LearningContextRequest): Le
   // strict selections, rather than clipping a user's explicit excerpt.
   const selected = eligible.filter(item => item.type === "selection" &&
     (!program.constraints.sourceBound || sourcePaths.has(item.file)));
+  if (program.constraints.sourceBound && selected.some(item => item.content.length > 5_000)) {
+    throw new Error("Explicit learning selection exceeds the safe source budget; narrow the selection.");
+  }
   const preservedSelections = selected
     .filter(item => item.content.length <= 5_000)
     .slice(0, 1);

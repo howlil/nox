@@ -15,6 +15,7 @@ import type { SessionPort, ContextPort, PolicyPort, LearningStatePort, ProgramSt
 import { formatReplyPrompt } from "./reply-context";
 import { PersistenceError } from "../persistence/PersistenceError";
 import { prepareContextEnvelope } from "../context/ContextBudget";
+import { buildLearningContextPackage } from "./LearningContextOrchestrator";
 import type { ResearchResult } from "../context/LocalResearch";
 import { constrainResearchContext, parseResearchRequest, resolveResearchScope } from "./research-scope";
 import {
@@ -527,6 +528,33 @@ export class RunLearningTurn {
       ? { kind: "selected", paths: program.constraints.sourcePaths }
       : researchScope;
     if (authority) visible = constrainResearchContext(visible, authority);
+    let focusedContextDigest = "";
+    if (program && !legacyLockedMode &&
+        (request.action === "practice" || request.programActivity?.kind === "teach")) {
+      const objectiveId = program.focus?.objectiveId ??
+        activePracticeTurn?.objectiveId ?? request.programActivity?.objectiveId ??
+        selectAdaptiveActivity(program, state, Date.now()).objective?.id;
+      if (objectiveId) {
+        try {
+          const packageForTurn = buildLearningContextPackage({
+            program, state, objectiveId, visible,
+            approvedNotes: context.explicit.filter(item =>
+              item.type === "note" && item.source === "explicit" &&
+              !item.path.startsWith("attachment/"))
+              .map(item => ({ path: item.path, content: item.content })),
+            prompt: request.prompt, now: Date.now(),
+          });
+          visible = packageForTurn.visible;
+          focusedContextDigest = packageForTurn.digest;
+        } catch (error) {
+          if (this.activeTurn === activeTurn) this.activeTurn = null;
+          yield { type: "failed", failure: { code: "unknown",
+            message: "NOX could not assemble authorized learning context. No provider call was made.",
+            diagnostic: error instanceof Error ? error.message : String(error) } };
+          return;
+        }
+      }
+    }
     const system: AgentContext[] = [];
     if (selectedSkill?.content.trim()) {
       system.push({ type: "note", file: selectedSkill.path, content: selectedSkill.content });
@@ -548,7 +576,7 @@ export class RunLearningTurn {
       }
     }
 
-    if (!program?.constraints.sourceBound) system.push({
+    if (!program) system.push({
       type: "note",
       file: "00-learning-os/progress.json",
       content: JSON.stringify(
@@ -775,6 +803,11 @@ export class RunLearningTurn {
         objective: activeObjective,
         hasQuestion: Boolean(practiceAttempt),
       }, preparedPrompt);
+    }
+    if (focusedContextDigest) {
+      preparedPrompt += "\n\nOBJECTIVE-SCOPED LEARNING CONTEXT (derived only from current-revision committed evidence):\n" +
+        focusedContextDigest + "\nUse only the attached approved note excerpts for source-grounded facts. " +
+        "A previous hidden provider conversation or lossy chat digest is never evidence of mastery.";
     }
     const parser = new StructuredStreamParser();
     const scopedEvents: StructuredStreamEvent[] = [];
