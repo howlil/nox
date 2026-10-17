@@ -1,7 +1,7 @@
 import type { AgentRuntimePort } from "../agent/AgentRuntime";
 import type { ContextPort, LearningStatePort, ProgramStorePort } from "./ports";
 import type { LearningProgram, ProgramCollection, ProgramConstraints, SessionPauseReason } from "../domain/learning-program/types";
-import { objectiveProgress, feasibility, validateConstraints, validateCurriculum } from "../domain/learning-program/rules";
+import { feasibility, validateConstraints, validateCurriculum } from "../domain/learning-program/rules";
 import { selectAdaptiveActivity, type AdaptiveActivityDecision } from "../domain/learner-model/activity-policy";
 import { startObjectiveFocus, transitionObjectiveFocus } from "../domain/learning-program/focus-transitions";
 import { deriveLearnerProfile, toLearnerProfileContext } from "../domain/learner-model/learner-profile";
@@ -370,8 +370,9 @@ export class LearningProgramOrchestrator {
     return this.updateActive(program => {
       const objective = program.objectives.find(item => item.id === objectiveId);
       if (!objective) throw new Error("Unknown learning objective.");
-      const eligible = objective.prerequisiteIds.every(id =>
-        objectiveProgress(program, id, state.evidence, this.now()).status === "mastered");
+      const profile = deriveLearnerProfile(program, state, this.now());
+      const statuses = new Map(profile.objectives.map(item => [item.objectiveId, item.status]));
+      const eligible = objective.prerequisiteIds.every(id => statuses.get(id) === "mastered");
       if (!eligible) throw new Error("Prerequisites are not mastered for this objective.");
       return startObjectiveFocus(program, objectiveId, chatSessionId, this.now(), crypto.randomUUID());
     });
@@ -489,12 +490,11 @@ export class LearningProgramOrchestrator {
     const program = await this.getActiveProgram();
     if (!program) return "No active learning program.";
     const state = await this.learningState.load();
-    const { objectiveProgress } = await import("../domain/learning-program/rules");
-    const now = Date.now();
-    const due = program.objectives.filter(item => {
-      const p = objectiveProgress(program, item.id, state.evidence, now);
-      return p.dueAt !== null && p.dueAt <= now;
-    });
+    const profile = deriveLearnerProfile(program, state, this.now());
+    const dueIds = new Set(profile.objectives
+      .filter(item => item.dueAt !== null && item.dueAt <= this.now())
+      .map(item => item.objectiveId));
+    const due = program.objectives.filter(item => !item.deprecated && dueIds.has(item.id));
     return due.length ? "Reviews due:\n" + due.map(item => "- " + item.title).join("\n") :
       "No reviews are due. Use /progress for the next scheduled activity.";
   }
@@ -523,9 +523,8 @@ export class LearningProgramOrchestrator {
     if (!result) return "No active learning program. Use /plan <goal> to create one.";
     const { program, decision } = result;
     const state = await this.learningState.load();
-    const { objectiveProgress } = await import("../domain/learning-program/rules");
-    const mastered = program.objectives.filter(o =>
-      objectiveProgress(program, o.id, state.evidence).status === "mastered").length;
+    const profile = deriveLearnerProfile(program, state, this.now());
+    const mastered = profile.objectives.filter(item => item.status === "mastered").length;
     const f = feasibility(program);
     const remainingEstimate = estimateRemainingWork(program, state.evidence, this.now());
     const historicalActive = (program.sessionHistory ?? []).reduce((sum, item) => sum + (item.activeMinutes ?? 0), 0);
@@ -545,7 +544,7 @@ export class LearningProgramOrchestrator {
       `Confirmed active learning: ${Math.round(spent)} minutes, ${program.sessionHistory?.length ?? 0} completed sessions.`,
       ...(historicalLegacy ? [`Older sessions without activity accounting: ${historicalLegacy} (excluded from active time).`] : []),
       ...(currentTiming ? [`AI waiting this session: ${Math.round(currentTiming.aiWaitingMs / 60_000)} minutes.`] : []),
-      `Mastered: ${mastered}/${program.objectives.length} objectives (requires independent delayed recall)`,
+      `Mastered: ${mastered}/${profile.objectives.length} active objectives (requires independent delayed recall)`,
       `Estimated work: ~${f.estimatedMinutes} minutes including review (not a focus deadline).`,
       `Feasibility: ${estimate}`,
       `Remaining work: ~${remainingEstimate.minutes} min (${remainingEstimate.basis}${remainingEstimate.basis === "calibrated" ? `, ${remainingEstimate.samples} measured objectives` : ""}).`,

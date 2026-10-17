@@ -728,7 +728,10 @@ export class RunLearningTurn {
         : objective;
       if (activeObjective) {
         const lastEvidence = state.evidence.filter(item => item.scope === "learner" &&
-          item.programId === program.id && item.objectiveId === activeObjective.id).slice(-1)[0];
+          item.programId === program.id && item.objectiveId === activeObjective.id &&
+          item.evidenceVersion === 3 &&
+          item.objectiveRevision === (activeObjective.objectiveRevision ?? program.planVersion))
+          .sort((a, b) => a.createdAt - b.createdAt || a.id.localeCompare(b.id)).at(-1);
         const missed = lastEvidence?.rubricResults?.filter(result => !result.met).map(result => result.criterion) ?? [];
         // Recomputed from the durable evidence log; never stored as inferred user memory.
         const learnerProfile = toLearnerProfileContext(
