@@ -183,3 +183,34 @@ export function chooseNextActivity(program: LearningProgram, evidence: LearningE
     "Prerequisites are not yet mastered or the program is complete.", dueAt: pending[0],
     minutesRemaining: remaining };
 }
+
+/**
+ * Focused activity deliberately bypasses time budget/deadline and objective
+ * selection. Only committed evidence for the pinned objective determines pacing.
+ */
+export function chooseFocusedActivity(program: LearningProgram, evidence: LearningEvidence[],
+  now = Date.now()): LearningDecision {
+  const focus = program.focus;
+  if (!focus || focus.status !== "active") return { kind: "wait", reason: "Resume objective focus first." };
+  const objective = program.objectives.find(o => o.id === focus.objectiveId);
+  if (!objective || focus.curriculumRevision !== program.planVersion) {
+    return { kind: "wait", reason: "The focus no longer matches the curriculum." };
+  }
+  const history = evidence.filter(e => e.type === "practice" && e.scope === "learner" &&
+    e.programId === program.id && e.objectiveId === objective.id &&
+    (e.objectiveRevision === undefined || e.objectiveRevision === focus.curriculumRevision))
+    .sort((a, b) => a.createdAt - b.createdAt);
+  if (!history.length) return { kind: "diagnostic", objective, reason: "Assess the pinned objective." };
+  const latest = history.at(-1)!;
+  if (latest.outcome !== "correct") return { kind: "teach", objective, reason: "Repair the last misconception." };
+  if (latest.assisted || latest.assessmentCoverage === "single-item") {
+    return { kind: "guided-practice", objective, reason: "Verify the correction independently." };
+  }
+  const progress = objectiveProgress(program, objective.id, history, now);
+  if (progress.dueAt !== null && now >= progress.dueAt) {
+    return { kind: "recall", objective, reason: "Delayed retrieval is due.", dueAt: progress.dueAt };
+  }
+  if (progress.status === "mastered") return { kind: "transfer", objective,
+    reason: "Verify that the pinned skill transfers to another situation." };
+  return { kind: "wait", reason: "Independent recall is not due yet.", dueAt: progress.dueAt ?? undefined };
+}

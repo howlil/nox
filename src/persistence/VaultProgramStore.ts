@@ -3,6 +3,7 @@ import type { LearningProgram, ProgramCollection } from "../domain/learning-prog
 import { validateConstraints, validateCurriculum } from "../domain/learning-program/rules";
 import { isValidSessionTiming } from "../domain/learning-program/session-time";
 import { PersistenceError } from "./PersistenceError";
+import { validateObjectiveFocus } from "../domain/learning-program/focus-transitions";
 
 const PATH = "00-learning-os/programs.json";
 const EMPTY: ProgramCollection = { version: 1, programs: [] };
@@ -28,15 +29,21 @@ export class VaultProgramStore {
     }
     if (!data || typeof data !== "object") throw new Error("Invalid NOX program collection.");
     const state = data as ProgramCollection;
-    if (state.version !== 1 || !Array.isArray(state.programs) ||
+    if ((state.version !== 1 && state.version !== 2) || !Array.isArray(state.programs) ||
         (state.activeProgramId && !state.programs.some(p => p.id === state.activeProgramId))) {
       throw new Error("Unsupported NOX program collection.");
     }
+    if (state.programs.some(p => p.version !== state.version)) {
+      throw new Error("Mixed learning program schema versions.");
+    }
     for (const program of state.programs) this.validateProgram(program);
+    if (state.programs.filter(p => p.focus?.status === "active").length > 1) {
+      throw new Error("Multiple active objective focuses are not allowed.");
+    }
     return structuredClone(state);
   }
   private validateProgram(program: LearningProgram) {
-    if (program.version !== 1 || !program.id || !program.goal?.trim() ||
+    if ((program.version !== 1 && program.version !== 2) || !program.id || !program.goal?.trim() ||
         !Number.isInteger(program.planVersion) || program.planVersion < 1) {
       throw new Error("Invalid learning program.");
     }
@@ -44,6 +51,7 @@ export class VaultProgramStore {
       throw new Error("Invalid workspace approval metadata.");
     }
     validateConstraints(program.constraints, new Date(program.createdAt));
+    if (program.focus) validateObjectiveFocus(program, program.focus);
     validateCurriculum({ kind: "curriculum", objectives: program.objectives }, program.constraints);
     if (program.session) {
       const { startedAt, timeBudgetMinutes, timing } = program.session;
@@ -76,19 +84,37 @@ export class VaultProgramStore {
   }
   async save(next: ProgramCollection): Promise<void> {
     const operation = this.tail.then(async () => {
-      if (next.version !== 1 || next.programs.length > 100 ||
+      if ((next.version !== 1 && next.version !== 2) || next.programs.length > 100 ||
           (next.activeProgramId && !next.programs.some(p => p.id === next.activeProgramId))) {
         throw new Error("Invalid program collection.");
       }
-      for (const program of next.programs) this.validateProgram(program);
+      // Upgrade only when enabling focus; legacy timed collections otherwise retain v1.
+      const upgrade = next.version === 2 || next.programs.some(p => Boolean(p.focus));
+      const prepared: ProgramCollection = upgrade
+        ? { ...next, version: 2, programs: next.programs.map(p => ({ ...p, version: 2 as const })) }
+        : next;
+      if (prepared.programs.filter(p => p.focus?.status === "active").length > 1) {
+        throw new Error("Multiple active objective focuses are not allowed.");
+      }
+      for (const program of prepared.programs) this.validateProgram(program);
       try {
         if (!this.app.vault.getAbstractFileByPath("00-learning-os")) {
           await this.app.vault.createFolder("00-learning-os");
         }
-        const content = JSON.stringify(next, null, 2) + "\n";
+        const content = JSON.stringify(prepared, null, 2) + "\n";
         const file = this.app.vault.getFileByPath(PATH);
-        if (file && file instanceof TFile) await this.app.vault.modify(file, content);
-        else await this.app.vault.create(PATH, content);
+        if (file && file instanceof TFile) {
+          const previous = await this.app.vault.read(file);
+          if (upgrade && (JSON.parse(previous) as ProgramCollection).version === 1) {
+            // Read-old/write-new only after a verified, non-destructive v1 snapshot.
+            const backupPath = "00-learning-os/programs.v1-" + crypto.randomUUID() + ".backup.json";
+            const backup = await this.app.vault.create(backupPath, previous);
+            if (await this.app.vault.read(backup) !== previous) {
+              throw new Error("Could not verify legacy program backup.");
+            }
+          }
+          await this.app.vault.modify(file, content);
+        } else await this.app.vault.create(PATH, content);
       } catch (error) { throw new PersistenceError("Unable to save learning program", error); }
     });
     this.tail = operation.catch(() => {});
