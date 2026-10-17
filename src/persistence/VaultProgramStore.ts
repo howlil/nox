@@ -104,13 +104,15 @@ export class VaultProgramStore {
         const content = JSON.stringify(prepared, null, 2) + "\n";
         const file = this.app.vault.getFileByPath(PATH);
         if (file && file instanceof TFile) {
-          const previous = await this.app.vault.read(file);
-          if (upgrade && (JSON.parse(previous) as ProgramCollection).version === 1) {
-            // Read-old/write-new only after a verified, non-destructive v1 snapshot.
-            const backupPath = "00-learning-os/programs.v1-" + crypto.randomUUID() + ".backup.json";
-            const backup = await this.app.vault.create(backupPath, previous);
-            if (await this.app.vault.read(backup) !== previous) {
-              throw new Error("Could not verify legacy program backup.");
+          if (upgrade) {
+            const previous = await this.app.vault.read(file);
+            if ((JSON.parse(previous) as ProgramCollection).version === 1) {
+              // Read-old/write-new only after a verified, non-destructive v1 snapshot.
+              const backupPath = "00-learning-os/programs.v1-" + crypto.randomUUID() + ".backup.json";
+              const backup = await this.app.vault.create(backupPath, previous);
+              if (await this.app.vault.read(backup) !== previous) {
+                throw new Error("Could not verify legacy program backup.");
+              }
             }
           }
           await this.app.vault.modify(file, content);
