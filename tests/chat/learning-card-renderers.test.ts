@@ -106,3 +106,22 @@ test("feedback never invents an answer key when no committed MCQ option is suppl
   assert.equal(root.find("nox-evaluation-solution-text"), undefined);
   assert.equal(root.find("nox-evaluation-reveal"), undefined);
 });
+
+test("compact feedback identifies missed criteria and actual hint level without auto-revealing an answer", () => {
+  const root = new FakeElement();
+  renderPracticeEvaluationCard(asDom(root), {
+    kind: "evaluation", concept: "concurrency", outcome: "partial",
+    programId: "program", objectiveId: "isolation",
+    assisted: true, assistance: { highestHintLevel: 3, independent: false },
+    feedback: "Still missing lock-order reasoning.", misconceptions: [],
+    rubricResults: [
+      { criterion: "Explain isolation", met: true, evidence: "Accurate definition" },
+      { criterion: "Describe deadlock prevention", met: false, evidence: "No lock ordering" },
+    ],
+  });
+  assert.equal(root.find("nox-evaluation-assisted")?.text, "Hint level 3");
+  assert.equal(root.find("nox-evaluation-target")?.text,
+    "Next focus: Describe deadlock prevention");
+  assert.equal(root.find("nox-evaluation-solution-text"), undefined);
+  assert.equal(root.find("nox-evaluation-reveal")?.tag, "details");
+});
