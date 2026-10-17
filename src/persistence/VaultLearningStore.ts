@@ -1,17 +1,11 @@
 import { App, TFile } from "obsidian";
-import { PersistenceError } from "./PersistenceError";
+import { PersistenceError, LearningStateWriteConflict } from "./PersistenceError";
+export { LearningStateWriteConflict } from "./PersistenceError";
 import { DEFAULT_LEARNING_STATE, type LearningState } from "../domain/learning-state/types";
 import { decodeLearningState } from "./learning-state-schema";
 
 const ROOT = "00-learning-os";
 const PROGRESS_PATH = `${ROOT}/progress.json`;
-
-export class LearningStateWriteConflict extends Error {
-  constructor() {
-    super("Learning progress changed since it was loaded. Reload and retry evidence projection.");
-    this.name = "LearningStateWriteConflict";
-  }
-}
 
 function cloneDefaultState(): LearningState {
   return { ...DEFAULT_LEARNING_STATE, gaps: [], evidence: [] };

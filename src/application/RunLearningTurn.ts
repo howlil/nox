@@ -14,7 +14,7 @@ import {
 import type { SessionPort, ContextPort, PolicyPort, LearningStatePort, ProgramStorePort } from "./ports";
 import { formatReplyPrompt } from "./reply-context";
 import { PersistenceError } from "../persistence/PersistenceError";
-import { LearningStateWriteConflict } from "../persistence/VaultLearningStore";
+import { LearningStateWriteConflict } from "../persistence/PersistenceError";
 import type { LearningState } from "../domain/learning-state/types";
 import { prepareContextEnvelope } from "../context/ContextBudget";
 import { buildLearningContextPackage } from "./LearningContextOrchestrator";
