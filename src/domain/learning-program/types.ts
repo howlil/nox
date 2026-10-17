@@ -43,6 +43,8 @@ export interface LearningObjective {
   prerequisiteIds: string[];
   estimatedMinutes: number;
   rubric: string[];
+  /** If true, transfer evidence is required before ready-to-advance. */
+  requiresTransfer?: boolean;
   sourceRefs: string[];
   priority: "core" | "supporting" | "optional";
 }
