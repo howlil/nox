@@ -1,3 +1,4 @@
+import { LearningMutationGate } from "./LearningMutationGate";
 import type { AgentRuntimePort } from "../agent/AgentRuntime";
 import type { ContextPort, LearningStatePort, ProgramStorePort } from "./ports";
 import type { LearningProgram, ProgramCollection, ProgramConstraints, LearningDecision, SessionPauseReason } from "../domain/learning-program/types";
@@ -28,7 +29,8 @@ export class LearningProgramOrchestrator {
     private readonly learningState: LearningStatePort, private readonly store: ProgramStorePort,
     private readonly currentModel: () => string | undefined,
     private readonly currentProvider: () => string | undefined = () => undefined,
-    private readonly now: () => number = () => Date.now()) {}
+    private readonly now: () => number = () => Date.now(),
+    private readonly mutationGate: LearningMutationGate = new LearningMutationGate()) {}
 
   dispose(): void {
     if (this.checkpointTimer !== undefined) clearInterval(this.checkpointTimer);
@@ -71,21 +73,23 @@ export class LearningProgramOrchestrator {
 
   /** Never infer closed-app time from a persisted wall-clock timestamp. */
   async recoverSessions(): Promise<void> {
-    const collection = await this.store.load();
-    let changed = false;
-    const now = this.now();
-    for (const program of collection.programs) {
-      if (program.focus?.status === "active") {
-        program.focus = { ...program.focus, status: "paused", pausedAt: now };
-        changed = true;
+    await this.mutationGate.run(async () => {
+      const collection = await this.store.load();
+      let changed = false;
+      const now = this.now();
+      for (const program of collection.programs) {
+        if (program.focus?.status === "active") {
+          program.focus = { ...program.focus, status: "paused", pausedAt: now };
+          changed = true;
+        }
+        if (program.session) {
+          program.session = { ...program.session, timing: recoverTiming(program.session, now) };
+          changed = true;
+        }
       }
-      if (program.session) {
-        program.session = { ...program.session, timing: recoverTiming(program.session, now) };
-        changed = true;
-      }
-    }
-    if (changed) await this.store.save(collection);
-    this.stopCheckpointLoop();
+      if (changed) await this.store.save(collection);
+      this.stopCheckpointLoop();
+    });
   }
 
   async getSessionTime(): Promise<{
@@ -147,7 +151,7 @@ export class LearningProgramOrchestrator {
 
   /** Preserve per-material attribution after an Obsidian note rename. */
   async renameMaterial(oldPath: string, newPath: string): Promise<void> {
-    const op = this.mutationTail.then(async () => {
+    const op = this.mutationTail.then(() => this.mutationGate.run(async () => {
       this.writing = true;
       try {
         const collection = await this.store.load();
@@ -171,7 +175,7 @@ export class LearningProgramOrchestrator {
         }
         if (dirty) await this.store.save(collection);
       } finally { this.writing = false; }
-    });
+    }));
     this.mutationTail = op.then(() => {}, () => {});
     return op;
   }
@@ -222,7 +226,7 @@ export class LearningProgramOrchestrator {
   async listPrograms(): Promise<ProgramCollection> { return this.store.load(); }
   async selectProgram(id: string): Promise<LearningProgram> {
     if (this.isPlanning() || this.activeAiTurnId) throw new Error("Finish the current learning operation before switching programs.");
-    const operation = this.mutationTail.then(async () => {
+    const operation = this.mutationTail.then(() => this.mutationGate.run(async () => {
       this.writing = true;
       try {
         const collection = await this.store.load();
@@ -243,7 +247,7 @@ export class LearningProgramOrchestrator {
         await this.store.save(collection);
         return selected;
       } finally { this.writing = false; }
-    });
+    }));
     this.mutationTail = operation.then(() => {}, () => {});
     const selected = await operation;
     this.stopCheckpointLoop();
@@ -256,7 +260,7 @@ export class LearningProgramOrchestrator {
   private updateActive(edit: (program: LearningProgram) => LearningProgram | Promise<LearningProgram>): Promise<LearningProgram> {
     if (this.planning) return Promise.reject(new Error("Curriculum generation is in progress."));
     // Serialize the read-modify-write operation, not only the underlying vault write.
-    const operation = this.mutationTail.then(async () => {
+    const operation = this.mutationTail.then(() => this.mutationGate.run(async () => {
       this.writing = true;
       try {
         const collection = await this.store.load();
@@ -267,7 +271,7 @@ export class LearningProgramOrchestrator {
         await this.store.save(collection);
         return next;
       } finally { this.writing = false; }
-    });
+    }));
     this.mutationTail = operation.then(() => {}, () => {});
     return operation;
   }
@@ -603,7 +607,7 @@ export class LearningProgramOrchestrator {
   async commitPrepared(draftId: string, operationId: string, workspaceApproved = false): Promise<LearningProgram> {
     if (!operationId.trim()) throw new Error("Operation ID is required.");
     if (this.isPlanning()) throw new Error("Finish preparing the curriculum before approval.");
-    const op = this.mutationTail.then(async () => {
+    const op = this.mutationTail.then(() => this.mutationGate.run(async () => {
       this.writing = true;
       try {
         const collection = await this.store.load();
@@ -630,7 +634,7 @@ export class LearningProgramOrchestrator {
         this.preparedDrafts.delete(draftId);
         return program;
       } finally { this.writing = false; }
-    });
+    }));
     this.mutationTail = op.then(() => {}, () => {});
     return op;
   }
