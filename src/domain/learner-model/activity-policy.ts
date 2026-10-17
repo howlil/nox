@@ -224,8 +224,9 @@ export function selectAdaptiveActivity(
     .sort((a, b) => a - b)[0];
   return decision("wait", eligible.length === 0 && active.length > 0
     ? "All remaining objectives have unmet prerequisites."
-    : nextDue ? "No eligible action is due; next retrieval remains scheduled."
+    : nextDue ? "Independent recall is not due yet."
       : "No further eligible activities. Review completion or optional objectives.",
-    eligible.length === 0 ? "prerequisites-blocked" : "no-activity-due",
+    eligible.length === 0 ? "prerequisites-blocked" :
+      nextDue ? "recall-pending" : "no-activity-due",
     undefined, [], { dueAt: nextDue, minutesRemaining: remaining });
 }
