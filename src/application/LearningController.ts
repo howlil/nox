@@ -345,7 +345,7 @@ export class LearningController {
       globalFocus = await this.programs?.getGlobalActiveFocus?.() ?? null;
       const current = await this.programs?.getActiveProgram?.();
       this.turns.syncFocusSessionId(current?.focus?.chatSessionId === this.sessions.getSession().id
-        ? current.focus.id : undefined);
+        ? current.focus.id : undefined, current?.focus?.status);
     } catch (error) {
       yield { type: "failed", failure: { code: "persistence-failed",
         message: "Cannot verify the persisted learning focus. No model call was made.",
@@ -467,15 +467,16 @@ export class LearningController {
           response = `Active program changed to: ${selected.goal}`;
         } else if (command.kind === "focus") {
           const program = await this.programs.startFocus(command.objectiveId, this.sessions.getSession().id);
-          this.turns.syncFocusSessionId(program.focus?.id);
+          this.turns.syncFocusSessionId(program.focus?.id, program.focus?.status);
           response = "Focused on **" + program.objectives.find(o => o.id === command.objectiveId)?.title +
             "** without a timer. Use /next, /pause-focus, or /end-focus.";
         } else if (command.kind === "pause-focus") {
-          await this.programs.pauseFocus();
+          const program = await this.programs.pauseFocus();
+          this.turns.syncFocusSessionId(program.focus?.id, program.focus?.status);
           response = "Objective focus paused. Return to this chat and use /resume-focus.";
         } else if (command.kind === "resume-focus") {
           const program = await this.programs.resumeFocus(this.sessions.getSession().id);
-          this.turns.syncFocusSessionId(program.focus?.id);
+          this.turns.syncFocusSessionId(program.focus?.id, program.focus?.status);
           response = "Objective focus resumed. Use /next or answer the pending question.";
         } else if (command.kind === "end-focus") {
           await this.programs.endFocus();

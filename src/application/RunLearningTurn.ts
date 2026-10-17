@@ -69,14 +69,16 @@ class InvalidLearningOutputError extends Error {}
 export class RunLearningTurn {
   private readonly practices = new PracticeSessionRegistry();
   private currentFocusId: string | null = null;
+  private currentFocusPaused = false;
 
   /** Old focus challenges must never be inherited by a replacement focus. */
-  syncFocusSessionId(id?: string): void {
+  syncFocusSessionId(id?: string, status?: "active" | "paused"): void {
     const next = id ?? null;
     if (next !== this.currentFocusId) {
       this.practices.clear();
       this.currentFocusId = next;
     }
+    this.currentFocusPaused = Boolean(next && status === "paused");
   }
 
   private async assertFocusAuthority(expected: NonNullable<LearningProgram["focus"]>, chatSessionId: string): Promise<void> {
@@ -138,7 +140,9 @@ export class RunLearningTurn {
       isLockedLearningMode(session.learningScope?.mode);
     const programId = isProgramLearningScope(session.learningScope) &&
       session.learningScope.mode !== "FREE" ? session.learningScope.programId : undefined;
-    const scoped = legacy || Boolean(programId);
+    // A paused objective can contain unrelated chat messages; preserve the
+    // committed pending challenge across those messages until focus ends.
+    const scoped = legacy || Boolean(programId) || Boolean(this.currentFocusId);
     const key = legacy ? `${session.id}:backend`
       : programId ? JSON.stringify([session.id, "program", programId]) : session.id;
     const practice = this.practices.forSession(key);
@@ -308,7 +312,7 @@ export class RunLearningTurn {
     const programScope = isProgramLearningScope(scope) && scope.mode !== "FREE" ? scope : undefined;
     const lockedMode = legacyLockedMode ?? (programScope ? programScope.mode : undefined);
     const teachingProgramTurn = Boolean(programScope && request.programActivity?.kind === "teach");
-    const strictPractice = Boolean(lockedMode) && !teachingProgramTurn;
+    const strictPractice = Boolean(lockedMode) && !teachingProgramTurn && !this.currentFocusPaused;
     if (strictPractice) {
       if (request.action === "edit" || request.action === "review") {
         try {
