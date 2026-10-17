@@ -81,7 +81,7 @@ export class LearningProgramOrchestrator {
         changed = true;
       }
     }
-    if (changed) await this.store.save(collection);
+    if (changed) await this.store.save(collection, collection);
     this.stopCheckpointLoop();
   }
 
@@ -164,7 +164,7 @@ export class LearningProgramOrchestrator {
             }
           }
         }
-        if (dirty) await this.store.save(collection);
+        if (dirty) await this.store.save(collection, collection);
       } finally { this.writing = false; }
     });
     this.mutationTail = op.then(() => {}, () => {});
@@ -235,7 +235,7 @@ export class LearningProgramOrchestrator {
           selected.session = { ...selected.session, timing: recoverTiming(selected.session, now) };
         }
         collection.activeProgramId = id;
-        await this.store.save(collection);
+        await this.store.save(collection, collection);
         return selected;
       } finally { this.writing = false; }
     });
@@ -409,7 +409,8 @@ export class LearningProgramOrchestrator {
 
   private updateActive(edit: (program: LearningProgram) => LearningProgram): Promise<LearningProgram> {
     if (this.planning) return Promise.reject(new Error("Curriculum generation is in progress."));
-    // Serialize the read-modify-write operation, not only the underlying vault write.
+    // Serialize the read-modify-write operation in process and compare the
+    // loaded vault bytes before commit to reject concurrent external edits.
     const operation = this.mutationTail.then(async () => {
       this.writing = true;
       try {
@@ -418,7 +419,7 @@ export class LearningProgramOrchestrator {
         if (index === -1) throw new Error("No active learning program. Use /plan first.");
         const next = edit(structuredClone(collection.programs[index]));
         collection.programs[index] = next;
-        await this.store.save(collection);
+        await this.store.save(collection, collection);
         return next;
       } finally { this.writing = false; }
     });
@@ -673,7 +674,7 @@ export class LearningProgramOrchestrator {
         };
         collection.programs.push(program);
         collection.activeProgramId = program.id;
-        await this.store.save(collection);
+        await this.store.save(collection, collection);
         this.preparedDrafts.delete(draftId);
         return program;
       } finally { this.writing = false; }
