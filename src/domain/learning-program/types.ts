@@ -82,7 +82,8 @@ export interface CurriculumRevisionRecord {
   rationale?: string;
 }
 export interface LearningProgram {
-  version: 1;
+  /** v1 accepted for legacy callers, v2 is written to durable storage. */
+  version: 1 | 2;
   id: string;
   goal: string;
   constraints: ProgramConstraints;
@@ -102,7 +103,8 @@ export interface LearningProgram {
   instructionEvents?: Array<{ objectiveId: string; afterEvidenceAt: number; taughtAt: number }>;
 }
 export interface ProgramCollection {
-  version: 1;
+  /** v1 decoded non-destructively; all new durable writes are v2. */
+  version: 1 | 2;
   activeProgramId?: string;
   programs: LearningProgram[];
 }
