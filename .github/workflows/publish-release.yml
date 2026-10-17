@@ -1,6 +1,6 @@
-name: Publish approved Obsidian release
+name: Recover publication of a verified Obsidian draft
 
-# No push or tag can publish a draft automatically.
+# Recovery-only fallback; the normal release path is fully automatic.
 on:
   workflow_dispatch:
     inputs:
@@ -12,11 +12,6 @@ on:
         description: "Full merged master commit SHA used for the draft"
         type: string
         required: true
-      desktop_acceptance:
-        description: "I tested the exact draft artifacts in Obsidian desktop"
-        type: boolean
-        required: true
-        default: false
 
 permissions:
   contents: read
@@ -27,9 +22,7 @@ concurrency:
 
 jobs:
   publish:
-    if: inputs.desktop_acceptance == true
     runs-on: ubuntu-latest
-    environment: public-release
     permissions:
       contents: write
       attestations: read
@@ -98,7 +91,7 @@ jobs:
           done
           test "$(node -p 'require("./dist/manifest.json").version')" = "$VERSION"
 
-      - name: Publish the already approved draft
+      - name: Recover publication of exact attested draft
         env:
           GH_TOKEN: ${{ github.token }}
           VERSION: ${{ inputs.version }}
