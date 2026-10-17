@@ -7,7 +7,7 @@ import test from "node:test";
 
 const policy = "scripts/ci/obsidian-critical-policy.mjs";
 function check(source: string) {
-  const dir = mkdtempSync(join(tmpdir(), "nox-policy-"));
+  const dir = mkdtempSync(join(tmpdir(), "nox-community-p0-"));
   try {
     const file = join(dir, "SettingsTab.ts");
     writeFileSync(file, source);
@@ -16,16 +16,39 @@ function check(source: string) {
     rmSync(dir, { recursive: true, force: true });
   }
 }
-test("an intermediate variable cannot bypass Obsidian heading lint", () => {
-  const result = check('const header = surface.createDiv(); header.createEl("h2", { text: "Settings" });');
-  assert.equal(result.status, 1);
-  assert.match(result.stderr, /settings heading h2/);
+
+test("Community: reject manual HTML headings, including aliased containers", () => {
+  for (const source of [
+    'const header = surface.createDiv(); header.createEl("h2", { text: "General" });',
+    'function nested() { return surface.createEl("h4", { text: "General" }); }',
+  ]) {
+    const out = check(source);
+    assert.equal(out.status, 1, out.stderr);
+    assert.match(out.stderr, /manual-html-heading/);
+  }
 });
-test("nested headings fail, not just top-level createEl", () => {
-  const result = check('function mount() { const heading = view; heading.createEl("h4", { text: "Settings" }); }');
-  assert.equal(result.status, 1);
+
+test("Community: reject the exact 1.1.3 Settings heading regression", () => {
+  for (const heading of ["Settings", "Plugin settings", "Options", "Nox"]) {
+    const out = check('new Setting(header).setName("' + heading + '").setHeading();');
+    assert.equal(out.status, 1, heading + ": " + out.stderr);
+    assert.match(out.stderr, /problematic-settings-heading/);
+  }
 });
-test("native Setting heading remains valid", () => {
-  const result = check('new Setting(header).setName("Settings").setHeading();');
-  assert.equal(result.status, 0, result.stderr);
+
+test("Community: reject a named settings heading stored in a variable", () => {
+  const out = check('const heading = new Setting(header).setName("Settings"); heading.setHeading();');
+  assert.equal(out.status, 1, out.stderr);
+  assert.match(out.stderr, /problematic-settings-heading/);
+});
+
+test("Community: allow real section headings and labels without headings", () => {
+  for (const source of [
+    'new Setting(group).setName("Provider accounts").setHeading();',
+    'new Setting(form).setName("Settings").addText(() => {});',
+    'header.createEl("p", { text: "Manage your agent runtime." });',
+  ]) {
+    const out = check(source);
+    assert.equal(out.status, 0, out.stderr);
+  }
 });
