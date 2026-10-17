@@ -40,7 +40,9 @@ function unique(values: readonly string[]): boolean {
 
 /** Pure trigger detection. A model cannot define its own evidence or decide readiness. */
 export function detectStructuralGap(program: LearningProgram, evidence: readonly LearningEvidence[]): StructuralGap | null {
-  const entries = evidence.filter(item => item.scope === "learner" &&
+  const consumed = new Set(program.curriculumRevisions?.flatMap(r => r.reasonEvidenceIds) ?? []);
+  const entries = evidence.filter(item => !consumed.has(item.id) &&
+    item.scope === "learner" &&
     item.type === "practice" && item.programId === program.id &&
     program.objectives.some(o => o.id === item.objectiveId && !o.deprecated) &&
     (item.objectiveRevision === undefined || item.objectiveRevision ===

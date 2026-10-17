@@ -69,7 +69,10 @@ test("revision rejects missing references, cycles, invalid source, stale version
   assert.throws(() => applyCurriculumRevision(program(), proposal([
     { kind: "change-prerequisites", objectiveId: "joins", prerequisiteIds: ["missing"] },
   ]), [], 100), /Unknown prerequisite/);
-  assert.throws(() => applyCurriculumRevision(program(), proposal([
+  const restricted = program();
+  restricted.constraints = { ...restricted.constraints, sourceBound: true, sourcePaths: ["approved.md"] };
+  restricted.objectives = restricted.objectives.map(o => ({ ...o, sourceRefs: ["approved.md"] }));
+  assert.throws(() => applyCurriculumRevision(restricted, proposal([
     { kind: "add", objective: { id: "a", title: "New", outcome: "Learn unapproved facts",
       prerequisiteIds: [], estimatedMinutes: 30, rubric: ["Know something"],
       sourceRefs: ["bad.md"], priority: "core" } },

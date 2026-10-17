@@ -35,7 +35,7 @@ export function startObjectiveFocus(
 ): LearningProgram {
   if (program.focus) throw new Error("End the existing objective focus before starting another.");
   if (!program.objectives.some(o => o.id === objectiveId && !o.deprecated)) {
-    throw new Error("Unknown or deprecated objective ID.");
+    throw new Error("Unknown objective ID or deprecated objective.");
   }
   if (!chatSessionId.trim() || !id.trim() || !Number.isFinite(now) || now < 0) {
     throw new Error("Invalid focus identity.");
