@@ -153,3 +153,43 @@ test("new v3 evidence cannot bypass required rubric through average score or leg
   };
   assert.equal(objectiveProgress(p, "symbols", [event("symbols", "correct", now - 3 * 86_400_000), e], now).status, "remediate");
 });
+
+
+test("previous curriculum revision cannot establish mastery for a revised rubric", () => {
+  const p1 = program();
+  const rubric = "Use notation correctly";
+  const initial: LearningEvidence = {
+    ...event("symbols", "correct", now - 2 * 86_400_000),
+    id: "r1-initial", evidenceVersion: 3, objectiveRevision: 1,
+    questionId: "q1", evaluator: "llm-review",
+    assistance: { highestHintLevel: 0, independent: true },
+    rubricResults: [{ criterion: rubric, criterionId: "symbols@1:criterion-1",
+      met: true, evidence: "demonstrated" }],
+  };
+  const recall: LearningEvidence = {
+    ...initial, id: "r1-recall", questionId: "q2", createdAt: now,
+    taskKind: "recall",
+  };
+  assert.equal(objectiveProgress(p1, "symbols", [initial, recall], now).status, "mastered");
+
+  // The new revision has a different criterion, but the same criterion count.
+  // Reusing revision-1 evidence here would incorrectly grant mastery.
+  const p2 = program({ planVersion: 2, objectives: p1.objectives.map(item =>
+    item.id === "symbols"
+      ? { ...item, rubric: ["Explain alternate notation"] }
+      : item,
+  ) });
+  assert.equal(objectiveProgress(p2, "symbols", [initial, recall], now).status, "unseen");
+  assert.equal(chooseNextActivity(p2, [initial, recall], now).kind, "diagnostic");
+  assert.equal(chooseNextActivity(p2, [initial, recall], now).objective?.id, "symbols");
+
+  // A new independent attempt is still provisional until delayed recall.
+  const revised: LearningEvidence = {
+    ...initial, id: "r2-initial", questionId: "q3", createdAt: now,
+    objectiveRevision: 2, rubricResults: [{
+      criterion: "Explain alternate notation", criterionId: "symbols@2:criterion-1",
+      met: true, evidence: "demonstrated",
+    }],
+  };
+  assert.equal(objectiveProgress(p2, "symbols", [initial, recall, revised], now).status, "provisional");
+});
