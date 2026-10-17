@@ -4,11 +4,13 @@ import { validateConstraints, validateCurriculum } from "../domain/learning-prog
 import { isValidSessionTiming } from "../domain/learning-program/session-time";
 import { validateObjectiveFocus } from "../domain/learning-program/focus-transitions";
 import { PersistenceError } from "./PersistenceError";
+import type { ProgramRestorePreview } from "../application/ports";
 import { decodeProgramCollection, prepareProgramCollectionWrite } from "./program-schema";
 
 const PATH = "00-learning-os/programs.json";
 const BACKUPS = "00-learning-os/backups";
 const EMPTY: ProgramCollection = { version: 2, programs: [] };
+const BACKUP_PATTERN = /^00-learning-os\/backups\/programs-(?:v1|pre-restore)-[a-f0-9-]{36}\.json$/i;
 
 export class ProgramWriteConflict extends Error {
   constructor() {
@@ -26,6 +28,11 @@ export class VaultProgramStore {
   private tail: Promise<void> = Promise.resolve();
   private readonly snapshots = new WeakMap<ProgramCollection, string | null>();
   private lastKnownBytes: string | null = null;
+  private readonly restorePreviews = new Map<string, {
+    preview: ProgramRestorePreview;
+    backupBytes: string;
+    currentBytes: string | null;
+  }>();
   constructor(private readonly app: App) {}
   async load(): Promise<ProgramCollection> {
     // Avoid reading a partially written local snapshot during an in-flight save.
@@ -153,17 +160,108 @@ export class VaultProgramStore {
       }
     }
   }
-  /** Back up exact v1 bytes before the first v2 rewrite. Never overwrite a backup. */
-  private async backUpV1(bytes: string): Promise<void> {
+  /** Create-only verified copy, before modifying canonical storage. */
+  private async createVerifiedBackup(bytes: string, label: "v1" | "pre-restore"): Promise<void> {
     if (!this.app.vault.getAbstractFileByPath(BACKUPS)) {
       await this.app.vault.createFolder(BACKUPS);
     }
-    const path = `${BACKUPS}/programs-v1-${crypto.randomUUID()}.json`;
+    const path = BACKUPS + "/programs-" + label + "-" + crypto.randomUUID() + ".json";
     if (this.app.vault.getFileByPath(path)) throw new Error("Program backup path collision.");
     const backup = await this.app.vault.create(path, bytes);
     if (!(backup instanceof TFile) || await this.app.vault.read(backup) !== bytes) {
-      throw new Error("Program backup verification failed; migration aborted.");
+      throw new Error("Program backup verification failed; write aborted.");
     }
+  }
+
+  /** Safe even when programs.json is corrupt; it only lists NOX-owned backups. */
+  async listBackups(): Promise<string[]> {
+    await this.tail;
+    return this.app.vault.getFiles().map(file => file.path)
+      .filter(path => BACKUP_PATTERN.test(path)).sort();
+  }
+
+  /** Decode and validate without mutating any program file. */
+  async previewRestore(backupPath: string): Promise<ProgramRestorePreview> {
+    await this.tail;
+    if (!BACKUP_PATTERN.test(backupPath)) throw new Error("Invalid NOX backup path.");
+    const backupFile = this.app.vault.getFileByPath(backupPath);
+    if (!(backupFile instanceof TFile)) throw new Error("Program backup is missing.");
+    const backupBytes = await this.app.vault.read(backupFile);
+    let backup: ProgramCollection;
+    try {
+      backup = decodeProgramCollection(JSON.parse(backupBytes));
+      for (const program of backup.programs) this.validateProgram(program);
+    } catch {
+      throw new Error("Backup is invalid or has an unsupported program schema.");
+    }
+    const currentFile = this.app.vault.getFileByPath(PATH);
+    const currentBytes = currentFile instanceof TFile
+      ? await this.app.vault.read(currentFile) : null;
+    let currentReadable = currentBytes === null;
+    if (currentBytes !== null) {
+      try {
+        const current = decodeProgramCollection(JSON.parse(currentBytes));
+        for (const program of current.programs) this.validateProgram(program);
+        currentReadable = true;
+      } catch { currentReadable = false; }
+    }
+    const preview: ProgramRestorePreview = {
+      operationId: crypto.randomUUID(), backupPath,
+      backupVersion: backup.version, programCount: backup.programs.length,
+      currentReadable, expiresAt: Date.now() + 15 * 60_000,
+    };
+    this.restorePreviews.clear();
+    this.restorePreviews.set(preview.operationId, { preview, backupBytes, currentBytes });
+    return preview;
+  }
+
+  /** An explicit approved restore; never writes a preview or overwrites a
+   * changed canonical/backup file. Preserves current bytes even when corrupt.
+   */
+  async approveRestore(operationId: string): Promise<ProgramCollection> {
+    const operation = this.tail.then(async () => {
+      const pending = this.restorePreviews.get(operationId);
+      if (!pending || Date.now() > pending.preview.expiresAt) {
+        throw new Error("Restore preview expired; preview the backup again.");
+      }
+      const backupFile = this.app.vault.getFileByPath(pending.preview.backupPath);
+      if (!(backupFile instanceof TFile) ||
+          await this.app.vault.read(backupFile) !== pending.backupBytes) {
+        throw new ProgramWriteConflict();
+      }
+      const restored = prepareProgramCollectionWrite(
+        decodeProgramCollection(JSON.parse(pending.backupBytes)));
+      for (const program of restored.programs) this.validateProgram(program);
+      const content = JSON.stringify(restored, null, 2) + "\n";
+      const existing = this.app.vault.getFileByPath(PATH);
+      try {
+        if (existing instanceof TFile) {
+          if (pending.currentBytes === null ||
+              await this.app.vault.read(existing) !== pending.currentBytes) {
+            throw new ProgramWriteConflict();
+          }
+          await this.createVerifiedBackup(pending.currentBytes, "pre-restore");
+          await this.app.vault.process(existing, current => {
+            if (current !== pending.currentBytes) throw new ProgramWriteConflict();
+            return content;
+          });
+        } else {
+          if (pending.currentBytes !== null) throw new ProgramWriteConflict();
+          if (!this.app.vault.getAbstractFileByPath("00-learning-os")) {
+            await this.app.vault.createFolder("00-learning-os");
+          }
+          await this.app.vault.create(PATH, content);
+        }
+      } catch (error) {
+        if (error instanceof ProgramWriteConflict) throw error;
+        throw new PersistenceError("Unable to restore learning programs", error);
+      }
+      this.restorePreviews.delete(operationId);
+      this.lastKnownBytes = content;
+      return restored;
+    });
+    this.tail = operation.then(() => undefined, () => undefined);
+    return operation;
   }
 
   async save(next: ProgramCollection): Promise<void> {
@@ -187,7 +285,7 @@ export class VaultProgramStore {
           // external modification is checked again by the atomic process callback.
           if (decodeProgramCollection(JSON.parse(expected)).version === 1) {
             if (await this.app.vault.read(file) !== expected) throw new ProgramWriteConflict();
-            await this.backUpV1(expected);
+            await this.createVerifiedBackup(expected, "v1");
           }
           await this.app.vault.process(file, current => {
             if (current !== expected) throw new ProgramWriteConflict();

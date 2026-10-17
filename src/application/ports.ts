@@ -20,9 +20,21 @@ export interface WorkspaceWriterPort {
     revision: import("../domain/learning-program/types").CurriculumRevisionRecord): Promise<void>;
   ensure(program: import("../domain/learning-program/types").LearningProgram): Promise<void>;
 }
+export interface ProgramRestorePreview {
+  operationId: string;
+  backupPath: string;
+  backupVersion: 1 | 2;
+  programCount: number;
+  currentReadable: boolean;
+  expiresAt: number;
+}
+
 export interface ProgramStorePort {
   load(): Promise<ProgramCollection>;
   save(next: ProgramCollection): Promise<void>;
+  listBackups?(): Promise<string[]>;
+  previewRestore?(path: string): Promise<ProgramRestorePreview>;
+  approveRestore?(operationId: string): Promise<ProgramCollection>;
 }
 
 /** Application-owned structural I/O contracts, not a second authority. */
