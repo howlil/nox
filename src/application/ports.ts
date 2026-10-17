@@ -48,7 +48,8 @@ export interface SessionPort {
   recordRegeneratedResponse(messageIndex: number, expectedContent: string, replacement: ResponseVersion, sessionId: string, conversationId?: string, metrics?: import("../types").AgentTurnMetrics): Promise<void>;
   selectResponseVersion(messageIndex: number, versionIndex: number, sessionId: string): Promise<void>;
   recordStructuredPart(part: TranscriptPart, sourcePath?: string, sessionId?: string): Promise<void>;
-  recordPracticeOutcome(parts: TranscriptPart[], operationId: string, sourcePath: string, sessionId: string): Promise<TranscriptPart[]>;
+  recordPracticeOutcome(parts: TranscriptPart[], operationId: string, sourcePath: string, sessionId: string,
+    beforeCommit?: () => Promise<void>): Promise<TranscriptPart[]>;
   recordReviewOutcome(part: Extract<TranscriptPart, { type: "review-findings" }>, sourcePath: string, sessionId: string): Promise<Extract<TranscriptPart, { type: "review-findings" }>>;
   recordEditOutcome(proposalId: string, proposal: EditProposal, narrative: string,
     mutableFile: string, sessionId: string): Promise<{ proposal: EditProposal;

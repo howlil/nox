@@ -854,3 +854,32 @@ test("failed regeneration storage write preserves original and cursor", async ()
   assert.equal(after.messages[1].responseVersions, undefined);
   assert.equal(after.conversationId, "original-cursor");
 });
+
+test("stale program authority fails inside the serialized transcript commit boundary", async () => {
+  const harness = pluginHarness();
+  const controller = createController(harness);
+  await controller.init();
+  const parts = [{
+    type: "practice-evaluation" as const, operationId: "practice:session-1:q-1",
+    questionId: "q-1", evaluation: {
+      kind: "evaluation" as const, concept: "Locking", outcome: "correct" as const,
+      feedback: "Correct", misconceptions: [],
+    },
+  }];
+  let authorityValid = false;
+  await assert.rejects(controller.recordPracticeOutcome(
+    parts, "practice:session-1:q-1", "notes.md", "session-1",
+    async () => { if (!authorityValid) throw new Error("Focus changed during inference"); },
+  ), /Focus changed/);
+  assert.equal(controller.getSession().messages.length, 0);
+  const restored = createController(harness);
+  await restored.init();
+  assert.equal(restored.getSession().messages.length, 0, "a rejected outcome must not reach durable storage");
+  authorityValid = true;
+  const committed = await controller.recordPracticeOutcome(
+    parts, "practice:session-1:q-1", "notes.md", "session-1",
+    async () => { if (!authorityValid) throw new Error("Focus changed during inference"); },
+  );
+  assert.equal(committed.length, 1);
+  assert.equal(controller.getSession().messages.length, 1);
+});

@@ -484,6 +484,7 @@ export class SessionController {
     operationId: string,
     sourcePath: string,
     sessionId: string,
+    beforeCommit?: () => Promise<void>,
   ): Promise<TranscriptPart[]> {
     return this.serializeWrite(async () => {
       const session = this.sessionForWrite(sessionId);
@@ -499,7 +500,12 @@ export class SessionController {
         return structuredClone(message?.parts ?? [existing]);
       }
 
-      // The evaluation and draft deletion belong to the same durable snapshot.
+      // The provider may have streamed while an earlier transcript write was
+      // pending. Recheck its program/focus authority inside THIS serialized
+      // session-write boundary, immediately before the canonical transcript commit.
+      // This narrows the race; cross-file program/progress atomicity still relies
+      // on recovery and needs a separate coordinated commit gate.
+      await beforeCommit?.();
       const next = { ...session, practiceDrafts: { ...session.practiceDrafts } };
       delete next.practiceDrafts[evaluation.questionId];
       await this.persistOutcome(next, parts, sourcePath);

@@ -897,6 +897,7 @@ export class RunLearningTurn {
         for await (const item of this.commitPracticeOutcome(
           evaluation, snapshot, turnSessionId, practice, practiceAttempt,
           (legacyLockedMode ? "backend" : programScope ? "program" : undefined),
+          evaluation.programId ? () => assertProgramAuthority(evaluation.programId, evaluation.objectiveId) : undefined,
         )) yield item;
         yield { type: "completed" };
         return;
@@ -1133,6 +1134,7 @@ export class RunLearningTurn {
               practice,
               practiceAttempt,
               (legacyLockedMode ? "backend" : programScope ? "program" : undefined),
+              evaluation.programId ? () => assertProgramAuthority(evaluation.programId, evaluation.objectiveId) : undefined,
             )) {
               persistMappedEvent(mapped);
               yield mapped;
@@ -1359,6 +1361,7 @@ export class RunLearningTurn {
     practice: PracticeStateMachine,
     practiceAttempt: PracticeEvaluationAttempt,
     scoped?: "backend" | "program",
+    beforeCommit?: () => Promise<void>,
   ): AsyncIterable<LearningEvent> {
         const source =
           practiceAttempt.origin?.file ??
@@ -1384,7 +1387,7 @@ export class RunLearningTurn {
           }] : []),
         ];
         const committed = await this.sessions.recordPracticeOutcome(
-          parts, operationId, source, sessionId,
+          parts, operationId, source, sessionId, beforeCommit,
         );
         const evaluationPart = committed.find((part) => part.type === "practice-evaluation");
         if (!evaluationPart || evaluationPart.type !== "practice-evaluation") {

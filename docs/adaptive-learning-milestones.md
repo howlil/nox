@@ -90,7 +90,8 @@ This ledger is updated when code is committed. An item is checked only if the be
 - [x] Strict provenance checks reject mismatched objective, program, plan and criterion identity; budget drops low-priority historical episodes before required rubric or active-question context.
 - [x] Preserve the existing `prepareContextEnvelope` source-bound enforcement and history isolation; no second provider session or memory database.
 - [x] Unit and integration tests cover snapshot drift, context priority/overflow and provider race injection: focus switch, curriculum revision and a different turn committing evidence while the provider streams.
-- [ ] Close the remaining cross-file check/commit race (atomicity of focus, evidence and transcript spans separate persistence stores). Re-check at the final write boundary and add concurrent commit fault-injection coverage.
+- [x] Re-check learning authority inside the serialized transcript writer immediately before canonical outcome persistence, including a reject-without-write regression test.
+- [ ] Close the remaining inter-store focus/evidence/transcript race completely with a coordinated commit boundary and concurrent fault-injection proof. Session-writer revalidation alone is not cross-file atomicity.
 - [ ] Desktop acceptance using supported providers and a source-bound historical vault.
 
 ## M6 — Compact UX (inline revision workflow implemented; desktop acceptance pending)
