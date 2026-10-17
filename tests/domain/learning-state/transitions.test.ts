@@ -215,3 +215,27 @@ test("historical mastery cannot resolve a newly reopened misconception", () => {
   const f = practice(e, 100 + 38 * 3_600_000, "correct", "recall");
   assert.equal(f.gaps[0]?.status, "resolved");
 });
+
+
+test("stable criterion identity closes a reworded gap only after independent delayed recall", () => {
+  const submit = (state: LearningState, at: number,
+    outcome: "partial" | "correct", criterion: string,
+    kind: "guided-practice" | "recall" = "guided-practice") =>
+    recordPracticeEvaluation(state, {
+      source: "lesson.md", programId: "p", objectiveId: "foundation",
+      evaluation: {
+        kind: "evaluation", concept: "Concurrency", outcome, taskKind: kind,
+        objectiveRevision: 1, feedback: "Rubric evidence",
+        misconceptions: outcome === "partial" ? ["Missing guarantee"] : [],
+        rubricResults: [{ criterion, criterionId: "c1", met: outcome === "correct",
+          evidence: "Independently tested" }],
+      },
+    }, { now: () => at, uuid: () => "event-" + at });
+  const failed = submit(baseState(), 100, "partial", "Old criterion");
+  assert.equal(failed.gaps[0].status, "open");
+  const corrected = submit(failed, 200, "correct", "Reworded criterion");
+  assert.equal(corrected.gaps[0].status, "improving");
+  const recalled = submit(corrected, 200 + 12 * 3_600_000,
+    "correct", "Reworded criterion", "recall");
+  assert.equal(recalled.gaps[0].status, "resolved");
+});

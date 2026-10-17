@@ -187,3 +187,38 @@ test("future-revision evidence is not trusted to trigger a structural scaffold",
   assert.match(decision.reason, /incompatible/);
   assert.deepEqual(decision.sourceEvidenceIds, ["invalid"]);
 });
+
+
+test("unresolved criterion gaps and stale transfer block prerequisite after retention recovery", () => {
+  const p = program();
+  const initial = mastered();
+  const oldTransfer = attempt("foundation", "old-transfer", now - 2 * DAY, "correct", "transfer");
+  const failed = attempt("foundation", "reopened-gap", now - DAY, "incorrect");
+  const correction = attempt("foundation", "fresh-work", now - 18 * 3_600_000, "correct");
+  const recall = attempt("foundation", "fresh-recall", now, "correct", "recall");
+  const evidence = [...initial, oldTransfer, failed, correction, recall];
+  const openGap = { id: "gap-c1", concept: "locks", reason: "Missed constraint",
+    status: "improving" as const, programId: "p", objectiveId: "foundation",
+    evidenceIds: [failed.id, correction.id] };
+  const current = deriveObjectiveReadiness(p, "foundation", evidence, now, {}, [openGap]);
+  assert.equal(current.progress.status, "mastered", "retention proof remains distinct");
+  assert.equal(current.progressionReady, false);
+  assert.deepEqual(current.unresolvedGapIds, ["gap-c1"]);
+  assert.equal(current.transferSatisfied, false, "old transfer never satisfies new recovery");
+  const blocked = deriveObjectiveReadiness(p, "advanced", evidence, now, {}, [openGap]);
+  assert.deepEqual(blocked.blockedBy, ["foundation"]);
+  const decision = chooseNextActivity(p, evidence, now, [openGap]);
+  assert.equal(decision.objective?.id, "foundation");
+  const resolved = { ...openGap, status: "resolved" as const };
+  const stillBlocked = deriveObjectiveReadiness(p, "advanced", evidence, now, {}, [resolved]);
+  assert.deepEqual(stillBlocked.blockedBy, ["foundation"], "transfer remains outstanding");
+  const newTransfer = attempt("foundation", "new-transfer", now + 1, "correct", "transfer");
+  const complete = deriveObjectiveReadiness(p, "advanced", [...evidence, newTransfer], now + 1,
+    {}, [resolved]);
+  assert.deepEqual(complete.blockedBy, []);
+  assert.equal(deriveObjectiveReadiness(p, "foundation", [...evidence, newTransfer],
+    now + 1, {}, [resolved]).progressionReady, true);
+  const foreignGap = { ...openGap, programId: "another" };
+  assert.equal(deriveObjectiveReadiness(p, "foundation", [...evidence, newTransfer],
+    now + 1, {}, [foreignGap]).progressionReady, true);
+});

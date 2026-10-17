@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { LearningProgramOrchestrator } from "../../src/application/LearningProgramOrchestrator";
 import type { ProgramCollection, ProgramConstraints } from "../../src/domain/learning-program/types";
-import type { LearningEvidence } from "../../src/domain/learning-state/types";
+import type { KnowledgeGap, LearningEvidence } from "../../src/domain/learning-state/types";
 
 const base: ProgramConstraints = {
   minutesPerSession: 45, sessionsPerWeek: 3,
@@ -25,6 +25,7 @@ function rig(payload: unknown = draft(), success = true) {
   let writes = 0;
   let failWrites = 0;
   let evidence: LearningEvidence[] = [];
+  let gaps: KnowledgeGap[] = [];
   const context = { activeNote: { path: "notes/spanish.md", content: "Hola means hello." }, explicit: [] };
   const runtime = {
     send: async function* () {
@@ -37,7 +38,7 @@ function rig(payload: unknown = draft(), success = true) {
   const orchestrator = new LearningProgramOrchestrator(
     runtime as never,
     { resolve: async () => context } as never,
-    { load: async () => ({ evidence: structuredClone(evidence) }) } as never,
+    { load: async () => ({ evidence: structuredClone(evidence), gaps: structuredClone(gaps) }) } as never,
     { load: async () => structuredClone(stored),
       save: async (next: ProgramCollection) => {
         if (failWrites > 0) { failWrites--; throw new Error("simulated program write failure"); }
@@ -49,6 +50,7 @@ function rig(payload: unknown = draft(), success = true) {
   );
   return { orchestrator, stored: () => structuredClone(stored), writes: () => writes,
     setEvidence: (items: LearningEvidence[]) => { evidence = structuredClone(items); },
+    setGaps: (items: KnowledgeGap[]) => { gaps = structuredClone(items); },
     failNextWrite: () => { failWrites++; },
     advance: (ms: number) => { currentTime += ms; } };
 }
@@ -374,5 +376,39 @@ test("deferrals survive writes, retries and focus end without provider inference
     orchestrator.deferFocusNote("Another note", "note-2", "chat-owner"),
     /Start or resume objective focus/,
   );
+  orchestrator.dispose();
+});
+
+
+test("startFocus does not bypass transfer gate or an unresolved misconception", async () => {
+  const { orchestrator, setEvidence, setGaps } = rig();
+  const program = await orchestrator.createProgram("Spanish", base);
+  const now = Date.now();
+  const good = (id: string, when: number, taskKind: LearningEvidence["taskKind"]) =>
+    ({ id, type: "practice" as const, scope: "learner" as const,
+      programId: program.id, objectiveId: "basic", source: "spanish.md",
+      concept: "Spanish", outcome: "correct" as const, createdAt: when,
+      taskKind, rubricResults: [{ criterion: "Recall independently", criterionId: "c1",
+        met: true, evidence: "Independent attempt" }],
+      objectiveRevision: program.planVersion, assisted: false });
+  const work = good("w", now - 48 * 3_600_000, "guided-practice");
+  const recall = good("r", now - 24 * 3_600_000, "recall");
+  setEvidence([work, recall]);
+  await assert.rejects(orchestrator.startFocus("apply"), /prerequisite/);
+  const transfer = good("t", now - 1000, "transfer");
+  setEvidence([work, recall, transfer]);
+  setGaps([{ id: "gap", concept: "Spanish", reason: "Missed translation",
+    evidenceIds: ["failed"], status: "open",
+    programId: program.id, objectiveId: "basic" }]);
+  // An orphan gap cannot invent a learning failure.
+  const started = await orchestrator.startFocus("apply");
+  assert.equal(started.focus?.objectiveId, "apply");
+  await orchestrator.endFocus();
+  setEvidence([...([work, recall, transfer]), {
+    ...work, id: "failed", createdAt: now - 600, outcome: "incorrect" as const,
+    rubricResults: [{ criterion: "Recall independently", criterionId: "c1",
+      met: false, evidence: "Failed" }],
+  }]);
+  await assert.rejects(orchestrator.startFocus("apply"), /prerequisite/);
   orchestrator.dispose();
 });
