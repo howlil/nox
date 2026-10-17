@@ -14,7 +14,7 @@ Do not merge or release automatically.
 - M4 — Adaptive Activity Engine: implemented in draft PR #107; CI and desktop acceptance are release gates.
 - M5 — Bounded, objective-scoped context orchestration: implemented in draft PR #108; CI and desktop acceptance gate.
 - M6 — Compact focus, evidence and curriculum approval UI: implemented on draft PR #109; CI and desktop acceptance gate.
-- M7 — Recovery and provider-backed Obsidian desktop acceptance: pending.
+- M7 — Automated persistence/recovery hardening: implemented in draft PR #110; **desktop/provider release acceptance remains unverified**.
 
 ## M1: Program<A, E, R>
 
@@ -173,3 +173,10 @@ Keep the NOX Obsidian sidebar compact and self-paced: surface M0 focus, M1 rubri
 `tests/chat/learning-panel-state.test.ts` covers active/paused/no focus, accurate non-mastered criterion presentation, bounded provenance, revision approval commands, stale or expired proposal guards, and deterministic projection. The existing M0–M5 test suite and GitHub CI checks remain mandatory. Real Obsidian desktop and provider acceptance has **not** been performed.
 
 No merge or release for draft PR #109. M7 final acceptance and system hardening follow.
+
+
+## M7 — Final reliability and acceptance
+
+Implemented hardening: authoritative non-cached progress reads; atomic evidence CAS and bounded retry on transcript-first projection; verified v2→v3 evidence backup; program CAS applied to all focus/session/creation writes; tests for concurrent updates, injected vault failure and no provider regrading after conflicts. The Obsidian plugin CI no longer builds the Cloudflare-owned landing.
+
+The full review matrix, external desktop scenario checklist, and unresolved P0/P1 risk register are in [ADAPTIVE_LEARNING_M7_ACCEPTANCE.md](ADAPTIVE_LEARNING_M7_ACCEPTANCE.md). **Do not mark M7 release accepted, merge or publish based solely on automated checks.**
