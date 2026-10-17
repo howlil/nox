@@ -1,8 +1,8 @@
 import type { AgentRuntimePort } from "../agent/AgentRuntime";
 import type { ContextPort, LearningStatePort, ProgramStorePort } from "./ports";
-import type { LearningProgram, ProgramCollection, ProgramConstraints, LearningDecision, SessionPauseReason } from "../domain/learning-program/types";
+import type { LearningProgram, ProgramCollection, ProgramConstraints, SessionPauseReason } from "../domain/learning-program/types";
 import { objectiveProgress, feasibility, validateConstraints, validateCurriculum } from "../domain/learning-program/rules";
-import { selectAdaptiveActivity } from "../domain/learner-model/activity-policy";
+import { selectAdaptiveActivity, type AdaptiveActivityDecision } from "../domain/learner-model/activity-policy";
 import { startObjectiveFocus, transitionObjectiveFocus } from "../domain/learning-program/focus-transitions";
 import { deriveLearnerProfile, toLearnerProfileContext } from "../domain/learner-model/learner-profile";
 import { applyCurriculumRevision, detectStructuralGap, type CurriculumRevision, type StructuralGapReason } from "../domain/learning-program/curriculum-revision";
@@ -479,7 +479,7 @@ export class LearningProgramOrchestrator {
       return program;
     });
   }
-  async getDecision(): Promise<{ program: LearningProgram; decision: LearningDecision } | null> {
+  async getDecision(): Promise<{ program: LearningProgram; decision: AdaptiveActivityDecision } | null> {
     const program = await this.getActiveProgram();
     if (!program) return null;
     const state = await this.learningState.load();
