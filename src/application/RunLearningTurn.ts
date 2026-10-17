@@ -47,6 +47,7 @@ import { PracticeSessionRegistry } from "./PracticeSessionRegistry";
 import type { LearningProgram, LearningObjective } from "../domain/learning-program/types";
 import { chooseNextActivity } from "../domain/learning-program/rules";
 import { coversCriteria } from "../domain/learning-program/assessment-rubric";
+import { criterionIdFor, decideFeedback } from "../domain/learner-model/feedback-policy";
 import {
   StructuredStreamEvent,
   StructuredStreamParser,
@@ -685,6 +686,8 @@ export class RunLearningTurn {
         const lastEvidence = state.evidence.filter(item => item.scope === "learner" &&
           item.programId === program.id && item.objectiveId === activeObjective.id).slice(-1)[0];
         const missed = lastEvidence?.rubricResults?.filter(result => !result.met).map(result => result.criterion) ?? [];
+        const feedback = !practiceAttempt && lastEvidence?.objectiveRevision !== undefined
+          ? decideFeedback(activeObjective, state.evidence, lastEvidence) : undefined;
         preparedPrompt += [
           "\n\nLEARNING PROGRAM CONTRACT (set by the application, not user-provided notes):",
           `Program ID: ${program.id}. Goal: ${program.goal}`,
@@ -693,6 +696,7 @@ export class RunLearningTurn {
           `Activity: ${practiceAttempt ? "evaluate current answer" : decision?.kind}`,
           "For guided practice use appropriate scaffolding; for transfer test application in a new context.",
           `Previously failed rubric criteria: ${JSON.stringify(missed)}. If remedial practice, target these first.`,
+          `Evidence-based feedback decision: ${JSON.stringify(feedback ?? { kind: "diagnostic" })}. Follow this decision for next practice; never claim mastery without independent delayed recall.`,
           `Source constraint: ${program.constraints.sourceBound
             ? "Only the explicitly selected source note(s), do not claim external facts were verified."
             : "Use provided material where available and distinguish assumptions."}`,
@@ -823,6 +827,10 @@ export class RunLearningTurn {
           ...graded, programId: practiceAttempt.programId,
           objectiveId: practiceAttempt.objectiveId,
           assisted: Boolean(practiceAttempt.assisted),
+          assistance: { highestHintLevel: practiceAttempt.highestHintLevel,
+            independent: practiceAttempt.highestHintLevel === 0 },
+          evaluator: "deterministic",
+          objectiveRevision: practiceAttempt.objectiveRevision,
           taskKind: practiceAttempt.taskKind,
           assessmentCoverage: practiceAttempt.programId ? "single-item" : undefined,
         };
@@ -1025,7 +1033,7 @@ export class RunLearningTurn {
           if (practiceBuffer.question) {
             practiceBuffer.question = program && objective
               ? { ...practiceBuffer.question, concept: objective.title, programId: program.id,
-                  objectiveId: objective.id, taskKind: decision?.kind === "transfer" || decision?.kind === "recall" ||
+                  objectiveId: objective.id, objectiveRevision: program.planVersion, taskKind: decision?.kind === "transfer" || decision?.kind === "recall" ||
                     decision?.kind === "guided-practice" ? decision.kind : "diagnostic" as const }
               : { ...practiceBuffer.question, programId: undefined, objectiveId: undefined };
             const questionId = crypto.randomUUID();
@@ -1048,12 +1056,26 @@ export class RunLearningTurn {
                 throw new InvalidLearningOutputError("Evaluation did not fully and consistently assess the objective rubric.");
               }
             }
-            const evaluation = practiceAttempt.programId
-              ? { ...practiceBuffer.evaluation, programId: practiceAttempt.programId,
-                  objectiveId: practiceAttempt.objectiveId, nextQuestion: undefined,
-                  assisted: Boolean(practiceAttempt.assisted), taskKind: practiceAttempt.taskKind }
-              : { ...practiceBuffer.evaluation,
-                  programId: undefined, objectiveId: undefined, assisted: Boolean(practiceAttempt.assisted) };
+            const activeObjective = practiceAttempt.programId
+              ? program?.objectives.find(item => item.id === practiceAttempt.objectiveId) : undefined;
+            const rubricResults = activeObjective && practiceAttempt.objectiveRevision !== undefined
+              ? practiceBuffer.evaluation.rubricResults?.map(result => ({
+                  ...result, criterionId: criterionIdFor(activeObjective.id,
+                    practiceAttempt.objectiveRevision!, activeObjective.rubric.indexOf(result.criterion)),
+                })) : practiceBuffer.evaluation.rubricResults;
+            const evaluation: PracticeEvaluation = {
+              ...practiceBuffer.evaluation,
+              programId: practiceAttempt.programId,
+              objectiveId: practiceAttempt.objectiveId,
+              objectiveRevision: practiceAttempt.objectiveRevision,
+              rubricResults,
+              nextQuestion: practiceAttempt.programId ? undefined : practiceBuffer.evaluation.nextQuestion,
+              assisted: Boolean(practiceAttempt.assisted),
+              assistance: { highestHintLevel: practiceAttempt.highestHintLevel,
+                independent: practiceAttempt.highestHintLevel === 0 },
+              evaluator: "llm-review",
+              taskKind: practiceAttempt.taskKind,
+            };
             for await (const mapped of this.commitPracticeOutcome(
               evaluation,
               snapshot,
@@ -1230,6 +1252,7 @@ export class RunLearningTurn {
             programId: part.evaluation.programId,
             objectiveId: part.evaluation.objectiveId,
             assisted: part.evaluation.assisted,
+            questionId: part.questionId,
           });
           if (next.evidence.length !== state.evidence.length) {
             changed = true;
@@ -1321,6 +1344,7 @@ export class RunLearningTurn {
           programId: evaluationPart.evaluation.programId,
           objectiveId: evaluationPart.evaluation.objectiveId,
           assisted: evaluationPart.evaluation.assisted,
+          questionId: evaluationPart.questionId,
         });
         if (nextState.evidence.length !== currentState.evidence.length) {
           await this.learningState.save(nextState);

@@ -1,5 +1,6 @@
 import type { LearningEvidence } from "../learning-state/types";
 import { sessionRemainingMs } from "./session-time";
+import { decideFeedback } from "../learner-model/feedback-policy";
 import type { CurriculumDraft, LearningDecision, LearningObjective, LearningProgram, ProgramConstraints } from "./types";
 
 const DAY = 86_400_000;
@@ -110,16 +111,41 @@ export function feasibility(program: LearningProgram, now = Date.now()) {
 }
 
 function objectiveEvidence(program: LearningProgram, objectiveId: string, evidence: LearningEvidence[]) {
-  return evidence
+  const attempts = evidence
     .filter(item => item.scope === "learner" && item.type === "practice" &&
       item.programId === program.id && item.objectiveId === objectiveId)
     .sort((a, b) => a.createdAt - b.createdAt);
+  // Once an objective has versioned evidence, only the CURRENT curriculum
+  // revision can establish readiness. A revised rubric cannot inherit mastery
+  // or transfer from an older revision, even if the criterion count is equal.
+  // Legacy v2-only histories remain readable under their existing policy.
+  return attempts.some(item => item.evidenceVersion === 3)
+    ? attempts.filter(item => item.evidenceVersion === 3 &&
+        item.objectiveRevision === program.planVersion)
+    : attempts;
 }
 
 export function objectiveProgress(program: LearningProgram, objectiveId: string,
   evidence: LearningEvidence[], now = Date.now()) {
   const attempts = objectiveEvidence(program, objectiveId, evidence);
   if (!attempts.length) return { status: "unseen" as const, dueAt: null, attempts: 0 };
+  const latestV3 = [...attempts].reverse().find(item => item.evidenceVersion === 3);
+  const objective = program.objectives.find(item => item.id === objectiveId);
+  if (latestV3 && objective) {
+    const decision = decideFeedback(objective, attempts, latestV3);
+    if (decision.kind === "ready-to-advance") {
+      const dueAt = latestV3.createdAt + 3 * DAY;
+      return { status: "mastered" as const, dueAt, attempts: attempts.length, due: now >= dueAt };
+    }
+    if (decision.kind === "delayed-recall") {
+      return { status: "provisional" as const, dueAt: decision.dueAt,
+        attempts: attempts.length, due: now >= decision.dueAt };
+    }
+    if (decision.kind === "transfer-check") {
+      return { status: "provisional" as const, dueAt: null, attempts: attempts.length };
+    }
+    return { status: "remediate" as const, dueAt: null, attempts: attempts.length };
+  }
   const last = attempts[attempts.length - 1];
   if (last.outcome !== "correct" || last.assisted || last.assessmentCoverage === "single-item") return { status: "remediate" as const, dueAt: null, attempts: attempts.length };
   const correct = attempts.filter(e => e.outcome === "correct" && !e.assisted && e.assessmentCoverage !== "single-item");
@@ -162,15 +188,23 @@ export function chooseNextActivity(program: LearningProgram, evidence: LearningE
     const last = attempts[attempts.length - 1];
     const taught = program.instructionEvents?.some(item =>
       item.objectiveId === remediation.id && item.afterEvidenceAt === last.createdAt);
-    const kind = last.outcome === "correct" && (last.assisted || last.assessmentCoverage === "single-item") ? "guided-practice" :
+    const kind = last.outcome === "correct" &&
+      (last.assisted || last.assistance?.independent === false || last.assessmentCoverage === "single-item") ? "guided-practice" :
       taught ? "guided-practice" : "teach";
     return { kind, objective: remediation,
       reason: kind === "teach" ? "Teach the missed concept before retrying." :
         "Guided practice should target the most recent failed criterion.",
       minutesRemaining: remaining };
   }
-  const transfer = candidates.find(item => states.get(item.id)?.status === "mastered" &&
-    !objectiveEvidence(program, item.id, evidence).some(attempt => attempt.taskKind === "transfer"));
+  const transfer = candidates.find(item => {
+    const state = states.get(item.id);
+    const hasIndependentTransfer = objectiveEvidence(program, item.id, evidence).some(attempt =>
+      attempt.taskKind === "transfer" && attempt.outcome === "correct" &&
+      attempt.assistance?.independent !== false && !attempt.assisted);
+    return (state?.status === "mastered" ||
+      (state?.status === "provisional" && item.requiresTransfer === true && state.dueAt === null)) &&
+      !hasIndependentTransfer;
+  });
   if (transfer) return { kind: "transfer", objective: transfer,
     reason: "Check whether knowledge transfers to a new situation.", minutesRemaining: remaining };
   const eligible = candidates.find(item => states.get(item.id)?.status === "unseen" && item.priority !== "optional") ??
