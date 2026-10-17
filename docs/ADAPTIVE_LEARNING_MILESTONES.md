@@ -11,7 +11,7 @@ Do not merge or release automatically.
 - M1 — Feedback engine and evidence v3: integrated onto M0 in PR #102; integrated CI and Obsidian desktop acceptance are release gates.
 - M2 — Evidence-backed structural curriculum revision: implemented on PR #105, CI and desktop acceptance are release gates.
 - M3 — Evidence-backed derived learner model: implemented in draft PR #106; CI and desktop acceptance gate.
-- M4 — Adaptive activity policy: pending.
+- M4 — Adaptive Activity Engine: implemented in draft PR #107; CI and desktop acceptance are release gates.
 - M5 — Context orchestration: pending.
 - M6 — Compact UI: pending.
 - M7 — Recovery and provider-backed Obsidian desktop acceptance: pending.
@@ -100,3 +100,30 @@ M3 introduces `src/domain/learner-model/learner-profile.ts`, a pure, reproducibl
 `tests/domain/learner-model/learner-profile.test.ts` covers zero-evidence, assisted success, delayed independent recall, regression, revised rubric, material-only evidence, bounded context, deterministic re-derivation and source immutability. Existing learning-state schema and transcript-first integration tests remain unchanged.
 
 No automatic merge or release. M4 adaptive activity selection is the next milestone after M3 verification; desktop provider acceptance remains a release gate.
+
+## M4 — Adaptive Activity Engine
+
+### Goal
+Select the smallest effective learning action from M1 validated rubric feedback and M3 revision-scoped learner profile while respecting the M0 focus lock and M2 curriculum lifecycle. The selector is a pure read-only function. No new agent, timer authority, cache, memory store or persisted schedule.
+
+### Program<A,E,R>
+- A: committed evidence → M3 derived profile → M4 `selectAdaptiveActivity` → typed activity with bounded criterion/evidence provenance → orchestrator and practice runtime. Both call one selector.
+- E: paused or stale focus, expired timed session, obsolete objective revision, unmet prerequisites, assisted/single-item answer, failed delayed recall and absent evidence have explicit safe outcomes. M4 never declares mastery or edits curriculum.
+- R: recompute from persisted program/evidence after restart. No M4-specific migration. Unversioned legacy v1/v2 program attempts use the original selector when no current revision-scoped v3 evidence exists.
+
+### Deterministic priority
+1. A persisted active focus is pinned to its objective, ignoring deadline/timebox. Paused/stale focus returns `wait`.
+2. Outside focus, enforce legacy deadline, remaining study budget and manual/recovery pause state.
+3. Earliest overdue independent recall among prerequisite-eligible objectives.
+4. Rubric-targeted remediation: first failure → teach; repeated criterion failure → graduated guided scaffolding; assisted or single-item success → independent verification.
+5. Independent transfer where explicitly required by the rubric contract.
+6. New prerequisite-eligible objective: core > supporting > optional, with stable ordering.
+7. Otherwise wait with reason and earliest pending retrieval date; no silent completion claims.
+
+### Observability and boundaries
+`AdaptiveActivityDecision` includes derived provenance (`policy=m4-v1`, trigger, objectiveRevision, evidenceIds, criterionIds, optional scaffoldLevel). This is context and explanation, not authority for the provider. `/progress` surfaces why a given activity was chosen. Do not persist model summaries as learner state.
+
+### Verification
+`tests/domain/learner-model/activity-policy.test.ts` covers recall, prerequisites, assistance/MCQ, regression, scaffold, required transfer, focus lock, session timeboxing, priorities, stale revisions, legacy fallback, and determinism. Existing M0–M3 CI checks remain required.
+
+Desktop acceptance with a real provider remains a release gate. PR #107 remains draft; do not merge or publish automatically. M5 Context Orchestration follows M4.
