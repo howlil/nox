@@ -227,12 +227,41 @@ export function chooseFocusedActivity(program: LearningProgram, evidence: Learni
   if (!objective || focus.curriculumRevision !== program.planVersion) {
     return { kind: "wait", reason: "The focus no longer matches the curriculum." };
   }
-  const history = evidence.filter(e => e.type === "practice" && e.scope === "learner" &&
-    e.programId === program.id && e.objectiveId === objective.id &&
-    true)
-    .sort((a, b) => a.createdAt - b.createdAt);
+  const history = objectiveEvidence(program, objective.id, evidence);
   if (!history.length) return { kind: "diagnostic", objective, reason: "Assess the pinned objective." };
   const latest = history.at(-1)!;
+  // Evidence v3 is authoritative for current-revision mastery. Do not accidentally
+  // turn an assisted success into mastery or repeatedly schedule completed transfer.
+  if (latest.evidenceVersion === 3) {
+    const feedback = decideFeedback(objective, history, latest);
+    if (feedback.kind === "scaffold") {
+      return { kind: "guided-practice", objective,
+        reason: "Repeated criterion errors require graduated scaffolding." };
+    }
+    if (feedback.kind === "repair") {
+      return { kind: latest.outcome === "correct" ? "guided-practice" : "teach",
+        objective, reason: "Repair the specific missing rubric criteria." };
+    }
+    if (feedback.kind === "independent-check") {
+      return { kind: "guided-practice", objective,
+        reason: "An independent criterion check is required after assistance or a single item." };
+    }
+    if (feedback.kind === "delayed-recall") {
+      return now >= feedback.dueAt
+        ? { kind: "recall", objective, reason: "Independent delayed retrieval is due.", dueAt: feedback.dueAt }
+        : { kind: "wait", reason: "Independent delayed retrieval is not due yet.", dueAt: feedback.dueAt };
+    }
+    if (feedback.kind === "transfer-check") {
+      return { kind: "transfer", objective, reason: "Demonstrate the required transfer." };
+    }
+    const progress = objectiveProgress(program, objective.id, history, now);
+    if (progress.dueAt !== null && now >= progress.dueAt) {
+      return { kind: "recall", objective, reason: "Maintenance retrieval is due.", dueAt: progress.dueAt };
+    }
+    return { kind: "wait", reason: "Objective readiness is demonstrated. End focus or await the next recall.",
+      dueAt: progress.dueAt ?? undefined };
+  }
+  // Legacy attempts retain historical pacing, but never change the locked objective.
   if (latest.outcome !== "correct") return { kind: "teach", objective, reason: "Repair the last misconception." };
   if (latest.assisted || latest.assessmentCoverage === "single-item") {
     return { kind: "guided-practice", objective, reason: "Verify the correction independently." };
@@ -241,7 +270,11 @@ export function chooseFocusedActivity(program: LearningProgram, evidence: Learni
   if (progress.dueAt !== null && now >= progress.dueAt) {
     return { kind: "recall", objective, reason: "Delayed retrieval is due.", dueAt: progress.dueAt };
   }
-  if (progress.status === "mastered") return { kind: "transfer", objective,
-    reason: "Verify that the pinned skill transfers to another situation." };
+  if (progress.status === "mastered") {
+    const hasTransfer = history.some(item => item.taskKind === "transfer" &&
+      item.outcome === "correct" && item.assisted !== true);
+    if (!hasTransfer) return { kind: "transfer", objective, reason: "Verify transfer independently." };
+    return { kind: "wait", reason: "Objective is ready; use /end-focus to select another." };
+  }
   return { kind: "wait", reason: "Independent recall is not due yet.", dueAt: progress.dueAt ?? undefined };
 }

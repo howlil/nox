@@ -164,11 +164,13 @@ export class RunLearningTurn {
           ? part.scope !== "program" ||
             (part.type === "practice-question" ? part.question.programId : part.evaluation.programId) !== programId
           : part.scope === "backend" || part.scope === "program") continue;
-        if (part.type === "practice-evaluation" && part.evaluation.focusSessionId &&
-            part.evaluation.focusSessionId !== this.currentFocusId) continue;
+        if (part.type === "practice-evaluation" && (this.currentFocusId
+          ? part.evaluation.focusSessionId !== this.currentFocusId
+          : Boolean(part.evaluation.focusSessionId))) continue;
         if (part.type === "practice-evaluation") return practice;
-        if (part.type === "practice-question" && part.question.focusSessionId &&
-            part.question.focusSessionId !== this.currentFocusId) continue;
+        if (part.type === "practice-question" && (this.currentFocusId
+          ? part.question.focusSessionId !== this.currentFocusId
+          : Boolean(part.question.focusSessionId))) continue;
         if (part.type === "practice-question") {
           practice.start(part.origin);
           practice.acceptQuestion(part.question, part.questionId);

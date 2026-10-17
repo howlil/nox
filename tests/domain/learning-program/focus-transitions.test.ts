@@ -50,3 +50,41 @@ test("duplicate focus and stale revision are rejected without mutations", () => 
   const paused = transitionObjectiveFocus(active, "pause", 30);
   assert.throws(() => transitionObjectiveFocus({ ...paused, planVersion: 2 }, "resume", 40), /curriculum changed/);
 });
+
+test("M1 criterion evidence remains on pinned objective until independent delayed recall", () => {
+  const active = startObjectiveFocus(program(), "race", "chat-a", 10, "focus-m1");
+  const criterion = "race@1:criterion-1";
+  const attempt = (id: string, at: number, outcome: "correct" | "incorrect",
+    taskKind: "guided-practice" | "recall" = "guided-practice", hintLevel: 0 | 2 = 0) => ({
+    id, type: "practice" as const, scope: "learner" as const, concept: "Race",
+    source: "test", programId: "p", objectiveId: "race", evidenceVersion: 3 as const,
+    objectiveRevision: 1, questionId: id, evaluator: "llm-review" as const,
+    assistance: { highestHintLevel: hintLevel, independent: hintLevel === 0 },
+    outcome, createdAt: at, taskKind,
+    rubricResults: [{ criterion: "Explain scheduling", criterionId: criterion,
+      met: outcome === "correct", evidence: "explanation" }],
+  });
+  const assisted = attempt("a", 0, "correct", "guided-practice", 2);
+  assert.equal(chooseFocusedActivity(active, [assisted], 100).kind, "guided-practice");
+  const corrected = attempt("b", 100, "correct");
+  assert.equal(chooseFocusedActivity(active, [assisted, corrected], 200).kind, "wait");
+  assert.equal(chooseFocusedActivity(active, [assisted, corrected], 12 * 3_600_000 + 101).kind, "recall");
+  const recall = attempt("c", 13 * 3_600_000, "correct", "recall");
+  assert.equal(chooseFocusedActivity(active, [assisted, corrected, recall], recall.createdAt + 1).kind, "wait");
+  const regression = attempt("d", recall.createdAt + 100, "incorrect", "recall");
+  assert.equal(chooseFocusedActivity(active, [assisted, corrected, recall, regression], regression.createdAt + 1).kind, "teach");
+});
+
+test("M1 old rubric revision cannot become ready under a revised pinned focus", () => {
+  const revised = startObjectiveFocus({ ...program(), planVersion: 2 }, "race", "chat-a", 10, "focus-revised");
+  const previous = {
+    id: "old", type: "practice" as const, scope: "learner" as const, concept: "Race",
+    source: "test", programId: "p", objectiveId: "race", evidenceVersion: 3 as const,
+    objectiveRevision: 1, questionId: "old", evaluator: "llm-review" as const,
+    assistance: { highestHintLevel: 0 as const, independent: true },
+    outcome: "correct", createdAt: 1,
+    rubricResults: [{ criterion: "Explain scheduling", criterionId: "race@1:criterion-1",
+      met: true, evidence: "old answer" }],
+  };
+  assert.equal(chooseFocusedActivity(revised, [previous], 90_000_000).kind, "diagnostic");
+});
