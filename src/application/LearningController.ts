@@ -550,6 +550,33 @@ export class LearningController {
               `**Estimated work including review:** ${f.estimatedMinutes} min.`,
             "Use /progress for objective IDs, then /focus <objective-id> and /next for self-paced learning.",
           ].join("\n\n");
+        } else if (command.kind === "program-backups") {
+          const backups = await this.programs.listProgramBackups();
+          response = backups.length
+            ? "**Learning program recovery backups**\n" +
+                backups.slice(-25).map(path => "- " + path).join("\n") +
+                "\nTo inspect a backup: /program-restore-preview <path>"
+            : "No NOX program backups are available.";
+        } else if (command.kind === "program-restore-preview") {
+          const preview = await this.programs.previewProgramRestore(command.backupPath);
+          response = [
+            "**Recovery preview — programs.json has NOT changed**",
+            "Backup: " + preview.backupPath,
+            "Backup format: v" + preview.backupVersion,
+            "Saved programs: " + preview.programCount,
+            "Current file readable: " + (preview.currentReadable ? "yes" : "no"),
+            "Restoring replaces the entire program collection, including focus and sessions.",
+            "The current bytes will be backed up before restoration.",
+            "To explicitly approve within 15 minutes:",
+            "/program-restore-approve " + preview.operationId,
+          ].join("\n");
+        } else if (command.kind === "program-restore-approve") {
+          if (this.turns.hasActivePracticeQuestion()) {
+            throw new Error("Finish or exit the active practice question before restoring programs.");
+          }
+          const restored = await this.programs.approveProgramRestore(command.operationId);
+          response = "Recovery completed. " + restored.programs.length +
+            " learning programs restored as v2; the previous canonical bytes were preserved in a recovery backup. Reload the NOX view to synchronize question state.";
         } else if (command.kind === "programs") {
           const collection = await this.programs.listPrograms();
           response = collection.programs.length
