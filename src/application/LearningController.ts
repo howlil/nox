@@ -340,8 +340,8 @@ export class LearningController {
     // intent BEFORE command routing, context resolution, or provider inference.
     let globalFocus: Awaited<ReturnType<LearningProgramOrchestrator["getGlobalActiveFocus"]>>;
     try {
-      globalFocus = await this.programs?.getGlobalActiveFocus() ?? null;
-      const current = await this.programs?.getActiveProgram();
+      globalFocus = await this.programs?.getGlobalActiveFocus?.() ?? null;
+      const current = await this.programs?.getActiveProgram?.();
       this.turns.syncFocusSessionId(current?.focus?.chatSessionId === this.sessions.getSession().id
         ? current.focus.id : undefined);
     } catch (error) {
@@ -593,7 +593,7 @@ export class LearningController {
       };
     }
     if (isActiveLearningScope(this.sessions.getSession().learningScope) ||
-        (await this.programs?.getGlobalActiveFocus()) !== null && Boolean(this.programs)) {
+        (await this.programs?.getGlobalActiveFocus?.()) != null && Boolean(this.programs)) {
       return { ok: false, reason: "unauthorized",
         message: "Learning mode is locked. Type /pause before applying a note edit." };
     }
