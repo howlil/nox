@@ -112,8 +112,10 @@ export function renderCurriculumRevisionEditor(
   approveButton.hidden = true;
   let staged: StructuralRevisionPreview | null = null;
   let busy = false;
+  let editRevision = 0;
 
   const invalidate = () => {
+    editRevision++;
     staged = null;
     diff.empty();
     diff.hidden = true;
@@ -134,6 +136,12 @@ export function renderCurriculumRevisionEditor(
     cancel.disabled = busy;
     approveButton.disabled = busy;
     trigger.disabled = busy;
+    modeControl.disabled = busy;
+    fieldControl.disabled = busy;
+    textValue.disabled = busy;
+    priority.disabled = busy;
+    rationale.disabled = busy;
+    for (const { input } of checks) input.disabled = busy;
   };
   const initialValue = () => {
     const field = fieldControl.value as Field;
@@ -167,6 +175,7 @@ export function renderCurriculumRevisionEditor(
   previewButton.addEventListener("click", () => { void (async () => {
     if (busy) return;
     invalidate();
+    const requestedRevision = editRevision;
     setBusy(true);
     try {
       const field = fieldControl.value as Field;
@@ -174,6 +183,7 @@ export function renderCurriculumRevisionEditor(
         field, field === "priority" ? priority.value : textValue.value,
         checks.filter(item => item.input.checked).map(item => item.id));
       const result = await actions.preview(action, rationale.value.trim());
+      if (requestedRevision !== editRevision) return;
       staged = result;
       diff.hidden = false;
       diff.createDiv({ cls: "nox-curriculum-caption",
