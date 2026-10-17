@@ -9,7 +9,7 @@ Do not merge or release automatically.
 
 - M0 — Self-paced global objective focus: implemented on PR #99, CI passed; not merged into master.
 - M1 — Feedback engine and evidence v3: integrated onto M0 in PR #102; integrated CI and Obsidian desktop acceptance are release gates.
-- M2 — Curriculum revision: next development milestone after M0/M1 integration is verified.
+- M2 — Evidence-backed structural curriculum revision: implemented on PR #105, CI and desktop acceptance are release gates.
 - M3 — Evidence-backed learner model: pending.
 - M4 — Adaptive activity policy: pending.
 - M5 — Context orchestration: pending.
@@ -40,3 +40,40 @@ R: existing SessionPort, LearningStatePort, AgentRuntimePort, program vault stor
 Unit tests: `tests/domain/learner-model/feedback-policy.test.ts`, `tests/domain/learning-program/focus-transitions.test.ts`, `tests/domain/learning-state/gap-projection.test.ts`, `tests/domain/practice/PracticeStateMachine.test.ts`, `tests/persistence/learning-state-schema.test.ts`.
 
 CI gates: `pnpm check:boundaries`, `pnpm typecheck`, `pnpm lint`, `pnpm test:unit`, `pnpm test:integration`, `pnpm build`. Desktop acceptance cannot be claimed from CI.
+
+
+## M2 — Dynamic Curriculum Revision
+
+### Objective
+Adjust curriculum structure when **committed learner evidence** shows a structural gap, while keeping the existing evidence log and active focus authoritative. This is a safe extension to M0/M1, not a new orchestration framework.
+
+### Program<A, E, R>
+- **A**: committed evidence → deterministic `detectStructuralGap` (repeated prerequisite failures, too-broad objective, or unexpected prior mastery) → optional bounded provider proposal → strict decoder → pure `applyCurriculumRevision` preview → explicit learner approval → storage CAS → persisted revision lineage.
+- **E**: no verified evidence for automatic reason, invalid source, unknown objective, cyclic dependency, active/paused focus, timed session, obsolete version, overwritten preview, provider terminal failure, or concurrent vault mutation: **no canonical program change**. A successful focus termination stays committed even if proposal generation subsequently fails.
+- **R**: existing `AgentRuntimePort`, `ContextPort`, `LearningStatePort`, `ProgramStorePort`; no second truth store and no multi-agent dependencies.
+
+### Commands
+- `/replan`: generate a bounded structural revision proposal only when evidence-backed trigger exists.
+- `/replan goal-change`: explicitly request a scope adjustment (never claims new learning evidence).
+- `/approve-replan <operation-id>`: validate preview freshness, operation identity, graph, focus and base version, then atomic persist.
+- `/cancel-replan <operation-id>`: discard in-memory preview without mutating the program.
+- `/end-focus`: if a structural trigger exists, offer an optional replan **preview**, never auto-commit.
+
+### Supported operations
+`add`, `revise`, `change-prerequisites`, `deprecate`; deletions are prohibited. Source-bounded revisions resolve only explicitly approved vault notes, fail closed on missing sources, and always enforce existing source path authorization. The model cannot set operation identity, evidence references, constraints or version counters.
+
+### Compatibility
+- `planVersion` increments only upon a successful structural commit.
+- `objectiveRevision` advances for changed objectives only; unchanged objectives preserve existing M1 mastery evidence and stable criterion IDs. Evidence from an earlier revision cannot establish readiness against a revised rubric.
+- Deprecated objectives remain in the stored graph for auditability, with optional replacement lineage; active dependents cannot reference them.
+- Legacy `programs.json` v1/v2 reads remain supported; M2 changes are validated before vault writes. An Obsidian `Vault.process` compare-and-swap rejects stale concurrent revision approval.
+
+### Tests
+`tests/domain/learning-program/curriculum-revision.test.ts` covers graph insertion, invalid cycles/references, deprecation, idempotence, source constraints, stale versions, historical evidence, and active focus rejection.
+`tests/application/CurriculumRevisionService.test.ts` covers provider failure, preview-only behavior, explicit approval, duplicate approval, source-bound isolation, stale versions and write conflicts.
+`tests/persistence/VaultProgramStore.test.ts` covers real persistence-layer byte-level compare-and-swap.
+
+### Remaining acceptance
+- NOX desktop with a real provider; do not perform manual testing in chat.
+- Independent review of atomic mutation failure, workspace note sync, and provider privacy boundaries before shipping.
+- PR #105 is draft. M0/M1 PR #102 and upstream M0 #99 remain unmerged. Do not release until integration is approved.
