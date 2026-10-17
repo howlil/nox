@@ -7,6 +7,13 @@ import { PersistenceError } from "./PersistenceError";
 
 const PATH = "00-learning-os/programs.json";
 const EMPTY: ProgramCollection = { version: 1, programs: [] };
+
+export class ProgramWriteConflict extends Error {
+  constructor() {
+    super("Program write conflict: programs.json changed since the authoritative read; reload before retrying.");
+    this.name = "ProgramWriteConflict";
+  }
+}
 function validActivityDays(days: Record<string, number>): boolean {
   return Object.entries(days).every(([day, ms]) =>
     /^\d{4}-\d{2}-\d{2}$/.test(day) && Number.isFinite(ms) && ms >= 0);
@@ -15,12 +22,19 @@ function validActivityDays(days: Record<string, number>): boolean {
 /** One durable collection per vault; writes are serialized and validated before I/O. */
 export class VaultProgramStore {
   private tail: Promise<void> = Promise.resolve();
+  private readonly snapshots = new WeakMap<ProgramCollection, string | null>();
+  private lastKnownBytes: string | null = null;
   constructor(private readonly app: App) {}
   async load(): Promise<ProgramCollection> {
     // Avoid reading a partially written local snapshot during an in-flight save.
     await this.tail;
     const file = this.app.vault.getFileByPath(PATH);
-    if (!file || !(file instanceof TFile)) return structuredClone(EMPTY);
+    if (!file || !(file instanceof TFile)) {
+      this.lastKnownBytes = null;
+      const empty = structuredClone(EMPTY);
+      this.snapshots.set(empty, null);
+      return empty;
+    }
     // A program read may be followed by a mutation; do not trust a stale cache.
     const text = await this.app.vault.read(file);
     let data: unknown;
@@ -34,7 +48,10 @@ export class VaultProgramStore {
       throw new Error("Unsupported NOX program collection.");
     }
     for (const program of state.programs) this.validateProgram(program);
-    return structuredClone(state);
+    const snapshot = structuredClone(state);
+    this.lastKnownBytes = text;
+    this.snapshots.set(snapshot, text);
+    return snapshot;
   }
   private validateProgram(program: LearningProgram) {
     if (program.version !== 1 || !program.id || !program.goal?.trim() ||
@@ -140,6 +157,10 @@ export class VaultProgramStore {
     }
   }
   async save(next: ProgramCollection): Promise<void> {
+    // Bind expected bytes at call time. Another load/save must not silently
+    // rebase this operation onto a newer snapshot while it waits in the queue.
+    const expected = this.snapshots.has(next)
+      ? this.snapshots.get(next)! : this.lastKnownBytes;
     const operation = this.tail.then(async () => {
       if (next.version !== 1 || next.programs.length > 100 ||
           (next.activeProgramId && !next.programs.some(p => p.id === next.activeProgramId))) {
@@ -152,9 +173,22 @@ export class VaultProgramStore {
         }
         const content = JSON.stringify(next, null, 2) + "\n";
         const file = this.app.vault.getFileByPath(PATH);
-        if (file && file instanceof TFile) await this.app.vault.modify(file, content);
-        else await this.app.vault.create(PATH, content);
-      } catch (error) { throw new PersistenceError("Unable to save learning program", error); }
+        if (file && file instanceof TFile) {
+          if (expected === null) throw new ProgramWriteConflict();
+          await this.app.vault.process(file, current => {
+            if (current !== expected) throw new ProgramWriteConflict();
+            return content;
+          });
+        } else {
+          if (expected !== null) throw new ProgramWriteConflict();
+          await this.app.vault.create(PATH, content);
+        }
+        this.lastKnownBytes = content;
+        this.snapshots.set(next, content);
+      } catch (error) {
+        if (error instanceof ProgramWriteConflict) throw error;
+        throw new PersistenceError("Unable to save learning program", error);
+      }
     });
     this.tail = operation.catch(() => {});
     return operation;
