@@ -581,6 +581,22 @@ export class ChatView extends ItemView {
           this.input.value = command;
           this.onInput();
           void this.doSend();
+        }, {
+          preview: (action, rationale) => {
+            if (this.uiState === "RUNNING") throw new Error("Finish the active turn first.");
+            return this.learning.previewCurriculumChange(action, rationale);
+          },
+          approve: operationId => {
+            if (this.uiState === "RUNNING") throw new Error("Finish the active turn first.");
+            return this.learning.approveCurriculumChange(operationId).then(result => {
+              if (result.warning) new Notice(result.warning);
+              return result;
+            });
+          },
+          onApproved: () => {
+            this.learningGraphEl?.remove(); this.learningGraphEl = null;
+            void this.toggleLearningMap();
+          },
         });
       this.thread.scrollTo({ top: 0, behavior: "smooth" });
     } catch (error) {
