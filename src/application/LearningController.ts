@@ -173,6 +173,8 @@ export class LearningController {
     return {
       goal: program.goal,
       active: Boolean(program.session || program.focus?.status === "active"),
+      focus: program.focus ? { status: program.focus.status,
+        objectiveId: program.focus.objectiveId } : undefined,
       ...(program.session ? { sessionTime: (await this.programs.getSessionTime()) ?? undefined } : {}),
       next: { kind: next?.kind ?? "wait", objectiveId: next?.objective?.id,
         reason: next?.reason ?? "No activity is available." },
@@ -336,7 +338,7 @@ export class LearningController {
     }
     // The persisted program lock, not ChatSession.learningScope, authorizes every
     // intent BEFORE command routing, context resolution, or provider inference.
-    let globalFocus: Awaited<ReturnType<NonNullable<typeof this.programs>["getGlobalActiveFocus"]>>;
+    let globalFocus: Awaited<ReturnType<LearningProgramOrchestrator["getGlobalActiveFocus"]>>;
     try {
       globalFocus = await this.programs?.getGlobalActiveFocus() ?? null;
       const current = await this.programs?.getActiveProgram();

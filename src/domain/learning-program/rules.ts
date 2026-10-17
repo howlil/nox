@@ -198,7 +198,7 @@ export function chooseFocusedActivity(program: LearningProgram, evidence: Learni
   }
   const history = evidence.filter(e => e.type === "practice" && e.scope === "learner" &&
     e.programId === program.id && e.objectiveId === objective.id &&
-    (e.objectiveRevision === undefined || e.objectiveRevision === focus.curriculumRevision))
+    true)
     .sort((a, b) => a.createdAt - b.createdAt);
   if (!history.length) return { kind: "diagnostic", objective, reason: "Assess the pinned objective." };
   const latest = history.at(-1)!;

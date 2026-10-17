@@ -408,6 +408,8 @@ export class LearningProgramOrchestrator {
       "At risk: estimated work exceeds available time. Reduce scope or adjust deadline/time budget.";
     return [
       `Program: ${program.goal}`,
+      ...(program.focus ? [`Focus: ${program.focus.status} on ${program.focus.objectiveId} (revision ${program.focus.curriculumRevision}).`] : []),
+      `Objectives: ${program.objectives.map(o => o.id + " — " + o.title).join("; ")}`,
       `Confirmed active learning: ${Math.round(spent)} minutes, ${program.sessionHistory?.length ?? 0} completed sessions.`,
       ...(historicalLegacy ? [`Older sessions without activity accounting: ${historicalLegacy} (excluded from active time).`] : []),
       ...(currentTiming ? [`AI waiting this session: ${Math.round(currentTiming.aiWaitingMs / 60_000)} minutes.`] : []),
@@ -417,7 +419,8 @@ export class LearningProgramOrchestrator {
       `Remaining work: ~${remainingEstimate.minutes} min (${remainingEstimate.basis}${remainingEstimate.basis === "calibrated" ? `, ${remainingEstimate.samples} measured objectives` : ""}).`,
       `Next: ${decision.kind} — ${decision.objective?.title ?? decision.reason}`,
       ...(decision.dueAt ? [`Review due: ${new Date(decision.dueAt).toLocaleString()}`] : []),
-      `Session remaining: ${decision.minutesRemaining ?? program.constraints.minutesPerSession} minutes`,
+      ...(program.focus ? ["Focus is self-paced; no mandatory timer."] :
+        [`Session remaining: ${decision.minutesRemaining ?? program.constraints.minutesPerSession} minutes`]),
     ].join("\n");
   }
 
