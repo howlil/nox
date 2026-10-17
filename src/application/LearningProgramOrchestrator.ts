@@ -253,6 +253,43 @@ export class LearningProgramOrchestrator {
     this.stopCheckpointLoop();
     return selected;
   }
+  /** Recovery does not require parsing the possibly damaged canonical program file. */
+  async listProgramBackups(): Promise<string[]> {
+    if (!this.store.listBackups) throw new Error("Backup recovery is unavailable.");
+    return this.store.listBackups();
+  }
+
+  async previewProgramRestore(path: string) {
+    if (!this.store.previewRestore) throw new Error("Backup recovery is unavailable.");
+    return this.mutationGate.run(() => this.store.previewRestore!(path));
+  }
+
+  async approveProgramRestore(operationId: string): Promise<ProgramCollection> {
+    if (!this.store.approveRestore) throw new Error("Backup recovery is unavailable.");
+    if (this.isPlanning() || this.activeAiTurnId) {
+      throw new Error("Finish the active learning operation before restoring a program.");
+    }
+    const operation = this.mutationTail.then(() => this.mutationGate.run(async () => {
+      this.writing = true;
+      try {
+        // A corrupted current file is exactly what recovery must support;
+        // a valid current active focus must be ended first.
+        let current: ProgramCollection | null = null;
+        try { current = await this.store.load(); } catch { /* explicit recovery only */ }
+        if (current?.programs.some(program => program.focus?.status === "active")) {
+          throw new Error("End the active objective focus before restoring a program.");
+        }
+        const restored = await this.store.approveRestore!(operationId);
+        this.preparedDrafts.clear();
+        this.pendingRevisions.clear();
+        this.stopCheckpointLoop();
+        return restored;
+      } finally { this.writing = false; }
+    }));
+    this.mutationTail = operation.then(() => undefined, () => undefined);
+    return operation;
+  }
+
   async getActiveProgram(): Promise<LearningProgram | null> {
     const collection = await this.store.load();
     return collection.programs.find(p => p.id === collection.activeProgramId) ?? null;

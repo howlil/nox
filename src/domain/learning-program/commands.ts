@@ -11,11 +11,25 @@ export type ProgramCommand =
   | { kind: "defer"; text: string }
   | { kind: "extend-session"; minutes: number }
   | { kind: "curriculum-preview"; action: StructuralRevisionAction; rationale: string }
-  | { kind: "curriculum-approve"; operationId: string };
+  | { kind: "curriculum-approve"; operationId: string }
+  | { kind: "program-backups" }
+  | { kind: "program-restore-preview"; backupPath: string }
+  | { kind: "program-restore-approve"; operationId: string };
 
 /** Explicit, human-auditable constraints; never hallucinate settings from a goal. */
 export function parseProgramCommand(input: string): ProgramCommand | null {
   const value = input.trim();
+  if (/^\/program-backups$/i.test(value)) return { kind: "program-backups" };
+  const restorePreview = /^\/program-restore-preview\s+(00-learning-os\/backups\/programs-(?:v1|pre-restore)-[a-f0-9-]{36}\.json)$/i.exec(value);
+  if (restorePreview) return { kind: "program-restore-preview", backupPath: restorePreview[1] };
+  if (/^\/program-restore-preview(?:\s|$)/i.test(value)) {
+    throw new Error("Use /program-restore-preview <path> copied from /program-backups.");
+  }
+  const restoreApproval = /^\/program-restore-approve\s+([a-f0-9-]{36})$/i.exec(value);
+  if (restoreApproval) return { kind: "program-restore-approve", operationId: restoreApproval[1] };
+  if (/^\/program-restore-approve(?:\s|$)/i.test(value)) {
+    throw new Error("Use /program-restore-approve <operation-id> from the preview.");
+  }
   const deferral = /^\/defer\s+([\s\S]+)$/i.exec(value);
   if (deferral) {
     const text = deferral[1].trim();
