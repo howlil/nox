@@ -307,10 +307,12 @@ export class LearningProgramOrchestrator {
         if (JSON.stringify(next.objectives) !== JSON.stringify(pending.preview.after)) {
           throw new Error("Curriculum revision no longer matches the approved diff.");
         }
-        collection.programs[index] = next;
-        // The loaded collection is the expected storage snapshot. A competing vault
-        // edit must cause a conflict, not silently last-write-wins the revision.
-        await this.store.save(collection, collection);
+        const proposedCollection: ProgramCollection = { ...collection,
+          programs: collection.programs.map((item, position) =>
+            position === index ? next : item) };
+        // Keep the loaded collection IMMUTABLE as the expected snapshot.
+        // Compare-and-swap rejects an intervening vault edit, never last-write-wins.
+        await this.store.save(proposedCollection, collection);
         this.pendingRevisions.delete(operationId);
         return next;
       } finally {
