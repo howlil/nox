@@ -215,8 +215,8 @@ export function renderCurriculumRevisionEditor(
       approveButton.hidden = true;
       actions.onApproved();
     } catch (error) {
-      status.setText(error instanceof Error ? error.message : "Change was not approved.");
       invalidate();
+      status.setText(error instanceof Error ? error.message : "Change was not approved. Preview again.");
     } finally {
       setBusy(false);
     }
