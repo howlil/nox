@@ -13,7 +13,7 @@ Do not merge or release automatically.
 - M3 — Evidence-backed derived learner model: implemented in draft PR #106; CI and desktop acceptance gate.
 - M4 — Adaptive Activity Engine: implemented in draft PR #107; CI and desktop acceptance are release gates.
 - M5 — Bounded, objective-scoped context orchestration: implemented in draft PR #108; CI and desktop acceptance gate.
-- M6 — Compact UI: pending.
+- M6 — Compact focus, evidence and curriculum approval UI: implemented on draft PR #109; CI and desktop acceptance gate.
 - M7 — Recovery and provider-backed Obsidian desktop acceptance: pending.
 
 ## M1: Program<A, E, R>
@@ -150,3 +150,26 @@ NOX uses current objective identity and committed evidence to build the smallest
 
 ### Release gates
 Draft PR #108 is built on top of draft PR #107 (M4). No merge/release, no Cloudflare CI changes, and no manual desktop testing in this workflow. Real Obsidian/provider acceptance, failure-injection and privacy review remain outstanding; M6 Learning UI is next.
+
+
+## M6 — Adaptive Learning UI
+
+### Objective
+Keep the NOX Obsidian sidebar compact and self-paced: surface M0 focus, M1 rubric feedback, M3 criterion evidence, M4 next decision and M2 pending revision approval without adding a new page or making the UI authoritative. Existing quiz/hint/feedback cards remain intact.
+
+### Program<A,E,R>
+- A: LearningController loads active program plus committed evidence → M3 profile + M4 policy → `NoxProgramOverview` → pure `projectLearningPanel` → existing learning map + compact focus strip. UI actions submit application-owned slash commands, never mutate program or evidence directly.
+- E: stale / expired pending revision preview, focus-locked program, missing objective or unverified rubric criteria never expose misleading Apply/mastered controls. A preview only appears while it matches the current program version and has not expired. The server rechecks on approval and rejects concurrent edits.
+- R: the panel and focus strip reconstruct entirely from the current vault-backed program and learner evidence when reopened or after turns. A restart discards in-memory revision proposals instead of replaying stale approvals. Existing transcript-backed answer/hint evaluation remains authoritative.
+
+### UX contract
+- Focus strip beneath NOX header indicates pinned objective, paused status or pending curriculum approval. Clicking opens the existing learning map; no pop-up or additional form.
+- Learning map shows active objective, current revision's rubric criteria (`unknown`, `assisted`, `needs-repair`, `provisional`, `verified`), bounded evidence IDs and self-paced focus controls; existing graph remains navigable.
+- Next-action explanations show M4 policy trigger and failed criterion IDs; recall timestamps are displayed only when present.
+- Pending revision preview shows reason, version delta, bounded evidence, concise operation diff, and explicit Approve/Reject buttons. Commands route via `LearningController` and preserve M2 compare-and-swap, evidence provenance and expiration guards.
+- Flat token-based style, compact spacing, keyboard-operable native controls, readable disclosure widgets and reduced-motion support.
+
+### Verification
+`tests/chat/learning-panel-state.test.ts` covers active/paused/no focus, accurate non-mastered criterion presentation, bounded provenance, revision approval commands, stale or expired proposal guards, and deterministic projection. The existing M0–M5 test suite and GitHub CI checks remain mandatory. Real Obsidian desktop and provider acceptance has **not** been performed.
+
+No merge or release for draft PR #109. M7 final acceptance and system hardening follow.
