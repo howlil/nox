@@ -195,7 +195,7 @@ test("M7 migration to evidence-v3 creates a verified non-destructive v2 backup",
   await store.save({ ...loaded, version: 3 }, loaded);
   assert.equal((await store.load()).version, 3);
   const backups = [...vault.files.entries()].filter(([path]) =>
-    /^00-learning-os\\/progress\\.v2-.*\\.backup\\.json$/.test(path));
+    path.startsWith("00-learning-os/progress.v2-") && path.endsWith(".backup.json"));
   assert.equal(backups.length, 1);
   assert.equal(backups[0][1], JSON.stringify(old));
   const next = await store.load();
