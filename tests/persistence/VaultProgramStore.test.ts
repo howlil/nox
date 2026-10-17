@@ -42,6 +42,12 @@ class MemoryVault {
     if (this.beforeModify) await this.beforeModify();
     this.files.set(file.path, content);
   }
+  async process(file: TFile, modify: (contents: string) => string) {
+    if (this.beforeModify) await this.beforeModify();
+    const original = this.files.get(file.path) ?? "";
+    const updated = modify(original);
+    this.files.set(file.path, updated);
+  }
 }
 
 test("missing program file returns the empty collection", async () => {
@@ -197,4 +203,47 @@ test("deferred notes survive vault reload; malformed records never overwrite fil
   delete legacy.deferredNotes;
   await reloaded.save({ version: 1, activeProgramId: "p", programs: [legacy] });
   assert.equal((await reloaded.load()).programs[0].deferredNotes, undefined);
+});
+
+
+test("CAS rejects a stale snapshot instead of overwriting another program writer", async () => {
+  const vault = new MemoryVault();
+  const one = new VaultProgramStore({ vault } as never);
+  const two = new VaultProgramStore({ vault } as never);
+  await one.save(EMPTY);
+  const first = await one.load();
+  const stale = await two.load();
+  first.activeProgramId = undefined;
+  await one.save(first);
+  const durable = vault.files.get(PATH);
+  await assert.rejects(two.save(stale), /Program write conflict/);
+  assert.equal(vault.files.get(PATH), durable,
+    "stale writer must not overwrite a successfully committed state");
+  const refreshed = await two.load();
+  await two.save(refreshed);
+});
+
+test("CAS rejects a file changed externally after load, without deleting original bytes", async () => {
+  const vault = new MemoryVault();
+  const store = new VaultProgramStore({ vault } as never);
+  await store.save(EMPTY);
+  const snapshot = await store.load();
+  const otherWriter = JSON.stringify(EMPTY) + "\nexternal formatting\n";
+  vault.files.set(PATH, otherWriter);
+  await assert.rejects(store.save(snapshot), /Program write conflict/);
+  assert.equal(vault.files.get(PATH), otherWriter);
+});
+
+test("failed atomic process retains old bytes and permits explicitly retried snapshot", async () => {
+  const vault = new MemoryVault();
+  const store = new VaultProgramStore({ vault } as never);
+  await store.save(EMPTY);
+  const snapshot = await store.load();
+  const previousBytes = vault.files.get(PATH);
+  vault.beforeModify = async () => { throw new Error("disk failure"); };
+  await assert.rejects(store.save(snapshot), /Unable to save learning program/);
+  assert.equal(vault.files.get(PATH), previousBytes);
+  vault.beforeModify = undefined;
+  await store.save(snapshot);
+  assert.equal((await store.load()).version, 1);
 });
