@@ -1,7 +1,8 @@
 import type { AgentRuntimePort } from "../agent/AgentRuntime";
 import type { ContextPort, LearningStatePort, ProgramStorePort } from "./ports";
 import type { LearningProgram, ProgramCollection, ProgramConstraints, LearningDecision, SessionPauseReason } from "../domain/learning-program/types";
-import { chooseNextActivity, feasibility, validateConstraints, validateCurriculum } from "../domain/learning-program/rules";
+import { chooseNextActivity, chooseFocusedActivity, objectiveProgress, feasibility, validateConstraints, validateCurriculum } from "../domain/learning-program/rules";
+import { startObjectiveFocus, transitionObjectiveFocus } from "../domain/learning-program/focus-transitions";
 import { estimateRemainingWork } from "../domain/learning-program/estimate";
 import { checkpointTiming, focusSessionObjective, focusSessionMaterial, newSessionTiming, projectedTiming, recoverTiming, sessionRemainingMs, sessionTimeStatus, setTimingPause } from "../domain/learning-program/session-time";
 
@@ -65,9 +66,14 @@ export class LearningProgramOrchestrator {
     let changed = false;
     const now = this.now();
     for (const program of collection.programs) {
-      if (!program.session) continue;
-      program.session = { ...program.session, timing: recoverTiming(program.session, now) };
-      changed = true;
+      if (program.focus?.status === "active") {
+        program.focus = { ...program.focus, status: "paused", pausedAt: now };
+        changed = true;
+      }
+      if (program.session) {
+        program.session = { ...program.session, timing: recoverTiming(program.session, now) };
+        changed = true;
+      }
     }
     if (changed) await this.store.save(collection);
     this.stopCheckpointLoop();
@@ -211,6 +217,9 @@ export class LearningProgramOrchestrator {
         const collection = await this.store.load();
         const selected = collection.programs.find(p => p.id === id);
         if (!selected) throw new Error("Unknown program ID. Run /programs to list saved plans.");
+        if (collection.programs.some(p => p.id !== id && p.focus?.status === "active")) {
+          throw new Error("Pause or end the active objective focus before switching learning programs.");
+        }
         const previous = collection.programs.find(p => p.id === collection.activeProgramId);
         const now = this.now();
         if (previous?.session) {
@@ -233,6 +242,46 @@ export class LearningProgramOrchestrator {
     const collection = await this.store.load();
     return collection.programs.find(p => p.id === collection.activeProgramId) ?? null;
   }
+  /** Persist a single program-scoped focus; evidence and question ownership stay elsewhere. */
+  async getFocus(): Promise<LearningProgram["focus"] | undefined> {
+    return (await this.getActiveProgram())?.focus;
+  }
+
+  async getGlobalActiveFocus(): Promise<{ program: LearningProgram; focus: NonNullable<LearningProgram["focus"]> } | null> {
+    const collection = await this.store.load();
+    const program = collection.programs.find(item => item.focus?.status === "active");
+    return program?.focus ? { program, focus: program.focus } : null;
+  }
+
+  async startFocus(objectiveId: string, chatSessionId: string): Promise<LearningProgram> {
+    const state = await this.learningState.load();
+    return this.updateActive(program => {
+      const objective = program.objectives.find(item => item.id === objectiveId);
+      if (!objective) throw new Error("Unknown learning objective.");
+      const eligible = objective.prerequisiteIds.every(id =>
+        objectiveProgress(program, id, state.evidence, this.now()).status === "mastered");
+      if (!eligible) throw new Error("Prerequisites are not mastered for this objective.");
+      return startObjectiveFocus(program, objectiveId, chatSessionId, this.now(), crypto.randomUUID());
+    });
+  }
+
+  async pauseFocus(): Promise<LearningProgram> {
+    return this.updateActive(program => transitionObjectiveFocus(program, "pause", this.now()));
+  }
+
+  async resumeFocus(chatSessionId: string): Promise<LearningProgram> {
+    return this.updateActive(program => {
+      if (program.focus?.chatSessionId !== chatSessionId) {
+        throw new Error("Return to the original chat to resume the pending focus challenge.");
+      }
+      return transitionObjectiveFocus(program, "resume", this.now());
+    });
+  }
+
+  async endFocus(): Promise<LearningProgram> {
+    return this.updateActive(program => transitionObjectiveFocus(program, "end", this.now()));
+  }
+
   private updateActive(edit: (program: LearningProgram) => LearningProgram): Promise<LearningProgram> {
     if (this.planning) return Promise.reject(new Error("Curriculum generation is in progress."));
     // Serialize the read-modify-write operation, not only the underlying vault write.
@@ -322,7 +371,9 @@ export class LearningProgramOrchestrator {
     const program = await this.getActiveProgram();
     if (!program) return null;
     const state = await this.learningState.load();
-    return { program, decision: chooseNextActivity(program, state.evidence) };
+    return { program, decision: program.focus
+      ? chooseFocusedActivity(program, state.evidence, this.now())
+      : chooseNextActivity(program, state.evidence, this.now()) };
   }
   async reviewDueSummary(): Promise<string> {
     const program = await this.getActiveProgram();
