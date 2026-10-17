@@ -42,9 +42,17 @@ export function renderPracticeEvaluationCard(
     : evaluation.outcome === "partial" ? "alert-circle" : "circle-x");
   heading.createSpan({ cls: "nox-practice-label", text: outcomeLabel + " · " + evaluation.concept });
   if (evaluation.assisted) {
-    heading.createSpan({ cls: "nox-evaluation-assisted", text: "Hint used" });
+    const level = evaluation.assistance?.highestHintLevel ?? 1;
+    heading.createSpan({ cls: "nox-evaluation-assisted",
+      text: level > 1 ? "Hint level " + level : "Hint used" });
   }
   card.createDiv({ cls: "nox-practice-feedback", text: evaluation.feedback });
+  const missedCriteria = evaluation.rubricResults?.filter(item => !item.met)
+    .map(item => item.criterion).slice(0, 2) ?? [];
+  if (evaluation.programId && missedCriteria.length) {
+    card.createDiv({ cls: "nox-evaluation-target",
+      text: "Next focus: " + missedCriteria.join(" · ") });
+  }
   if (evaluation.assisted) {
     card.createDiv({ cls: "nox-evaluation-note",
       text: "Assisted attempt — this result is not independent recall evidence." });
@@ -85,9 +93,9 @@ export function renderPracticeEvaluationCard(
     }
   }
 
-  if (evaluation.programId && evaluation.outcome !== "correct") {
+  if (evaluation.programId && evaluation.outcome !== "correct" && !missedCriteria.length) {
     card.createDiv({ cls: "nox-evaluation-note",
-      text: "Next: repair the missed criterion in your own words. Nox will check it without assuming mastery." });
+      text: "Next: explain the part you are unsure about in your own words." });
   }
   if (options.onContinue) {
     const actions = card.createDiv({ cls: "nox-evaluation-actions" });
