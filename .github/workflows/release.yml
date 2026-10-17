@@ -53,7 +53,7 @@ jobs:
           releases="$(gh api "repos/$GITHUB_REPOSITORY/releases?per_page=100")"
           published="$(jq -r --arg v "$version" '[.[] | select(.tag_name == $v and .draft == false)] | length' <<< "$releases")"
           test "$published" = 0 || { echo "Already published: $version"; exit 0; }
-          draft_id="$(jq -r --arg v "$version" '[.[] | select(.tag_name == $v and .draft == true)][0].id // empty' <<< "$releases")"
+          draft_id="$(jq -r --arg v "$version" '[.[] | select(.draft == true and (.tag_name == $v or .name == ("Nox " + $v)))][0].id // empty' <<< "$releases")"
           if [ -z "$draft_id" ] && [ "$GITHUB_EVENT_NAME" = push ]; then
             if ! git rev-parse HEAD^ >/dev/null 2>&1 || git diff --quiet HEAD^ HEAD -- .release-plan.json; then
               echo "No new release plan and no pending draft; skip."
@@ -200,13 +200,13 @@ jobs:
           releases="$(gh api "repos/$GITHUB_REPOSITORY/releases?per_page=100")"
           published="$(jq -r --arg v "$version" '[.[] | select(.tag_name == $v and .draft == false)] | length' <<< "$releases")"
           test "$published" = 0 || { echo "::error::Published releases are immutable."; exit 1; }
-          release_id="$(jq -r --arg v "$version" '[.[] | select(.tag_name == $v and .draft == true)][0].id // empty' <<< "$releases")"
+          release_id="$(jq -r --arg v "$version" '[.[] | select(.draft == true and (.tag_name == $v or .name == ("Nox " + $v)))][0].id // empty' <<< "$releases")"
           if [ -z "$release_id" ]; then
             gh release create "$version" dist/main.js dist/manifest.json dist/styles.css \
               --title "Nox $version" --notes-file release-notes.md \
               --target "$GITHUB_SHA" --draft
             releases="$(gh api "repos/$GITHUB_REPOSITORY/releases?per_page=100")"
-            release_id="$(jq -r --arg v "$version" '[.[] | select(.tag_name == $v and .draft == true)][0].id // empty' <<< "$releases")"
+            release_id="$(jq -r --arg v "$version" '[.[] | select(.draft == true and (.tag_name == $v or .name == ("Nox " + $v)))][0].id // empty' <<< "$releases")"
             test -n "$release_id" || { echo "::error::Cannot resolve new draft ID."; exit 1; }
           else
             echo "Release verification: replacing draft assets"
@@ -224,13 +224,14 @@ jobs:
                 "https://uploads.github.com/repos/$GITHUB_REPOSITORY/releases/$release_id/assets?name=$file" > /dev/null
             done
             gh api -X PATCH "repos/$GITHUB_REPOSITORY/releases/$release_id" \
-              -f target_commitish="$GITHUB_SHA" -f body="$(cat release-notes.md)" > /dev/null
+              -f target_commitish="$GITHUB_SHA" -f tag_name="$version" \
+              -f name="Nox $version" -f body="$(cat release-notes.md)" > /dev/null
           fi
 
           echo "Release verification: draft source SHA"
           draft="$(gh api "repos/$GITHUB_REPOSITORY/releases/$release_id")"
           jq -e --arg v "$version" --arg sha "$GITHUB_SHA" \
-            '.tag_name == $v and .draft == true and .target_commitish == $sha' <<< "$draft" > /dev/null || {
+            '(.tag_name == $v or .name == ("Nox " + $v)) and .draft == true and .target_commitish == $sha' <<< "$draft" > /dev/null || {
               echo "::error::Draft metadata mismatch (tag, draft status, or target SHA)."; exit 1;
             }
 
@@ -251,5 +252,12 @@ jobs:
             gh attestation verify "dist/$file" --repo "$GITHUB_REPOSITORY" --source-digest "$GITHUB_SHA"
           done
           echo "Release verification: all checks passed; publishing"
-          gh api -X PATCH -F draft=false "repos/$GITHUB_REPOSITORY/releases/$release_id" > /dev/null
+          gh api -X PATCH -F draft=false -f tag_name="$version" \
+            -f target_commitish="$GITHUB_SHA" "repos/$GITHUB_REPOSITORY/releases/$release_id" > /dev/null
+          published_release="$(gh api "repos/$GITHUB_REPOSITORY/releases/$release_id")"
+          jq -e --arg v "$version" --arg sha "$GITHUB_SHA" \
+            '.tag_name == $v and .draft == false and .target_commitish == $sha' \
+            <<< "$published_release" > /dev/null || {
+              echo "::error::Published tag or source SHA mismatch."; exit 1;
+            }
           echo "Published verified NOX $version from $GITHUB_SHA."
