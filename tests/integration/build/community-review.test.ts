@@ -60,9 +60,9 @@ test("release requires verified attestations for the three official plugin asset
   }
   assert.match(workflow, /gh attestation verify "dist\/\$file"/);
   assert.ok(workflow.indexOf("Verify build provenance before publication") <
-    workflow.indexOf("Publish only verified source-bound release assets"));
-  assert.match(workflow, /gh attestation verify "release-proof\/\$item"/);
-  assert.match(workflow, /gh release edit "\$version" --draft=false/);
+    workflow.indexOf("Publish only source-bound assets by release ID"));
+  assert.match(workflow, /gh attestation verify "dist\/\$file"/);
+  assert.match(workflow, /gh api -X PATCH -F draft=false/);
   assert.match(workflow, /strict: "true"/);
 
   const publishing = source(".github/workflows/publish-release.yml");

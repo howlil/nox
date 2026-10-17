@@ -8,6 +8,8 @@ on:
     paths:
       - '.release-plan.json'
       - '.github/workflows/ci-release.yml'
+      - '.github/workflows/release.yml'
+      - '.github/workflows/publish-release.yml'
   workflow_dispatch:
 
 permissions:
