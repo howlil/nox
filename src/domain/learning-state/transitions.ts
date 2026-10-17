@@ -3,6 +3,7 @@ import {
   LearningState,
 } from "./types";
 import { PracticeEvaluation } from "../practice/types";
+import { deriveGapStatus } from "./gap-projection";
 import { ReviewFinding } from "../review/types";
 
 export interface LearningTransitionDeps {
@@ -21,7 +22,10 @@ function cloneState(state: LearningState): LearningState {
       ...gap,
       evidenceIds: [...gap.evidenceIds],
     })),
-    evidence: state.evidence.map((item) => ({ ...item })),
+    evidence: state.evidence.map((item) => ({ ...item,
+      ...(item.rubricResults ? { rubricResults: item.rubricResults.map(result => ({ ...result })) } : {}),
+      ...(item.assistance ? { assistance: { ...item.assistance } } : {}),
+    })),
   };
 }
 
@@ -41,6 +45,7 @@ export function recordPracticeEvaluation(
     programId?: string;
     objectiveId?: string;
     assisted?: boolean;
+    questionId?: string;
   },
   deps: LearningTransitionDeps = {},
 ): LearningState {
@@ -49,6 +54,10 @@ export function recordPracticeEvaluation(
     return next;
   }
   const resolved = resolveDeps(deps);
+  next.version = 3;
+  const versioned = Boolean(input.programId && input.objectiveId && input.questionId &&
+    input.evaluation.objectiveRevision !== undefined && input.evaluation.assistance &&
+    input.evaluation.evaluator);
 
   const evidence: LearningEvidence = {
     id: input.evidenceId ?? resolved.uuid(),
@@ -63,11 +72,34 @@ export function recordPracticeEvaluation(
     ...(input.assisted ? { assisted: true } : {}),
     ...(input.evaluation.assessmentCoverage ? { assessmentCoverage: input.evaluation.assessmentCoverage } : {}),
     ...(input.evaluation.taskKind ? { taskKind: input.evaluation.taskKind } : {}),
-    ...(input.evaluation.rubricResults ? { rubricResults: input.evaluation.rubricResults } : {}),
+    ...(input.evaluation.rubricResults ? { rubricResults: input.evaluation.rubricResults.map(result => ({ ...result })) } : {}),
+    ...(input.questionId ? { questionId: input.questionId } : {}),
+    ...(input.evaluation.objectiveRevision !== undefined ? { objectiveRevision: input.evaluation.objectiveRevision } : {}),
+    ...(input.evaluation.assistance ? { assistance: { ...input.evaluation.assistance } } : {}),
+    ...(input.evaluation.evaluator ? { evaluator: input.evaluation.evaluator } : {}),
+    ...(versioned ? { evidenceVersion: 3 as const } : {}),
   };
 
   next.evidence.push(evidence);
   next.currentTopic = input.evaluation.concept;
+
+  // Criterion-specific gaps have direct provenance; free-form misconception
+  // strings remain separate because their semantic linkage is unverified.
+  if (input.programId && input.objectiveId) {
+    for (const result of evidence.rubricResults ?? []) {
+      if (result.met || !result.criterionId) continue;
+      const existing = next.gaps.find(gap => gap.programId === input.programId &&
+        gap.objectiveId === input.objectiveId && gap.criterionId === result.criterionId);
+      if (!existing) {
+        next.gaps.push({
+          id: resolved.uuid(), concept: evidence.concept,
+          reason: `Criterion not met: ${result.criterion}`,
+          programId: input.programId, objectiveId: input.objectiveId,
+          criterionId: result.criterionId, status: "open", evidenceIds: [evidence.id],
+        });
+      }
+    }
+  }
 
   for (const misconception of input.evaluation.misconceptions) {
     const existing = next.gaps.find(
@@ -112,6 +144,16 @@ export function recordPracticeEvaluation(
         }
       }
     }
+  }
+
+  for (const gap of next.gaps) {
+    if (!gap.criterionId || gap.programId !== input.programId ||
+        gap.objectiveId !== input.objectiveId) continue;
+    if (evidence.rubricResults?.some(result => result.criterionId === gap.criterionId) &&
+        !gap.evidenceIds.includes(evidence.id)) {
+      gap.evidenceIds.push(evidence.id);
+    }
+    gap.status = deriveGapStatus(gap, next.evidence);
   }
 
   return next;

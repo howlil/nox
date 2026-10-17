@@ -132,3 +132,47 @@ test("hint inspection is pure; only acknowledged intent marks a practice attempt
   assert.equal(attempt?.assisted, true);
   assert.equal(machine.peekHint(), undefined, "no help can be requested while evaluating");
 });
+
+
+test("hint levels are monotone per question and reset for the next question", () => {
+  const machine = new PracticeStateMachine(ids());
+  machine.start();
+  machine.acceptQuestion({ kind: "question", concept: "locking",
+    question: "How?", hint: "Start with mutex.", objectiveRevision: 4 }, "qid");
+  machine.markHintUsed(3);
+  machine.markHintUsed(1);
+  const first = machine.beginEvaluation("test");
+  assert.equal(first?.highestHintLevel, 3);
+  assert.equal(first?.objectiveRevision, 4);
+  assert.equal(first?.questionId, "qid");
+  assert.equal(first?.assisted, true);
+  machine.commitEvaluation(first!, { kind: "evaluation", concept: "locking",
+    outcome: "partial", feedback: "retry", misconceptions: [], nextQuestion: "Another?" });
+  const second = machine.beginEvaluation("second");
+  assert.equal(second?.highestHintLevel, 0);
+});
+
+test("M0 focus identity and M1 rubric revision survive into the same evaluated attempt", () => {
+  const machine = new PracticeStateMachine(ids());
+  machine.start();
+  machine.acceptQuestion({
+    kind: "question", concept: "concurrency", question: "Explain lock ordering",
+    programId: "program-a", objectiveId: "locking",
+    focusSessionId: "focus-123", objectiveRevision: 7,
+    hint: "Think about cycles in the wait-for graph.",
+  }, "question-123");
+  machine.markHintUsed(2);
+  const attempt = machine.beginEvaluation("Avoid circular waits");
+  assert.ok(attempt);
+  assert.equal(attempt.focusSessionId, "focus-123");
+  assert.equal(attempt.objectiveRevision, 7);
+  assert.equal(attempt.highestHintLevel, 2);
+  assert.equal(attempt.questionId, "question-123");
+  assert.equal(attempt.programId, "program-a");
+  assert.equal(attempt.objectiveId, "locking");
+  machine.rollbackEvaluation(attempt);
+  const retry = machine.beginEvaluation("Order locks deterministically");
+  assert.equal(retry?.focusSessionId, "focus-123");
+  assert.equal(retry?.highestHintLevel, 2);
+  assert.equal(retry?.objectiveRevision, 7);
+});

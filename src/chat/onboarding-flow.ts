@@ -226,15 +226,17 @@ export class OnboardingFlow {
       this.header(panel, "Build your learning path",
         "Your goal becomes measurable objectives and prerequisite relationships.");
       this.field(panel, "What would you like to achieve?", this.draft.goal, v => { this.draft.goal = v; });
-      panel.createDiv({ cls: "nox-onboarding-label", text: "Current level (self-reported)" });
-      const levels = panel.createDiv({ cls: "nox-onboarding-chips" });
+      const advanced = panel.createEl("details", { cls: "nox-onboarding-advanced" });
+      advanced.createEl("summary", { text: "Advanced options (optional)" });
+      advanced.createDiv({ cls: "nox-onboarding-label", text: "Current level (self-reported)" });
+      const levels = advanced.createDiv({ cls: "nox-onboarding-chips" });
       for (const item of ["beginner", "intermediate", "advanced"] as const) {
         const btn = this.button(levels, item, () => {
           this.draft.level = item; this.persist(); this.render();
         });
         btn.toggleClass("is-selected", this.draft.level === item);
       }
-      const limits = panel.createDiv({ cls: "nox-onboarding-limits" });
+      const limits = advanced.createDiv({ cls: "nox-onboarding-limits" });
       for (const spec of [
         { name: "Minutes / session", key: "minutesPerSession" as const, list: [25, 30, 45, 60, 90] },
         { name: "Sessions / week", key: "sessionsPerWeek" as const, list: [1, 2, 3, 4, 5, 6, 7] },
@@ -251,8 +253,8 @@ export class OnboardingFlow {
           this.persist();
         });
       }
-      panel.createEl("label", { cls: "nox-onboarding-label", text: "Deadline (optional)", attr: { for: "nox-learning-deadline" } });
-      const deadline = panel.createEl("input", { cls: "nox-onboarding-field",
+      advanced.createEl("label", { cls: "nox-onboarding-label", text: "Deadline (optional)", attr: { for: "nox-learning-deadline" } });
+      const deadline = advanced.createEl("input", { cls: "nox-onboarding-field",
         attr: { id: "nox-learning-deadline", type: "date" } });
       deadline.value = this.draft.deadline ?? "";
       deadline.addEventListener("change", () => {
@@ -276,7 +278,7 @@ export class OnboardingFlow {
       const p = this.preview;
       this.header(panel, "Review your learning blueprint", p.goal);
       const details = panel.createDiv({ cls: "nox-onboarding-summary" });
-      details.createDiv({ text: `${p.objectives.length} objectives · ${p.constraints.minutesPerSession} min · ${p.constraints.sessionsPerWeek} sessions/week` });
+      details.createDiv({ text: `${p.objectives.length} objectives · Self-paced focus · No mandatory timer` });
       const work = feasibility(p);
       details.createDiv({ text: `Estimated total: ${work.estimatedMinutes} min including review` });
       if (work.feasible === false) details.createDiv({
