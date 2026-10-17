@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.1.4]
+
+### Fixes
+
+- remove invalid NOX settings heading and enable real scanner lint
+
 ## [1.1.3]
 
 ### Fixes
