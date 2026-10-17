@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.1.3]
+
+### Fixes
+
+- Use the native Obsidian Setting heading in the Settings tab and align its styles with Obsidian's heading structure.
+
+### Maintenance
+
+- Separate fast development CI from release certification, including Windows DPAPI checks and reproducible production artifacts.
+- Enforce an AST-based check against unsupported manual settings headings.
+- Prepare attested release drafts first; require verification of exact assets and explicit desktop acceptance before public publication.
+
 ## [1.1.2]
 
 ### Fixes
