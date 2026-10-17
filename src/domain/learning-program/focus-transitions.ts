@@ -20,7 +20,7 @@ export function authorizeFocusIntent(focus: FocusSession | undefined, intent: Fo
   if (intent.kind === "resume") return focus.status === "paused"
     ? allowed : { allowed: false, reason: "focus-active" };
   if (focus.status === "paused") return { allowed: false, reason: "focus-paused" };
-  if (intent.kind === "start" || intent.kind === "unrelated") {
+  if (!("chatSessionId" in intent)) {
     return { allowed: false, reason: "focus-active" };
   }
   if (focus.chatSessionId !== intent.chatSessionId) return { allowed: false, reason: "wrong-chat" };
