@@ -119,3 +119,61 @@ test("M2 guards active or paused focus before any model proposal", async () => {
   assert.equal(preview.toVersion, 2);
   rig.orchestrator.dispose();
 });
+
+test("source-bound M2 provider receives only explicitly approved note text", async () => {
+  let saved: ProgramCollection = { version: 2, activeProgramId: "program-m2", programs: [program()] };
+  saved.programs[0].constraints = { ...saved.programs[0].constraints,
+    sourceBound: true, sourcePaths: ["approved.md"] };
+  saved.programs[0].objectives = saved.programs[0].objectives.map(o =>
+    ({ ...o, sourceRefs: ["approved.md"] }));
+  let called = 0;
+  const runtime = { send: async function* ({ prompt }: { prompt: string }) {
+    called++;
+    assert.match(prompt, /approved.md/);
+    assert.match(prompt, /SELECT is a query/);
+    assert.ok(!prompt.includes("private-secret.md"));
+    yield { type: "text", content: "```curriculum-revision\n" + JSON.stringify({
+      kind: "curriculum-revision", operations: [{
+        kind: "revise", objectiveId: "joins", changes: {
+          outcome: "Use joins with a primary key", sourceRefs: ["approved.md"],
+        },
+      }],
+    }) + "\n```" };
+    yield { type: "completed" };
+  } };
+  const contexts = { resolve: async (refs: unknown) => {
+    assert.deepEqual(refs, [{ kind: "vault-note", path: "approved.md" }]);
+    return { explicit: [{ type: "note", source: "explicit", path: "approved.md",
+      content: "SELECT is a query." }], activeNote: {
+        path: "private-secret.md", content: "Do not send these private secrets.",
+      } };
+  } };
+  const rig = new LearningProgramOrchestrator(runtime as never, contexts as never,
+    { load: async () => ({ evidence: [] }) } as never,
+    { load: async () => structuredClone(saved),
+      save: async (next: ProgramCollection) => { saved = structuredClone(next); } } as never,
+    () => undefined, () => "chatgpt", () => 2000);
+  const preview = await rig.prepareCurriculumRevision("goal-change");
+  assert.equal(preview.after.find(o => o.id === "joins")?.outcome, "Use joins with a primary key");
+  assert.equal(called, 1);
+  assert.equal(saved.programs[0].planVersion, 1, "preview is not persistence");
+  rig.dispose();
+});
+
+test("source-bound M2 fails closed if an approved source is missing", async () => {
+  const saved: ProgramCollection = { version: 2, activeProgramId: "program-m2", programs: [program()] };
+  saved.programs[0].constraints.sourceBound = true;
+  saved.programs[0].constraints.sourcePaths = ["approved.md"];
+  let agentCalls = 0;
+  const rig = new LearningProgramOrchestrator({
+    send: async function* () { agentCalls++; yield { type: "completed" }; },
+  } as never, { resolve: async () => ({ explicit: [], activeNote: {
+    path: "not-approved.md", content: "Off-scope note",
+  } }) } as never, { load: async () => ({ evidence: [] }) } as never,
+  { load: async () => structuredClone(saved), save: async () => {} } as never,
+  () => undefined, () => "chatgpt", () => 2000);
+  await assert.rejects(rig.prepareCurriculumRevision("goal-change"),
+    /Approved source note could not be resolved/);
+  assert.equal(agentCalls, 0);
+  rig.dispose();
+});
