@@ -196,7 +196,7 @@ export class VaultProgramStore {
     const currentFile = this.app.vault.getFileByPath(PATH);
     const currentBytes = currentFile instanceof TFile
       ? await this.app.vault.read(currentFile) : null;
-    let currentReadable = currentBytes === null;
+    let currentReadable = false;
     if (currentBytes !== null) {
       try {
         const current = decodeProgramCollection(JSON.parse(currentBytes));

@@ -576,7 +576,7 @@ export class LearningController {
           }
           const restored = await this.programs.approveProgramRestore(command.operationId);
           response = "Recovery completed. " + restored.programs.length +
-            " learning programs restored as v2; the previous canonical bytes were preserved in a recovery backup. Reload the NOX view to synchronize question state.";
+            " learning programs restored as v2; the previous canonical bytes, when present, were preserved in a recovery backup. Reload the NOX view to synchronize question state.";
         } else if (command.kind === "programs") {
           const collection = await this.programs.listPrograms();
           response = collection.programs.length

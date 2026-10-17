@@ -112,7 +112,10 @@ This ledger is updated when code is committed. An item is checked only if the be
 
 ## M7 — Verification/release (open)
 - [x] `VaultProgramStore` uses `Vault.process` compare-and-swap for existing `programs.json`; stale snapshots and external edits fail with an explicit conflict, tested with independent store instances and failed writes.
-- [ ] ProgramCollection/LearningProgram v1→v2 decoder, backed-up migration and explicit user-controlled restore/recovery UX.
+- [x] ProgramCollection/LearningProgram v1→v2 read-old/write-new decoder; historical v1 bytes are verified in create-only backup before first v2 write. New drafts within v2 collections normalize at writer boundary; persisted mixed versions remain rejected.
+- [x] Explicit two-step program backup recovery: \`/program-backups\`, \`/program-restore-preview <path>\`, \`/program-restore-approve <operation-id>\`. Preview is read-only, bounded to NOX-owned backup paths, expires after 15 minutes, and restore requires identical source/current bytes plus a verified pre-restore backup, including corrupt current bytes.
+- [x] Unit and controller regressions for legacy migration, backup failure, corrupt-file restore, modified backup, stale canonical file, preview-only behavior and no-provider approval.
+- [ ] Real Obsidian desktop/vault acceptance for migration and user-controlled restore; synced multi-device conflict and interrupted filesystem cases remain release gates.
 
 
 - [x] CI including typecheck, lint, unit/integration and build passed on implementation head `3961e423fafa0279da57c5b03195fc1dd258f154` (GitHub Actions run `38928965249`).

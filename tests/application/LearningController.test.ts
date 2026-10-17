@@ -1375,3 +1375,42 @@ test("focus deferral is a provider-free controller command", async () => {
   assert.match(JSON.stringify(listed), /Research lock-free queues later/);
   assert.equal(h.prompts.length, 0);
 });
+
+
+test("recovery commands work with a corrupt program file without an agent or implicit restore", async () => {
+  const backupPath = "00-learning-os/backups/programs-v1-11111111-1111-4111-8111-111111111111.json";
+  const operationId = "22222222-2222-4222-8222-222222222222";
+  let approvals = 0;
+  let previews = 0;
+  const h = createHarness(async function* () {
+    yield { type: "text", content: "UNEXPECTED PROVIDER CALL" };
+    yield { type: "completed" };
+  }, { programTimer: {
+    isPlanning: () => false,
+    getActiveProgram: async () => { throw new Error("invalid programs.json"); },
+    listProgramBackups: async () => [backupPath],
+    previewProgramRestore: async (path: string) => {
+      assert.equal(path, backupPath);
+      previews++;
+      return { operationId, backupPath: path, backupVersion: 1 as const,
+        programCount: 1, currentReadable: false, expiresAt: Date.now() + 300_000 };
+    },
+    approveProgramRestore: async (id: string) => {
+      assert.equal(id, operationId);
+      approvals++;
+      return { version: 2 as const, programs: [] };
+    },
+  } as never });
+  const run = async (prompt: string) => collectEvents(h.controller.run({
+    prompt, action: "ask", explicitContext: [],
+  }));
+  assert.equal((await run("/program-backups")).at(-1)?.type, "completed");
+  const preview = await run("/program-restore-preview " + backupPath);
+  assert.equal(preview.at(-1)?.type, "completed");
+  assert.match(JSON.stringify(preview), /NOT changed/);
+  assert.equal(previews, 1);
+  assert.equal(approvals, 0);
+  assert.equal((await run("/program-restore-approve " + operationId)).at(-1)?.type, "completed");
+  assert.equal(approvals, 1);
+  assert.equal(h.prompts.length, 0);
+});
