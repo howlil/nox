@@ -213,7 +213,15 @@ test("CAS rejects a stale snapshot instead of overwriting another program writer
   await one.save(EMPTY);
   const first = await one.load();
   const stale = await two.load();
-  first.activeProgramId = undefined;
+  first.programs.push({
+    version: 1, id: "p", goal: "Learn SQL", createdAt: Date.now(), planVersion: 1,
+    constraints: { minutesPerSession: 45, sessionsPerWeek: 3,
+      sourcePaths: [], sourceBound: false, excludedTopics: [] },
+    objectives: [{ id: "sql", title: "SQL", outcome: "Explain queries",
+      prerequisiteIds: [], estimatedMinutes: 30, rubric: ["Explain SELECT"],
+      sourceRefs: [], priority: "core" }],
+  });
+  first.activeProgramId = "p";
   await one.save(first);
   const durable = vault.files.get(PATH);
   await assert.rejects(two.save(stale), /Program write conflict/);
