@@ -4,10 +4,15 @@
 
 ### Fixes
 
+- Make configuration rows independently searchable through Obsidian 1.13 declarative settings while retaining segmented Settings/Usage/Token navigation.
+- Enforce the official Community scanner as a blocking gate and guard known manual HTML heading regressions.
+
 - Use the native Obsidian Setting heading in the Settings tab and align its styles with Obsidian's heading structure.
 
 ### Maintenance
 
+- Remove GitHub-hosted landing/Cloudflare build checks; Cloudflare remains the sole landing CI/CD owner.
+- Automatically publish only the exact attested plugin assets after Linux, Windows, and Community certification, with no manual desktop-test requirement.
 - Separate fast development CI from release certification, including Windows DPAPI checks and reproducible production artifacts.
 - Enforce an AST-based check against unsupported manual settings headings.
 - Prepare attested release drafts first; require verification of exact assets and explicit desktop acceptance before public publication.
