@@ -111,10 +111,18 @@ export function feasibility(program: LearningProgram, now = Date.now()) {
 }
 
 function objectiveEvidence(program: LearningProgram, objectiveId: string, evidence: LearningEvidence[]) {
-  return evidence
+  const attempts = evidence
     .filter(item => item.scope === "learner" && item.type === "practice" &&
       item.programId === program.id && item.objectiveId === objectiveId)
     .sort((a, b) => a.createdAt - b.createdAt);
+  // Once an objective has versioned evidence, only the CURRENT curriculum
+  // revision can establish readiness. A revised rubric cannot inherit mastery
+  // or transfer from an older revision, even if the criterion count is equal.
+  // Legacy v2-only histories remain readable under their existing policy.
+  return attempts.some(item => item.evidenceVersion === 3)
+    ? attempts.filter(item => item.evidenceVersion === 3 &&
+        item.objectiveRevision === program.planVersion)
+    : attempts;
 }
 
 export function objectiveProgress(program: LearningProgram, objectiveId: string,
