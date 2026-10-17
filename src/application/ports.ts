@@ -5,7 +5,7 @@ import type { LearningState } from "../domain/learning-state/types";
 import type { TranscriptPart } from "../session/transcript-types";
 import type { LearningScopeState } from "../domain/practice/learning-scope";
 import type { PracticeAnswer } from "../domain/practice/types";
-import type { ProgramCollection } from "../domain/learning-program/types";
+import type { ProgramCollection, ProgramRestorePreview } from "../domain/learning-program/types";
 
 export interface OnboardingStatePort {
   load(): Promise<{ dismissed?: boolean; draft?: import("../domain/onboarding/types").OnboardingDraft }>;
@@ -20,15 +20,6 @@ export interface WorkspaceWriterPort {
     revision: import("../domain/learning-program/types").CurriculumRevisionRecord): Promise<void>;
   ensure(program: import("../domain/learning-program/types").LearningProgram): Promise<void>;
 }
-export interface ProgramRestorePreview {
-  operationId: string;
-  backupPath: string;
-  backupVersion: 1 | 2;
-  programCount: number;
-  currentReadable: boolean;
-  expiresAt: number;
-}
-
 export interface ProgramStorePort {
   load(): Promise<ProgramCollection>;
   save(next: ProgramCollection): Promise<void>;

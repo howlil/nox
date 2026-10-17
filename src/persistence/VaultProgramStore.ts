@@ -1,10 +1,9 @@
 import { App, TFile } from "obsidian";
-import type { LearningProgram, ProgramCollection } from "../domain/learning-program/types";
+import type { LearningProgram, ProgramCollection, ProgramRestorePreview } from "../domain/learning-program/types";
 import { validateConstraints, validateCurriculum } from "../domain/learning-program/rules";
 import { isValidSessionTiming } from "../domain/learning-program/session-time";
 import { validateObjectiveFocus } from "../domain/learning-program/focus-transitions";
 import { PersistenceError } from "./PersistenceError";
-import type { ProgramRestorePreview } from "../application/ports";
 import { decodeProgramCollection, prepareProgramCollectionWrite } from "./program-schema";
 
 const PATH = "00-learning-os/programs.json";

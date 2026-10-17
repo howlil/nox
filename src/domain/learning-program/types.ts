@@ -108,6 +108,15 @@ export interface ProgramCollection {
   activeProgramId?: string;
   programs: LearningProgram[];
 }
+export interface ProgramRestorePreview {
+  operationId: string;
+  backupPath: string;
+  backupVersion: 1 | 2;
+  programCount: number;
+  currentReadable: boolean;
+  expiresAt: number;
+}
+
 export type ActivityKind = "diagnostic" | "teach" | "guided-practice" | "recall" | "remediate" | "transfer" | "wait" | "timebox-ended";
 export interface LearningDecision {
   kind: ActivityKind;
