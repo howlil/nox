@@ -20,7 +20,10 @@ test("release certification is strict and requires Windows plus reproducible art
   assert.match(release, /test "\$POLICY" = success/);
   assert.match(release, /test "\$ARTIFACTS" = success/);
   assert.match(release, /test "\$WINDOWS" = success/);
-  assert.match(release, /strict: "true"/);
+  assert.match(release, /lint: "true"/);
+  assert.match(release, /scanner-lint: "true"/);
+  assert.match(release, /strict: "false"/);
+  assert.match(release, /pnpm ci:critical/);
   assert.match(release, /Reproducible|deterministic production bundle/);
 });
 
@@ -28,7 +31,7 @@ test("auto-publication requires strict source-bound attestations on the exact do
   const release = read(".github/workflows/release.yml");
   const recovery = read(".github/workflows/publish-release.yml");
   assert.match(release, /needs: \[detect, linux, windows, community\]/);
-  assert.match(release, /strict: "true"/);
+  assert.match(release, /lint: "true"/);
   assert.match(release, /Detect unshipped release by ID rather than public tag/);
   assert.match(release, /contents: write/);
   assert.match(release, /\.tag_name == \$v or \.name ==/);
