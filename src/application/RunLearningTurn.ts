@@ -45,7 +45,7 @@ import {
 } from "../domain/practice/PracticeStateMachine";
 import { PracticeSessionRegistry } from "./PracticeSessionRegistry";
 import type { LearningProgram, LearningObjective } from "../domain/learning-program/types";
-import { chooseNextActivity, chooseFocusedActivity } from "../domain/learning-program/rules";
+import { selectAdaptiveActivity } from "../domain/learner-model/activity-policy";
 import { deriveLearnerProfile, toLearnerProfileContext } from "../domain/learner-model/learner-profile";
 import { coversCriteria } from "../domain/learning-program/assessment-rubric";
 import { criterionIdFor, decideFeedback } from "../domain/learner-model/feedback-policy";
@@ -431,7 +431,7 @@ export class RunLearningTurn {
           : request.action === "review" ? "review"
           : request.action === "explain" ? "teaching"
           : request.action === "practice" && program && !activePracticeTurn &&
-              chooseNextActivity(program, state.evidence).kind === "diagnostic"
+              selectAdaptiveActivity(program, state, Date.now()).kind === "diagnostic"
             ? "assessment" : undefined;
         if (skillKind) selectedSkill = await this.policies.loadSkill(skillKind);
       }
@@ -597,7 +597,7 @@ export class RunLearningTurn {
       return;
     }
     const decision = program && request.action === "practice" && !practice.isWaitingForAnswer()
-      ? program.focus ? chooseFocusedActivity(program, state.evidence) : chooseNextActivity(program, state.evidence)
+      ? selectAdaptiveActivity(program, state, Date.now())
       : undefined;
     const objective: LearningObjective | undefined = decision?.objective;
     if (decision && (!objective || decision.kind === "timebox-ended" || decision.kind === "wait")) {
@@ -745,6 +745,10 @@ export class RunLearningTurn {
           "For guided practice use appropriate scaffolding; for transfer test application in a new context.",
           `Previously failed rubric criteria: ${JSON.stringify(missed)}. If remedial practice, target these first.`,
           `Evidence-based feedback: ${JSON.stringify(feedback ?? { kind: "diagnostic" })}. Never claim mastery without independent delayed recall.`,
+          `Application-selected activity: ${JSON.stringify(decision ? {
+            kind: decision.kind, objectiveId: decision.objective?.id,
+            provenance: decision.provenance,
+          } : { kind: "evaluate-existing-question" })}. The model cannot change or override this choice.`,
           `Derived criterion profile (not a behavioral/personality inference): ${JSON.stringify(learnerProfile)}. Treat unknown as unassessed, never as weakness.`,
           `Source constraint: ${program.constraints.sourceBound
             ? "Only the explicitly selected source note(s), do not claim external facts were verified."

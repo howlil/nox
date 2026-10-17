@@ -37,14 +37,17 @@ function evidenceFor(program: LearningProgram, objective: LearningObjective, sta
 function decision(kind: LearningDecision["kind"], reason: string, trigger: AdaptiveTrigger,
   objective?: LearningObjective, history: readonly LearningEvidence[] = [],
   extras: { dueAt?: number; minutesRemaining?: number; criterionIds?: string[];
-    scaffoldLevel?: 1 | 2 | 3 | 4; policyEvidenceIds?: string[] } = {}): AdaptiveActivityDecision {
+    scaffoldLevel?: 1 | 2 | 3 | 4; policyEvidenceIds?: string[];
+    objectiveRevision?: number } = {}): AdaptiveActivityDecision {
   return {
     kind, reason, ...(objective ? { objective } : {}),
     ...(extras.dueAt !== undefined ? { dueAt: extras.dueAt } : {}),
     ...(extras.minutesRemaining !== undefined ? { minutesRemaining: extras.minutesRemaining } : {}),
     provenance: {
       policy: "m4-v1", trigger,
-      ...(objective ? { objectiveRevision: objective.objectiveRevision ?? 1 } : {}),
+      ...(objective || extras.objectiveRevision !== undefined
+        ? { objectiveRevision: extras.objectiveRevision ??
+            objective?.objectiveRevision ?? 1 } : {}),
       evidenceIds: extras.policyEvidenceIds ?? history.slice(-4).map(item => item.id),
       criterionIds: extras.criterionIds ?? [],
       ...(extras.scaffoldLevel !== undefined ? { scaffoldLevel: extras.scaffoldLevel } : {}),
@@ -65,11 +68,12 @@ function forObjective(
   state: LearningState, now: number, minutesRemaining?: number, locked = false,
 ): AdaptiveActivityDecision {
   const history = evidenceFor(program, objective, state);
+  const objectiveRevision = objective.objectiveRevision ?? program.planVersion;
   const latest = history.at(-1);
   if (!latest) {
     return decision("diagnostic", locked ? "Assess only the pinned focus objective." :
       "Assess this prerequisite-eligible objective before teaching.", "assessment-needed",
-    objective, history, { minutesRemaining });
+    objective, history, { minutesRemaining, objectiveRevision });
   }
   const feedback = decideFeedback(objective, history, latest);
   if (feedback.kind === "repair" || feedback.kind === "scaffold") {
@@ -86,37 +90,37 @@ function forObjective(
           : "Practice only the incomplete criterion with bounded guidance.",
       feedback.kind === "scaffold" ? "scaffold" : "criterion-failed",
       objective, history, {
-        minutesRemaining, criterionIds,
+        minutesRemaining, criterionIds, objectiveRevision,
         ...(feedback.kind === "scaffold" ? { scaffoldLevel: feedback.level } : {}),
       });
   }
   if (feedback.kind === "independent-check") {
     return decision("guided-practice", "Assisted or single-item success needs an independent criterion check.",
       "verify-independently", objective, history,
-      { minutesRemaining, criterionIds: profile.criterion.filter(c =>
+      { minutesRemaining, objectiveRevision, criterionIds: profile.criterion.filter(c =>
         c.status !== "verified").map(c => c.id) });
   }
   if (feedback.kind === "delayed-recall") {
     return now >= feedback.dueAt
       ? decision("recall", "Independent delayed retrieval is due.", "recall-due",
-        objective, history, { dueAt: feedback.dueAt, minutesRemaining })
+        objective, history, { dueAt: feedback.dueAt, minutesRemaining, objectiveRevision })
       : decision("wait", "Independent recall is not due yet.", "recall-pending",
-        undefined, history, { dueAt: feedback.dueAt, minutesRemaining });
+        undefined, history, { dueAt: feedback.dueAt, minutesRemaining, objectiveRevision });
   }
   if (feedback.kind === "transfer-check") {
     return decision("transfer", "Required transfer has not yet been demonstrated independently.",
-      "transfer-required", objective, history, { minutesRemaining });
+      "transfer-required", objective, history, { minutesRemaining, objectiveRevision });
   }
   // Ready-to-advance comes from M1 complete-rubric + delayed independent recall.
   const dueAt = profile.dueAt ?? latest.createdAt + 3 * DAY;
   if (now >= dueAt) {
     return decision("recall", "Maintenance retrieval is due.", "recall-due",
-      objective, history, { dueAt, minutesRemaining });
+      objective, history, { dueAt, minutesRemaining, objectiveRevision });
   }
   return decision("wait", locked
     ? "Pinned objective is ready. End focus or await maintenance recall."
     : "Objective is ready; other eligible objectives may proceed.",
-  "mastery-demonstrated", undefined, history, { dueAt, minutesRemaining });
+  "mastery-demonstrated", undefined, history, { dueAt, minutesRemaining, objectiveRevision });
 }
 
 /** Pure M4 selector: program lock, M3 revision-scoped state, M1 feedback and explicit legacy compatibility. */

@@ -51,7 +51,17 @@ export function deriveLearnerProfile(program: LearningProgram, state: LearningSt
     const revision = objective.objectiveRevision ?? program.planVersion;
     const history = state.evidence.filter(item => eligible(item, program, objective))
       .sort((a, b) => a.createdAt - b.createdAt || a.id.localeCompare(b.id));
-    const progress = objectiveProgress(program, objective.id, state.evidence, now);
+    // Only current-revision committed v3 evidence may establish a versioned skill.
+    // Legacy v1 programs keep their historical read compatibility, but once a
+    // curriculum has revision metadata, obsolete v2 assessments never grant mastery.
+    const legacyReadOnly = program.planVersion === 1 &&
+      objective.objectiveRevision === undefined;
+    const progress = history.length
+      ? objectiveProgress(program, objective.id, history, now)
+      : legacyReadOnly
+        ? objectiveProgress(program, objective.id, state.evidence.filter(item =>
+            item.evidenceVersion !== 3), now)
+        : { status: "unseen" as const, dueAt: null };
     const criterion: CriterionSnapshot[] = objective.rubric.map((label, index) => {
       const id = criterionIdFor(objective.id, revision, index);
       const observed = history.filter(item => item.rubricResults?.some(r => r.criterionId === id));

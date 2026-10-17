@@ -1,7 +1,8 @@
 import type { AgentRuntimePort } from "../agent/AgentRuntime";
 import type { ContextPort, LearningStatePort, ProgramStorePort } from "./ports";
 import type { LearningProgram, ProgramCollection, ProgramConstraints, LearningDecision, SessionPauseReason } from "../domain/learning-program/types";
-import { chooseNextActivity, chooseFocusedActivity, objectiveProgress, feasibility, validateConstraints, validateCurriculum } from "../domain/learning-program/rules";
+import { objectiveProgress, feasibility, validateConstraints, validateCurriculum } from "../domain/learning-program/rules";
+import { selectAdaptiveActivity } from "../domain/learner-model/activity-policy";
 import { startObjectiveFocus, transitionObjectiveFocus } from "../domain/learning-program/focus-transitions";
 import { deriveLearnerProfile, toLearnerProfileContext } from "../domain/learner-model/learner-profile";
 import { applyCurriculumRevision, detectStructuralGap, type CurriculumRevision, type StructuralGapReason } from "../domain/learning-program/curriculum-revision";
@@ -482,9 +483,7 @@ export class LearningProgramOrchestrator {
     const program = await this.getActiveProgram();
     if (!program) return null;
     const state = await this.learningState.load();
-    return { program, decision: program.focus
-      ? chooseFocusedActivity(program, state.evidence, this.now())
-      : chooseNextActivity(program, state.evidence, this.now()) };
+    return { program, decision: selectAdaptiveActivity(program, state, this.now()) };
   }
   async reviewDueSummary(): Promise<string> {
     const program = await this.getActiveProgram();
@@ -551,6 +550,11 @@ export class LearningProgramOrchestrator {
       `Feasibility: ${estimate}`,
       `Remaining work: ~${remainingEstimate.minutes} min (${remainingEstimate.basis}${remainingEstimate.basis === "calibrated" ? `, ${remainingEstimate.samples} measured objectives` : ""}).`,
       `Next: ${decision.kind} — ${decision.objective?.title ?? decision.reason}`,
+      ...(decision.provenance ? [
+        `Policy: ${decision.provenance.trigger}` +
+          (decision.provenance.criterionIds.length
+            ? ` (criteria ${decision.provenance.criterionIds.join(", ")})` : ""),
+      ] : []),
       ...(decision.dueAt ? [`Review due: ${new Date(decision.dueAt).toLocaleString()}`] : []),
       ...(program.focus ? ["Focus is self-paced; no mandatory timer."] :
         [`Session remaining: ${decision.minutesRemaining ?? program.constraints.minutesPerSession} minutes`]),
