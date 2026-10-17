@@ -146,3 +146,29 @@ test("cancel and preview rejection never trigger approval", async () => {
   assert.equal(root.find("nox-curriculum-editor")!.hidden, true);
   assert.equal(approvals, 0);
 });
+
+test("rejected approval clears stale preview but preserves actionable error", async () => {
+  const root = new FakeElement();
+  let committed = false;
+  renderCurriculumRevisionEditor(root as never, objective, [objective, other], {
+    preview: async () => ({
+      operationId: "manual:pending", programId: "p", fromVersion: 1, toVersion: 2,
+      kind: "revise", rationale: "Rename for clarity",
+      changedFields: ["title"], before: objective,
+      after: { ...objective, title: "Fundamentals refined" },
+    }),
+    approve: async () => { throw new Error("Curriculum version conflict. Preview again."); },
+    onApproved: () => { committed = true; },
+  });
+  root.find("nox-curriculum-edit-toggle")!.trigger("click");
+  root.findAll("nox-curriculum-input")[1].value = "Rename for clarity";
+  root.find("nox-curriculum-actions")!.children[1].trigger("click");
+  await tick();
+  const approve = root.find("nox-curriculum-approve")!;
+  assert.equal(approve.hidden, false);
+  approve.trigger("click");
+  await tick();
+  assert.equal(approve.hidden, true);
+  assert.match(root.find("nox-curriculum-status")!.text, /version conflict/);
+  assert.equal(committed, false);
+});
