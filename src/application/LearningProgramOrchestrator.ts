@@ -243,6 +243,12 @@ export class LearningProgramOrchestrator {
     return collection.programs.find(p => p.id === collection.activeProgramId) ?? null;
   }
   /** Persist a single program-scoped focus; evidence and question ownership stay elsewhere. */
+  private async assertNoActiveFocus(): Promise<void> {
+    if ((await this.store.load()).programs.some(p => p.focus?.status === "active")) {
+      throw new Error("Pause or end the active objective focus before creating a different learning program.");
+    }
+  }
+
   async getFocus(): Promise<LearningProgram["focus"] | undefined> {
     return (await this.getActiveProgram())?.focus;
   }
@@ -426,6 +432,7 @@ export class LearningProgramOrchestrator {
 
   /** Preview only; no program is persisted until the learner approves. */
   async prepareProgram(goal: string, requested: ProgramConstraints): Promise<LearningProgram> {
+    await this.assertNoActiveFocus();
     if (this.isPlanning()) throw new Error("Another learning program operation is in progress.");
     if (!goal.trim()) throw new Error("Learning goal is required.");
     this.planning = true;
@@ -507,6 +514,9 @@ export class LearningProgramOrchestrator {
       this.writing = true;
       try {
         const collection = await this.store.load();
+        if (collection.programs.some(p => p.focus?.status === "active")) {
+          throw new Error("Pause or end objective focus before changing learning plans.");
+        }
         const previous = collection.programs.find(p => p.creationOperationId === operationId);
         if (previous) return previous;
         const proposed = this.preparedDrafts.get(draftId);
@@ -542,6 +552,7 @@ export class LearningProgramOrchestrator {
 
   /** Domain-neutral discovery uses one bounded provider call; suggestions never become learning evidence. */
   async discoverGoals(interests: string[], purpose: string): Promise<Array<{ title: string; outcome: string }>> {
+    await this.assertNoActiveFocus();
     if (this.isPlanning()) throw new Error("Another learning operation is in progress.");
     this.planning = true;
     const abort = this.currentAbort = new AbortController();
