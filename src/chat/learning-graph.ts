@@ -1,6 +1,7 @@
 import type { NoxProgramOverview } from "../application/learning-types";
 import { createNoxButton, setNoxIcon } from "./primitives";
 import { layoutLearningMap, LEARNING_MAP_NODE_SIZE, type LearningMapLayout } from "./learning-graph-layout";
+import { renderCurriculumRevisionEditor, type CurriculumRevisionActions } from "./learning-revision-editor";
 
 const SVG_NS = "http://www.w3.org/2000/svg";
 
@@ -82,6 +83,7 @@ export function renderLearningGraph(
   onClose: () => void,
   onNext: () => void,
   onCommand?: (command: string) => void,
+  revisions?: CurriculumRevisionActions,
 ): HTMLElement {
   const root = parent.createDiv({ cls: "nox-learning-graph" });
   parent.prepend(root);
@@ -96,21 +98,25 @@ export function renderLearningGraph(
   root.createDiv({ cls: "nox-learning-graph-goal", text: overview.goal });
   if (overview.focus) root.createDiv({ cls: "nox-inspector-muted",
     text: "Focus: " + overview.focus.objectiveId + " · " + overview.focus.status + " · self-paced" });
-  const mastered = overview.objectives.filter(item => item.status === "mastered").length;
-  root.createDiv({ cls: "nox-inspector-muted", text: `${mastered} of ${overview.objectives.length} mastered · Mastery requires independent recall` });
+  const activeObjectives = overview.objectives.filter(item => !item.objective.deprecated);
+  const retiredCount = overview.objectives.length - activeObjectives.length;
+  const mastered = activeObjectives.filter(item => item.status === "mastered").length;
+  root.createDiv({ cls: "nox-inspector-muted", text: `${mastered} of ${activeObjectives.length} active objectives mastered · Independent recall required` });
+  if (retiredCount) root.createDiv({ cls: "nox-inspector-muted",
+    text: `${retiredCount} retired ${retiredCount === 1 ? "objective" : "objectives"} kept in curriculum history` });
   const track = root.createDiv({ cls: "nox-learning-graph-track", attr: { role: "progressbar",
     "aria-label": "Mastered learning objectives", "aria-valuemin": "0",
-    "aria-valuemax": String(overview.objectives.length), "aria-valuenow": String(mastered) } });
+    "aria-valuemax": String(activeObjectives.length), "aria-valuenow": String(mastered) } });
   const fill = track.createDiv();
-  fill.style.width = (overview.objectives.length ? (mastered / overview.objectives.length) * 100 : 0) + "%";
-  const layout = layoutLearningMap(overview.objectives.map(item => ({
+  fill.style.width = (activeObjectives.length ? (mastered / activeObjectives.length) * 100 : 0) + "%";
+  const layout = layoutLearningMap(activeObjectives.map(item => ({
     id: item.objective.id, title: item.objective.title, status: item.status,
     prerequisiteIds: item.objective.prerequisiteIds,
   })));
   appendDependencyDiagram(root, layout);
   const nodes = new Map(overview.objectives.map(item => [item.objective.id, item.objective]));
   const levels = new Map(layout.nodes.map(node => [node.id, node.level]));
-  const ordered = [...overview.objectives].sort((a, b) =>
+  const ordered = [...activeObjectives].sort((a, b) =>
     (levels.get(a.objective.id) ?? 0) - (levels.get(b.objective.id) ?? 0) ||
     a.objective.title.localeCompare(b.objective.title));
   for (const item of ordered) {
@@ -144,6 +150,10 @@ export function renderLearningGraph(
           overview.objectives.some(o => o.objective.id === id && o.status === "mastered"))) {
       const start = createNoxButton(body, { variant: "secondary", text: "Focus here" });
       start.addEventListener("click", () => onCommand("/focus " + item.objective.id));
+    }
+    if (revisions && !overview.focus) {
+      renderCurriculumRevisionEditor(body, item.objective,
+        overview.objectives.map(entry => entry.objective), revisions);
     }
   }
   const next = root.createDiv({ cls: "nox-graph-next" });
