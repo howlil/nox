@@ -12,7 +12,7 @@ This ledger is updated when code is committed. An item is checked only if the be
 - [x] Bind newly committed questions to `focusSessionId` and reject mismatched recovered questions.
 - [x] Recheck active program, focus identity and curriculum version before terminal practice commit.
 - [x] Regression tests for authorization and paused-switch persistence.
-- [ ] Integration/fault-injection proof for a changed focus during an in-flight provider response.
+- [x] Integration/fault-injection proof for a changed focus during an in-flight provider response (M5 orchestration race tests).
 - [ ] Explicit clarification/deferred-off-topic intent and legacy question compatibility acceptance.
 
 ## M1 — Feedback & evidence (v3 + progressive assistance implemented; verified executor pending)
@@ -52,7 +52,8 @@ This ledger is updated when code is committed. An item is checked only if the be
 - [x] Create-only Roadmap-vN.md snapshots reconcile explicit revisions and label retired objectives; source-bound and learner-edited notes stay untouched.
 - [x] Unit, orchestrator and vault tests cover preview purity, retries, dependency cycles, collisions, tombstones, version conflicts, lineage and safe workspace snapshots.
 - [ ] Reversible rollback as a *new* versioned change; full historical roadmap reconciliation.
-- [ ] Compact non-JSON UI for structural edits, and Obsidian desktop acceptance including restart and legacy vaults.
+- [x] Compact non-JSON structural edit UI in Learning Map (typed field/prerequisite/retire controls, rationale, pure diff preview, separate approval and safe retry); editors load lazily when expanded.
+- [ ] Obsidian desktop acceptance including restarts and legacy vaults.
 
 ## M3 — Derived learner memory (read-only projection integrated; desktop acceptance pending)
 
@@ -76,7 +77,7 @@ This ledger is updated when code is committed. An item is checked only if the be
 - [x] Program practice prompt maps criterion IDs to the approved rubric descriptions and includes opaque evidence references rather than invented provider verdicts.
 - [x] Unit and regression tests cover DAG eligibility, due recall priority, focus lock, source evidence, repeated decisions, scaffold escalation/reset, stale curriculum evidence, and non-weakenable retention thresholds.
 - [ ] Product settings/UI for optional threshold configuration, and desktop acceptance of real-provider adaptive turns (especially legacy vaults).
-- [ ] Concurrency/fault-injection tests where evidence and focus change during an in-flight provider activity decision (tracked under M5/M7).
+- [x] Concurrency/fault-injection tests reject changes to evidence, focus or plan during in-flight provider activity (M5 tests).
 
 ## M5 — Context and provider orchestration (versioned core implemented; atomic race acceptance pending)
 
@@ -90,13 +91,18 @@ This ledger is updated when code is committed. An item is checked only if the be
 - [ ] Close the remaining cross-file check/commit race (atomicity of focus, evidence and transcript spans separate persistence stores). Re-check at the final write boundary and add concurrent commit fault-injection coverage.
 - [ ] Desktop acceptance using supported providers and a source-bound historical vault.
 
-## M6 — Compact UX (partial)
+## M6 — Compact UX (inline revision workflow implemented; desktop acceptance pending)
 
 - [x] Goal-first onboarding, focus actions and quiz/rubric feedback.
 - [x] Correction CTA routes to self-paced `/next` or `/resume-focus` rather than implicit timed session.
 - [x] Graduated hint controls with durable disclosure and no answer-key auto reveal.
-- [ ] Clarification and curriculum revision diff UI.
-- [ ] Full Obsidian desktop accessibility and visual acceptance.
+- [x] Native inline Learning Map editor: adjust one objective's metadata, dependency checkboxes or retire it without typing JSON or opening a new page/dialog.
+- [x] Pure versioned before/after diff, rationale and explicit separate Approve & save; changing a field invalidates preview, stale approvals fail closed, and controls are disabled while requests are pending.
+- [x] Lazy editor rendering per expanded objective, keyboard accessible native form fields and reduced-motion styling; retired objectives are excluded from visual active progress totals without deleting historical records.
+- [x] Assessment feedback surfaces the actual persisted hint level and up to two missed criteria, without revealing the answer key before a committed evaluation.
+- [x] UI regression tests for editor state, type-safe form intent, preview-only behavior, denial, approval, and criterion feedback.
+- [ ] Clarification/deferred-off-topic intent control for focused practice (M0 compatibility).
+- [ ] Full Obsidian desktop keyboard, screen reader and visual acceptance across providers and legacy vaults.
 
 ## M7 — Verification/release (open)
 
@@ -108,6 +114,7 @@ This ledger is updated when code is committed. An item is checked only if the be
 - [x] M3 tests for evidence-derived learner memory, program isolation, bounded provider context, fingerprint invalidation and reconstruction from persisted progress.
 - [x] M4 deterministic activity policy tests for criterion targeting, eligible objective priority, anti-thrashing and safe recall thresholds.
 - [x] M5 unit and integration proof for versioned bounded learning context and deterministic mid-inference focus/plan/evidence invalidation.
+- [x] M6 native structural revision UI tests for preview vs approval, change invalidation, non-JSON form, and persisted criterion guidance.
 - [ ] Atomic inter-store check-and-commit concurrency proof after transcript persistence and before progress projection.
 - [ ] Full migration/restore and concurrency fault-injection matrix.
 - [ ] Manual Obsidian desktop provider and vault acceptance.
