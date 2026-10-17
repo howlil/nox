@@ -4788,3 +4788,112 @@
 @media (prefers-reduced-motion: reduce) {
   .nox-settings-surface .nox-settings-tab { transition: none; }
 }
+
+
+/* Inline, confirmation-first learning curriculum editor. No extra modal surface. */
+.nox-learning-graph .nox-curriculum-edit-toggle {
+  margin-top: 8px;
+  font-size: 11px;
+}
+.nox-learning-graph .nox-curriculum-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  margin-top: 8px;
+  padding: 10px;
+  min-width: 0;
+  border: 1px solid var(--nox-line);
+  border-radius: var(--nox-radius-card);
+  background: var(--nox-surface);
+  animation: nox-practice-disclose-in 160ms var(--nox-ease-out-strong) both;
+}
+.nox-learning-graph .nox-curriculum-editor[hidden],
+.nox-learning-graph .nox-curriculum-diff[hidden],
+.nox-learning-graph .nox-curriculum-dependencies[hidden],
+.nox-learning-graph .nox-curriculum-editor select[hidden],
+.nox-learning-graph .nox-curriculum-editor input[hidden],
+.nox-learning-graph .nox-curriculum-editor label[hidden],
+.nox-learning-graph .nox-curriculum-editor button[hidden] { display: none; }
+.nox-learning-graph .nox-curriculum-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 11px;
+  color: var(--nox-ink-2);
+  min-width: 0;
+}
+.nox-learning-graph .nox-curriculum-input,
+.nox-learning-graph .nox-curriculum-select {
+  width: 100%;
+  min-width: 0;
+  padding: 7px 9px;
+  box-sizing: border-box;
+  border: 1px solid var(--nox-line);
+  border-radius: 8px;
+  color: var(--nox-ink);
+  background: var(--nox-surface);
+  font: inherit;
+  font-size: 12px;
+}
+.nox-learning-graph .nox-curriculum-input:focus-visible,
+.nox-learning-graph .nox-curriculum-select:focus-visible {
+  border-color: var(--nox-ink-2);
+  outline: 0;
+}
+.nox-learning-graph .nox-curriculum-dependencies {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  max-height: 152px;
+  overflow: auto;
+}
+.nox-learning-graph .nox-curriculum-check {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  font-size: 11px;
+}
+.nox-learning-graph .nox-curriculum-caption {
+  color: var(--nox-ink-2);
+  font-size: 10.5px;
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+.nox-learning-graph .nox-curriculum-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.nox-learning-graph .nox-curriculum-status {
+  min-height: 0;
+  color: var(--nox-ink-2);
+  font-size: 11px;
+  overflow-wrap: anywhere;
+  line-height: 1.45;
+}
+.nox-learning-graph .nox-curriculum-diff {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 0;
+  border-top: 1px solid var(--nox-line);
+}
+.nox-learning-graph .nox-curriculum-diff-row {
+  min-width: 0;
+  padding: 4px 0;
+  border-bottom: 1px solid var(--nox-line-soft);
+}
+.nox-learning-graph .nox-curriculum-old,
+.nox-learning-graph .nox-curriculum-new {
+  overflow-wrap: anywhere;
+  font-size: 11px;
+  line-height: 1.45;
+}
+.nox-learning-graph .nox-curriculum-old { color: var(--nox-ink-2); }
+.nox-learning-graph .nox-curriculum-new { color: var(--nox-ink); font-weight: 500; }
+.nox-learning-graph .nox-curriculum-approve { align-self: flex-end; }
+@media (prefers-reduced-motion: reduce) {
+  .nox-learning-graph .nox-curriculum-editor { animation: none; }
+}
