@@ -140,3 +140,16 @@ test("correct single-item MCQ is formative evidence, not objective mastery", () 
   assert.equal(chooseNextActivity(program(), [one, two], now).kind, "guided-practice");
   assert.equal(chooseNextActivity(program(), [one, two], now).objective?.id, "symbols");
 });
+
+
+test("new v3 evidence cannot bypass required rubric through average score or legacy mastery", () => {
+  const p = program();
+  const last = event("symbols", "correct", now);
+  const e: LearningEvidence = {
+    ...last, id: "v3", evidenceVersion: 3, objectiveRevision: 1, questionId: "q",
+    evaluator: "llm-review", assistance: { highestHintLevel: 0, independent: true },
+    rubricResults: [{ criterion: "Use notation correctly",
+      criterionId: "symbols@1:criterion-1", met: false, evidence: "not shown" }],
+  };
+  assert.equal(objectiveProgress(p, "symbols", [event("symbols", "correct", now - 3 * 86_400_000), e], now).status, "remediate");
+});

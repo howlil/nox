@@ -51,3 +51,14 @@ test("committed v3 projection is idempotent and opens criterion-specific gaps", 
   assert.equal(once.gaps[0]?.criterionId, gap.criterionId);
   assert.deepEqual(twice, once);
 });
+
+
+test("assisted correct answer after reopening cannot inherit earlier resolved status", () => {
+  const x = ev("x", 0, false);
+  const y = ev("y", 100, true);
+  const z = ev("z", 47_000_000, true, true);
+  const reopen = ev("reopen", 50_000_000, false, true);
+  const hint = { ...ev("hint", 51_000_000, true), assisted: true };
+  assert.equal(deriveGapStatus(gap, [x, y, z, reopen]), "open");
+  assert.equal(deriveGapStatus(gap, [x, y, z, reopen, hint]), "improving");
+});

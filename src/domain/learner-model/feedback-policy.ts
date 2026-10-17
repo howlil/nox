@@ -74,7 +74,11 @@ export function decideFeedback(
       .filter(id => !lastAttempt.rubricResults?.some(result => result.criterionId === id && result.met)) };
   }
 
-  const correctIndependent = history.filter(item => item.outcome === "correct" &&
+  // A regression invalidates the previous successful retrieval cycle.
+  const latestFailureIndex = history.findLastIndex(item => item.outcome !== "correct" ||
+    item.rubricResults?.some(result => !result.met));
+  const currentCycle = history.slice(latestFailureIndex + 1);
+  const correctIndependent = currentCycle.filter(item => item.outcome === "correct" &&
     independent(item) && item.rubricResults?.every(result => result.met) &&
     objective.rubric.every((_, index) => item.rubricResults?.some(result => result.criterionId ===
       criterionIdFor(objective.id, lastAttempt.objectiveRevision!, index) && result.met)));

@@ -65,3 +65,14 @@ test("evidence never leaks between programs with the same objective ID", () => {
   const b = attempt("b", 13 * 60 * 60 * 1000, "correct", { taskKind: "recall" });
   assert.equal(decideFeedback(objective, [a, b], b).kind, "delayed-recall");
 });
+
+
+test("failed recall resets the readiness cycle even if a previous cycle passed", () => {
+  const initial = attempt("a", 0, "correct");
+  const recall = attempt("b", 47_000_000, "correct", { taskKind: "recall" });
+  const regression = attempt("c", 48_000_000, "incorrect", { taskKind: "recall" });
+  const correction = attempt("d", 49_000_000, "correct");
+  assert.equal(decideFeedback(objective, [initial, recall], recall).kind, "ready-to-advance");
+  assert.equal(decideFeedback(objective, [initial, recall, regression, correction], correction).kind,
+    "delayed-recall");
+});

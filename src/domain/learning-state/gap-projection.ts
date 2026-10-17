@@ -22,7 +22,11 @@ export function deriveGapStatus(
   if (!last) return "open";
   const result = last.rubricResults!.find(item => item.criterionId === gap.criterionId)!;
   if (!result.met) return "open";
-  const passing = relevant.filter(item => item.assessmentCoverage !== "single-item" &&
+  // Old successful recalls cannot re-resolve a newly reopened gap.
+  const lastFailureIndex = relevant.findLastIndex(item =>
+    item.rubricResults?.some(result => result.criterionId === gap.criterionId && !result.met));
+  const passing = relevant.slice(lastFailureIndex + 1).filter(item =>
+    item.assessmentCoverage !== "single-item" &&
     independent(item) && item.rubricResults?.some(x => x.criterionId === gap.criterionId && x.met));
   if (!passing.length) return "improving";
   // A resolved gap needs independent remediation followed by delayed independent retrieval.
