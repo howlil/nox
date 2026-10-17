@@ -19,7 +19,7 @@ concurrency:
 
 jobs:
   policy:
-    if: github.event_name == 'workflow_dispatch' || startsWith(github.head_ref, 'release/')
+    if: github.event_name == 'workflow_dispatch' || github.event_name == 'pull_request'
     name: release-policy
     runs-on: ubuntu-latest
     steps:
@@ -43,7 +43,7 @@ jobs:
           strict: "true"
 
   artifacts:
-    if: github.event_name == 'workflow_dispatch' || startsWith(github.head_ref, 'release/')
+    if: github.event_name == 'workflow_dispatch' || github.event_name == 'pull_request'
     name: release-artifacts
     runs-on: ubuntu-latest
     steps:
@@ -79,7 +79,7 @@ jobs:
           retention-days: 14
 
   windows-dpapi:
-    if: github.event_name == 'workflow_dispatch' || startsWith(github.head_ref, 'release/')
+    if: github.event_name == 'workflow_dispatch' || github.event_name == 'pull_request'
     name: windows-dpapi
     runs-on: windows-latest
     steps:
@@ -101,7 +101,7 @@ jobs:
           node --test chatgpt-provider-test.mjs obsidian-oauth-test.mjs obsidian-inference-test.mjs
 
   certified:
-    if: always() && (github.event_name == 'workflow_dispatch' || startsWith(github.head_ref, 'release/'))
+    if: always() && (github.event_name == 'workflow_dispatch' || github.event_name == 'pull_request')
     needs: [policy, artifacts, windows-dpapi]
     name: release-certified
     runs-on: ubuntu-latest
