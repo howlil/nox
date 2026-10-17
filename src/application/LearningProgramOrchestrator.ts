@@ -262,6 +262,21 @@ export class LearningProgramOrchestrator {
     if (program.constraints.sourceBound && this.currentProvider() !== "chatgpt") {
       throw new Error("Source-bound revision requires the ChatGPT provider without vault filesystem tools.");
     }
+    // Strict source-bound proposal: only trusted, explicitly resolved allowlist notes
+    // may contribute source text; no implicit active-note or filesystem expansion.
+    const sourceMaterials: Array<{ path: string; content: string }> = [];
+    if (program.constraints.sourceBound) {
+      const refs = program.constraints.sourcePaths.map(path => ({ kind: "vault-note" as const, path }));
+      const resolved = await this.contexts.resolve(refs);
+      for (const path of program.constraints.sourcePaths) {
+        const approved = resolved.explicit.find(item =>
+          item.type === "note" && item.source === "explicit" && item.path === path);
+        if (!approved?.content) {
+          throw new Error("Approved source note could not be resolved. Revision preview aborted.");
+        }
+        sourceMaterials.push({ path, content: approved.content.slice(0, 12_000) });
+      }
+    }
     const state = await this.learningState.load();
     const trigger = reason === "goal-change"
       ? { reason: "goal-change" as StructuralGapReason, evidenceIds: [] }
@@ -272,7 +287,7 @@ export class LearningProgramOrchestrator {
     const timeout = setTimeout(() => controller.abort(), 120_000);
     try {
       const { revision, preview } = await proposeCurriculumRevision(this.runtime, program,
-        state.evidence, trigger, this.currentModel(), this.now(), controller.signal)
+        state.evidence, trigger, this.currentModel(), this.now(), controller.signal, sourceMaterials)
         .then(result => ({ revision: result.proposal, preview: result.preview }));
       this.pendingRevisions.clear();
       this.pendingRevisions.set(revision.operationId, { revision, preview });
