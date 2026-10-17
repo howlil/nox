@@ -27,7 +27,6 @@ export interface LearningContextPackage {
 const MAX_HITS = 6;
 const MAX_EVIDENCE = 6;
 const MAX_DOC_CHARS = 120_000;
-const MAX_EVIDENCE_TEXT = 180;
 const SOURCE_PREFIX = "[Approved objective source";
 
 function validNoteType(value: AgentContext): boolean {
@@ -92,7 +91,9 @@ export function buildLearningContextPackage(request: LearningContextRequest): Le
     }
     index.upsert({ path, content: content.slice(0, MAX_DOC_CHARS), links: [], revision: "turn-local" });
   }
-  const profile = deriveLearnerProfile(program, state, request.now);
+  // Project only the pinned objective to avoid O(programObjectives × events)
+  // history scans in a vault containing thousands of completed attempts.
+  const profile = deriveLearnerProfile({ ...program, objectives: [objective] }, state, request.now);
   const scoped = toLearnerProfileContext(profile, objective.id);
   const attempts = state.evidence
     .filter((item): item is LearningEvidence => item.type === "practice" &&
@@ -105,9 +106,10 @@ export function buildLearningContextPackage(request: LearningContextRequest): Le
     outcome: item.outcome, independent: item.assistance?.independent === true &&
       item.assistance.highestHintLevel === 0 && !item.assisted,
     taskKind: item.taskKind,
+    // Evaluation prose is provider-authored and could contain instruction-like
+    // text; only application-linked criterion IDs and verdicts are forwarded.
     criterion: (item.rubricResults ?? []).slice(0, 12).map(result => ({
       id: result.criterionId, met: result.met,
-      evidence: result.evidence.slice(0, MAX_EVIDENCE_TEXT),
     })),
   }));
   const query = [

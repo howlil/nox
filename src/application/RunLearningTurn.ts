@@ -388,7 +388,15 @@ export class RunLearningTurn {
           throw new Error("Strict source-bound learning requires the ChatGPT provider without vault filesystem tools. Local CLI agents can read beyond selected notes.");
         }
         if (program?.constraints.sourceBound) {
-          for (const path of program.constraints.sourcePaths) {
+          // Read only objective-specific, already approved sources when focus
+          // or a pending challenge establishes which objective is authoritative.
+          const sourceObjectiveId = program.focus?.objectiveId ??
+            activePracticeTurn?.objectiveId ?? request.programActivity?.objectiveId;
+          const sourceObjective = program.objectives.find(item => item.id === sourceObjectiveId &&
+            !item.deprecated);
+          const neededPaths = sourceObjective?.sourceRefs.length
+            ? sourceObjective.sourceRefs : program.constraints.sourcePaths;
+          for (const path of neededPaths) {
             if (!refs.some(ref => ref.kind === "vault-note" && ref.path === path)) {
               refs.push({ kind: "vault-note", path });
             }
@@ -398,6 +406,16 @@ export class RunLearningTurn {
       const sourceRef = pinnedPracticeSource ?? request.sourcePath;
       if (sourceRef && !refs.some((ref) => ref.kind === "vault-note" && ref.path === sourceRef)) {
         refs.push({ kind: "vault-note", path: sourceRef });
+      }
+      // Filter user-provided attachments and unrelated vault references BEFORE
+      // loading file bytes. Source boundaries are authorization, not relevance.
+      if (program?.constraints.sourceBound) {
+        const approved = new Set(program.constraints.sourcePaths);
+        if (sourceRef && !approved.has(sourceRef)) {
+          throw new Error("Practice source is outside the approved learning material.");
+        }
+        const scopedRefs = refs.filter(ref => ref.kind === "vault-note" && approved.has(ref.path));
+        refs.splice(0, refs.length, ...scopedRefs);
       }
       // Independent vault reads share the same preflight window; required
       // source resolution and learning-policy failures still fail this turn.
