@@ -4,9 +4,11 @@ import { validateConstraints, validateCurriculum } from "../domain/learning-prog
 import { isValidSessionTiming } from "../domain/learning-program/session-time";
 import { validateObjectiveFocus } from "../domain/learning-program/focus-transitions";
 import { PersistenceError } from "./PersistenceError";
+import { decodeProgramCollection, migrateProgramCollectionV1 } from "./program-schema";
 
 const PATH = "00-learning-os/programs.json";
-const EMPTY: ProgramCollection = { version: 1, programs: [] };
+const BACKUPS = "00-learning-os/backups";
+const EMPTY: ProgramCollection = { version: 2, programs: [] };
 
 export class ProgramWriteConflict extends Error {
   constructor() {
@@ -41,12 +43,7 @@ export class VaultProgramStore {
     try { data = JSON.parse(text); } catch {
       throw new Error(`Invalid NOX programs JSON at ${PATH}. Back up the file and restore valid JSON before using learning programs.`);
     }
-    if (!data || typeof data !== "object") throw new Error("Invalid NOX program collection.");
-    const state = data as ProgramCollection;
-    if (state.version !== 1 || !Array.isArray(state.programs) ||
-        (state.activeProgramId && !state.programs.some(p => p.id === state.activeProgramId))) {
-      throw new Error("Unsupported NOX program collection.");
-    }
+    const state = decodeProgramCollection(data);
     for (const program of state.programs) this.validateProgram(program);
     const snapshot = structuredClone(state);
     this.lastKnownBytes = text;
@@ -54,7 +51,7 @@ export class VaultProgramStore {
     return snapshot;
   }
   private validateProgram(program: LearningProgram) {
-    if (program.version !== 1 || !program.id || !program.goal?.trim() ||
+    if ((program.version !== 1 && program.version !== 2) || !program.id || !program.goal?.trim() ||
         !Number.isInteger(program.planVersion) || program.planVersion < 1) {
       throw new Error("Invalid learning program.");
     }
@@ -156,25 +153,42 @@ export class VaultProgramStore {
       }
     }
   }
+  /** Back up exact v1 bytes before the first v2 rewrite. Never overwrite a backup. */
+  private async backUpV1(bytes: string): Promise<void> {
+    if (!this.app.vault.getAbstractFileByPath(BACKUPS)) {
+      await this.app.vault.createFolder(BACKUPS);
+    }
+    const path = `${BACKUPS}/programs-v1-${crypto.randomUUID()}.json`;
+    if (this.app.vault.getFileByPath(path)) throw new Error("Program backup path collision.");
+    const backup = await this.app.vault.create(path, bytes);
+    if (!(backup instanceof TFile) || await this.app.vault.read(backup) !== bytes) {
+      throw new Error("Program backup verification failed; migration aborted.");
+    }
+  }
+
   async save(next: ProgramCollection): Promise<void> {
     // Bind expected bytes at call time. Another load/save must not silently
     // rebase this operation onto a newer snapshot while it waits in the queue.
     const expected = this.snapshots.has(next)
       ? this.snapshots.get(next)! : this.lastKnownBytes;
     const operation = this.tail.then(async () => {
-      if (next.version !== 1 || next.programs.length > 100 ||
-          (next.activeProgramId && !next.programs.some(p => p.id === next.activeProgramId))) {
-        throw new Error("Invalid program collection.");
-      }
-      for (const program of next.programs) this.validateProgram(program);
+      // Read-old/write-new: migrating does not fabricate evidence or rubric provenance.
+      const nextV2 = migrateProgramCollectionV1(next);
+      for (const program of nextV2.programs) this.validateProgram(program);
       try {
         if (!this.app.vault.getAbstractFileByPath("00-learning-os")) {
           await this.app.vault.createFolder("00-learning-os");
         }
-        const content = JSON.stringify(next, null, 2) + "\n";
+        const content = JSON.stringify(nextV2, null, 2) + "\n";
         const file = this.app.vault.getFileByPath(PATH);
         if (file && file instanceof TFile) {
           if (expected === null) throw new ProgramWriteConflict();
+          // Verify freshness before saving the exact historical bytes. A concurrent
+          // external modification is checked again by the atomic process callback.
+          if (decodeProgramCollection(JSON.parse(expected)).version === 1) {
+            if (await this.app.vault.read(file) !== expected) throw new ProgramWriteConflict();
+            await this.backUpV1(expected);
+          }
           await this.app.vault.process(file, current => {
             if (current !== expected) throw new ProgramWriteConflict();
             return content;
