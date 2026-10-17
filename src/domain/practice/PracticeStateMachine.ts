@@ -16,7 +16,10 @@ export interface PracticeEvaluationAttempt {
   answer: string;
   programId?: string;
   objectiveId?: string;
+  focusSessionId?: string;
   assisted?: boolean;
+  highestHintLevel: 0 | 1 | 2 | 3 | 4;
+  objectiveRevision?: number;
   taskKind?: "diagnostic" | "guided-practice" | "recall" | "transfer";
 }
 
@@ -90,11 +93,12 @@ export class PracticeStateMachine {
     return this.isWaitingForAnswer() ? current?.hint : undefined;
   }
 
-  markHintUsed(): string | undefined {
+  markHintUsed(level: 1 | 2 | 3 | 4 = 1): string | undefined {
     const current = this.session?.turns[this.session.turns.length - 1];
     if (!current || !this.isWaitingForAnswer()) return undefined;
     if (!current.hint) return undefined;
     current.assisted = true;
+    current.highestHintLevel = Math.max(current.highestHintLevel ?? 0, level) as 1 | 2 | 3 | 4;
     return current.hint;
   }
 
@@ -122,7 +126,10 @@ export class PracticeStateMachine {
       answer,
       programId: session.turns[session.turns.length - 1]?.programId,
       objectiveId: session.turns[session.turns.length - 1]?.objectiveId,
+      focusSessionId: session.turns[session.turns.length - 1]?.questionSpec?.focusSessionId,
       assisted: session.turns[session.turns.length - 1]?.assisted,
+      highestHintLevel: session.turns[session.turns.length - 1]?.highestHintLevel ?? 0,
+      objectiveRevision: session.turns[session.turns.length - 1]?.questionSpec?.objectiveRevision,
       taskKind: session.turns[session.turns.length - 1]?.taskKind,
     };
 
