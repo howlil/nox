@@ -4609,14 +4609,6 @@
   font-family: var(--font-interface, sans-serif);
 }
 .nox-settings-heading { margin: 0 0 20px; }
-.nox-settings-heading .setting-item { border: 0; padding: 0; margin: 0 0 4px; }
-.nox-settings-heading .setting-item-heading .setting-item-name {
-  margin: 0;
-  font-size: 21px;
-  font-weight: 600;
-  line-height: 1.35;
-  letter-spacing: -.025em;
-}
 .nox-settings-heading p {
   margin: 0;
   color: var(--nox-ink-2);
