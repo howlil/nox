@@ -8,7 +8,8 @@ import { applyStructuralRevision } from "../../src/domain/learning-program/struc
 import type { LearningProgram } from "../../src/domain/learning-program/types";
 
 const PATH = "00-learning-os/programs.json";
-const EMPTY = { version: 1 as const, programs: [] };
+const EMPTY = { version: 2 as const, programs: [] };
+const LEGACY = { version: 1 as const, programs: [] };
 
 class MemoryVault {
   readonly files = new Map<string, string>();
@@ -16,6 +17,7 @@ class MemoryVault {
   readCalls = 0;
   cachedReadCalls = 0;
   beforeModify?: () => Promise<void>;
+  beforeCreate?: (path: string) => Promise<void>;
 
   getFileByPath(path: string) {
     return this.files.has(path) ? new TFile(path) : null;
@@ -35,6 +37,7 @@ class MemoryVault {
     this.folders.add(path);
   }
   async create(path: string, content: string) {
+    if (this.beforeCreate) await this.beforeCreate(path);
     this.files.set(path, content);
     return new TFile(path);
   }
@@ -255,5 +258,66 @@ test("failed atomic process retains old bytes and permits explicitly retried sna
   assert.equal(vault.files.get(PATH), previousBytes);
   vault.beforeModify = undefined;
   await store.save(snapshot);
-  assert.equal((await store.load()).version, 1);
+  assert.equal((await store.load()).version, 2);
+});
+
+
+test("valid legacy v1 loads without mutation, then writes v2 after exact verified backup", async () => {
+  const vault = new MemoryVault();
+  const bytes = JSON.stringify(LEGACY, null, 2) + "\n";
+  vault.files.set(PATH, bytes);
+  const store = new VaultProgramStore({ vault } as never);
+  const read = await store.load();
+  assert.equal(read.version, 1);
+  assert.equal(vault.files.get(PATH), bytes, "loading a vault must never rewrite it");
+  assert.deepEqual([...vault.files.keys()], [PATH]);
+
+  await store.save(read);
+  assert.equal((await store.load()).version, 2);
+  const backups = [...vault.files.keys()].filter(path => path.startsWith("00-learning-os/backups/"));
+  assert.equal(backups.length, 1);
+  assert.equal(vault.files.get(backups[0]), bytes, "pre-migration bytes remain exact");
+  const v2 = await store.load();
+  await store.save(v2);
+  assert.equal([...vault.files.keys()].filter(path => path.startsWith("00-learning-os/backups/")).length, 1,
+    "a v2 rewrite never creates another v1 backup");
+});
+
+test("failed legacy backup prevents migration and allows an explicit safe retry", async () => {
+  const vault = new MemoryVault();
+  const original = JSON.stringify(LEGACY);
+  vault.files.set(PATH, original);
+  const store = new VaultProgramStore({ vault } as never);
+  const snapshot = await store.load();
+  vault.beforeCreate = async path => {
+    if (path.startsWith("00-learning-os/backups/")) throw new Error("backup disk full");
+  };
+  await assert.rejects(store.save(snapshot), /Unable to save learning program/);
+  assert.equal(vault.files.get(PATH), original);
+  vault.beforeCreate = undefined;
+  await store.save(snapshot);
+  assert.equal((await store.load()).version, 2);
+});
+
+test("external edits during a pending v1 migration reject without overwriting either version", async () => {
+  const vault = new MemoryVault();
+  const original = JSON.stringify(LEGACY);
+  vault.files.set(PATH, original);
+  const store = new VaultProgramStore({ vault } as never);
+  const snapshot = await store.load();
+  const externallyEdited = JSON.stringify({ ...LEGACY, programs: [] }, null, 2);
+  vault.files.set(PATH, externallyEdited);
+  await assert.rejects(store.save(snapshot), /Program write conflict/);
+  assert.equal(vault.files.get(PATH), externallyEdited);
+  assert.equal([...vault.files.keys()].filter(path => path.includes("backups/")).length, 0);
+});
+
+test("unsupported future collection version fails closed without creating a backup", async () => {
+  const vault = new MemoryVault();
+  const bytes = '{"version":999,"programs":[]}';
+  vault.files.set(PATH, bytes);
+  const store = new VaultProgramStore({ vault } as never);
+  await assert.rejects(store.load(), /Unsupported NOX program collection/);
+  assert.equal(vault.files.get(PATH), bytes);
+  assert.equal(vault.files.size, 1);
 });
