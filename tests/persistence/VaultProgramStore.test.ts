@@ -22,6 +22,7 @@ class MemoryVault {
   getFileByPath(path: string) {
     return this.files.has(path) ? new TFile(path) : null;
   }
+  getFiles() { return [...this.files.keys()].map(path => new TFile(path)); }
   getAbstractFileByPath(path: string) {
     return this.folders.has(path) ? { path } : null;
   }
@@ -320,4 +321,75 @@ test("unsupported future collection version fails closed without creating a back
   await assert.rejects(store.load(), /Unsupported NOX program collection/);
   assert.equal(vault.files.get(PATH), bytes);
   assert.equal(vault.files.size, 1);
+});
+
+
+test("restore preview is read-only and approval recovers corrupt canonical JSON without losing damaged bytes", async () => {
+  const vault = new MemoryVault();
+  const legacyBytes = JSON.stringify(LEGACY) + "\n";
+  vault.files.set(PATH, legacyBytes);
+  const store = new VaultProgramStore({ vault } as never);
+  await store.save(await store.load());
+  const originalBackups = await store.listBackups();
+  assert.equal(originalBackups.length, 1);
+  assert.equal(vault.files.get(originalBackups[0]), legacyBytes);
+  const damaged = '{"version":2,"programs":';
+  vault.files.set(PATH, damaged);
+  const before = [...vault.files.entries()];
+  const preview = await store.previewRestore(originalBackups[0]);
+  assert.equal(preview.backupVersion, 1);
+  assert.equal(preview.programCount, 0);
+  assert.equal(preview.currentReadable, false);
+  assert.deepEqual([...vault.files.entries()], before, "preview must never mutate vault files");
+  const restored = await store.approveRestore(preview.operationId);
+  assert.equal(restored.version, 2);
+  assert.equal((await store.load()).version, 2);
+  const backups = await store.listBackups();
+  assert.equal(backups.length, 2);
+  assert.ok(backups.some(path => vault.files.get(path) === damaged),
+    "the exact damaged bytes must be recoverable after successful restore");
+  await assert.rejects(store.approveRestore(preview.operationId), /preview expired/);
+});
+
+test("restore approval fails closed if canonical file changes after preview", async () => {
+  const vault = new MemoryVault();
+  vault.files.set(PATH, JSON.stringify(LEGACY));
+  const store = new VaultProgramStore({ vault } as never);
+  await store.save(await store.load());
+  const preview = await store.previewRestore((await store.listBackups())[0]);
+  const modified = JSON.stringify(EMPTY) + "\n";
+  vault.files.set(PATH, modified);
+  await assert.rejects(store.approveRestore(preview.operationId), /Program write conflict/);
+  assert.equal(vault.files.get(PATH), modified);
+  assert.equal((await store.listBackups()).length, 1);
+});
+
+test("restore approval rejects a modified backup and never trusts arbitrary paths", async () => {
+  const vault = new MemoryVault();
+  vault.files.set(PATH, JSON.stringify(LEGACY));
+  const store = new VaultProgramStore({ vault } as never);
+  await store.save(await store.load());
+  const path = (await store.listBackups())[0];
+  await assert.rejects(store.previewRestore("../secret.md"), /Invalid NOX backup path/);
+  const preview = await store.previewRestore(path);
+  const durable = vault.files.get(PATH);
+  vault.files.set(path, JSON.stringify(EMPTY));
+  await assert.rejects(store.approveRestore(preview.operationId), /Program write conflict/);
+  assert.equal(vault.files.get(PATH), durable);
+});
+
+test("failed pre-restore backup does not mutate canonical bytes; approval can retry", async () => {
+  const vault = new MemoryVault();
+  vault.files.set(PATH, JSON.stringify(LEGACY));
+  const store = new VaultProgramStore({ vault } as never);
+  await store.save(await store.load());
+  const preview = await store.previewRestore((await store.listBackups())[0]);
+  const canonical = vault.files.get(PATH);
+  vault.beforeCreate = async path => {
+    if (path.includes("pre-restore")) throw new Error("cannot create backup");
+  };
+  await assert.rejects(store.approveRestore(preview.operationId), /Unable to restore learning programs/);
+  assert.equal(vault.files.get(PATH), canonical);
+  vault.beforeCreate = undefined;
+  assert.equal((await store.approveRestore(preview.operationId)).version, 2);
 });

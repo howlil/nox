@@ -74,3 +74,17 @@ test("explicit off-topic deferral is not evaluated as a practice answer", () => 
   assert.throws(() => parseProgramCommand("/defer"), /Use \/defer/);
   assert.throws(() => parseProgramCommand("/defer x"), /3–500/);
 });
+
+
+test("recovery requires a path-constrained preview and separate explicit approval", () => {
+  const path = "00-learning-os/backups/programs-v1-11111111-1111-4111-8111-111111111111.json";
+  assert.deepEqual(parseProgramCommand("/program-backups"), { kind: "program-backups" });
+  assert.deepEqual(parseProgramCommand("/program-restore-preview " + path), {
+    kind: "program-restore-preview", backupPath: path,
+  });
+  assert.deepEqual(parseProgramCommand("/program-restore-approve 11111111-1111-4111-8111-111111111111"), {
+    kind: "program-restore-approve", operationId: "11111111-1111-4111-8111-111111111111",
+  });
+  assert.throws(() => parseProgramCommand("/program-restore-preview ../secret.md"), /program-restore-preview/);
+  assert.throws(() => parseProgramCommand("/program-restore-approve ../secret.md"), /program-restore-approve/);
+});
