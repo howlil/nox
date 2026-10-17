@@ -62,12 +62,12 @@ export class VaultLearningStore {
             if (expected && previous !== snapshot) throw new LearningStateWriteConflict();
             let priorVersion: unknown;
             try { priorVersion = (JSON.parse(previous) as { version?: unknown }).version; }
-            catch { throw new PersistenceError("Cannot back up invalid learning state JSON."); }
+            catch { throw new PersistenceError("Cannot back up invalid learning state JSON", "Malformed migration source"); }
             if (priorVersion === 1 || priorVersion === 2) {
               const backupPath = `${ROOT}/progress.v${priorVersion}-${crypto.randomUUID()}.backup.json`;
               const backup = await this.app.vault.create(backupPath, previous);
               if (await this.app.vault.read(backup) !== previous) {
-                throw new PersistenceError("Unable to verify progress migration backup.");
+                throw new PersistenceError("Unable to verify progress migration backup", "Backup bytes differ from original");
               }
             }
           }
