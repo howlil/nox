@@ -1,4 +1,4 @@
-import type { LearningEvidence } from "../learning-state/types";
+import type { KnowledgeGap, LearningEvidence } from "../learning-state/types";
 import type { LearningProgram, LearningObjective } from "./types";
 
 export interface RetentionPolicy {
@@ -60,9 +60,7 @@ export function objectiveProgress(program: LearningProgram, objectiveId: string,
   // an old recall pair could silently re-master a reopened misconception.
   // Use event ordering (not timestamps alone) so replay with equal timestamps
   // never reuses an earlier proof after a failure.
-  const lastBlockingFailure = attempts.findLastIndex(item =>
-    item.outcome === "incorrect" || item.outcome === "partial" ||
-    item.rubricResults?.some(result => !result.met) === true);
+  const lastBlockingFailure = attempts.findLastIndex(isBlockingFailure);
   const recoveryWindow = attempts.slice(lastBlockingFailure + 1);
   const correct = recoveryWindow.filter(item => item.outcome === "correct" && independentAnswer(item) &&
     item.assessmentCoverage !== "single-item" && item.createdAt > 0 && complete(item));
@@ -77,6 +75,51 @@ export function objectiveProgress(program: LearningProgram, objectiveId: string,
 }
 
 
+
+/** Evidence that invalidates a previous retention/transfer proof. */
+export function isBlockingFailure(item: LearningEvidence): boolean {
+  return item.outcome === "incorrect" || item.outcome === "partial" ||
+    item.rubricResults?.some(result => !result.met) === true;
+}
+
+/** A failed criterion from the same program/objective is the only authority for a gap. */
+export function unresolvedObjectiveGapIds(
+  program: LearningProgram, objectiveId: string, evidence: readonly LearningEvidence[],
+  gaps: readonly KnowledgeGap[],
+): string[] {
+  const byId = new Map(objectiveEvidence(program, objectiveId, [...evidence])
+    .map(item => [item.id, item]));
+  return gaps.filter(gap => gap.programId === program.id &&
+    gap.objectiveId === objectiveId && gap.status !== "resolved" &&
+    gap.evidenceIds.some(id => {
+      const item = byId.get(id);
+      return Boolean(item && isBlockingFailure(item));
+    })).map(gap => gap.id);
+}
+
+/** Successful transfer must be independent, complete, and after the latest failure.
+ * Curriculum criterion IDs are checked like retention: no stale/reworded proof.
+ */
+export function hasCurrentTransfer(
+  program: LearningProgram, objectiveId: string, evidence: readonly LearningEvidence[],
+): boolean {
+  const objective = program.objectives.find(item => item.id === objectiveId);
+  if (!objective) return false;
+  const attempts = objectiveEvidence(program, objectiveId, [...evidence]);
+  const lastFailureIndex = attempts.findLastIndex(isBlockingFailure);
+  return attempts.slice(lastFailureIndex + 1).some(item =>
+    item.taskKind === "transfer" && item.outcome === "correct" &&
+    !item.assisted && item.assistance?.independent !== false &&
+    (item.assistance?.highestHintLevel ?? 0) === 0 &&
+    item.assessmentCoverage !== "single-item" && item.createdAt > 0 &&
+    objective.rubric.length > 0 &&
+    objective.rubric.every((criterion, index) => item.rubricResults?.some(result =>
+      result.met && (item.objectiveRevision !== undefined
+        ? item.objectiveRevision >= 1 && item.objectiveRevision <= program.planVersion &&
+          Boolean(objective.criteria?.[index]?.id && result.criterionId === objective.criteria[index].id)
+        : result.criterion === criterion))));
+}
+
 export interface ObjectiveReadiness {
   objective: LearningObjective;
   progress: ReturnType<typeof objectiveProgress>;
@@ -85,20 +128,29 @@ export interface ObjectiveReadiness {
   lastEvidenceId?: string;
   failedCriterionIds: string[];
   failedEvidenceIds: string[];
+  /** Read-only projection; does not redefine retention mastery for historical clients. */
+  unresolvedGapIds: string[];
+  transferSatisfied: boolean;
+  /** Retention + resolved misconceptions + independent transfer after recovery. */
+  progressionReady: boolean;
 }
 
 export function deriveObjectiveReadiness(
   program: LearningProgram, objectiveId: string, evidence: readonly LearningEvidence[],
-  now = Date.now(), retention: RetentionPolicy = {},
+  now = Date.now(), retention: RetentionPolicy = {}, gaps: readonly KnowledgeGap[] = [],
 ): ObjectiveReadiness {
   const objective = program.objectives.find(item => item.id === objectiveId);
   if (!objective || objective.deprecated) throw new Error("Unknown or deprecated learning objective.");
   const source = [...evidence];
   const progress = objectiveProgress(program, objectiveId, source, now, retention);
+  const unresolvedGapIds = unresolvedObjectiveGapIds(program, objectiveId, source, gaps);
+  const transferSatisfied = hasCurrentTransfer(program, objectiveId, source);
+  const progressionReady = progress.status === "mastered" &&
+    unresolvedGapIds.length === 0 && transferSatisfied;
   const blockedBy = objective.prerequisiteIds.filter(id => {
     const required = program.objectives.find(item => item.id === id);
     return !required || required.deprecated ||
-      objectiveProgress(program, id, source, now, retention).status !== "mastered";
+      !deriveObjectiveReadiness(program, id, source, now, retention, gaps).progressionReady;
   });
   const attempts = objectiveEvidence(program, objectiveId, source);
   const last = attempts.at(-1);
@@ -114,7 +166,8 @@ export function deriveObjectiveReadiness(
     (item.outcome === "incorrect" || item.outcome === "partial") &&
     item.rubricResults?.some(result => !result.met)).slice(0, 2);
   return {
-    objective, progress, blockedBy, prerequisiteStatus: blockedBy.length ? "blocked" : "eligible",
+    objective, progress, blockedBy, unresolvedGapIds, transferSatisfied, progressionReady,
+    prerequisiteStatus: blockedBy.length ? "blocked" : "eligible",
     ...(last ? { lastEvidenceId: last.id } : {}),
     failedCriterionIds, failedEvidenceIds: badEvidence.map(item => item.id),
   };
