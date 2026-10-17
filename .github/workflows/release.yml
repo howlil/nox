@@ -31,6 +31,8 @@ concurrency:
 jobs:
   detect:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     outputs:
       prepared: ${{ steps.check.outputs.prepared }}
       version: ${{ steps.check.outputs.version }}
@@ -38,7 +40,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 2
-      - name: Detect unshipped release or pending draft
+      - name: Detect unshipped release by ID rather than public tag
         id: check
         env:
           GH_TOKEN: ${{ github.token }}
@@ -47,18 +49,18 @@ jobs:
           echo "prepared=false" >> "$GITHUB_OUTPUT"
           node scripts/check-release.mjs
           version="$(node -p 'JSON.parse(require("fs").readFileSync(".release-plan.json")).version')"
-          if gh release view "$version" >/dev/null 2>&1; then
-            draft="$(gh release view "$version" --json isDraft --jq .isDraft)"
-            if [ "$draft" != true ]; then
-              echo "Already published: $version"
-              exit 0
-            fi
-            echo "Refreshing unpublished $version draft from current master."
-          elif [ "$GITHUB_EVENT_NAME" = push ]; then
+          releases="$(gh api "repos/$GITHUB_REPOSITORY/releases?per_page=100")"
+          published="$(jq -r --arg v "$version" '[.[] | select(.tag_name == $v and .draft == false)] | length' <<< "$releases")"
+          test "$published" = 0 || { echo "Already published: $version"; exit 0; }
+          draft_id="$(jq -r --arg v "$version" '[.[] | select(.tag_name == $v and .draft == true)][0].id // empty' <<< "$releases")"
+          if [ -z "$draft_id" ] && [ "$GITHUB_EVENT_NAME" = push ]; then
             if ! git rev-parse HEAD^ >/dev/null 2>&1 || git diff --quiet HEAD^ HEAD -- .release-plan.json; then
-              echo "No merged release plan or existing draft; skip."
+              echo "No new release plan and no pending draft; skip."
               exit 0
             fi
+          fi
+          if [ -n "$draft_id" ]; then
+            echo "Found pending $version draft by release ID $draft_id."
           fi
           echo "prepared=true" >> "$GITHUB_OUTPUT"
           echo "version=$version" >> "$GITHUB_OUTPUT"
@@ -176,38 +178,68 @@ jobs:
           const next = src.indexOf('\n## [', start + 4);
           fs.writeFileSync('release-notes.md', src.slice(start, next < 0 ? undefined : next).trim() + '\n');
           NODE
-      - name: Publish only verified source-bound release assets
+      - name: Publish only source-bound assets by release ID
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_VERSION: ${{ needs.detect.outputs.version }}
+        shell: bash
         run: |
           set -euo pipefail
           version="$RELEASE_VERSION"
           test "$(node -p 'require("./package.json").version')" = "$version"
           test "$(node -p 'require("./dist/manifest.json").version')" = "$version"
-          if gh release view "$version" >/dev/null 2>&1; then
-            test "$(gh release view "$version" --json isDraft --jq .isDraft)" = true || {
-              echo "::error::Published releases are immutable."; exit 1;
-            }
-            gh release upload "$version" dist/main.js dist/manifest.json dist/styles.css --clobber
-            gh release edit "$version" --target "$GITHUB_SHA" --notes-file release-notes.md
-          else
+          # Never publish artifacts from an older master build if a newer merge occurred.
+          current="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/master" --jq '.object.sha')"
+          test "$current" = "$GITHUB_SHA" || { echo "::error::Master moved; require a fresh build."; exit 1; }
+
+          # Draft releases are not addressable through the public /releases/tags API.
+          # Find and update them by authenticated REST release ID instead.
+          releases="$(gh api "repos/$GITHUB_REPOSITORY/releases?per_page=100")"
+          published="$(jq -r --arg v "$version" '[.[] | select(.tag_name == $v and .draft == false)] | length' <<< "$releases")"
+          test "$published" = 0 || { echo "::error::Published releases are immutable."; exit 1; }
+          release_id="$(jq -r --arg v "$version" '[.[] | select(.tag_name == $v and .draft == true)][0].id // empty' <<< "$releases")"
+          if [ -z "$release_id" ]; then
             gh release create "$version" dist/main.js dist/manifest.json dist/styles.css \
               --title "Nox $version" --notes-file release-notes.md \
               --target "$GITHUB_SHA" --draft
+            releases="$(gh api "repos/$GITHUB_REPOSITORY/releases?per_page=100")"
+            release_id="$(jq -r --arg v "$version" '[.[] | select(.tag_name == $v and .draft == true)][0].id // empty' <<< "$releases")"
+            test -n "$release_id" || { echo "::error::Cannot resolve new draft ID."; exit 1; }
+          else
+            existing="$(gh api "repos/$GITHUB_REPOSITORY/releases/$release_id/assets?per_page=100")"
+            while IFS= read -r asset_id; do
+              [ -n "$asset_id" ] || continue
+              gh api -X DELETE "repos/$GITHUB_REPOSITORY/releases/assets/$asset_id"
+            done < <(jq -r '.[].id' <<< "$existing")
+            for file in main.js manifest.json styles.css; do
+              curl --fail --silent --show-error --location --retry 3 \
+                -X POST -H "Authorization: Bearer $GH_TOKEN" \
+                -H "Accept: application/vnd.github+json" \
+                -H "Content-Type: application/octet-stream" \
+                --data-binary "@dist/$file" \
+                "https://uploads.github.com/repos/$GITHUB_REPOSITORY/releases/$release_id/assets?name=$file" > /dev/null
+            done
+            gh api -X PATCH "repos/$GITHUB_REPOSITORY/releases/$release_id" \
+              -f target_commitish="$GITHUB_SHA" -f body="$(cat release-notes.md)" > /dev/null
           fi
-          test "$(gh release view "$version" --json isDraft --jq .isDraft)" = true
-          test "$(gh release view "$version" --json targetCommitish --jq .targetCommitish)" = "$GITHUB_SHA"
+
+          draft="$(gh api "repos/$GITHUB_REPOSITORY/releases/$release_id")"
+          jq -e --arg v "$version" --arg sha "$GITHUB_SHA" \
+            '.tag_name == $v and .draft == true and .target_commitish == $sha' <<< "$draft" > /dev/null
+
+          # GitHub computes SHA-256 for each uploaded release asset. Verify the
+          # remote bytes match the already attested local release artifacts.
+          assets="$(gh api "repos/$GITHUB_REPOSITORY/releases/$release_id/assets?per_page=100")"
           expected="$(printf '%s\n' main.js manifest.json styles.css | LC_ALL=C sort)"
-          actual="$(gh release view "$version" --json assets --jq '.assets[].name' | LC_ALL=C sort)"
-          test "$actual" = "$expected" || { echo "::error::Release asset allowlist mismatch"; exit 1; }
-          mkdir -p release-proof
-          gh release download "$version" --dir release-proof \
-            --pattern "main.js" --pattern "manifest.json" --pattern "styles.css"
-          for item in main.js manifest.json styles.css; do
-            test -s "release-proof/$item"
-            cmp "dist/$item" "release-proof/$item"
-            gh attestation verify "release-proof/$item" --repo "$GITHUB_REPOSITORY" --source-digest "$GITHUB_SHA"
+          actual="$(jq -r '.[].name' <<< "$assets" | LC_ALL=C sort)"
+          test "$actual" = "$expected" || { echo "::error::Release asset allowlist mismatch."; exit 1; }
+          for file in main.js manifest.json styles.css; do
+            actual_digest="$(jq -r --arg f "$file" '.[] | select(.name == $f) | .digest' <<< "$assets")"
+            expected_digest="sha256:$(sha256sum "dist/$file" | cut -d' ' -f1)"
+            test "$actual_digest" = "$expected_digest" || {
+              echo "::error::Remote asset digest mismatch: $file"; exit 1;
+            }
+            gh attestation verify "dist/$file" --repo "$GITHUB_REPOSITORY" --source-digest "$GITHUB_SHA"
           done
-          gh release edit "$version" --draft=false
+          gh api -X PATCH -F draft=false "repos/$GITHUB_REPOSITORY/releases/$release_id" > /dev/null
           echo "Published verified NOX $version from $GITHUB_SHA."
