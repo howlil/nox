@@ -77,14 +77,16 @@ test("program loads use the authoritative vault read, not stale cached content",
 
 test("program loads await an in-flight write before reading the snapshot", async () => {
   const vault = new MemoryVault();
-  vault.files.set(PATH, '{"version":1,"programs":');
+  vault.files.set(PATH, JSON.stringify(EMPTY));
   let entered!: () => void;
   let release!: () => void;
   const modifyEntered = new Promise<void>(resolve => { entered = resolve; });
   const modificationGate = new Promise<void>(resolve => { release = resolve; });
   vault.beforeModify = async () => { entered(); await modificationGate; };
   const store = new VaultProgramStore({ vault } as never);
-  const saving = store.save(EMPTY);
+  const updated = await store.load();
+  vault.readCalls = 0;
+  const saving = store.save(updated);
   await modifyEntered;
   const loading = store.load();
   await Promise.resolve();
