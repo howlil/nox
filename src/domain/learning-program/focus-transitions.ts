@@ -47,7 +47,7 @@ export function validateObjectiveFocus(program: LearningProgram, focus: FocusSes
 /** No model call or chat switch may bypass the global active focus. */
 export function allowsFocusedTurn(prompt: string, hasActiveQuestion: boolean): boolean {
   const text = prompt.trim().toLowerCase();
-  if (/^\/(?:next|hint|progress|review-due|programs|session-time|pause-focus|end-focus)(?:\s|$)/.test(text)) {
+  if (/^\/(?:next|hint|progress|review-due|programs|session-time|pause-focus|end-focus|defer|deferred)(?:\s|$)/.test(text)) {
     return true;
   }
   return hasActiveQuestion && text.length > 0 && !text.startsWith("/");

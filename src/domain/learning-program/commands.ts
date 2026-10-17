@@ -7,7 +7,8 @@ export type ProgramCommand =
   | { kind: "next" | "progress" | "start-session" | "pause-session" | "resume-session" | "session-time" | "end-session" | "review-due" | "programs" | "free-practice" }
   | { kind: "use-program"; id: string }
   | { kind: "focus"; objectiveId: string }
-  | { kind: "pause-focus" | "resume-focus" | "end-focus" | "replan" }
+  | { kind: "pause-focus" | "resume-focus" | "end-focus" | "replan" | "deferred" }
+  | { kind: "defer"; text: string }
   | { kind: "extend-session"; minutes: number }
   | { kind: "curriculum-preview"; action: StructuralRevisionAction; rationale: string }
   | { kind: "curriculum-approve"; operationId: string };
@@ -15,6 +16,13 @@ export type ProgramCommand =
 /** Explicit, human-auditable constraints; never hallucinate settings from a goal. */
 export function parseProgramCommand(input: string): ProgramCommand | null {
   const value = input.trim();
+  const deferral = /^\/defer\s+([\s\S]+)$/i.exec(value);
+  if (deferral) {
+    const text = deferral[1].trim();
+    if (text.length < 3 || text.length > 500) throw new Error("Deferred note must be 3–500 characters.");
+    return { kind: "defer", text };
+  }
+  if (/^\/defer(?:\s|$)/i.test(value)) throw new Error("Use /defer <off-topic note>.");
   const approval = /^\/curriculum-approve\s+([a-zA-Z0-9:_-]{6,100})$/.exec(value);
   if (approval) return { kind: "curriculum-approve", operationId: approval[1] };
   if (/^\/curriculum-approve(?:\s|$)/i.test(value)) {
@@ -73,7 +81,7 @@ export function parseProgramCommand(input: string): ProgramCommand | null {
     "/pause-session": "pause-session", "/resume-session": "resume-session", "/session-time": "session-time",
     "/end-session": "end-session", "/review-due": "review-due", "/programs": "programs", "/free-practice": "free-practice",
     "/pause-focus": "pause-focus", "/resume-focus": "resume-focus", "/end-focus": "end-focus",
-    "/replan": "replan",
+    "/replan": "replan", "/deferred": "deferred",
   };
   if (commands[value.toLowerCase()]) return { kind: commands[value.toLowerCase()] } as ProgramCommand;
   if (!/^\/plan(?:\s|$)/i.test(value)) return null;
