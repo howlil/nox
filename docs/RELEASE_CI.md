@@ -2,7 +2,7 @@
 
 ## CI / Dev
 
-The existing .github/workflows/ci.yml retains its workflow name "CI" for compatibility with prepare-release.yml. Pull requests and master pushes run local fast checks: typecheck, lint, selected typed lint, targeted AST P0 policy, CSS syntax, unit/integration tests, build and artifact checks. Landing Astro retains its independent CI job and Cloudflare deployment. Windows regression, official scanner and reproducibility double-build are no longer on the ordinary PR critical path.
+The existing .github/workflows/ci.yml retains its workflow name "CI" for compatibility with prepare-release.yml. Pull requests and master pushes run local fast checks: typecheck, lint, selected typed lint, targeted AST P0 policy, CSS syntax, unit/integration tests, build and artifact checks. Landing Astro is **not** built or checked by the Obsidian plugin workflow. Its CI/CD and deployment are owned separately by Cloudflare; no `landing` job runs in `ci.yml`. Windows regression, official scanner and reproducibility double-build are no longer on the ordinary PR critical path.
 
 ## CI / Release
 
