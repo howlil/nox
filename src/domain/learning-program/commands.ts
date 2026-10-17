@@ -5,12 +5,24 @@ export type ProgramCommand =
   | { kind: "plan"; goal: string; constraints: ProgramConstraints }
   | { kind: "next" | "progress" | "start-session" | "pause-session" | "resume-session" | "session-time" | "end-session" | "review-due" | "programs" | "free-practice" | "pause-focus" | "resume-focus" | "end-focus" }
   | { kind: "focus"; objectiveId: string }
+  | { kind: "replan"; reason?: "goal-change" }
+  | { kind: "approve-replan" | "cancel-replan"; operationId: string }
   | { kind: "use-program"; id: string }
   | { kind: "extend-session"; minutes: number };
 
 /** Explicit, human-auditable constraints; never hallucinate settings from a goal. */
 export function parseProgramCommand(input: string): ProgramCommand | null {
   const value = input.trim();
+  const approval = /^\/(approve-replan|cancel-replan)\s+([a-f0-9-]{36})$/i.exec(value);
+  if (approval) return { kind: approval[1].toLowerCase() as "approve-replan" | "cancel-replan", operationId: approval[2] };
+  if (/^\/(?:approve-replan|cancel-replan)(?:\s|$)/i.test(value)) {
+    throw new Error("Use /approve-replan <operation-id> or /cancel-replan <operation-id>.");
+  }
+  if (/^\/replan(?:\s+goal-change)?$/i.test(value)) {
+    return { kind: "replan", ...(value.toLowerCase().endsWith("goal-change")
+      ? { reason: "goal-change" as const } : {}) };
+  }
+  if (/^\/replan(?:\s|$)/i.test(value)) throw new Error("Use /replan or /replan goal-change.");
   const focused = /^\/focus\s+([a-z0-9][a-z0-9_-]{0,63})$/i.exec(value);
   if (focused) return { kind: "focus", objectiveId: focused[1] };
   if (/^\/focus(?:\s|$)/i.test(value)) throw new Error("Use /focus <objective-id> from /progress.");

@@ -482,6 +482,34 @@ export class LearningController {
           await this.programs.endFocus();
           this.turns.syncFocusSessionId(undefined);
           response = "Objective focus ended. Committed learning evidence remains saved.";
+        } else if (command.kind === "replan") {
+          if (this.turns.hasActivePracticeQuestion()) {
+            throw new Error("Finish the pending practice question or end its focus before replanning.");
+          }
+          const preview = await this.programs.prepareCurriculumRevision(command.reason);
+          response = [
+            "**Curriculum revision preview — not yet applied**",
+            "Reason: " + preview.reason,
+            "Base version: " + preview.fromVersion + " → " + preview.toVersion,
+            "Evidence: " + (preview.reasonEvidenceIds.join(", ") || "Explicit goal-change request"),
+            "Operations: " + JSON.stringify(preview.operations, null, 2),
+            "Before: " + preview.before.map(o => o.id + " [" + (o.objectiveRevision ?? preview.fromVersion) + "]").join(", "),
+            "After: " + preview.after.map(o => o.id + " [" + (o.objectiveRevision ?? preview.toVersion) +
+              "]" + (o.deprecated ? " (deprecated)" : "")).join(", "),
+            "Approve: /approve-replan " + preview.operationId,
+            "Reject: /cancel-replan " + preview.operationId,
+            "Preview expires after 15 minutes. No evidence is modified.",
+          ].join("\n\n");
+        } else if (command.kind === "approve-replan") {
+          if (this.turns.hasActivePracticeQuestion()) {
+            throw new Error("Finish the pending practice question before approving curriculum changes.");
+          }
+          const updated = await this.programs.approveCurriculumRevision(command.operationId);
+          response = "Curriculum revision saved as version " + updated.planVersion +
+            ". Previous evidence and deprecated objective history remain available. Use /progress to inspect the new graph.";
+        } else if (command.kind === "cancel-replan") {
+          this.programs.cancelCurriculumRevision(command.operationId);
+          response = "Curriculum revision preview discarded. No program changes were saved.";
         } else if (command.kind === "free-practice") {
           if (this.turns.hasActivePracticeQuestion()) throw new Error("Finish the active question before starting free practice.");
           yield* this.runTimedTurn({ ...request, action: "practice", freePractice: true,
