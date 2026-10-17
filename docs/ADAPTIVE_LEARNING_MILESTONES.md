@@ -10,7 +10,7 @@ Do not merge or release automatically.
 - M0 — Self-paced global objective focus: implemented on PR #99, CI passed; not merged into master.
 - M1 — Feedback engine and evidence v3: integrated onto M0 in PR #102; integrated CI and Obsidian desktop acceptance are release gates.
 - M2 — Evidence-backed structural curriculum revision: implemented on PR #105, CI and desktop acceptance are release gates.
-- M3 — Evidence-backed learner model: pending.
+- M3 — Evidence-backed derived learner model: implemented in draft PR #106; CI and desktop acceptance gate.
 - M4 — Adaptive activity policy: pending.
 - M5 — Context orchestration: pending.
 - M6 — Compact UI: pending.
@@ -77,3 +77,26 @@ Adjust curriculum structure when **committed learner evidence** shows a structur
 - NOX desktop with a real provider; do not perform manual testing in chat.
 - Independent review of atomic mutation failure, workspace note sync, and provider privacy boundaries before shipping.
 - PR #105 is draft. M0/M1 PR #102 and upstream M0 #99 remain unmerged. Do not release until integration is approved.
+
+
+## M3 — Derived Learner Model
+
+### Scope
+M3 introduces `src/domain/learner-model/learner-profile.ts`, a pure, reproducible read model computed from the durable `LearningState.evidence` ledger and the active `LearningProgram`. It creates **no new persisted or model-authored learner-memory authority**. Recomputing from the same inputs and an injected timestamp yields the same result; obsolete profiles cannot override current evidence.
+
+### Program<A, E, R>
+- **A**: committed and revision-scoped evidence → deterministic per-criterion profile → bounded prompt context → guided practice decisions that remain owned by M1. A read-only `/learner-profile` command explains the projection with provenance IDs.
+- **E**: missing evidence, legacy unversioned evidence, stale objective revisions, material-review evidence, single-item success, or an assisted answer never fabricate verified competence. Failed delayed retrieval reopens the corresponding criterion. No provider response can write directly to the projection.
+- **R**: derive afresh from committed evidence; duplicate committed replay does not add new profile records. The transcript and evidence remain canonical; on plugin restart no profile cache needs migration or repair.
+
+### Data contract
+- Per objective: active objective identity, current revision, derived readiness status, retrieval due timestamp and a small list of recent evidence IDs.
+- Per criterion: stable rubric criterion ID, observable status (`unknown`, `needs-repair`, `assisted`, `provisional`, `verified`) and bounded provenance IDs.
+- Per program: plan version, sampled evidence provenance and total committed learner-practice event count. Deprecated objectives and material-only review entries cannot establish new proficiency.
+- Prompt-facing context is capped at 16 objectives, 12 criteria per objective and 4 evidence IDs per criterion; the full evidence log remains in LearningState and is never rewritten from a summary.
+- No invented numeric ability scores, personality type, learning-style labels, or inferred behavioral traits. Unknown means not yet demonstrated by qualifying evidence.
+
+### Verification
+`tests/domain/learner-model/learner-profile.test.ts` covers zero-evidence, assisted success, delayed independent recall, regression, revised rubric, material-only evidence, bounded context, deterministic re-derivation and source immutability. Existing learning-state schema and transcript-first integration tests remain unchanged.
+
+No automatic merge or release. M4 adaptive activity selection is the next milestone after M3 verification; desktop provider acceptance remains a release gate.
