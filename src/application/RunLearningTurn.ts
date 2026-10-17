@@ -403,7 +403,10 @@ export class RunLearningTurn {
         this.contexts.resolve(refs),
         Promise.all([this.policies.load(), this.learningState.load()]),
       ]);
-      state = await this.reconcileTranscriptEvidence(sessionAtStart, state);
+      state = this.mutationGate && this.programStore
+        ? await this.mutationGate.run(async () =>
+          this.reconcileTranscriptEvidence(sessionAtStart, await this.learningState.load()))
+        : await this.reconcileTranscriptEvidence(sessionAtStart, state);
       if (researchQuery && research && this.contexts.searchKnowledge) {
         const selectedPaths = [
           ...context.explicit.filter(item => item.source === "explicit" && item.type === "note" &&
@@ -1106,15 +1109,20 @@ export class RunLearningTurn {
                     decision?.kind === "remediate" ? "guided-practice" as const : "diagnostic" as const }
               : { ...practiceBuffer.question, programId: undefined, objectiveId: undefined };
             const questionId = crypto.randomUUID();
-            await assertProgramAuthority(practiceBuffer.question.programId,
-              practiceBuffer.question.objectiveId);
-            await this.sessions.recordStructuredPart(
-              { type: "practice-question", question: practiceBuffer.question,
-                questionId, origin: practice.snapshot()?.origin,
-                ...(strictPractice ? { scope: legacyLockedMode ? "backend" as const : "program" as const } : {}) },
-              snapshot.mutableFile,
-              turnSessionId,
-            );
+            const commitQuestion = async () => {
+              await assertProgramAuthority(practiceBuffer.question!.programId,
+                practiceBuffer.question!.objectiveId);
+              await this.sessions.recordStructuredPart(
+                { type: "practice-question", question: practiceBuffer.question!,
+                  questionId, origin: practice.snapshot()?.origin,
+                  ...(strictPractice ? { scope: legacyLockedMode ? "backend" as const : "program" as const } : {}) },
+                snapshot.mutableFile, turnSessionId);
+            };
+            if (practiceBuffer.question.programId && this.mutationGate) {
+              await this.mutationGate.run(commitQuestion);
+            } else {
+              await commitQuestion();
+            }
             practice.acceptQuestion(practiceBuffer.question, questionId);
             yield { type: "practice-question", question: practiceBuffer.question, questionId };
           }
