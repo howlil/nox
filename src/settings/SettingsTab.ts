@@ -31,15 +31,28 @@ export class NoxSettingsTab extends PluginSettingTab {
   private selectedTab: "settings" | "usage" | "token" = "settings";
   private releaseCurrentPanel: (() => void) | null = null;
 
-  /** One Obsidian 1.13+ setting definition owns one accessible tabbed surface.
-   * Native Setting rows remain the controls for all mutable configuration.
+  /** Publish each real configuration setting to Obsidian's 1.13+ search
+   * index. Keep segmented navigation without duplicating persistence paths.
    */
   getSettingDefinitions(): SettingDefinitionItem[] {
-    return [{
+    const navigation: SettingDefinitionItem = {
       name: "Nox settings",
-      desc: "Agent provider, agent executable, preferred model, ChatGPT account, provider usage and token usage.",
-      render: setting => this.mountSettingsSurface(setting),
-    }];
+      desc: "Agent provider, agent executable, preferred model, ChatGPT account, Usage and Token.",
+      render: setting => {
+        this.mountSettingsSurface(setting);
+        return () => { this.releaseCurrentPanel?.(); this.releaseCurrentPanel = null; };
+      },
+    };
+    const definitions: SettingDefinitionItem[] = this.settingsDefinitions().map(definition => ({
+      name: definition.name,
+      desc: definition.desc,
+      visible: () => this.selectedTab === "settings" && (!definition.visible || definition.visible()),
+      render: setting => {
+        setting.settingEl.addClass("nox-settings-native-row");
+        definition.render?.(setting);
+      },
+    }));
+    return [navigation, ...definitions];
   }
 
   private settingsDefinitions(): Array<{
@@ -204,10 +217,14 @@ export class NoxSettingsTab extends PluginSettingTab {
     const names = ["settings", "usage", "token"] as const;
     const buttons: HTMLButtonElement[] = [];
 
-    const activate = (name: typeof names[number]): void => {
+    const activate = (name: typeof names[number], refresh = true): void => {
+      if (refresh && name !== this.selectedTab) {
+        this.selectedTab = name;
+        this.update();
+        return;
+      }
       this.releaseCurrentPanel?.();
       this.releaseCurrentPanel = null;
-      this.selectedTab = name;
       buttons.forEach((button, index) => {
         const active = names[index] === name;
         button.setAttribute("aria-selected", String(active));
@@ -216,13 +233,8 @@ export class NoxSettingsTab extends PluginSettingTab {
       panel.setAttribute("aria-labelledby", "nox-settings-tab-" + name);
       panel.empty();
       if (name === "settings") {
-        const form = panel.createDiv({ cls: "nox-settings-form" });
-        for (const definition of this.settingsDefinitions()) {
-          if (definition.visible && !definition.visible()) continue;
-          const row = new Setting(form).setName(definition.name);
-          if (definition.desc) row.setDesc(definition.desc);
-          definition.render?.(row);
-        }
+        panel.setAttribute("aria-label", "Settings controls follow the tab navigation");
+        panel.addClass("nox-settings-panel-empty");
       } else if (name === "usage") {
         this.releaseCurrentPanel = mountProviderUsageSection(panel, this.nox);
       } else {
@@ -250,7 +262,7 @@ export class NoxSettingsTab extends PluginSettingTab {
       });
       buttons.push(button);
     });
-    activate(this.selectedTab);
+    activate(this.selectedTab, false);
   }
 
   private async saveSettings(update: Partial<NoxSettings>): Promise<void> {

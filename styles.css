@@ -4663,6 +4663,21 @@
   outline-offset: -2px;
 }
 .nox-settings-panel { width: 100%; min-width: 0; }
+.nox-settings-panel-empty { display: none; }
+.nox-settings-native-row {
+  padding: 14px 18px;
+  margin: 0;
+  border-inline: 1px solid var(--nox-line);
+  background: var(--nox-inset);
+}
+.nox-settings-native-row .setting-item-control { min-width: 180px; }
+.nox-settings-native-row .setting-item-info { min-width: 170px; }
+.nox-settings-native-row input[type="text"],
+.nox-settings-native-row select {
+  max-width: min(100%, 260px);
+  min-height: 34px;
+  border-radius: var(--nox-radius-control);
+}
 .nox-settings-panel:focus { outline: none; }
 .nox-settings-form {
   padding: 6px 18px;
