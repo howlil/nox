@@ -354,7 +354,7 @@ export class LearningController {
     }
     if (globalFocus) {
       const trimmed = request.prompt.trim().toLowerCase();
-      const inspect = /^\/(?:progress|programs|review-due|session-time)$/.test(trimmed);
+      const inspect = /^\/(?:progress|programs|review-due|session-time|learner-profile)$/.test(trimmed);
       const pauseOrEnd = trimmed === "/pause-focus" || trimmed === "/end-focus";
       const next = trimmed === "/next";
       const hint = trimmed === "/hint";
@@ -534,6 +534,8 @@ export class LearningController {
           yield* this.runTimedTurn({ ...request, action: "practice", freePractice: true,
             prompt: "Ask me an independent practice question based on the current context." });
           return;
+        } else if (command.kind === "learner-profile") {
+          response = await this.programs.learnerProfileSummary();
         } else if (command.kind === "progress") {
           response = await this.programs.progressSummary();
         } else if (command.kind === "review-due") {

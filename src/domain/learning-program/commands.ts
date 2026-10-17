@@ -3,7 +3,7 @@ import { validateConstraints } from "./rules";
 
 export type ProgramCommand =
   | { kind: "plan"; goal: string; constraints: ProgramConstraints }
-  | { kind: "next" | "progress" | "start-session" | "pause-session" | "resume-session" | "session-time" | "end-session" | "review-due" | "programs" | "free-practice" | "pause-focus" | "resume-focus" | "end-focus" }
+  | { kind: "next" | "progress" | "start-session" | "pause-session" | "resume-session" | "session-time" | "end-session" | "review-due" | "programs" | "free-practice" | "learner-profile" | "pause-focus" | "resume-focus" | "end-focus" }
   | { kind: "focus"; objectiveId: string }
   | { kind: "replan"; reason?: "goal-change" }
   | { kind: "approve-replan" | "cancel-replan"; operationId: string }
@@ -35,7 +35,7 @@ export function parseProgramCommand(input: string): ProgramCommand | null {
   const commands: Record<string, ProgramCommand["kind"]> = {
     "/focus": "focus", "/pause-focus": "pause-focus", "/resume-focus": "resume-focus",
     "/end-focus": "end-focus",
-    "/next": "next", "/progress": "progress", "/start-session": "start-session",
+    "/learner-profile": "learner-profile", "/next": "next", "/progress": "progress", "/start-session": "start-session",
     "/pause-session": "pause-session", "/resume-session": "resume-session", "/session-time": "session-time",
     "/end-session": "end-session", "/review-due": "review-due", "/programs": "programs", "/free-practice": "free-practice",
   };
