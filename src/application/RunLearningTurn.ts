@@ -14,6 +14,8 @@ import {
 import type { SessionPort, ContextPort, PolicyPort, LearningStatePort, ProgramStorePort } from "./ports";
 import { formatReplyPrompt } from "./reply-context";
 import { PersistenceError } from "../persistence/PersistenceError";
+import { LearningStateWriteConflict } from "../persistence/VaultLearningStore";
+import type { LearningState } from "../domain/learning-state/types";
 import { prepareContextEnvelope } from "../context/ContextBudget";
 import { buildLearningContextPackage } from "./LearningContextOrchestrator";
 import type { ResearchResult } from "../context/LocalResearch";
@@ -1214,14 +1216,10 @@ export class RunLearningTurn {
               source,
               turnSessionId,
             );
-            const before = await this.learningState.load();
-            const after = recordReviewFindings(before, {
+            const outcome = await this.appendEvidenceSafely(before => recordReviewFindings(before, {
               findings: committed.findings, source: committed.sourcePath ?? source, reviewId,
-            });
-            if (after.evidence.length !== before.evidence.length) {
-              await this.learningState.save(after);
-              yield { type: "learning-state-updated", state: after };
-            }
+            }));
+            if (outcome.appended) yield { type: "learning-state-updated", state: outcome.state };
             yield { type: "review-findings", findings: committed.findings };
           }
           // Save the narrative and proposal atomically before UI gets Apply.
@@ -1337,54 +1335,77 @@ export class RunLearningTurn {
     }
   }
 
-  /** Replays committed transcript outcomes missing from progress.json. */
+  /**
+   * Project a committed transcript event against the latest durable evidence
+   * snapshot. CAS conflicts are recoverable; duplicate event IDs are no-ops.
+   * Other persistence failures are surfaced rather than silently ignored.
+   */
+  private async appendEvidenceSafely(
+    transition: (current: LearningState) => LearningState,
+    initial?: LearningState,
+  ): Promise<{ state: LearningState; appended: boolean }> {
+    for (let attempt = 0; attempt < 4; attempt++) {
+      const before = attempt === 0 && initial ? initial : await this.learningState.load();
+      const after = transition(before);
+      if (after.evidence.length === before.evidence.length) {
+        return { state: before, appended: false };
+      }
+      try {
+        await this.learningState.save(after, before);
+        return { state: after, appended: true };
+      } catch (error) {
+        if (!(error instanceof LearningStateWriteConflict) || attempt === 3) throw error;
+      }
+    }
+    throw new LearningStateWriteConflict();
+  }
+
+  /** Replays transcript outcomes after a failed progress write without reevaluation. */
   private async reconcileTranscriptEvidence(
     session: ChatSession,
-    initial: Awaited<ReturnType<LearningStatePort["load"]>>,
-  ): Promise<Awaited<ReturnType<LearningStatePort["load"]>>> {
-    let state = initial;
-    let changed = false;
-    // Preserve fork boundaries while skipping already committed evidence.
-    const existingIds = new Set(initial.evidence.map(item => item.id));
-    for (const message of session.messages.slice(session.fork?.inheritedMessageCount ?? 0)) {
-      for (const part of message.parts ?? []) {
-        if (part.type === "practice-evaluation" && part.questionId) {
-          const operationId = part.operationId ?? `practice:${session.id}:${part.questionId}`;
-          if (existingIds.has(operationId)) continue;
-          const next = recordPracticeEvaluation(state, {
-            evaluation: part.evaluation,
-            source: part.sourcePath ?? message.sourcePath ?? "learning-session",
-            evidenceId: operationId,
-            programId: part.evaluation.programId,
-            objectiveId: part.evaluation.objectiveId,
-            assisted: part.evaluation.assisted,
-            questionId: part.questionId,
-          });
-          if (next.evidence.length !== state.evidence.length) {
-            changed = true;
-            state = next;
-            existingIds.add(operationId);
+    initial: LearningState,
+  ): Promise<LearningState> {
+    const replay = (source: LearningState): LearningState => {
+      let state = source;
+      const existingIds = new Set(source.evidence.map(item => item.id));
+      for (const message of session.messages.slice(session.fork?.inheritedMessageCount ?? 0)) {
+        for (const part of message.parts ?? []) {
+          if (part.type === "practice-evaluation" && part.questionId) {
+            const operationId = part.operationId ?? `practice:${session.id}:${part.questionId}`;
+            if (existingIds.has(operationId)) continue;
+            const next = recordPracticeEvaluation(state, {
+              evaluation: part.evaluation,
+              source: part.sourcePath ?? message.sourcePath ?? "learning-session",
+              evidenceId: operationId,
+              programId: part.evaluation.programId,
+              objectiveId: part.evaluation.objectiveId,
+              assisted: part.evaluation.assisted,
+              questionId: part.questionId,
+            });
+            if (next.evidence.length !== state.evidence.length) {
+              state = next;
+              existingIds.add(operationId);
+            }
           }
-        }
-        if (part.type === "review-findings" && part.reviewId) {
-          if (part.findings.every((_, index) => existingIds.has(part.reviewId + ":" + index))) continue;
-          const next = recordReviewFindings(state, {
-            findings: part.findings,
-            source: part.sourcePath ?? message.sourcePath ?? "learning-session",
-            reviewId: part.reviewId,
-          });
-          if (next.evidence.length !== state.evidence.length) {
-            changed = true;
-            state = next;
-            for (let index = 0; index < part.findings.length; index++) {
-              existingIds.add(part.reviewId + ":" + index);
+          if (part.type === "review-findings" && part.reviewId) {
+            if (part.findings.every((_, index) => existingIds.has(part.reviewId + ":" + index))) continue;
+            const next = recordReviewFindings(state, {
+              findings: part.findings,
+              source: part.sourcePath ?? message.sourcePath ?? "learning-session",
+              reviewId: part.reviewId,
+            });
+            if (next.evidence.length !== state.evidence.length) {
+              state = next;
+              for (let index = 0; index < part.findings.length; index++) {
+                existingIds.add(part.reviewId + ":" + index);
+              }
             }
           }
         }
       }
-    }
-    if (changed) await this.learningState.save(state);
-    return state;
+      return state;
+    };
+    return (await this.appendEvidenceSafely(replay, initial)).state;
   }
 
   cancel(): void {
@@ -1451,8 +1472,7 @@ export class RunLearningTurn {
         if (!evaluationPart || evaluationPart.type !== "practice-evaluation") {
           throw new Error("Committed practice outcome missing evaluation");
         }
-        const currentState = await this.learningState.load();
-        const nextState = recordPracticeEvaluation(currentState, {
+        const projection = await this.appendEvidenceSafely(before => recordPracticeEvaluation(before, {
           evaluation: evaluationPart.evaluation,
           source: evaluationPart.sourcePath ?? source,
           evidenceId: operationId,
@@ -1460,10 +1480,8 @@ export class RunLearningTurn {
           objectiveId: evaluationPart.evaluation.objectiveId,
           assisted: evaluationPart.evaluation.assisted,
           questionId: evaluationPart.questionId,
-        });
-        if (nextState.evidence.length !== currentState.evidence.length) {
-          await this.learningState.save(nextState);
-        }
+        }));
+        const nextState = projection.state;
 
         practice.commitEvaluation(practiceAttempt, evaluationPart.evaluation, evaluationPart.nextQuestionId);
         yield { type: "practice-evaluation", evaluation: evaluationPart.evaluation,
