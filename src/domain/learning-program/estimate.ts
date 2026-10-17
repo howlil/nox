@@ -1,6 +1,6 @@
-import type { LearningEvidence } from "../learning-state/types";
+import type { KnowledgeGap, LearningEvidence } from "../learning-state/types";
 import type { LearningProgram } from "./types";
-import { objectiveProgress } from "./rules";
+import { deriveObjectiveReadiness } from "./objective-readiness";
 import { projectedTiming } from "./session-time";
 
 export interface RemainingWorkEstimate {
@@ -14,7 +14,7 @@ export interface RemainingWorkEstimate {
 export function estimateRemainingWork(
   program: LearningProgram,
   evidence: LearningEvidence[],
-  now = Date.now(),
+  now = Date.now(), gaps: readonly KnowledgeGap[] = [],
 ): RemainingWorkEstimate {
   const measured = new Map<string, number>();
   for (const session of program.sessionHistory ?? []) {
@@ -30,7 +30,8 @@ export function estimateRemainingWork(
   }
 
   const mandatory = program.objectives.filter(o => !o.deprecated && o.priority !== "optional");
-  const completed = mandatory.filter(o => objectiveProgress(program, o.id, evidence, now).status === "mastered");
+  const completed = mandatory.filter(o =>
+    deriveObjectiveReadiness(program, o.id, evidence, now, {}, gaps).progressionReady);
   const ratios = completed.flatMap(o => {
     const actual = measured.get(o.id) ?? 0;
     return actual >= 5 && o.estimatedMinutes > 0

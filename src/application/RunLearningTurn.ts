@@ -427,7 +427,7 @@ export class RunLearningTurn {
           : request.action === "review" ? "review"
           : request.action === "explain" ? "teaching"
           : request.action === "practice" && program && !activePracticeTurn &&
-              chooseNextActivity(program, state.evidence).kind === "diagnostic"
+              chooseNextActivity(program, state.evidence, Date.now(), state.gaps ?? []).kind === "diagnostic"
             ? "assessment" : undefined;
         if (skillKind) selectedSkill = await this.policies.loadSkill(skillKind);
       }

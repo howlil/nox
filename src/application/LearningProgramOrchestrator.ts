@@ -2,6 +2,7 @@ import type { AgentRuntimePort } from "../agent/AgentRuntime";
 import type { ContextPort, LearningStatePort, ProgramStorePort } from "./ports";
 import type { LearningProgram, ProgramCollection, ProgramConstraints, LearningDecision, SessionPauseReason } from "../domain/learning-program/types";
 import { chooseNextActivity, feasibility, objectiveProgress, validateConstraints, validateCurriculum } from "../domain/learning-program/rules";
+import { deriveObjectiveReadiness } from "../domain/learning-program/objective-readiness";
 import { startObjectiveFocus, transitionObjectiveFocus } from "../domain/learning-program/focus-transitions";
 import { applyCurriculumRevision, proposeRemediationRevision } from "../domain/learning-program/curriculum-revision";
 import { applyStructuralRevision, previewStructuralRevision,
@@ -338,7 +339,7 @@ export class LearningProgramOrchestrator {
       const objective = program.objectives.find(item => item.id === objectiveId);
       if (!objective || objective.deprecated) throw new Error("Unknown or deprecated objective ID.");
       if (!objective.prerequisiteIds.every(id =>
-        objectiveProgress(program, id, state.evidence, this.now()).status === "mastered")) {
+        deriveObjectiveReadiness(program, id, state.evidence, this.now(), {}, state.gaps ?? []).progressionReady)) {
         throw new Error("Master the prerequisite objectives before focusing this objective.");
       }
       return startObjectiveFocus(program, objectiveId, this.now(), crypto.randomUUID(), chatSessionId);
@@ -466,7 +467,7 @@ export class LearningProgramOrchestrator {
     const program = await this.getActiveProgram();
     if (!program) return null;
     const state = await this.learningState.load();
-    return { program, decision: chooseNextActivity(program, state.evidence) };
+    return { program, decision: chooseNextActivity(program, state.evidence, this.now(), state.gaps ?? []) };
   }
   async reviewDueSummary(): Promise<string> {
     const program = await this.getActiveProgram();
@@ -491,8 +492,10 @@ export class LearningProgramOrchestrator {
     const activeObjectives = program.objectives.filter(o => !o.deprecated);
     const mastered = activeObjectives.filter(o =>
       objectiveProgress(program, o.id, state.evidence).status === "mastered").length;
+    const progressionReady = activeObjectives.filter(o =>
+      deriveObjectiveReadiness(program, o.id, state.evidence, this.now(), {}, state.gaps ?? []).progressionReady).length;
     const f = feasibility(program);
-    const remainingEstimate = estimateRemainingWork(program, state.evidence, this.now());
+    const remainingEstimate = estimateRemainingWork(program, state.evidence, this.now(), state.gaps ?? []);
     const historicalActive = (program.sessionHistory ?? []).reduce((sum, item) => sum + (item.activeMinutes ?? 0), 0);
     const historicalLegacy = (program.sessionHistory ?? []).filter(item => item.activeMinutes === undefined).length;
     const currentTiming = program.session ? projectedTiming(program.session, this.now()) : null;
@@ -505,7 +508,8 @@ export class LearningProgramOrchestrator {
       `Confirmed active learning: ${Math.round(spent)} minutes, ${program.sessionHistory?.length ?? 0} completed sessions.`,
       ...(historicalLegacy ? [`Older sessions without activity accounting: ${historicalLegacy} (excluded from active time).`] : []),
       ...(currentTiming ? [`AI waiting this session: ${Math.round(currentTiming.aiWaitingMs / 60_000)} minutes.`] : []),
-      `Mastered: ${mastered}/${activeObjectives.length} active objectives (requires independent delayed recall)`,
+      `Retention mastered: ${mastered}/${activeObjectives.length} active objectives (independent delayed recall)`,
+      `Progression-ready: ${progressionReady}/${activeObjectives.length} (also requires resolved gaps and transfer)`,
       `Plan: ~${f.estimatedMinutes} minutes including estimated review; available: ${f.availableMinutes ?? "unspecified"} minutes.`,
       `Feasibility: ${estimate}`,
       `Remaining work: ~${remainingEstimate.minutes} min (${remainingEstimate.basis}${remainingEstimate.basis === "calibrated" ? `, ${remainingEstimate.samples} measured objectives` : ""}).`,

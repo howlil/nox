@@ -1,6 +1,6 @@
 import type { KnowledgeGap, LearningEvidence } from "../learning-state/types";
 import type { LearningProgram } from "../learning-program/types";
-import { objectiveProgress } from "../learning-program/rules";
+import { deriveObjectiveReadiness } from "../learning-program/objective-readiness";
 
 export type CriterionReadiness = "unseen" | "developing" | "demonstrated" | "needs-repair";
 
@@ -110,7 +110,8 @@ export function projectLearnerModel(program: LearningProgram,
   for (const objective of program.objectives) {
     const attempts = scoped.filter(item => item.objectiveId === objective.id);
     const objectiveGaps = activeGaps.filter(gap => gap.objectiveId === objective.id);
-    const progress = objectiveProgress(program, objective.id, scoped, now);
+    const readiness = deriveObjectiveReadiness(program, objective.id, scoped, now, {}, gaps);
+    const progress = readiness.progress;
     const criteria = objective.rubric.map((description, index): DerivedCriterionState => {
       const criterionId = objective.criteria?.[index]?.id ?? "legacy:" + (index + 1);
       const observations = attempts.flatMap(item => {
@@ -134,7 +135,7 @@ export function projectLearnerModel(program: LearningProgram,
     const recallReadiness: DerivedObjectiveState["recallReadiness"] =
       objective.deprecated ? "unseen" :
       progress.status === "unseen" ? "unseen" :
-      progress.status === "remediate" ? "needs-repair" :
+      readiness.unresolvedGapIds.length > 0 || progress.status === "remediate" ? "needs-repair" :
       progress.dueAt !== null && now >= progress.dueAt ? "due" :
       progress.dueAt !== null ? "scheduled" : "practice";
     objectives[objective.id] = {
