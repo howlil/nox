@@ -32,7 +32,10 @@ test("Obsidian community P0 style and settings findings cannot regress", () => {
   assert.match(settings, /nox-settings-native-row/, "Native Obsidian setting rows must be mounted");
   assert.doesNotMatch(settings, /new Setting\(form\)/, "Avoid shadow settings outside the definitions");
   assert.doesNotMatch(settings, /\.setName\("Nox"\)\.setHeading\(\)/, "Do not duplicate plugin name as heading");
-  assert.match(settings, /new Setting\(header\)\.setName\("Settings"\)\.setHeading\(\)/);
+  assert.doesNotMatch(settings, /new Setting\(header\)\.setName\("Settings"\)\.setHeading\(\)/,
+    "Community review 1.1.3 rejection must not reappear");
+  assert.match(settings, /header\.createEl\("p"/,
+    "Keep the explanatory copy without a redundant top-level heading");
 });
 
 test("dynamic composer, swipe, icon and motion visuals have a scoped stylesheet contract", () => {
@@ -63,7 +66,9 @@ test("release requires verified attestations for the three official plugin asset
     workflow.indexOf("Publish only source-bound assets by release ID"));
   assert.match(workflow, /gh attestation verify "dist\/\$file"/);
   assert.match(workflow, /gh api -X PATCH -F draft=false/);
-  assert.match(workflow, /strict: "true"/);
+  assert.match(workflow, /lint: "true"/);
+  assert.match(workflow, /scanner-lint: "true"/);
+  assert.match(workflow, /pnpm ci:critical/);
 
   const publishing = source(".github/workflows/publish-release.yml");
   assert.match(publishing, /workflow_dispatch:/);

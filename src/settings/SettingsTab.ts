@@ -207,7 +207,8 @@ export class NoxSettingsTab extends PluginSettingTab {
     setting.settingEl.addClass("nox-settings-shell");
     const surface = setting.controlEl.createDiv({ cls: "nox-settings-surface" });
     const header = surface.createDiv({ cls: "nox-settings-heading" });
-    new Setting(header).setName("Settings").setHeading();
+    // The host's sidebar already identifies this tab as Nox; Obsidian's
+    // Community guidelines prohibit redundant top-level Settings headings.
     header.createEl("p", { text: "Manage your agent runtime and review usage recorded through Nox." });
 
     const tabs = surface.createDiv({ cls: "nox-settings-tabs",

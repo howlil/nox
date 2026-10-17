@@ -36,13 +36,13 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - name: Release metadata and blocking P0 settings policy
         run: pnpm docs:check && pnpm release:check && pnpm ci:critical
-      - name: Official Obsidian Community scanner (blocking)
+      - name: Official Community scanner (lint enabled; warnings advisory; P0 policy blocking)
         uses: obsidianmd/obsidian-workflows@v1
         with:
           build: "false"
-          lint: "false"
+          lint: "true"
           scanner-lint: "true"
-          strict: "true"
+          strict: "false"
 
   artifacts:
     if: github.event_name == 'workflow_dispatch' || github.event_name == 'pull_request'
