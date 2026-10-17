@@ -66,7 +66,9 @@ test("release requires verified attestations for the three official plugin asset
     workflow.indexOf("Publish only source-bound assets by release ID"));
   assert.match(workflow, /gh attestation verify "dist\/\$file"/);
   assert.match(workflow, /gh api -X PATCH -F draft=false/);
-  assert.match(workflow, /strict: "true"/);
+  assert.match(workflow, /lint: "true"/);
+  assert.match(workflow, /scanner-lint: "true"/);
+  assert.match(workflow, /pnpm ci:critical/);
 
   const publishing = source(".github/workflows/publish-release.yml");
   assert.match(publishing, /workflow_dispatch:/);
