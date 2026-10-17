@@ -17,6 +17,7 @@ import type { LearningProgramOrchestrator } from "./LearningProgramOrchestrator"
 export interface LearningControllerOptions {
   turnTimeoutMs?: number;
   programStore?: ProgramStorePort;
+  mutationGate?: import("./LearningMutationGate").LearningMutationGate;
   workspaceWriter?: WorkspaceWriterPort;
   onboardingState?: import("./ports").OnboardingStatePort;
 }

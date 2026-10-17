@@ -79,6 +79,7 @@ export class RunLearningTurn {
   } | null = null;
   private readonly turnTimeoutMs: number;
   private readonly programStore?: ProgramStorePort;
+  private readonly mutationGate?: import("./LearningMutationGate").LearningMutationGate;
 
   constructor(
     private readonly sessions: SessionPort,
@@ -86,11 +87,13 @@ export class RunLearningTurn {
     private readonly contexts: ContextPort,
     private readonly policies: PolicyPort,
     private readonly learningState: LearningStatePort,
-    options: { turnTimeoutMs?: number; programStore?: ProgramStorePort } = {},
+    options: { turnTimeoutMs?: number; programStore?: ProgramStorePort;
+      mutationGate?: import("./LearningMutationGate").LearningMutationGate } = {},
   ) {
     // Hard turn deadline: long reasoning/streaming must not fail at the former 60s cutoff.
     this.turnTimeoutMs = options.turnTimeoutMs ?? 300_000;
     this.programStore = options.programStore;
+    this.mutationGate = options.mutationGate;
   }
 
   isRunning(): boolean {
@@ -1386,29 +1389,38 @@ export class RunLearningTurn {
             ...(scoped ? { scope: scoped } : {}),
           }] : []),
         ];
-        const committed = await this.sessions.recordPracticeOutcome(
-          parts, operationId, source, sessionId, beforeCommit,
-        );
-        const evaluationPart = committed.find((part) => part.type === "practice-evaluation");
-        if (!evaluationPart || evaluationPart.type !== "practice-evaluation") {
-          throw new Error("Committed practice outcome missing evaluation");
-        }
-        const currentState = await this.learningState.load();
-        const nextState = recordPracticeEvaluation(currentState, {
-          evaluation: evaluationPart.evaluation,
-          source: evaluationPart.sourcePath ?? source,
-          evidenceId: operationId,
-          programId: evaluationPart.evaluation.programId,
-          objectiveId: evaluationPart.evaluation.objectiveId,
-          assisted: evaluationPart.evaluation.assisted,
-          questionId: evaluationPart.questionId,
-          focusSessionId: evaluationPart.evaluation.focusSessionId,
-        }, { now: () => evaluationPart.committedAt ?? 0 });
-        if (nextState.evidence.length !== currentState.evidence.length) {
-          await this.learningState.save(nextState);
-        }
+        const commitAndProject = async () => {
+          const committed = await this.sessions.recordPracticeOutcome(
+            parts, operationId, source, sessionId, beforeCommit,
+          );
+          const evaluationPart = committed.find((part) => part.type === "practice-evaluation");
+          if (!evaluationPart || evaluationPart.type !== "practice-evaluation") {
+            throw new Error("Committed practice outcome missing evaluation");
+          }
+          const currentState = await this.learningState.load();
+          const nextState = recordPracticeEvaluation(currentState, {
+            evaluation: evaluationPart.evaluation,
+            source: evaluationPart.sourcePath ?? source,
+            evidenceId: operationId,
+            programId: evaluationPart.evaluation.programId,
+            objectiveId: evaluationPart.evaluation.objectiveId,
+            assisted: evaluationPart.evaluation.assisted,
+            questionId: evaluationPart.questionId,
+            focusSessionId: evaluationPart.evaluation.focusSessionId,
+          }, { now: () => evaluationPart.committedAt ?? 0 });
+          if (nextState.evidence.length !== currentState.evidence.length) {
+            await this.learningState.save(nextState);
+          }
 
-        practice.commitEvaluation(practiceAttempt, evaluationPart.evaluation, evaluationPart.nextQuestionId);
+          practice.commitEvaluation(practiceAttempt, evaluationPart.evaluation, evaluationPart.nextQuestionId);
+          return { evaluationPart, nextState };
+        };
+        // A program/focus transition and the transcript→progress commit cannot
+        // interleave inside the running plugin. Without a shared gate (legacy
+        // harness), retain the original transcript-first recovery behavior.
+        const { evaluationPart, nextState } = evaluation.programId && this.mutationGate
+          ? await this.mutationGate.run(commitAndProject)
+          : await commitAndProject();
         yield { type: "practice-evaluation", evaluation: evaluationPart.evaluation,
           questionId: practiceAttempt.questionId };
         yield { type: "learning-state-updated", state: nextState };

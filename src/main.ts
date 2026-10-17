@@ -19,6 +19,7 @@ import { VaultLearningStore } from "./persistence/VaultLearningStore";
 import { VaultProgramStore } from "./persistence/VaultProgramStore";
 import { VaultWorkspaceWriter } from "./persistence/VaultWorkspaceWriter";
 import { OnboardingStateRepository } from "./persistence/OnboardingStateRepository";
+import { LearningMutationGate } from "./application/LearningMutationGate";
 import { LearningProgramOrchestrator } from "./application/LearningProgramOrchestrator";
 import { PluginDataRepository } from "./persistence/PluginDataRepository";
 import { TokenUsageRepository } from "./persistence/TokenUsageRepository";
@@ -91,11 +92,13 @@ export default class NoxPlugin extends Plugin {
     const mutations = new MutationService(this.app);
     const learningState = new VaultLearningStore(this.app);
     const programStore = new VaultProgramStore(this.app);
+    const learningMutationGate = new LearningMutationGate();
     const workspaceWriter = new VaultWorkspaceWriter(this.app);
     const programs = new LearningProgramOrchestrator(
       runtime, contexts, learningState, programStore,
       () => sessions.getSession().model,
       () => sessions.getSession().runtimeProvider,
+      undefined, learningMutationGate,
     );
     let lastInteraction = Date.now();
     let idle = false;
@@ -139,7 +142,8 @@ export default class NoxPlugin extends Plugin {
       policies,
       mutations,
       learningState,
-      { programStore, workspaceWriter, onboardingState: new OnboardingStateRepository(this.pluginData) },
+      { programStore, mutationGate: learningMutationGate, workspaceWriter,
+        onboardingState: new OnboardingStateRepository(this.pluginData) },
       programs,
     );
 
