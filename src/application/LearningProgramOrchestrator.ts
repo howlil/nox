@@ -3,12 +3,15 @@ import type { ContextPort, LearningStatePort, ProgramStorePort } from "./ports";
 import type { LearningProgram, ProgramCollection, ProgramConstraints, LearningDecision, SessionPauseReason } from "../domain/learning-program/types";
 import { chooseNextActivity, chooseFocusedActivity, objectiveProgress, feasibility, validateConstraints, validateCurriculum } from "../domain/learning-program/rules";
 import { startObjectiveFocus, transitionObjectiveFocus } from "../domain/learning-program/focus-transitions";
+import { applyCurriculumRevision, detectStructuralGap, type CurriculumRevision, type StructuralGapReason } from "../domain/learning-program/curriculum-revision";
+import { proposeCurriculumRevision, type CurriculumRevisionPreview } from "./CurriculumRevisionService";
 import { estimateRemainingWork } from "../domain/learning-program/estimate";
 import { checkpointTiming, focusSessionObjective, focusSessionMaterial, newSessionTiming, projectedTiming, recoverTiming, sessionRemainingMs, sessionTimeStatus, setTimingPause } from "../domain/learning-program/session-time";
 
 /** Program planning and session selection. The model generates content, never transitions. */
 export class LearningProgramOrchestrator {
   private readonly preparedDrafts = new Map<string, LearningProgram>();
+  private readonly pendingRevisions = new Map<string, { revision: CurriculumRevision; preview: CurriculumRevisionPreview }>();
   private planning = false;
   private writing = false;
   private currentAbort?: AbortController;
@@ -27,6 +30,7 @@ export class LearningProgramOrchestrator {
     this.checkpointTimer = undefined;
     this.cancel();
     this.preparedDrafts.clear();
+    this.pendingRevisions.clear();
   }
 
   private startCheckpointLoop(): void {
@@ -238,6 +242,89 @@ export class LearningProgramOrchestrator {
     this.stopCheckpointLoop();
     return selected;
   }
+  /** Evidence opens the revision workflow but never bypasses explicit approval. */
+  async detectRevisionCandidate() {
+    const program = await this.getActiveProgram();
+    if (!program) return null;
+    const state = await this.learningState.load();
+    return detectStructuralGap(program, state.evidence);
+  }
+
+  async prepareCurriculumRevision(reason?: "goal-change"): Promise<CurriculumRevisionPreview> {
+    if (this.isPlanning() || this.activeAiTurnId) {
+      throw new Error("Finish the active learning operation before preparing a structural revision.");
+    }
+    const program = await this.getActiveProgram();
+    if (!program) throw new Error("Choose a learning program first.");
+    if (program.focus || program.session) {
+      throw new Error("End the objective focus and timed session before revising the curriculum.");
+    }
+    if (program.constraints.sourceBound && this.currentProvider() !== "chatgpt") {
+      throw new Error("Source-bound revision requires the ChatGPT provider without vault filesystem tools.");
+    }
+    const state = await this.learningState.load();
+    const trigger = reason === "goal-change"
+      ? { reason: "goal-change" as StructuralGapReason, evidenceIds: [] }
+      : detectStructuralGap(program, state.evidence);
+    if (!trigger) throw new Error("No evidence-backed structural gap. Use /replan goal-change for a requested scope change.");
+    this.planning = true;
+    const controller = this.currentAbort = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 120_000);
+    try {
+      const { revision, preview } = await proposeCurriculumRevision(this.runtime, program,
+        state.evidence, trigger, this.currentModel(), this.now(), controller.signal)
+        .then(result => ({ revision: result.proposal, preview: result.preview }));
+      this.pendingRevisions.clear();
+      this.pendingRevisions.set(revision.operationId, { revision, preview });
+      return structuredClone(preview);
+    } finally {
+      clearTimeout(timeout);
+      this.currentAbort = undefined;
+      this.planning = false;
+    }
+  }
+
+  async approveCurriculumRevision(operationId: string): Promise<LearningProgram> {
+    if (this.isPlanning() || this.activeAiTurnId) {
+      throw new Error("Finish the running learning operation before approving a curriculum revision.");
+    }
+    const task = this.mutationTail.then(async () => {
+      this.writing = true;
+      try {
+        const collection = await this.store.load();
+        const index = collection.programs.findIndex(p => p.id === collection.activeProgramId);
+        if (index < 0) throw new Error("No active program for revision.");
+        const program = collection.programs[index];
+        // Persisted receipt wins even after process restart.
+        if (program.curriculumRevisions?.some(r => r.operationId === operationId)) return program;
+        const pending = this.pendingRevisions.get(operationId);
+        if (!pending || this.now() > pending.preview.expiresAt ||
+            pending.revision.programId !== program.id) {
+          throw new Error("Revision preview expired or belongs to another program.");
+        }
+        const evidence = (await this.learningState.load()).evidence;
+        const next = applyCurriculumRevision(program, pending.revision, evidence, this.now());
+        if (JSON.stringify(next.objectives) !== JSON.stringify(pending.preview.after)) {
+          throw new Error("Curriculum revision no longer matches the approved diff.");
+        }
+        collection.programs[index] = next;
+        // The loaded collection is the expected storage snapshot. A competing vault
+        // edit must cause a conflict, not silently last-write-wins the revision.
+        await this.store.save(collection, collection);
+        this.pendingRevisions.delete(operationId);
+        return next;
+      } finally {
+        this.writing = false;
+      }
+    });
+    this.mutationTail = task.then(() => {}, () => {});
+    return task;
+  }
+
+  cancelCurriculumRevision(operationId: string): void {
+    this.pendingRevisions.delete(operationId);
+  }
+
   async getActiveProgram(): Promise<LearningProgram | null> {
     const collection = await this.store.load();
     return collection.programs.find(p => p.id === collection.activeProgramId) ?? null;
@@ -414,6 +501,8 @@ export class LearningProgramOrchestrator {
       "At risk: estimated work exceeds available time. Reduce scope or adjust deadline/time budget.";
     return [
       `Program: ${program.goal}`,
+      ...(detectStructuralGap(program, state.evidence) && !program.focus ?
+        ["Evidence suggests a structural gap. Use /replan to preview a validated change."] : []),
       ...(program.focus ? [`Focus: ${program.focus.status} on ${program.focus.objectiveId} (revision ${program.focus.curriculumRevision}).`] : []),
       `Objectives: ${program.objectives.map(o => o.id + " — " + o.title).join("; ")}`,
       `Confirmed active learning: ${Math.round(spent)} minutes, ${program.sessionHistory?.length ?? 0} completed sessions.`,
