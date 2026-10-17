@@ -29,13 +29,16 @@ test("auto-publication requires strict source-bound attestations on the exact do
   const recovery = read(".github/workflows/publish-release.yml");
   assert.match(release, /needs: \[detect, linux, windows, community\]/);
   assert.match(release, /strict: "true"/);
-  assert.match(release, /gh release upload "\$version".*--clobber/);
+  assert.match(release, /Detect unshipped release by ID rather than public tag/);
+  assert.match(release, /contents: write/);
+  assert.match(release, /\.tag_name == \$v and \.draft == true/);
   assert.match(release, /--target "\$GITHUB_SHA"/);
-  assert.match(release, /cmp "dist\/\$item" "release-proof\/\$item"/);
-  assert.match(release, /gh attestation verify "release-proof\/\$item".*--source-digest "\$GITHUB_SHA"/);
-  assert.ok(release.indexOf("Publish only verified source-bound release assets") <
-    release.indexOf('gh release edit "$version" --draft=false'));
-  assert.match(release, /gh release edit "\$version" --draft=false/);
+  assert.match(release, /actual_digest/);
+  assert.match(release, /expected_digest/);
+  assert.match(release, /gh attestation verify "dist\/\$file".*--source-digest "\$GITHUB_SHA"/);
+  assert.ok(release.indexOf("Publish only source-bound assets by release ID") <
+    release.indexOf("gh api -X PATCH -F draft=false"));
+  assert.match(release, /gh api -X PATCH -F draft=false/);
   assert.doesNotMatch(release, /desktop_acceptance/);
   assert.match(recovery, /expected_sha/);
   assert.doesNotMatch(recovery, /desktop_acceptance/);
