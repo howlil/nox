@@ -47,6 +47,23 @@ export class VaultProgramStore {
     validateConstraints(program.constraints, new Date(program.createdAt));
     validateCurriculum({ kind: "curriculum", objectives: program.objectives }, program.constraints);
     if (program.focus) validateObjectiveFocus(program, program.focus);
+    if (program.deferredNotes !== undefined) {
+      if (!Array.isArray(program.deferredNotes) || program.deferredNotes.length > 100) {
+        throw new Error("Invalid deferred learning notes.");
+      }
+      const ids = new Set<string>();
+      for (const note of program.deferredNotes) {
+        if (!note || typeof note.id !== "string" || !note.id.trim() ||
+            note.id.length > 150 || ids.has(note.id) ||
+            typeof note.focusSessionId !== "string" || !note.focusSessionId.trim() ||
+            typeof note.objectiveId !== "string" ||
+            !program.objectives.some(item => item.id === note.objectiveId) ||
+            !Number.isFinite(note.createdAt) || note.createdAt < 0 ||
+            typeof note.text !== "string" || note.text.trim().length < 3 ||
+            note.text.length > 500) throw new Error("Invalid deferred learning note.");
+        ids.add(note.id);
+      }
+    }
     const operationIds = new Set<string>();
     let priorVersion = 1;
     const revisions = program.curriculumRevisions ?? [];

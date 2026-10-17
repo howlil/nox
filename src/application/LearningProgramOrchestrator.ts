@@ -344,6 +344,37 @@ export class LearningProgramOrchestrator {
       return startObjectiveFocus(program, objectiveId, this.now(), crypto.randomUUID(), chatSessionId);
     });
   }
+  async deferFocusNote(text: string, operationId: string, chatSessionId: string): Promise<void> {
+    const note = text.trim();
+    if (note.length < 3 || note.length > 500 || !operationId.trim() || operationId.length > 150) {
+      throw new Error("Invalid deferred note or operation ID.");
+    }
+    await this.updateActive(program => {
+      const focus = program.focus;
+      if (!focus || focus.status !== "active") {
+        throw new Error("Start or resume objective focus before deferring a note.");
+      }
+      if (focus.chatSessionId && focus.chatSessionId !== chatSessionId) {
+        throw new Error("The active focus belongs to another chat.");
+      }
+      const notes = program.deferredNotes ?? [];
+      const existing = notes.find(item => item.id === operationId);
+      if (existing) {
+        if (existing.text !== note || existing.focusSessionId !== focus.id) {
+          throw new Error("Deferred operation ID has different content.");
+        }
+        return program;
+      }
+      if (notes.length >= 100) throw new Error("Deferred-note limit reached.");
+      return { ...program, deferredNotes: [...notes, {
+        id: operationId, text: note, focusSessionId: focus.id,
+        objectiveId: focus.objectiveId, createdAt: this.now(),
+      }] };
+    });
+  }
+  async getDeferredNotes(): Promise<NonNullable<LearningProgram["deferredNotes"]>> {
+    return structuredClone((await this.getActiveProgram())?.deferredNotes ?? []);
+  }
   async pauseFocus(): Promise<LearningProgram> {
     return this.updateActive(p => transitionObjectiveFocus(p, "pause", this.now()));
   }

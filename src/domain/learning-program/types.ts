@@ -95,6 +95,8 @@ export interface LearningProgram {
   focus?: FocusSession;
   /** Evidence-linked structural revisions, not a second source of truth. */
   curriculumRevisions?: CurriculumRevisionRecord[];
+  /** Bounded off-topic reminders; never learner evidence or provider instructions. */
+  deferredNotes?: Array<{ id: string; focusSessionId: string; objectiveId: string; createdAt: number; text: string }>;
   session?: LearningSession;
   sessionHistory?: Array<{ startedAt: number; endedAt: number; minutesSpent: number; activeMinutes?: number; aiWaitingMinutes?: number; objectiveActiveMinutes?: Record<string, number>; dailyActiveMs?: Record<string, number>; materialActiveMinutes?: Record<string, number> }>;
   instructionEvents?: Array<{ objectiveId: string; afterEvidenceAt: number; taughtAt: number }>;
