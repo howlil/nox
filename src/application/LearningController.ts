@@ -9,6 +9,7 @@ import { RunLearningTurn } from "./RunLearningTurn";
 import { isActiveLearningScope, isProgramLearningScope, isLockedLearningMode, parseScopeCommand } from "../domain/practice/learning-scope";
 import { parseProgramCommand } from "../domain/learning-program/commands";
 import { feasibility, objectiveProgress } from "../domain/learning-program/rules";
+import { authorizeFocusIntent } from "../domain/learning-program/focus-transitions";
 import type { LearningProgramOrchestrator } from "./LearningProgramOrchestrator";
 
 export interface LearningControllerOptions {
@@ -106,7 +107,7 @@ export class LearningController {
     const active = collection.programs.find(item => item.id === collection.activeProgramId);
     return {
       activeProgramId: active?.id,
-      sessionActive: Boolean(active?.session),
+      sessionActive: Boolean(active?.session || active?.focus?.status === "active"),
       programs: collection.programs.map(item => ({ id: item.id, goal: item.goal })),
     };
   }
@@ -171,7 +172,7 @@ export class LearningController {
     const next = selected?.decision;
     return {
       goal: program.goal,
-      active: Boolean(program.session),
+      active: Boolean(program.session || program.focus?.status === "active"),
       ...(program.session ? { sessionTime: (await this.programs.getSessionTime()) ?? undefined } : {}),
       next: { kind: next?.kind ?? "wait", objectiveId: next?.objective?.id,
         reason: next?.reason ?? "No activity is available." },
@@ -333,6 +334,46 @@ export class LearningController {
       yield { type: "failed", failure: { code: "busy", message: "Wait for runtime settings to finish saving." } };
       return;
     }
+    // The persisted program lock, not ChatSession.learningScope, authorizes every
+    // intent BEFORE command routing, context resolution, or provider inference.
+    let globalFocus: Awaited<ReturnType<NonNullable<typeof this.programs>["getGlobalActiveFocus"]>>;
+    try {
+      globalFocus = await this.programs?.getGlobalActiveFocus() ?? null;
+      const current = await this.programs?.getActiveProgram();
+      this.turns.syncFocusSessionId(current?.focus?.chatSessionId === this.sessions.getSession().id
+        ? current.focus.id : undefined);
+    } catch (error) {
+      yield { type: "failed", failure: { code: "persistence-failed",
+        message: "Cannot verify the persisted learning focus. No model call was made.",
+        diagnostic: error instanceof Error ? error.message : String(error) } };
+      return;
+    }
+    if (globalFocus) {
+      const trimmed = request.prompt.trim().toLowerCase();
+      const inspect = /^\/(?:progress|programs|review-due|session-time)$/.test(trimmed);
+      const pauseOrEnd = trimmed === "/pause-focus" || trimmed === "/end-focus";
+      const next = trimmed === "/next";
+      const hint = trimmed === "/hint";
+      const question = this.turns.hasActivePracticeQuestion();
+      const ordinaryAnswer = !trimmed.startsWith("/") && question &&
+        (request.action === "ask" || request.action === "practice");
+      const practice = request.action === "practice" && !request.freePractice &&
+        !trimmed.startsWith("/");
+      const intent = inspect || pauseOrEnd ? { kind: "inspect" as const }
+        : next || hint || ordinaryAnswer || practice
+          ? { kind: next || practice && !question ? "continue" as const
+            : hint ? "request-hint" as const : "submit-answer" as const,
+            chatSessionId: this.sessions.getSession().id }
+          : { kind: "unrelated" as const };
+      const admission = authorizeFocusIntent(globalFocus.focus, intent);
+      if (!admission.allowed) {
+        yield { type: "failed", failure: { code: "busy",
+          message: "Objective focus is locked (" + admission.reason +
+            "). Use /pause-focus or /end-focus before unrelated actions." } };
+        return;
+      }
+      if (ordinaryAnswer) request = { ...request, action: "practice" };
+    }
     if (request.prompt.trim().toLowerCase() === "/hint") {
       if (this.turns.isRunning() || this.applyingProposals.size > 0) {
         yield { type: "failed", failure: { code: "busy", message: "Finish the active operation before requesting a hint." } };
@@ -415,11 +456,27 @@ export class LearningController {
                 `${p.id === collection.activeProgramId ? "**Active** " : ""}${p.goal} (ID: ${p.id})`).join("\n\n")
             : "No saved learning programs yet. Use /plan <goal>.";
         } else if (command.kind === "use-program") {
-          if (this.turns.hasActivePracticeQuestion()) {
+          if (this.turns.hasActivePracticeQuestion() && (await this.programs.getActiveProgram())?.focus?.status !== "paused") {
             throw new Error("Finish the current practice question before switching programs.");
           }
           const selected = await this.programs.selectProgram(command.id);
           response = `Active program changed to: ${selected.goal}`;
+        } else if (command.kind === "focus") {
+          const program = await this.programs.startFocus(command.objectiveId, this.sessions.getSession().id);
+          this.turns.syncFocusSessionId(program.focus?.id);
+          response = "Focused on **" + program.objectives.find(o => o.id === command.objectiveId)?.title +
+            "** without a timer. Use /next, /pause-focus, or /end-focus.";
+        } else if (command.kind === "pause-focus") {
+          await this.programs.pauseFocus();
+          response = "Objective focus paused. Return to this chat and use /resume-focus.";
+        } else if (command.kind === "resume-focus") {
+          const program = await this.programs.resumeFocus(this.sessions.getSession().id);
+          this.turns.syncFocusSessionId(program.focus?.id);
+          response = "Objective focus resumed. Use /next or answer the pending question.";
+        } else if (command.kind === "end-focus") {
+          await this.programs.endFocus();
+          this.turns.syncFocusSessionId(undefined);
+          response = "Objective focus ended. Committed learning evidence remains saved.";
         } else if (command.kind === "free-practice") {
           if (this.turns.hasActivePracticeQuestion()) throw new Error("Finish the active question before starting free practice.");
           yield* this.runTimedTurn({ ...request, action: "practice", freePractice: true,
@@ -457,7 +514,8 @@ export class LearningController {
             response = "Answer the active question first, or use /hint for a small nudge.";
           } else {
             const selected = await this.programs.getDecision();
-            if (selected?.program?.session && selected.decision.objective) {
+            if ((selected?.program?.session || selected?.program?.focus?.status === "active") &&
+                selected.decision.objective) {
               await this.programs.focusObjective(selected.decision.objective.id);
               if (selected.program.workspaceApproved) {
                 try {
@@ -469,8 +527,9 @@ export class LearningController {
                 }
               }
             }
-            if (selected?.program && !selected.program.session) {
-              response = "Start a timeboxed session first with /start-session.";
+            if (selected?.program && !selected.program.session &&
+                selected.program.focus?.status !== "active") {
+              response = "Use /focus <objective-id> for self-paced study, or /start-session for legacy timed study.";
             } else if (selected?.decision.kind === "teach" && selected.decision.objective) {
               const objective = selected.decision.objective;
               const state = await this.learningState.load();
@@ -493,7 +552,7 @@ export class LearningController {
               yield* this.runTimedTurn({ ...request, action: "practice" });
               return;
             }
-            if (!selected?.program || selected.program.session) {
+            if (!selected?.program || selected.program.session || selected.program.focus) {
               response = selected?.decision.reason ?? "No active program. Use /plan <goal> first.";
             }
           }
@@ -531,7 +590,8 @@ export class LearningController {
         message: this.statusSyncFailure.message,
       };
     }
-    if (isActiveLearningScope(this.sessions.getSession().learningScope)) {
+    if (isActiveLearningScope(this.sessions.getSession().learningScope) ||
+        (await this.programs?.getGlobalActiveFocus()) !== null && Boolean(this.programs)) {
       return { ok: false, reason: "unauthorized",
         message: "Learning mode is locked. Type /pause before applying a note edit." };
     }
