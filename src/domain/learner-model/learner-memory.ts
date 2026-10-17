@@ -1,6 +1,6 @@
 import type { KnowledgeGap, LearningEvidence } from "../learning-state/types";
 import type { LearningProgram } from "../learning-program/types";
-import { deriveObjectiveReadiness } from "../learning-program/objective-readiness";
+import { deriveObjectiveReadiness, objectiveProgress } from "../learning-program/objective-readiness";
 
 export type CriterionReadiness = "unseen" | "developing" | "demonstrated" | "needs-repair";
 
@@ -110,8 +110,10 @@ export function projectLearnerModel(program: LearningProgram,
   for (const objective of program.objectives) {
     const attempts = scoped.filter(item => item.objectiveId === objective.id);
     const objectiveGaps = activeGaps.filter(gap => gap.objectiveId === objective.id);
-    const readiness = deriveObjectiveReadiness(program, objective.id, scoped, now, {}, gaps);
-    const progress = readiness.progress;
+    // Historical tombstones are readable, never eligible for a new activity.
+    const readiness = objective.deprecated ? null :
+      deriveObjectiveReadiness(program, objective.id, scoped, now, {}, gaps);
+    const progress = readiness?.progress ?? objectiveProgress(program, objective.id, scoped, now);
     const criteria = objective.rubric.map((description, index): DerivedCriterionState => {
       const criterionId = objective.criteria?.[index]?.id ?? "legacy:" + (index + 1);
       const observations = attempts.flatMap(item => {
@@ -135,7 +137,7 @@ export function projectLearnerModel(program: LearningProgram,
     const recallReadiness: DerivedObjectiveState["recallReadiness"] =
       objective.deprecated ? "unseen" :
       progress.status === "unseen" ? "unseen" :
-      readiness.unresolvedGapIds.length > 0 || progress.status === "remediate" ? "needs-repair" :
+      (readiness?.unresolvedGapIds.length ?? 0) > 0 || progress.status === "remediate" ? "needs-repair" :
       progress.dueAt !== null && now >= progress.dueAt ? "due" :
       progress.dueAt !== null ? "scheduled" : "practice";
     objectives[objective.id] = {

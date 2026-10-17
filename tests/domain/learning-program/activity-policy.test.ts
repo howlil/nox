@@ -99,7 +99,8 @@ test("focus lock suppresses timebox, optional objectives and an unrelated overdu
 
 test("criterion failures repair first, scaffold once, then independently retry; no repeated lecture", () => {
   const p = program();
-  const initial = mastered();
+  const initial = [...mastered(),
+    attempt("foundation", "verified-transfer", now - 2 * DAY, "correct", "transfer")];
   const first = attempt("advanced", "bad-one", now - 400, "incorrect");
   const second = attempt("advanced", "bad-two", now - 300, "partial");
   const one = decideLearningActivity(p, deriveObjectiveReadiness(p, "advanced", [...initial, first], now),
@@ -126,7 +127,9 @@ test("criterion failures repair first, scaffold once, then independently retry; 
 
 test("thresholds cannot weaken mastery or overrun bounded scaffolding", () => {
   const p = program();
-  const evidence = [...mastered(), attempt("advanced", "bad-one", now - 300, "incorrect"),
+  const evidence = [...mastered(),
+    attempt("foundation", "verified-transfer", now - 2 * DAY, "correct", "transfer"),
+    attempt("advanced", "bad-one", now - 300, "incorrect"),
     attempt("advanced", "bad-two", now - 200, "incorrect")];
   const readiness = deriveObjectiveReadiness(p, "advanced", evidence, now);
   assert.equal(decideLearningActivity(p, readiness, evidence, now,

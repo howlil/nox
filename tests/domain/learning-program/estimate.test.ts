@@ -33,6 +33,7 @@ function evidenceFor(id: string, at: number): LearningEvidence {
 }
 const evidence = ["a","b","c"].flatMap(id => [
   evidenceFor(id, now - 2 * DAY), evidenceFor(id, now),
+  { ...evidenceFor(id, now), id: "transfer:" + id, taskKind: "transfer" as const },
 ]);
 test("personalizes remaining work only from completed evidence and three measured objectives", () => {
   const estimate = estimateRemainingWork(program, evidence, now);
