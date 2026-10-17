@@ -12,7 +12,7 @@ Do not merge or release automatically.
 - M2 — Evidence-backed structural curriculum revision: implemented on PR #105, CI and desktop acceptance are release gates.
 - M3 — Evidence-backed derived learner model: implemented in draft PR #106; CI and desktop acceptance gate.
 - M4 — Adaptive Activity Engine: implemented in draft PR #107; CI and desktop acceptance are release gates.
-- M5 — Context orchestration: pending.
+- M5 — Bounded, objective-scoped context orchestration: implemented in draft PR #108; CI and desktop acceptance gate.
 - M6 — Compact UI: pending.
 - M7 — Recovery and provider-backed Obsidian desktop acceptance: pending.
 
@@ -127,3 +127,26 @@ Select the smallest effective learning action from M1 validated rubric feedback 
 `tests/domain/learner-model/activity-policy.test.ts` covers recall, prerequisites, assistance/MCQ, regression, scaffold, required transfer, focus lock, session timeboxing, priorities, stale revisions, legacy fallback, and determinism. Existing M0–M3 CI checks remain required.
 
 Desktop acceptance with a real provider remains a release gate. PR #107 remains draft; do not merge or publish automatically. M5 Context Orchestration follows M4.
+
+## M5 — Context Orchestration
+
+### Objective and ownership
+NOX uses current objective identity and committed evidence to build the smallest bounded provider context that can explain or assess the objective. This is an application-boundary projection, not a new memory store, chat summary, or background agent.
+
+### Program<A,E,R>
+- **A**: M0 objective authorization + M4 selected objective → sourceRefs/approved source scope → latest ContextPort note snapshots → ephemeral local lexical retrieval → cited path/line/heading snippets → M3-derived criterion context and at most six evidence IDs → existing ContextBudget → provider. The transcript remains canonical for pending questions and evaluation recovery.
+- **E**: unknown/deprecated objective, missing or unauthorized source, empty approved note, no matching source excerpt for a source-bound objective, oversized explicit selection, stale rubric evidence, or context budget overflow aborts the turn before provider inference. Provider-authored feedback prose and global unrelated progress are not forwarded as learning authority.
+- **R**: source and evidence projections are reconstructed on every turn from fresh vault buffers and durable event log. No cached summaries, migration, persistent vector index, or hidden provider conversation required for learning; an interrupted evaluation recovers through the existing transcript-first path.
+
+### Selection, privacy and budget
+- Source-bound learning restricts vault-note references **before** file resolution. Active focus and pending challenge resolve only their objective's `sourceRefs` (a subset of the program allowlist). Unbound learning prioritizes objective `sourceRefs` plus explicitly selected text; ambient unrelated notes are excluded where references exist.
+- An in-memory LocalResearchIndex is built only from authorized turn-local note snapshots (up to 120,000 chars each) and selects at most six traceable chunks. This index is never persisted or shared across vault scopes. The source contract remains exactly the note content, not an AI-authored summary.
+- M5 includes only the current objective's revision-scoped validated learner evidence. Six newest practice events maximum; twelve rubric results per event; no raw evaluator free-form narrative or cross-program material evidence. The M3 profile is generated once for the selected objective rather than scanning every program objective.
+- Previous chat history and provider-owned conversation cursors remain excluded from program learning turns. The bounded context envelope continues to enforce a conservative estimated token ceiling. Source-bound learning fails closed if a required excerpt or selection cannot fit.
+- Context trace is deterministic and read-only: selected source paths/lines/headings plus evidence IDs. It cannot confer mastery, revise curriculum, or override M4 activity selection.
+
+### Verification
+`tests/application/LearningContextOrchestrator.test.ts` covers approved-source isolation, citation provenance, stale revision and foreign evidence exclusion, thousands of attempts, deterministic recomputation, oversized selection, missing/off-topic sources, source revision freshness, injected evaluator prose, and strict budget handling. Existing ContextResolver, ContextBudget, RunLearningTurn and transcript recovery tests remain active.
+
+### Release gates
+Draft PR #108 is built on top of draft PR #107 (M4). No merge/release, no Cloudflare CI changes, and no manual desktop testing in this workflow. Real Obsidian/provider acceptance, failure-injection and privacy review remain outstanding; M6 Learning UI is next.

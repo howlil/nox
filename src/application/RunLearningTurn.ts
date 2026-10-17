@@ -47,7 +47,6 @@ import {
 import { PracticeSessionRegistry } from "./PracticeSessionRegistry";
 import type { LearningProgram, LearningObjective } from "../domain/learning-program/types";
 import { selectAdaptiveActivity } from "../domain/learner-model/activity-policy";
-import { deriveLearnerProfile, toLearnerProfileContext } from "../domain/learner-model/learner-profile";
 import { coversCriteria } from "../domain/learning-program/assessment-rubric";
 import { criterionIdFor, decideFeedback } from "../domain/learner-model/feedback-policy";
 import {
@@ -779,9 +778,6 @@ export class RunLearningTurn {
           item.objectiveRevision === (activeObjective.objectiveRevision ?? program.planVersion))
           .sort((a, b) => a.createdAt - b.createdAt || a.id.localeCompare(b.id)).at(-1);
         const missed = lastEvidence?.rubricResults?.filter(result => !result.met).map(result => result.criterion) ?? [];
-        // Recomputed from the durable evidence log; never stored as inferred user memory.
-        const learnerProfile = toLearnerProfileContext(
-          deriveLearnerProfile(program, state, Date.now()), activeObjective.id);
         const feedback = !practiceAttempt && lastEvidence?.evidenceVersion === 3 &&
           lastEvidence.objectiveRevision === (activeObjective.objectiveRevision ?? program.planVersion)
           ? decideFeedback(activeObjective, state.evidence, lastEvidence) : undefined;
@@ -798,7 +794,6 @@ export class RunLearningTurn {
             kind: decision.kind, objectiveId: decision.objective?.id,
             provenance: decision.provenance,
           } : { kind: "evaluate-existing-question" })}. The model cannot change or override this choice.`,
-          `Derived criterion profile (not a behavioral/personality inference): ${JSON.stringify(learnerProfile)}. Treat unknown as unassessed, never as weakness.`,
           `Source constraint: ${program.constraints.sourceBound
             ? "Only the explicitly selected source note(s), do not claim external facts were verified."
             : "Use provided material where available and distinguish assumptions."}`,
