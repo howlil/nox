@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { LearningMutationGate } from "../../src/application/LearningMutationGate";
 import { LearningProgramOrchestrator } from "../../src/application/LearningProgramOrchestrator";
 import type { ProgramCollection, ProgramConstraints } from "../../src/domain/learning-program/types";
 import type { KnowledgeGap, LearningEvidence } from "../../src/domain/learning-state/types";
@@ -19,7 +20,7 @@ const draft = (refs: string[] = []) => ({
       rubric: ["Respond in context"], sourceRefs: refs, priority: "core" },
   ],
 });
-function rig(payload: unknown = draft(), success = true) {
+function rig(payload: unknown = draft(), success = true, gate?: LearningMutationGate) {
   let currentTime = Date.now();
   let stored: ProgramCollection = { version: 1, programs: [] };
   let writes = 0;
@@ -47,6 +48,7 @@ function rig(payload: unknown = draft(), success = true) {
     () => undefined,
     () => "chatgpt",
     () => currentTime,
+    gate,
   );
   return { orchestrator, stored: () => structuredClone(stored), writes: () => writes,
     setEvidence: (items: LearningEvidence[]) => { evidence = structuredClone(items); },
@@ -410,5 +412,30 @@ test("startFocus does not bypass transfer gate or an unresolved misconception", 
       met: false, evidence: "Failed" }],
   }]);
   await assert.rejects(orchestrator.startFocus("apply"), /prerequisite/);
+  orchestrator.dispose();
+});
+
+
+test("shared commit gate queues actual orchestrator focus transitions until prior outcome work finishes", async () => {
+  const gate = new LearningMutationGate();
+  const { orchestrator, stored } = rig(draft(), true, gate);
+  await orchestrator.createProgram("Spanish", base);
+  let entered!: () => void;
+  let release!: () => void;
+  const writerEntered = new Promise<void>(resolve => { entered = resolve; });
+  const writerHeld = new Promise<void>(resolve => { release = resolve; });
+  const canonicalCommit = gate.run(async () => {
+    entered();
+    await writerHeld;
+    return "transcript + progress durable";
+  });
+  await writerEntered;
+  const focus = orchestrator.startFocus("basic", "owner");
+  await Promise.resolve();
+  assert.equal(stored().programs[0].focus, undefined,
+    "focus mutation must wait until prior canonical commit completes");
+  release();
+  assert.equal(await canonicalCommit, "transcript + progress durable");
+  assert.equal((await focus).focus?.chatSessionId, "owner");
   orchestrator.dispose();
 });
