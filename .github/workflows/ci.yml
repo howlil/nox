@@ -1,12 +1,14 @@
 name: CI
 
-# Fast development checks; Windows and full Community validation run in CI / Release.
+# Obsidian plugin only. Cloudflare owns landing CI/CD.
 
 on:
   push:
     branches: [master]
+    paths-ignore: ['landing/**']
   pull_request:
     branches: [master]
+    paths-ignore: ['landing/**']
   workflow_dispatch:
 
 jobs:
@@ -72,27 +74,3 @@ jobs:
 
       - name: Verify artifacts
         run: pnpm test:artifacts
-  # Landing is independently deployed by Cloudflare; do not add it to the
-  # Obsidian plugin's pnpm workspace or release artifact.
-  landing:
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: landing
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-      # The landing package currently has no committed npm lockfile.
-      # Keep Cloudflare's existing install semantics until a separate
-      # lockfile/provenance change can be verified.
-      - name: Install landing dependencies
-        run: npm install --no-audit --no-fund --package-lock=false
-      - name: Astro type validation
-        run: npm run check
-      - name: React type-aware lint
-        run: npm run lint
-      - name: Landing production build
-        run: npm run build
-
