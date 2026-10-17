@@ -16,6 +16,7 @@ export interface PracticeEvaluationAttempt {
   answer: string;
   programId?: string;
   objectiveId?: string;
+  focusSessionId?: string;
   assisted?: boolean;
   taskKind?: "diagnostic" | "guided-practice" | "recall" | "transfer";
 }
@@ -122,6 +123,7 @@ export class PracticeStateMachine {
       answer,
       programId: session.turns[session.turns.length - 1]?.programId,
       objectiveId: session.turns[session.turns.length - 1]?.objectiveId,
+      focusSessionId: session.turns[session.turns.length - 1]?.questionSpec?.focusSessionId,
       assisted: session.turns[session.turns.length - 1]?.assisted,
       taskKind: session.turns[session.turns.length - 1]?.taskKind,
     };
