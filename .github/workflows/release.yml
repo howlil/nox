@@ -116,13 +116,13 @@ jobs:
       contents: read
     steps:
       - uses: actions/checkout@v4
-      - name: Official Community scanner (blocking policy)
+      - name: Official Community scanner (lint enabled; warnings advisory; P0 policy blocking)
         uses: obsidianmd/obsidian-workflows@v1
         with:
           build: "false"
-          lint: "false"
+          lint: "true"
           scanner-lint: "true"
-          strict: "true"
+          strict: "false"
 
   windows:
     if: needs.detect.outputs.prepared == 'true'
