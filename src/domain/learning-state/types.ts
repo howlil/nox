@@ -6,6 +6,8 @@ export interface KnowledgeGap {
   status: "open" | "improving" | "resolved";
   programId?: string;
   objectiveId?: string;
+  /** Links gap resolution to exactly one versioned rubric criterion. */
+  criterionId?: string;
 }
 
 export interface LearningEvidence {
@@ -22,11 +24,16 @@ export interface LearningEvidence {
   assisted?: boolean;
   assessmentCoverage?: "single-item";
   taskKind?: "diagnostic" | "guided-practice" | "recall" | "transfer";
-  rubricResults?: Array<{ criterion: string; met: boolean; evidence: string }>;
+  rubricResults?: Array<{ criterion: string; criterionId?: string; met: boolean; evidence: string }>;
+  evidenceVersion?: 3;
+  questionId?: string;
+  objectiveRevision?: number;
+  assistance?: { highestHintLevel: 0 | 1 | 2 | 3 | 4; independent: boolean };
+  evaluator?: "deterministic" | "llm-review" | "verified-execution";
 }
 
 export interface LearningState {
-  version: 2;
+  version: 2 | 3;
   target: string | null;
   currentTopic?: string;
   gaps: KnowledgeGap[];

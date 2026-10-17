@@ -99,3 +99,34 @@ test("accepts a valid v2 state and returns detached arrays", () => {
 
   assert.deepEqual(source.gaps[0].evidenceIds, ["e-1"]);
 });
+
+
+test("decodes fully bound evidence v3 without modifying provenance", () => {
+  const source = {
+    version: 3, target: null, gaps: [], evidence: [{
+      id: "practice:s:q", type: "practice", scope: "learner",
+      concept: "Concurrency", source: "transcript", createdAt: 123,
+      outcome: "correct", evidenceVersion: 3, programId: "p", objectiveId: "o",
+      objectiveRevision: 2, questionId: "q", evaluator: "llm-review",
+      assistance: { highestHintLevel: 0, independent: true },
+      rubricResults: [{ criterion: "Explain race", criterionId: "o@2:criterion-1",
+        met: true, evidence: "reasoned about interleavings" }],
+    }],
+  };
+  const decoded = decodeLearningState(source);
+  assert.equal(decoded.version, 3);
+  assert.equal(decoded.evidence[0]?.questionId, "q");
+  decoded.evidence[0]!.rubricResults![0]!.evidence = "modified";
+  assert.equal(source.evidence[0]?.rubricResults[0]?.evidence, "reasoned about interleavings");
+});
+
+test("rejects v3 evidence with inconsistent hint independence", () => {
+  assert.throws(() => decodeLearningState({
+    version: 3, target: null, gaps: [], evidence: [{
+      id: "e", type: "practice", scope: "learner", concept: "c", source: "s",
+      createdAt: 1, evidenceVersion: 3, programId: "p", objectiveId: "o",
+      questionId: "q", objectiveRevision: 1, evaluator: "llm-review",
+      assistance: { highestHintLevel: 2, independent: true },
+    }],
+  }), /unsupported shape/);
+});

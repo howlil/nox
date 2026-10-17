@@ -568,7 +568,9 @@ export class ChatView extends ItemView {
         () => {
           if (this.uiState === "RUNNING") return;
           this.learningGraphEl?.remove(); this.learningGraphEl = null;
-          this.input.value = overview?.active ? "/next" : overview ? "/start-session" : "/plan ";
+          this.input.value = overview?.focus?.status === "paused" ? "/resume-focus" :
+            overview?.active ? "/next" : overview?.next.objectiveId
+              ? "/focus " + overview.next.objectiveId : overview ? "/progress" : "/plan ";
           this.onInput();
           if (overview) void this.doSend(); else this.focusComposer();
         });
@@ -2065,8 +2067,10 @@ export class ChatView extends ItemView {
           this.showEmpty();
         },
         onStart: () => {
-          this.input.value = "/start-session";
-          void this.doSend();
+          void this.learning.getProgramOverview().then(overview => {
+            this.input.value = overview?.next.objectiveId ? "/focus " + overview.next.objectiveId : "/progress";
+            return this.doSend();
+          }).catch(error => new Notice(error instanceof Error ? error.message : "Cannot start objective focus."));
         },
       }, state.draft);
     }).catch(error => {
@@ -2825,7 +2829,8 @@ export class ChatView extends ItemView {
           if (this.learning.getSession().id !== sessionId) return;
           this.setAction(state.activeProgramId ? "ask" : "practice");
           this.input.value = state.activeProgramId
-            ? (state.sessionActive ? "/next" : "/start-session")
+            ? (state.focusStatus === "paused" ? "/resume-focus" :
+                state.sessionActive ? "/next" : "/progress")
             : "Give me another practice question about " + evaluation.concept + ".";
           this.onInput();
           this.focusComposer();

@@ -84,3 +84,28 @@ test("program loads await an in-flight write before reading the snapshot", async
   assert.deepEqual(await loading, EMPTY);
   assert.equal(vault.readCalls, 1);
 });
+
+test("v1 program persists a focus using v2 and retains a verified legacy backup", async () => {
+  const vault = new MemoryVault();
+  vault.folders.add("00-learning-os");
+  const initial = { version: 1 as const, activeProgramId: "p",
+    programs: [{ version: 1 as const, id: "p", goal: "Concurrency", planVersion: 1,
+      createdAt: 10, constraints: { minutesPerSession: 45, sessionsPerWeek: 3,
+        sourcePaths: [], sourceBound: false, excludedTopics: [] },
+      objectives: [{ id: "race", title: "Race", outcome: "Explain a race",
+        prerequisiteIds: [], estimatedMinutes: 30, rubric: ["Interleaving"],
+        sourceRefs: [], priority: "core" as const }] }] };
+  vault.files.set(PATH, JSON.stringify(initial));
+  const store = new VaultProgramStore({ vault } as never);
+  const loaded = await store.load();
+  loaded.programs[0].focus = { id: "focus-1", programId: "p", objectiveId: "race",
+    curriculumRevision: 1, chatSessionId: "chat-1", status: "active", startedAt: 20 };
+  await store.save(loaded);
+  const restored = await store.load();
+  assert.equal(restored.version, 2);
+  assert.equal(restored.programs[0].version, 2);
+  assert.equal(restored.programs[0].focus?.id, "focus-1");
+  const backups = [...vault.files.entries()].filter(([path]) => path.endsWith(".backup.json"));
+  assert.equal(backups.length, 1);
+  assert.equal(backups[0][1], JSON.stringify(initial));
+});
