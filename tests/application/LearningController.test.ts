@@ -10,6 +10,7 @@ import {
 } from "../../src/types";
 import { LearningController } from "../../src/application/LearningController";
 import { LearningState } from "../../src/domain/learning-state/types";
+import { LearningStateWriteConflict } from "../../src/persistence/PersistenceError";
 import { collectEvents } from "../support/collect-events";
 import type { ResearchResult } from "../../src/context/LocalResearch";
 import type { ProgramStorePort } from "../../src/application/ports";
@@ -38,6 +39,7 @@ function createHarness(
     researchResult?: ResearchResult;
     initialConversationId?: string;
     learningSaveFailures?: number;
+    learningConflictFailures?: number;
     evaluationTranscriptFailures?: number;
     programStore?: ProgramStorePort;
     runtimeProvider?: ChatSession["runtimeProvider"];
@@ -266,11 +268,23 @@ function createHarness(
 
   let state = baseState();
   let saveFailures = options.learningSaveFailures ?? 0;
+  let conflictFailures = options.learningConflictFailures ?? 0;
   const learningState = {
-    load: async () => state,
-    save: async (next: LearningState) => {
+    load: async () => structuredClone(state),
+    save: async (next: LearningState, expected?: LearningState) => {
       if (saveFailures-- > 0) throw new Error("Simulated vault persistence failure");
-      state = next;
+      if (conflictFailures-- > 0) {
+        state = { ...state, evidence: [...state.evidence, {
+          id: "concurrent-review-" + conflictFailures, type: "review",
+          scope: "material", concept: "Other note", source: "other.md",
+          outcome: "gap", createdAt: 2,
+        }] };
+        throw new LearningStateWriteConflict();
+      }
+      if (expected && JSON.stringify(expected) !== JSON.stringify(state)) {
+        throw new LearningStateWriteConflict();
+      }
+      state = structuredClone(next);
     },
   };
 
@@ -1403,4 +1417,60 @@ test("M5 missing source cannot reach provider and produces recoverable failed ev
   }));
   assert.equal(harness.prompts.length, 0);
   assert.ok(events.some(e => e.type === "failed"));
+});
+
+test("M7 CAS conflict retries the same durable evaluation without dropping concurrent evidence", async () => {
+  const fence = "```";
+  let modelCalls = 0;
+  const h = createHarness(async function* () {
+    modelCalls++;
+    const payload = modelCalls === 1
+      ? { kind: "question", concept: "atomicity", question: "What is atomicity?" }
+      : { kind: "evaluation", concept: "atomicity", outcome: "correct",
+          feedback: "All-or-nothing", misconceptions: [] };
+    yield { type: "text", content: fence + "learning-practice\n" +
+      JSON.stringify(payload) + "\n" + fence };
+    yield { type: "completed" };
+  }, { learningConflictFailures: 1 });
+  await collectEvents(h.controller.run({
+    prompt: "Practice", action: "practice", explicitContext: [],
+  }));
+  const result = await collectEvents(h.controller.run({
+    prompt: "An atomic transaction commits entirely", action: "practice", explicitContext: [],
+  }));
+  assert.ok(result.some(x => x.type === "practice-evaluation"));
+  assert.ok(result.some(x => x.type === "completed"));
+  assert.equal(modelCalls, 2, "projection retry must not repeat provider grading");
+  const events = h.getEvidence();
+  assert.equal(events.length, 2);
+  assert.ok(events.some(e => e.id.startsWith("concurrent-review-")));
+  assert.equal(events.filter(e => e.type === "practice").length, 1);
+  assert.equal(h.getStructuredParts().filter(p => p.type === "practice-evaluation").length, 1);
+});
+
+test("M7 repeated CAS contention preserves the transcript and recovers on retry", async () => {
+  const fence = "```";
+  let modelCalls = 0;
+  const h = createHarness(async function* () {
+    modelCalls++;
+    const payload = modelCalls === 1
+      ? { kind: "question", concept: "isolation", question: "Define isolation." }
+      : { kind: "evaluation", concept: "isolation", outcome: "correct",
+          feedback: "Transactions are isolated", misconceptions: [] };
+    yield { type: "text", content: fence + "learning-practice\n" +
+      JSON.stringify(payload) + "\n" + fence };
+    yield { type: "completed" };
+  }, { learningConflictFailures: 4 });
+  await collectEvents(h.controller.run({ prompt: "Quiz", action: "practice", explicitContext: [] }));
+  const failed = await collectEvents(h.controller.run({
+    prompt: "No intermediate reads", action: "practice", explicitContext: [],
+  }));
+  assert.ok(failed.some(x => x.type === "failed"));
+  assert.equal(h.getStructuredParts().filter(p => p.type === "practice-evaluation").length, 1);
+  const replay = await collectEvents(h.controller.run({
+    prompt: "No intermediate reads", action: "practice", explicitContext: [], retry: true,
+  }));
+  assert.ok(replay.some(x => x.type === "practice-evaluation"));
+  assert.equal(modelCalls, 2);
+  assert.equal(h.getEvidence().filter(e => e.type === "practice").length, 1);
 });
