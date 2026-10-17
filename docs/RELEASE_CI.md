@@ -1,40 +1,32 @@
-# NOX Dev CI, Release CI and manual publication
+# NOX CI ownership and release certification
 
-## CI / Dev
+## Ownership
 
-The existing .github/workflows/ci.yml retains its workflow name "CI" for compatibility with prepare-release.yml. Pull requests and master pushes run local fast checks: typecheck, lint, selected typed lint, targeted AST P0 policy, CSS syntax, unit/integration tests, build and artifact checks. Landing Astro retains its independent CI job and Cloudflare deployment. Windows regression, official scanner and reproducibility double-build are no longer on the ordinary PR critical path.
+GitHub Actions handles **only NOX as an Obsidian desktop plugin**: typecheck, lint, unit/integration tests, build verification, Community scanner, Windows OAuth/DPAPI and attested releases. GitHub does not build the Astro landing. Cloudflare exclusively owns `landing/` CI/CD and deployment, including any external GitHub checks it publishes.
 
-## CI / Release
+`.github/workflows/ci.yml` ignores landing-only commits and PRs. For mixed plugin and landing commits, only the plugin runs in GitHub Actions.
 
-.github/workflows/ci-release.yml handles release PRs or explicitly dispatched release candidate checks. It runs release policy and the **advisory** official Community scanner, a repeatable production build, and Windows OAuth/DPAPI tests. The release-certified check only passes if ALL three independent jobs succeed. A workflow_dispatch check does not replace a required pull_request status.
+## Automated release pipeline
 
-prepare-release.yml keeps its master CI-success → automatic release PR trigger. Because GitHub may require approval to run pull_request checks created by GITHUB_TOKEN, it also dispatches CI / Release for the new branch. Approve actual release PR checks before merging. Do not treat a skipped or advisory scan as certified.
+1. A plugin change merged into `master` passes plugin CI. `Prepare release PR` selects the next SemVer bump using conventional commits.
+2. The version PR synchronizes manifest, package, changelog, `versions.json` and the release plan, then must pass `release-certified`.
+3. Release certification includes policy checks, Linux reproducible artifacts, Windows provider/DPAPI regression tests, and the upstream Obsidian scanner with `strict: "true"`. A finding that fails strict mode blocks publication.
+4. After the release PR merges, `.github/workflows/release.yml` rechecks the exact merged source SHA, then builds, attests and validates the three assets (`main.js`, `manifest.json`, `styles.css`).
+5. A pending draft can be refreshed by merging another reviewed plugin fix. The workflow updates its target to the **new** source SHA and replaces only the unpublished assets. It re-downloads them, byte-compares them against the candidate build, and verifies GitHub attestation against that SHA before automatically publishing.
+6. Public releases are immutable. Later fixes require a new SemVer version. If any check fails, release stays unpublished until repaired.
 
-## Draft and publication
+**Manual desktop testing and manual publication are not requirements in this GitHub pipeline.** This does not claim real native Obsidian tests occurred. GitHub CI cannot guarantee all Community Directory behavior or real provider compatibility. The Community Directory performs its own separate review of published assets and source.
 
-1. Review and merge release/x.y.z only after its candidate checks pass.
-2. .github/workflows/release.yml runs on the merged release plan: critical policy, full verification, Windows DPAPI, advisory scanner and attestation. It creates a GitHub Release DRAFT only; its code never makes the release public.
-3. Download exactly the three GitHub draft assets (main.js, manifest.json, styles.css) into a disposable Obsidian desktop vault. Record the OS, Obsidian version, version/SHA, scenarios and actual outcomes. Do not test an independently rebuilt binary and call it equivalent.
-4. Run .github/workflows/publish-release.yml manually from master with the approved full merged SHA and explicit desktop-acceptance confirmation. The job checks out that SHA even if master moved later, rejects unexpected assets, and verifies each asset attestation's exact source digest before publication.
-5. Configure GitHub Settings → Environments → public-release with required reviewer approval. Creating the environment and repository branch rules is a GitHub settings operation, not something this source PR can enforce. Without required reviewers, the manual dispatch + explicit acceptance input still prevents push-triggered publication but is not independent approval.
+The fallback `publish-release.yml` workflow is a recovery-only manual dispatch that checks SHA, version and attestations. It has no desktop-testing checkbox.
 
-For a small single-maintainer repository, prevent-self-review may block progress if enabled without another reviewer. Consider reviewer ownership accordingly.
+## Community-review controls
 
-## Scanner findings and debt
+`scripts/ci/obsidian-critical-policy.mjs` blocks direct manual settings headings. TypeScript/ESLint/CSS source checks and release artifact verification are mandatory. Both candidate and public release workflow run the Community scanner in strict mode, not advisory mode. The former 1.1.2 failure involved a manual settings heading; it is now a native `Setting.setHeading()` with an executable regression test.
 
-Official scanner still uses strict: false because historical warning debt is not yet formally baselined. Its successful step is NOT proof of zero findings. New P0 manual HTML headings in PluginSettingTab are separately blocked by the local TypeScript AST gate, exercised by negative regression fixtures. Other Obsidian warnings remain advisory and require owner triage.
+## Branch protection
 
-Do not invent a warning baseline or use only a count. First capture a pinned machine-readable linter report containing rule, file and diagnostic fingerprint, then explicitly approve known findings with owners and proof before enforcing delta-based release failure. Landing source may be scanned by Community tooling despite being built separately; distinguish source policy from shipped plugin artifact.
+Require plugin CI `build` and PR title checks; release PRs additionally require `release-certified`. Do not require retired `landing` jobs or Cloudflare checks as NOX release conditions. Updating GitHub branch-protection settings, if they currently reference removed jobs, is a repository-admin action.
 
-## Recommended branch rules
+## Recovery
 
-Require ordinary CI jobs on all development PRs; require fresh release candidate proof before merging release/* PRs. GitHub App/PAT-created PR checks may eliminate GITHUB_TOKEN approval requirements. A workflow_dispatch run alone is not necessarily an eligible branch required check. Keep the master branch releasable, do not bypass candidate verification and do not publish if the PR state cannot be proven.
-
-## Recovery and guarantees
-
-- CI Dev failure: fix regression and rerun focused checks.
-- CI Release failure: update candidate branch and rerun policy, reproducibility and Windows.
-- Draft build failure: leave release unpublished; repair and issue a fresh candidate.
-- Acceptance failure: retain draft, fix source, rebuild, and retest exact artifacts.
-- SHA/version/attestation mismatch: fail closed. Never force-publish a different artifact.
-- Published releases are immutable; changes require a new patch version.
+Failed check → inspect logs → fix source in a reviewed PR → retry candidate or refresh unpublished draft from new master SHA. Never overwrite a published release or bypass an attestation. A published GitHub release does not guarantee immediate Community Directory approval.
