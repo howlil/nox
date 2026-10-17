@@ -35,6 +35,7 @@ This ledger is updated when code is committed. An item is checked only if the be
 - [x] Idempotent repeated hint-turn IDs cannot skip a level; integration tests verify restart, exhaustion and recorded assistance.
 - [x] Reworded rubric retains mastery only through trusted stable criterion ID; legacy evidence uses its original text.
 - [x] Persistence tests reload programs.json and progress.json and reject false mastery when criterion identities change.
+- [x] Canonical progression readiness separates retention mastery from unresolved criterion gaps and post-failure independent transfer; prerequisite focus, activity selection, learner memory, summary and remaining work use the same rule. Tests cover stale transfers, foreign/orphan gaps and reworded criterion resolution.
 - [x] Application cannot mint a verified-execution verdict without a trusted sandbox receipt.
 - [ ] Implement a sandbox-backed verified-execution assessor with real execution receipts and recovery tests.
 - [ ] Manual Obsidian desktop acceptance of reworded curricula, hint UI and historical vaults.
@@ -92,7 +93,8 @@ This ledger is updated when code is committed. An item is checked only if the be
 - [x] Preserve the existing `prepareContextEnvelope` source-bound enforcement and history isolation; no second provider session or memory database.
 - [x] Unit and integration tests cover snapshot drift, context priority/overflow and provider race injection: focus switch, curriculum revision and a different turn committing evidence while the provider streams.
 - [x] Re-check learning authority inside the serialized transcript writer immediately before canonical outcome persistence, including a reject-without-write regression test.
-- [ ] Close the remaining inter-store focus/evidence/transcript race completely with a coordinated commit boundary and concurrent fault-injection proof. Session-writer revalidation alone is not cross-file atomicity.
+- [x] In-process `LearningMutationGate` serializes application program/focus mutations against question commit, transcript→progress projection and reconciliation; unit and orchestrator tests prove ordering and rejection recovery.
+- [ ] Close remaining cross-instance/Obsidian Sync and unrelated progress-writer races; in-process gate and transcript-first replay are not ACID across files or processes.
 - [ ] Desktop acceptance using supported providers and a source-bound historical vault.
 
 ## M6 — Compact UX (inline revision workflow implemented; desktop acceptance pending)
@@ -109,6 +111,9 @@ This ledger is updated when code is committed. An item is checked only if the be
 - [ ] Full Obsidian desktop keyboard, screen reader and visual acceptance across providers and legacy vaults.
 
 ## M7 — Verification/release (open)
+- [x] `VaultProgramStore` uses `Vault.process` compare-and-swap for existing `programs.json`; stale snapshots and external edits fail with an explicit conflict, tested with independent store instances and failed writes.
+- [ ] ProgramCollection/LearningProgram v1→v2 decoder, backed-up migration and explicit user-controlled restore/recovery UX.
+
 
 - [x] CI including typecheck, lint, unit/integration and build passed on implementation head `3961e423fafa0279da57c5b03195fc1dd258f154` (GitHub Actions run `38928965249`).
 - [ ] Reverify the final PR head and release-specific checks immediately before merging.
