@@ -38,6 +38,13 @@ class MemoryVault {
     if (this.beforeModify) await this.beforeModify();
     this.files.set(file.path, content);
   }
+  async process(file: TFile, change: (current: string) => string) {
+    if (this.beforeModify) await this.beforeModify();
+    const current = this.files.get(file.path);
+    if (current === undefined) throw new Error("Vault file missing.");
+    const next = change(current);
+    this.files.set(file.path, next);
+  }
 }
 
 test("missing program file returns the empty collection", async () => {
@@ -83,4 +90,47 @@ test("program loads await an in-flight write before reading the snapshot", async
   await saving;
   assert.deepEqual(await loading, EMPTY);
   assert.equal(vault.readCalls, 1);
+});
+
+test("v1 program persists a focus using v2 and retains a verified legacy backup", async () => {
+  const vault = new MemoryVault();
+  vault.folders.add("00-learning-os");
+  const initial = { version: 1 as const, activeProgramId: "p",
+    programs: [{ version: 1 as const, id: "p", goal: "Concurrency", planVersion: 1,
+      createdAt: 10, constraints: { minutesPerSession: 45, sessionsPerWeek: 3,
+        sourcePaths: [], sourceBound: false, excludedTopics: [] },
+      objectives: [{ id: "race", title: "Race", outcome: "Explain a race",
+        prerequisiteIds: [], estimatedMinutes: 30, rubric: ["Interleaving"],
+        sourceRefs: [], priority: "core" as const }] }] };
+  vault.files.set(PATH, JSON.stringify(initial));
+  const store = new VaultProgramStore({ vault } as never);
+  const loaded = await store.load();
+  loaded.programs[0].focus = { id: "focus-1", programId: "p", objectiveId: "race",
+    curriculumRevision: 1, chatSessionId: "chat-1", status: "active", startedAt: 20 };
+  await store.save(loaded);
+  const restored = await store.load();
+  assert.equal(restored.version, 2);
+  assert.equal(restored.programs[0].version, 2);
+  assert.equal(restored.programs[0].focus?.id, "focus-1");
+  const backups = [...vault.files.entries()].filter(([path]) => path.endsWith(".backup.json"));
+  assert.equal(backups.length, 1);
+  assert.equal(backups[0][1], JSON.stringify(initial));
+});
+
+test("M2 revision persistence compares the exact snapshot against current vault bytes", async () => {
+  const vault = new MemoryVault();
+  vault.files.set(PATH, JSON.stringify({ version: 1, programs: [] }));
+  const store = new VaultProgramStore({ vault } as never);
+  const expected = await store.load();
+  const next = structuredClone(expected);
+  next.version = 2;
+  await store.save(next, expected);
+  assert.equal((await store.load()).version, 2);
+  const stale = await store.load();
+  const latestBytes = vault.files.get(PATH)!;
+  vault.files.set(PATH, latestBytes.replace('"programs": []', '"programs":[]'));
+  // Simulate a legitimate concurrent external write; do not silently overwrite it.
+  vault.files.set(PATH, JSON.stringify({ version: 2, programs: [], external: "changed" }));
+  await assert.rejects(store.save(stale, stale), /Program write conflict/);
+  assert.equal(JSON.parse(vault.files.get(PATH)!).external, "changed");
 });

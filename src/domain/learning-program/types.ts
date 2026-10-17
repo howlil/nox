@@ -38,11 +38,18 @@ export interface LearningSession {
 
 export interface LearningObjective {
   id: string;
+  /** Per-objective learning contract revision, independent of global plan edits. */
+  objectiveRevision?: number;
+  /** Historical lineage is retained; deprecated objectives are never hard-deleted. */
+  deprecated?: boolean;
+  replacementIds?: string[];
   title: string;
   outcome: string;
   prerequisiteIds: string[];
   estimatedMinutes: number;
   rubric: string[];
+  /** True when transfer evidence is required for objective readiness. */
+  requiresTransfer?: boolean;
   sourceRefs: string[];
   priority: "core" | "supporting" | "optional";
 }
@@ -50,8 +57,20 @@ export interface CurriculumDraft {
   kind: "curriculum";
   objectives: LearningObjective[];
 }
+/** One durable focus per program; timing is metadata, never a completion condition. */
+export interface FocusSession {
+  id: string;
+  programId: string;
+  objectiveId: string;
+  curriculumRevision: number;
+  chatSessionId: string;
+  status: "active" | "paused";
+  startedAt: number;
+  pausedAt?: number;
+}
+
 export interface LearningProgram {
-  version: 1;
+  version: 1 | 2;
   id: string;
   goal: string;
   constraints: ProgramConstraints;
@@ -60,12 +79,14 @@ export interface LearningProgram {
   planVersion: number;
   creationOperationId?: string;
   workspaceApproved?: boolean;
+  focus?: FocusSession;
+  curriculumRevisions?: import("./curriculum-revision").AppliedCurriculumRevision[];
   session?: LearningSession;
   sessionHistory?: Array<{ startedAt: number; endedAt: number; minutesSpent: number; activeMinutes?: number; aiWaitingMinutes?: number; objectiveActiveMinutes?: Record<string, number>; dailyActiveMs?: Record<string, number>; materialActiveMinutes?: Record<string, number> }>;
   instructionEvents?: Array<{ objectiveId: string; afterEvidenceAt: number; taughtAt: number }>;
 }
 export interface ProgramCollection {
-  version: 1;
+  version: 1 | 2;
   activeProgramId?: string;
   programs: LearningProgram[];
 }

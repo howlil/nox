@@ -134,7 +134,8 @@ export function renderLearningGraph(
   next.createDiv({ cls: "nox-inspector-heading", text: "Recommended next" });
   next.createDiv({ text: overview.next.reason });
   const action = createNoxButton(next, { variant: "secondary",
-    text: overview.active ? "Continue" : "Start session" });
+    text: overview.focus?.status === "paused" ? "Resume focus" :
+      overview.active ? "Continue" : overview.next.objectiveId ? "Start focus" : "See progress" });
   action.addEventListener("click", onNext);
   return root;
 }
