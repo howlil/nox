@@ -28,6 +28,9 @@ test("Obsidian community P0 style and settings findings cannot regress", () => {
 
   const settings = source("src/settings/SettingsTab.ts");
   assert.match(settings, /getSettingDefinitions\(\)/, "Use searchable Obsidian 1.13+ settings");
+  assert.match(settings, /this\.settingsDefinitions\(\)\.map/, "Each settings field must be indexed natively");
+  assert.match(settings, /nox-settings-native-row/, "Native Obsidian setting rows must be mounted");
+  assert.doesNotMatch(settings, /new Setting\(form\)/, "Avoid shadow settings outside the definitions");
   assert.doesNotMatch(settings, /\.setName\("Nox"\)\.setHeading\(\)/, "Do not duplicate plugin name as heading");
   assert.match(settings, /new Setting\(header\)\.setName\("Settings"\)\.setHeading\(\)/);
 });
@@ -57,13 +60,14 @@ test("release requires verified attestations for the three official plugin asset
   }
   assert.match(workflow, /gh attestation verify "dist\/\$file"/);
   assert.ok(workflow.indexOf("Verify build provenance before publication") <
-    workflow.indexOf("Upload complete draft without publishing"));
-  assert.doesNotMatch(workflow, /gh release edit.*--draft=false/,
-    "Release plan merge may create a verified draft but may not publish it");
+    workflow.indexOf("Publish only verified source-bound release assets"));
+  assert.match(workflow, /gh attestation verify "release-proof\/\$item"/);
+  assert.match(workflow, /gh release edit "\$version" --draft=false/);
+  assert.match(workflow, /strict: "true"/);
 
   const publishing = source(".github/workflows/publish-release.yml");
   assert.match(publishing, /workflow_dispatch:/);
-  assert.match(publishing, /desktop_acceptance/);
+  assert.doesNotMatch(publishing, /desktop_acceptance/);
   assert.match(publishing, /gh attestation verify/);
   assert.match(publishing, /gh release edit "\$VERSION" --draft=false/);
 });
