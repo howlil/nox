@@ -301,6 +301,18 @@ export class LearningProgramOrchestrator {
     }
   }
 
+  /** Read-only in-process approval proposal. Never resurrect an expired or stale diff. */
+  peekCurriculumRevision(program: LearningProgram): CurriculumRevisionPreview | undefined {
+    for (const candidate of this.pendingRevisions.values()) {
+      const { revision, preview } = candidate;
+      if (revision.programId === program.id &&
+          revision.baseVersion === program.planVersion &&
+          !program.focus && !program.session &&
+          this.now() <= preview.expiresAt) return structuredClone(preview);
+    }
+    return undefined;
+  }
+
   async approveCurriculumRevision(operationId: string): Promise<LearningProgram> {
     if (this.isPlanning() || this.activeAiTurnId) {
       throw new Error("Finish the running learning operation before approving a curriculum revision.");

@@ -8,7 +8,9 @@ import type { PracticeOrigin, PracticeAnswer } from "../domain/practice/types";
 import { RunLearningTurn } from "./RunLearningTurn";
 import { isActiveLearningScope, isProgramLearningScope, isLockedLearningMode, parseScopeCommand } from "../domain/practice/learning-scope";
 import { parseProgramCommand } from "../domain/learning-program/commands";
-import { feasibility, objectiveProgress } from "../domain/learning-program/rules";
+import { feasibility } from "../domain/learning-program/rules";
+import { deriveLearnerProfile } from "../domain/learner-model/learner-profile";
+import { selectAdaptiveActivity } from "../domain/learner-model/activity-policy";
 import { authorizeFocusIntent } from "../domain/learning-program/focus-transitions";
 import type { LearningProgramOrchestrator } from "./LearningProgramOrchestrator";
 
@@ -170,20 +172,34 @@ export class LearningController {
     const program = await this.programs.getActiveProgram();
     if (!program) return null;
     const learning = await this.learningState.load();
-    const selected = await this.programs.getDecision();
-    const next = selected?.decision;
+    const now = Date.now();
+    const profile = deriveLearnerProfile(program, learning, now);
+    const next = selectAdaptiveActivity(program, learning, now);
+    const byObjective = new Map(profile.objectives.map(item => [item.objectiveId, item]));
     return {
       goal: program.goal,
+      planVersion: program.planVersion,
+      ...(this.programs.peekCurriculumRevision(program) ? {
+        revisionPreview: this.programs.peekCurriculumRevision(program),
+      } : {}),
       active: Boolean(program.session || program.focus?.status === "active"),
       focus: program.focus ? { status: program.focus.status,
         objectiveId: program.focus.objectiveId } : undefined,
       ...(program.session ? { sessionTime: (await this.programs.getSessionTime()) ?? undefined } : {}),
-      next: { kind: next?.kind ?? "wait", objectiveId: next?.objective?.id,
-        reason: next?.reason ?? "No activity is available." },
-      objectives: program.objectives.map(objective => {
-        const progress = objectiveProgress(program, objective.id, learning.evidence);
-        return { objective, status: progress.status, attempts: progress.attempts,
-          dueAt: progress.dueAt };
+      next: { kind: next.kind, objectiveId: next.objective?.id,
+        reason: next.reason, dueAt: next.dueAt,
+        trigger: next.provenance?.trigger,
+        criterionIds: next.provenance?.criterionIds,
+        scaffoldLevel: next.provenance?.scaffoldLevel },
+      objectives: program.objectives.filter(objective => !objective.deprecated).map(objective => {
+        const projected = byObjective.get(objective.id);
+        const current = learning.evidence.filter(item => item.type === "practice" &&
+          item.scope === "learner" && item.programId === program.id &&
+          item.objectiveId === objective.id && item.evidenceVersion === 3 &&
+          item.objectiveRevision === (objective.objectiveRevision ?? program.planVersion));
+        return { objective, status: projected?.status ?? "unseen", attempts: current.length,
+          dueAt: projected?.dueAt ?? null,
+          criteria: projected?.criterion ?? [] };
       }),
     };
   }
