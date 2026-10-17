@@ -1284,3 +1284,31 @@ test("failed ancillary timer commit never converts durable model success into fa
   assert.equal(h.getSentContexts().length, 1);
   assert.equal(checkpoints, 1);
 });
+
+
+test("global focus admission blocks unrelated and cross-chat turns before provider invocation", async () => {
+  const focus = {
+    id: "focus-1", programId: "p", objectiveId: "race", curriculumRevision: 1,
+    chatSessionId: "session-1", status: "active" as const, startedAt: 100,
+  };
+  const harness = createHarness(async function* () {
+    throw new Error("Agent must never be called by a blocked learning intent.");
+  }, { programTimer: {
+    isPlanning: () => false,
+    beginAiWait: async () => false,
+    getGlobalActiveFocus: async () => ({ program: { id: "p", focus }, focus }),
+    getActiveProgram: async () => ({ id: "p", focus }),
+  } as never });
+  const first = await collectEvents(harness.controller.run({
+    prompt: "Explain astronomy", action: "ask", explicitContext: [],
+  }));
+  assert.ok(first.some(event => event.type === "failed"));
+  assert.equal(harness.prompts.length, 0);
+  await harness.controller.newSession();
+  const second = await collectEvents(harness.controller.run({
+    prompt: "Solve this practice question", action: "practice", explicitContext: [],
+  }));
+  assert.ok(second.some(event => event.type === "failed"));
+  assert.equal(harness.prompts.length, 0);
+  harness.controller.dispose();
+});
