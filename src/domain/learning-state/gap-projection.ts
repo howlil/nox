@@ -24,7 +24,7 @@ export function deriveGapStatus(
   if (!result.met) return "open";
   // Old successful recalls cannot re-resolve a newly reopened gap.
   const lastFailureIndex = relevant.findLastIndex(item =>
-    item.rubricResults?.some(result => result.criterionId === gap.criterionId && !result.met));
+    item.rubricResults?.some(result => result.criterionId === gap.criterionId && !result.met) === true);
   const passing = relevant.slice(lastFailureIndex + 1).filter(item =>
     item.assessmentCoverage !== "single-item" &&
     independent(item) && item.rubricResults?.some(x => x.criterionId === gap.criterionId && x.met));

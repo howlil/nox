@@ -76,7 +76,7 @@ export function decideFeedback(
 
   // A regression invalidates the previous successful retrieval cycle.
   const latestFailureIndex = history.findLastIndex(item => item.outcome !== "correct" ||
-    item.rubricResults?.some(result => !result.met));
+    item.rubricResults?.some(result => !result.met) === true);
   const currentCycle = history.slice(latestFailureIndex + 1);
   const correctIndependent = currentCycle.filter(item => item.outcome === "correct" &&
     independent(item) && item.rubricResults?.every(result => result.met) &&
