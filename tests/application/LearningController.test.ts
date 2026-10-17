@@ -1295,6 +1295,7 @@ test("global focus admission blocks unrelated and cross-chat turns before provid
     throw new Error("Agent must never be called by a blocked learning intent.");
   }, { programTimer: {
     isPlanning: () => false,
+    dispose: () => {},
     beginAiWait: async () => false,
     getGlobalActiveFocus: async () => ({ program: { id: "p", focus }, focus }),
     getActiveProgram: async () => ({ id: "p", focus }),

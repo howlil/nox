@@ -2829,7 +2829,8 @@ export class ChatView extends ItemView {
           if (this.learning.getSession().id !== sessionId) return;
           this.setAction(state.activeProgramId ? "ask" : "practice");
           this.input.value = state.activeProgramId
-            ? (state.sessionActive ? "/next" : "/start-session")
+            ? (state.focusStatus === "paused" ? "/resume-focus" :
+                state.sessionActive ? "/next" : "/progress")
             : "Give me another practice question about " + evaluation.concept + ".";
           this.onInput();
           this.focusComposer();

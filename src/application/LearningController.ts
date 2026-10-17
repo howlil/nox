@@ -100,6 +100,7 @@ export class LearningController {
   async getProgramMenuState(): Promise<{
     activeProgramId?: string;
     sessionActive: boolean;
+    focusStatus?: "active" | "paused";
     programs: Array<{ id: string; goal: string }>;
   }> {
     if (!this.programs) return { sessionActive: false, programs: [] };
@@ -108,6 +109,7 @@ export class LearningController {
     return {
       activeProgramId: active?.id,
       sessionActive: Boolean(active?.session || active?.focus?.status === "active"),
+      focusStatus: active?.focus?.status,
       programs: collection.programs.map(item => ({ id: item.id, goal: item.goal })),
     };
   }
@@ -449,7 +451,7 @@ export class LearningController {
             `**Time:** ${program.constraints.minutesPerSession} min/session, ${program.constraints.sessionsPerWeek} sessions/week`,
             f.feasible === false ? `**Schedule at risk:** ~${f.estimatedMinutes} min required, ~${f.availableMinutes} min available. Reduce scope, change the deadline, or increase your time budget.` :
               `**Estimated work including review:** ${f.estimatedMinutes} min.`,
-            "Use /start-session, then /next. Use /progress to inspect your plan.",
+            "Use /progress to inspect objective IDs, then /focus <objective-id> for self-paced study.",
           ].join("\n\n");
         } else if (command.kind === "programs") {
           const collection = await this.programs.listPrograms();

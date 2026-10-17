@@ -420,7 +420,7 @@ export class LearningProgramOrchestrator {
       ...(historicalLegacy ? [`Older sessions without activity accounting: ${historicalLegacy} (excluded from active time).`] : []),
       ...(currentTiming ? [`AI waiting this session: ${Math.round(currentTiming.aiWaitingMs / 60_000)} minutes.`] : []),
       `Mastered: ${mastered}/${program.objectives.length} objectives (requires independent delayed recall)`,
-      `Plan: ~${f.estimatedMinutes} minutes including estimated review; available: ${f.availableMinutes ?? "unspecified"} minutes.`,
+      `Estimated work: ~${f.estimatedMinutes} minutes including review (not a focus deadline).`,
       `Feasibility: ${estimate}`,
       `Remaining work: ~${remainingEstimate.minutes} min (${remainingEstimate.basis}${remainingEstimate.basis === "calibrated" ? `, ${remainingEstimate.samples} measured objectives` : ""}).`,
       `Next: ${decision.kind} — ${decision.objective?.title ?? decision.reason}`,
