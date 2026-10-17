@@ -19,7 +19,8 @@ export interface WorkspaceWriterPort {
 }
 export interface ProgramStorePort {
   load(): Promise<ProgramCollection>;
-  save(next: ProgramCollection): Promise<void>;
+  /** expected is the authoritative loaded snapshot for an atomic compare-and-swap. */
+  save(next: ProgramCollection, expected?: ProgramCollection): Promise<void>;
 }
 
 /** Application-owned structural I/O contracts, not a second authority. */

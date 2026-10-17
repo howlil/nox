@@ -1,13 +1,19 @@
 import type { AgentRuntimePort } from "../agent/AgentRuntime";
 import type { ContextPort, LearningStatePort, ProgramStorePort } from "./ports";
-import type { LearningProgram, ProgramCollection, ProgramConstraints, LearningDecision, SessionPauseReason } from "../domain/learning-program/types";
-import { chooseNextActivity, feasibility, validateConstraints, validateCurriculum } from "../domain/learning-program/rules";
+import type { LearningProgram, ProgramCollection, ProgramConstraints, SessionPauseReason } from "../domain/learning-program/types";
+import { feasibility, validateConstraints, validateCurriculum } from "../domain/learning-program/rules";
+import { selectAdaptiveActivity, type AdaptiveActivityDecision } from "../domain/learner-model/activity-policy";
+import { startObjectiveFocus, transitionObjectiveFocus } from "../domain/learning-program/focus-transitions";
+import { deriveLearnerProfile, toLearnerProfileContext } from "../domain/learner-model/learner-profile";
+import { applyCurriculumRevision, detectStructuralGap, type CurriculumRevision, type StructuralGapReason } from "../domain/learning-program/curriculum-revision";
+import { proposeCurriculumRevision, type CurriculumRevisionPreview } from "./CurriculumRevisionService";
 import { estimateRemainingWork } from "../domain/learning-program/estimate";
 import { checkpointTiming, focusSessionObjective, focusSessionMaterial, newSessionTiming, projectedTiming, recoverTiming, sessionRemainingMs, sessionTimeStatus, setTimingPause } from "../domain/learning-program/session-time";
 
 /** Program planning and session selection. The model generates content, never transitions. */
 export class LearningProgramOrchestrator {
   private readonly preparedDrafts = new Map<string, LearningProgram>();
+  private readonly pendingRevisions = new Map<string, { revision: CurriculumRevision; preview: CurriculumRevisionPreview }>();
   private planning = false;
   private writing = false;
   private currentAbort?: AbortController;
@@ -26,6 +32,7 @@ export class LearningProgramOrchestrator {
     this.checkpointTimer = undefined;
     this.cancel();
     this.preparedDrafts.clear();
+    this.pendingRevisions.clear();
   }
 
   private startCheckpointLoop(): void {
@@ -65,9 +72,14 @@ export class LearningProgramOrchestrator {
     let changed = false;
     const now = this.now();
     for (const program of collection.programs) {
-      if (!program.session) continue;
-      program.session = { ...program.session, timing: recoverTiming(program.session, now) };
-      changed = true;
+      if (program.focus?.status === "active") {
+        program.focus = { ...program.focus, status: "paused", pausedAt: now };
+        changed = true;
+      }
+      if (program.session) {
+        program.session = { ...program.session, timing: recoverTiming(program.session, now) };
+        changed = true;
+      }
     }
     if (changed) await this.store.save(collection);
     this.stopCheckpointLoop();
@@ -211,6 +223,9 @@ export class LearningProgramOrchestrator {
         const collection = await this.store.load();
         const selected = collection.programs.find(p => p.id === id);
         if (!selected) throw new Error("Unknown program ID. Run /programs to list saved plans.");
+        if (collection.programs.some(p => p.id !== id && p.focus?.status === "active")) {
+          throw new Error("Pause or end the active objective focus before switching learning programs.");
+        }
         const previous = collection.programs.find(p => p.id === collection.activeProgramId);
         const now = this.now();
         if (previous?.session) {
@@ -229,10 +244,157 @@ export class LearningProgramOrchestrator {
     this.stopCheckpointLoop();
     return selected;
   }
+  /** Evidence opens the revision workflow but never bypasses explicit approval. */
+  async detectRevisionCandidate() {
+    const program = await this.getActiveProgram();
+    if (!program) return null;
+    const state = await this.learningState.load();
+    return detectStructuralGap(program, state.evidence);
+  }
+
+  async prepareCurriculumRevision(reason?: "goal-change"): Promise<CurriculumRevisionPreview> {
+    if (this.isPlanning() || this.activeAiTurnId) {
+      throw new Error("Finish the active learning operation before preparing a structural revision.");
+    }
+    const program = await this.getActiveProgram();
+    if (!program) throw new Error("Choose a learning program first.");
+    if (program.focus || program.session) {
+      throw new Error("End the objective focus and timed session before revising the curriculum.");
+    }
+    if (program.constraints.sourceBound && this.currentProvider() !== "chatgpt") {
+      throw new Error("Source-bound revision requires the ChatGPT provider without vault filesystem tools.");
+    }
+    // Strict source-bound proposal: only trusted, explicitly resolved allowlist notes
+    // may contribute source text; no implicit active-note or filesystem expansion.
+    const sourceMaterials: Array<{ path: string; content: string }> = [];
+    if (program.constraints.sourceBound) {
+      const refs = program.constraints.sourcePaths.map(path => ({ kind: "vault-note" as const, path }));
+      const resolved = await this.contexts.resolve(refs);
+      for (const path of program.constraints.sourcePaths) {
+        const approved = resolved.explicit.find(item =>
+          item.type === "note" && item.source === "explicit" && item.path === path);
+        if (!approved?.content) {
+          throw new Error("Approved source note could not be resolved. Revision preview aborted.");
+        }
+        sourceMaterials.push({ path, content: approved.content.slice(0, 12_000) });
+      }
+    }
+    const state = await this.learningState.load();
+    const trigger = reason === "goal-change"
+      ? { reason: "goal-change" as StructuralGapReason, evidenceIds: [] }
+      : detectStructuralGap(program, state.evidence);
+    if (!trigger) throw new Error("No evidence-backed structural gap. Use /replan goal-change for a requested scope change.");
+    this.planning = true;
+    const controller = this.currentAbort = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 120_000);
+    try {
+      const { revision, preview } = await proposeCurriculumRevision(this.runtime, program,
+        state.evidence, trigger, this.currentModel(), this.now(), controller.signal, sourceMaterials)
+        .then(result => ({ revision: result.proposal, preview: result.preview }));
+      this.pendingRevisions.clear();
+      this.pendingRevisions.set(revision.operationId, { revision, preview });
+      return structuredClone(preview);
+    } finally {
+      clearTimeout(timeout);
+      this.currentAbort = undefined;
+      this.planning = false;
+    }
+  }
+
+  async approveCurriculumRevision(operationId: string): Promise<LearningProgram> {
+    if (this.isPlanning() || this.activeAiTurnId) {
+      throw new Error("Finish the running learning operation before approving a curriculum revision.");
+    }
+    const task = this.mutationTail.then(async () => {
+      this.writing = true;
+      try {
+        const collection = await this.store.load();
+        const index = collection.programs.findIndex(p => p.id === collection.activeProgramId);
+        if (index < 0) throw new Error("No active program for revision.");
+        const program = collection.programs[index];
+        // Persisted receipt wins even after process restart.
+        if (program.curriculumRevisions?.some(r => r.operationId === operationId)) return program;
+        const pending = this.pendingRevisions.get(operationId);
+        if (!pending || this.now() > pending.preview.expiresAt ||
+            pending.revision.programId !== program.id) {
+          throw new Error("Revision preview expired or belongs to another program.");
+        }
+        const evidence = (await this.learningState.load()).evidence;
+        const next = applyCurriculumRevision(program, pending.revision, evidence, this.now());
+        if (JSON.stringify(next.objectives) !== JSON.stringify(pending.preview.after)) {
+          throw new Error("Curriculum revision no longer matches the approved diff.");
+        }
+        const proposedCollection: ProgramCollection = { ...collection,
+          programs: collection.programs.map((item, position) =>
+            position === index ? next : item) };
+        // Keep the loaded collection IMMUTABLE as the expected snapshot.
+        // Compare-and-swap rejects an intervening vault edit, never last-write-wins.
+        await this.store.save(proposedCollection, collection);
+        this.pendingRevisions.delete(operationId);
+        return next;
+      } finally {
+        this.writing = false;
+      }
+    });
+    this.mutationTail = task.then(() => {}, () => {});
+    return task;
+  }
+
+  cancelCurriculumRevision(operationId: string): void {
+    this.pendingRevisions.delete(operationId);
+  }
+
   async getActiveProgram(): Promise<LearningProgram | null> {
     const collection = await this.store.load();
     return collection.programs.find(p => p.id === collection.activeProgramId) ?? null;
   }
+  /** Persist a single program-scoped focus; evidence and question ownership stay elsewhere. */
+  private async assertNoActiveFocus(): Promise<void> {
+    if ((await this.store.load()).programs.some(p => p.focus?.status === "active")) {
+      throw new Error("Pause or end the active objective focus before creating a different learning program.");
+    }
+  }
+
+  async getFocus(): Promise<LearningProgram["focus"] | undefined> {
+    return (await this.getActiveProgram())?.focus;
+  }
+
+  async getGlobalActiveFocus(): Promise<{ program: LearningProgram; focus: NonNullable<LearningProgram["focus"]> } | null> {
+    const collection = await this.store.load();
+    const program = collection.programs.find(item => item.focus?.status === "active");
+    return program?.focus ? { program, focus: program.focus } : null;
+  }
+
+  async startFocus(objectiveId: string, chatSessionId: string): Promise<LearningProgram> {
+    const state = await this.learningState.load();
+    return this.updateActive(program => {
+      const objective = program.objectives.find(item => item.id === objectiveId);
+      if (!objective) throw new Error("Unknown learning objective.");
+      const profile = deriveLearnerProfile(program, state, this.now());
+      const statuses = new Map(profile.objectives.map(item => [item.objectiveId, item.status]));
+      const eligible = objective.prerequisiteIds.every(id => statuses.get(id) === "mastered");
+      if (!eligible) throw new Error("Prerequisites are not mastered for this objective.");
+      return startObjectiveFocus(program, objectiveId, chatSessionId, this.now(), crypto.randomUUID());
+    });
+  }
+
+  async pauseFocus(): Promise<LearningProgram> {
+    return this.updateActive(program => transitionObjectiveFocus(program, "pause", this.now()));
+  }
+
+  async resumeFocus(chatSessionId: string): Promise<LearningProgram> {
+    return this.updateActive(program => {
+      if (program.focus?.chatSessionId !== chatSessionId) {
+        throw new Error("Return to the original chat to resume the pending focus challenge.");
+      }
+      return transitionObjectiveFocus(program, "resume", this.now());
+    });
+  }
+
+  async endFocus(): Promise<LearningProgram> {
+    return this.updateActive(program => transitionObjectiveFocus(program, "end", this.now()));
+  }
+
   private updateActive(edit: (program: LearningProgram) => LearningProgram): Promise<LearningProgram> {
     if (this.planning) return Promise.reject(new Error("Curriculum generation is in progress."));
     // Serialize the read-modify-write operation, not only the underlying vault write.
@@ -318,24 +480,42 @@ export class LearningProgramOrchestrator {
       return program;
     });
   }
-  async getDecision(): Promise<{ program: LearningProgram; decision: LearningDecision } | null> {
+  async getDecision(): Promise<{ program: LearningProgram; decision: AdaptiveActivityDecision } | null> {
     const program = await this.getActiveProgram();
     if (!program) return null;
     const state = await this.learningState.load();
-    return { program, decision: chooseNextActivity(program, state.evidence) };
+    return { program, decision: selectAdaptiveActivity(program, state, this.now()) };
   }
   async reviewDueSummary(): Promise<string> {
     const program = await this.getActiveProgram();
     if (!program) return "No active learning program.";
     const state = await this.learningState.load();
-    const { objectiveProgress } = await import("../domain/learning-program/rules");
-    const now = Date.now();
-    const due = program.objectives.filter(item => {
-      const p = objectiveProgress(program, item.id, state.evidence, now);
-      return p.dueAt !== null && p.dueAt <= now;
-    });
+    const profile = deriveLearnerProfile(program, state, this.now());
+    const dueIds = new Set(profile.objectives
+      .filter(item => item.dueAt !== null && item.dueAt <= this.now())
+      .map(item => item.objectiveId));
+    const due = program.objectives.filter(item => !item.deprecated && dueIds.has(item.id));
     return due.length ? "Reviews due:\n" + due.map(item => "- " + item.title).join("\n") :
       "No reviews are due. Use /progress for the next scheduled activity.";
+  }
+
+  async learnerProfileSummary(): Promise<string> {
+    const program = await this.getActiveProgram();
+    if (!program) return "No active learning program.";
+    const state = await this.learningState.load();
+    const profile = deriveLearnerProfile(program, state, this.now());
+    const context = toLearnerProfileContext(profile);
+    return [
+      "Derived learner profile (read-only; only committed evidence):",
+      "Program: " + program.goal + " (revision " + program.planVersion + ")",
+      "Evidence entries: " + profile.evidenceCount,
+      ...context.objectives.map(o => [
+        "- " + o.objectiveId + " [" + o.status + ", r" + o.revision + "]",
+        ...o.criteria.map(c => "  • " + c.id + ": " + c.status +
+          (c.evidenceIds.length ? " (evidence " + c.evidenceIds.join(", ") + ")" : " (no evidence)")),
+      ].join("\n")),
+      "Unknown means insufficient verified evidence, not a negative ability judgment.",
+    ].join("\n");
   }
 
   async progressSummary(): Promise<string> {
@@ -343,9 +523,8 @@ export class LearningProgramOrchestrator {
     if (!result) return "No active learning program. Use /plan <goal> to create one.";
     const { program, decision } = result;
     const state = await this.learningState.load();
-    const { objectiveProgress } = await import("../domain/learning-program/rules");
-    const mastered = program.objectives.filter(o =>
-      objectiveProgress(program, o.id, state.evidence).status === "mastered").length;
+    const profile = deriveLearnerProfile(program, state, this.now());
+    const mastered = profile.objectives.filter(item => item.status === "mastered").length;
     const f = feasibility(program);
     const remainingEstimate = estimateRemainingWork(program, state.evidence, this.now());
     const historicalActive = (program.sessionHistory ?? []).reduce((sum, item) => sum + (item.activeMinutes ?? 0), 0);
@@ -357,21 +536,33 @@ export class LearningProgramOrchestrator {
       "At risk: estimated work exceeds available time. Reduce scope or adjust deadline/time budget.";
     return [
       `Program: ${program.goal}`,
+      "Learner evidence profile: use /learner-profile to inspect verified, provisional and unknown criteria.",
+      ...(detectStructuralGap(program, state.evidence) && !program.focus ?
+        ["Evidence suggests a structural gap. Use /replan to preview a validated change."] : []),
+      ...(program.focus ? [`Focus: ${program.focus.status} on ${program.focus.objectiveId} (revision ${program.focus.curriculumRevision}).`] : []),
+      `Objectives: ${program.objectives.map(o => o.id + " — " + o.title).join("; ")}`,
       `Confirmed active learning: ${Math.round(spent)} minutes, ${program.sessionHistory?.length ?? 0} completed sessions.`,
       ...(historicalLegacy ? [`Older sessions without activity accounting: ${historicalLegacy} (excluded from active time).`] : []),
       ...(currentTiming ? [`AI waiting this session: ${Math.round(currentTiming.aiWaitingMs / 60_000)} minutes.`] : []),
-      `Mastered: ${mastered}/${program.objectives.length} objectives (requires independent delayed recall)`,
-      `Plan: ~${f.estimatedMinutes} minutes including estimated review; available: ${f.availableMinutes ?? "unspecified"} minutes.`,
+      `Mastered: ${mastered}/${profile.objectives.length} active objectives (requires independent delayed recall)`,
+      `Estimated work: ~${f.estimatedMinutes} minutes including review (not a focus deadline).`,
       `Feasibility: ${estimate}`,
       `Remaining work: ~${remainingEstimate.minutes} min (${remainingEstimate.basis}${remainingEstimate.basis === "calibrated" ? `, ${remainingEstimate.samples} measured objectives` : ""}).`,
       `Next: ${decision.kind} — ${decision.objective?.title ?? decision.reason}`,
+      ...(decision.provenance ? [
+        `Policy: ${decision.provenance.trigger}` +
+          (decision.provenance.criterionIds.length
+            ? ` (criteria ${decision.provenance.criterionIds.join(", ")})` : ""),
+      ] : []),
       ...(decision.dueAt ? [`Review due: ${new Date(decision.dueAt).toLocaleString()}`] : []),
-      `Session remaining: ${decision.minutesRemaining ?? program.constraints.minutesPerSession} minutes`,
+      ...(program.focus ? ["Focus is self-paced; no mandatory timer."] :
+        [`Session remaining: ${decision.minutesRemaining ?? program.constraints.minutesPerSession} minutes`]),
     ].join("\n");
   }
 
   /** Preview only; no program is persisted until the learner approves. */
   async prepareProgram(goal: string, requested: ProgramConstraints): Promise<LearningProgram> {
+    await this.assertNoActiveFocus();
     if (this.isPlanning()) throw new Error("Another learning program operation is in progress.");
     if (!goal.trim()) throw new Error("Learning goal is required.");
     this.planning = true;
@@ -453,6 +644,9 @@ export class LearningProgramOrchestrator {
       this.writing = true;
       try {
         const collection = await this.store.load();
+        if (collection.programs.some(p => p.focus?.status === "active")) {
+          throw new Error("Pause or end objective focus before changing learning plans.");
+        }
         const previous = collection.programs.find(p => p.creationOperationId === operationId);
         if (previous) return previous;
         const proposed = this.preparedDrafts.get(draftId);
@@ -488,6 +682,7 @@ export class LearningProgramOrchestrator {
 
   /** Domain-neutral discovery uses one bounded provider call; suggestions never become learning evidence. */
   async discoverGoals(interests: string[], purpose: string): Promise<Array<{ title: string; outcome: string }>> {
+    await this.assertNoActiveFocus();
     if (this.isPlanning()) throw new Error("Another learning operation is in progress.");
     this.planning = true;
     const abort = this.currentAbort = new AbortController();
