@@ -1,5 +1,6 @@
 export interface RubricResult {
   criterion: string;
+  criterionId?: string;
   met: boolean;
   evidence: string;
 }
@@ -8,6 +9,7 @@ export function isRubricResults(value: unknown): value is RubricResult[] {
     if (!item || typeof item !== "object") return false;
     const r = item as Record<string, unknown>;
     return typeof r.criterion === "string" && r.criterion.trim().length > 0 &&
+      (r.criterionId === undefined || (typeof r.criterionId === "string" && r.criterionId.length > 0)) &&
       typeof r.met === "boolean" && typeof r.evidence === "string";
   });
 }
@@ -55,6 +57,7 @@ export interface PracticeQuestion {
   objectiveId?: string;
   /** Application-bound focus ID; never trusted from provider output. */
   focusSessionId?: string;
+  objectiveRevision?: number;
   taskKind?: "diagnostic" | "guided-practice" | "recall" | "transfer";
 }
 
@@ -67,6 +70,10 @@ export interface PracticeEvaluation {
   nextQuestion?: string;
   assisted?: boolean;
   rubricResults?: RubricResult[];
+  /** Stamped by application; never inherited from generated model output. */
+  objectiveRevision?: number;
+  assistance?: { highestHintLevel: 0 | 1 | 2 | 3 | 4; independent: boolean };
+  evaluator?: "deterministic" | "llm-review" | "verified-execution";
   taskKind?: "diagnostic" | "guided-practice" | "recall" | "transfer";
   /** A single MCQ cannot prove a complete learning objective. */
   assessmentCoverage?: "single-item";
@@ -89,6 +96,7 @@ export interface PracticeTurn {
   hint?: string;
   questionSpec?: PracticeQuestion;
   assisted?: boolean;
+  highestHintLevel?: 0 | 1 | 2 | 3 | 4;
   answer?: string;
   evaluation?: PracticeEvaluation;
 }
