@@ -65,3 +65,12 @@ test("rollback preview parses a constrained source operation and rejects unexpec
   assert.throws(() => parseProgramCommand('/curriculum-preview {"kind":"rollback","objectiveId":"basics","rationale":"Undo last change"}'), /prior operation ID/);
   assert.throws(() => parseProgramCommand('/curriculum-preview {"kind":"rollback","objectiveId":"basics","targetOperationId":"manual:one","rationale":"Undo last change","foo":true}'), /unsupported properties/);
 });
+
+test("explicit off-topic deferral is not evaluated as a practice answer", () => {
+  assert.deepEqual(parseProgramCommand("/defer Review queue backpressure later"), {
+    kind: "defer", text: "Review queue backpressure later",
+  });
+  assert.deepEqual(parseProgramCommand("/deferred"), { kind: "deferred" });
+  assert.throws(() => parseProgramCommand("/defer"), /Use \/defer/);
+  assert.throws(() => parseProgramCommand("/defer x"), /3–500/);
+});

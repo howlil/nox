@@ -13,7 +13,8 @@ This ledger is updated when code is committed. An item is checked only if the be
 - [x] Recheck active program, focus identity and curriculum version before terminal practice commit.
 - [x] Regression tests for authorization and paused-switch persistence.
 - [x] Integration/fault-injection proof for a changed focus during an in-flight provider response (M5 orchestration race tests).
-- [ ] Explicit clarification/deferred-off-topic intent and legacy question compatibility acceptance.
+- [x] Explicit `/defer` and `/deferred` commands persist bounded, idempotent off-topic notes without changing focus or calling an agent; tests cover wrong-chat authorization and failed persistence.
+- [ ] Explicit question clarification intent and legacy question compatibility desktop acceptance.
 
 ## M1 — Feedback & evidence (v3 + progressive assistance implemented; verified executor pending)
 

@@ -345,3 +345,34 @@ test("approval rejects a stale diff and never bypasses paused focus locks", asyn
   await assert.rejects(orchestrator.approveStructuralChange(stale.operationId), /version conflict/);
   orchestrator.dispose();
 });
+
+test("deferrals survive writes, retries and focus end without provider inference", async () => {
+  const { orchestrator, stored, failNextWrite } = rig();
+  await orchestrator.createProgram("Spanish", base);
+  await orchestrator.startFocus("basic", "chat-owner");
+  await assert.rejects(
+    orchestrator.deferFocusNote("Review network timeouts", "note-1", "other-chat"),
+    /another chat/,
+  );
+  failNextWrite();
+  await assert.rejects(
+    orchestrator.deferFocusNote("Review network timeouts", "note-1", "chat-owner"),
+    /simulated program write failure/,
+  );
+  assert.equal(stored().programs[0].deferredNotes, undefined);
+  await orchestrator.deferFocusNote("Review network timeouts", "note-1", "chat-owner");
+  await orchestrator.deferFocusNote("Review network timeouts", "note-1", "chat-owner");
+  assert.equal((await orchestrator.getDeferredNotes()).length, 1);
+  assert.equal(stored().programs[0].focus?.status, "active");
+  await assert.rejects(
+    orchestrator.deferFocusNote("Different note", "note-1", "chat-owner"),
+    /different content/,
+  );
+  await orchestrator.endFocus();
+  assert.equal((await orchestrator.getDeferredNotes())[0].text, "Review network timeouts");
+  await assert.rejects(
+    orchestrator.deferFocusNote("Another note", "note-2", "chat-owner"),
+    /Start or resume objective focus/,
+  );
+  orchestrator.dispose();
+});
