@@ -132,3 +132,22 @@ test("hint inspection is pure; only acknowledged intent marks a practice attempt
   assert.equal(attempt?.assisted, true);
   assert.equal(machine.peekHint(), undefined, "no help can be requested while evaluating");
 });
+
+
+test("hint levels are monotone per question and reset for the next question", () => {
+  const machine = new PracticeStateMachine(ids());
+  machine.start();
+  machine.acceptQuestion({ kind: "question", concept: "locking",
+    question: "How?", hint: "Start with mutex.", objectiveRevision: 4 }, "qid");
+  machine.markHintUsed(3);
+  machine.markHintUsed(1);
+  const first = machine.beginEvaluation("test");
+  assert.equal(first?.highestHintLevel, 3);
+  assert.equal(first?.objectiveRevision, 4);
+  assert.equal(first?.questionId, "qid");
+  assert.equal(first?.assisted, true);
+  machine.commitEvaluation(first!, { kind: "evaluation", concept: "locking",
+    outcome: "partial", feedback: "retry", misconceptions: [], nextQuestion: "Another?" });
+  const second = machine.beginEvaluation("second");
+  assert.equal(second?.highestHintLevel, 0);
+});
