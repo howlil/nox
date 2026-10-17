@@ -178,6 +178,8 @@ export class ChatView extends ItemView {
   private streamingTextNode: Text | null = null;
   private runInspector: NoxRunInspector | null = null;
   private learningGraphEl: HTMLElement | null = null;
+  private focusStripEl: HTMLButtonElement | null = null;
+  private focusStripEpoch = 0;
   private learningActivityEl: HTMLElement | null = null;
   private thinkingManualExpanded: boolean | null = null;
   private streamedThoughtText = "";
@@ -251,12 +253,14 @@ export class ChatView extends ItemView {
     // Local transcripts remain available even if the runtime is offline.
     await this.restoreRuntimeState();
     await this.ensureRuntimeReady();
+    void this.refreshFocusStrip();
     void this.refreshSessionClock();
     this.sessionClockTimer = window.setInterval(() => { void this.refreshSessionClock(); }, 2000);
   }
 
   async onClose(): Promise<void> {
     this.learning.cancel();
+    this.focusStripEpoch++;
     this.transcriptRenderEpoch++;
     this.transcriptSelection?.destroy();
     this.transcriptSelection = null;
@@ -308,6 +312,7 @@ export class ChatView extends ItemView {
     await this.syncChips();
     this.syncPracticeComposerState();
     await this.restoreSession();
+    void this.refreshFocusStrip();
 
     if (!this.workspaceEventsRegistered) {
       this.workspaceEventsRegistered = true;
@@ -436,6 +441,13 @@ export class ChatView extends ItemView {
     });
     moreBtn.addEventListener("click", () => this.openSettings());
 
+    this.focusStripEl = this.headerEl.createEl("button", {
+      cls: "nox-focus-strip nox-hidden",
+      attr: { type: "button", "aria-label": "Open active learning focus" },
+    });
+    this.focusStripEl.addEventListener("click", () => {
+      if (!this.learningGraphEl?.isConnected) void this.toggleLearningMap();
+    });
     this.sessionClockEl = this.headerEl.createDiv({ cls: "nox-session-clock nox-hidden" });
     this.sessionClockEl.setAttribute("role", "group");
     this.sessionClockEl.setAttribute("aria-label", "Learning session timer");
@@ -557,6 +569,52 @@ export class ChatView extends ItemView {
     }
   }
 
+  /** Focus strip is a read-only preview. Durable program data remains authoritative. */
+  private async refreshFocusStrip(): Promise<void> {
+    const epoch = ++this.focusStripEpoch;
+    const strip = this.focusStripEl;
+    if (!strip?.isConnected) return;
+    try {
+      const overview = await this.learning.getProgramOverview();
+      if (epoch !== this.focusStripEpoch || !strip.isConnected) return;
+      const focus = overview?.focus;
+      const objective = overview?.objectives.find(item =>
+        item.objective.id === focus?.objectiveId);
+      const preview = overview?.revisionPreview;
+      if (!focus && !preview) {
+        strip.addClass("nox-hidden");
+        strip.empty();
+        return;
+      }
+      strip.removeClass("nox-hidden");
+      strip.empty();
+      const icon = strip.createSpan({ cls: "nox-focus-strip-icon" });
+      setNoxIcon(icon, focus?.status === "paused" ? "pause-circle"
+        : focus ? "target" : "git-branch");
+      const label = focus
+        ? (focus.status === "paused" ? "Paused · " : "Focus · ") +
+          (objective?.objective.title ?? focus.objectiveId)
+        : "Curriculum revision awaiting approval";
+      strip.createSpan({ cls: "nox-focus-strip-label", text: label });
+      const chevron = strip.createSpan({ cls: "nox-focus-strip-chevron" });
+      setNoxIcon(chevron, "chevron-right");
+    } catch {
+      // A damaged program store cannot prevent ordinary chat interactions.
+      if (epoch === this.focusStripEpoch) strip.addClass("nox-hidden");
+    }
+  }
+
+  private submitLearningPanelCommand(command: string): void {
+    if (this.uiState === "RUNNING" || this.pendingReplyTo) return;
+    if (!isLocallyExecutableCommand(command) && command !== "/next") return;
+    this.learningGraphEl?.remove();
+    this.learningGraphEl = null;
+    this.setAction("ask");
+    this.input.value = command;
+    this.onInput();
+    void this.doSend();
+  }
+
   private async toggleLearningMap(): Promise<void> {
     if (this.learningGraphEl?.isConnected) {
       this.learningGraphEl.remove(); this.learningGraphEl = null; return;
@@ -573,7 +631,8 @@ export class ChatView extends ItemView {
               ? "/focus " + overview.next.objectiveId : overview ? "/progress" : "/plan ";
           this.onInput();
           if (overview) void this.doSend(); else this.focusComposer();
-        });
+        },
+        command => this.submitLearningPanelCommand(command));
       this.thread.scrollTo({ top: 0, behavior: "smooth" });
     } catch (error) {
       new Notice(error instanceof Error ? error.message : "Learning map unavailable.");
@@ -1832,6 +1891,7 @@ export class ChatView extends ItemView {
     }
     this.runningAction = null;
     void this.refreshScopeGoal();
+    void this.refreshFocusStrip();
     if (this.learning.hasActivePracticeQuestion() || this.learning.getSession().learningScope) {
       this.syncPracticeComposerState();
     }
