@@ -46,6 +46,7 @@ import {
 import { PracticeSessionRegistry } from "./PracticeSessionRegistry";
 import type { LearningProgram, LearningObjective } from "../domain/learning-program/types";
 import { chooseNextActivity, chooseFocusedActivity } from "../domain/learning-program/rules";
+import { deriveLearnerProfile, toLearnerProfileContext } from "../domain/learner-model/learner-profile";
 import { coversCriteria } from "../domain/learning-program/assessment-rubric";
 import { criterionIdFor, decideFeedback } from "../domain/learner-model/feedback-policy";
 import {
@@ -729,6 +730,9 @@ export class RunLearningTurn {
         const lastEvidence = state.evidence.filter(item => item.scope === "learner" &&
           item.programId === program.id && item.objectiveId === activeObjective.id).slice(-1)[0];
         const missed = lastEvidence?.rubricResults?.filter(result => !result.met).map(result => result.criterion) ?? [];
+        // Recomputed from the durable evidence log; never stored as inferred user memory.
+        const learnerProfile = toLearnerProfileContext(
+          deriveLearnerProfile(program, state, Date.now()), activeObjective.id);
         const feedback = !practiceAttempt && lastEvidence?.evidenceVersion === 3 &&
           lastEvidence.objectiveRevision === (activeObjective.objectiveRevision ?? program.planVersion)
           ? decideFeedback(activeObjective, state.evidence, lastEvidence) : undefined;
@@ -741,6 +745,7 @@ export class RunLearningTurn {
           "For guided practice use appropriate scaffolding; for transfer test application in a new context.",
           `Previously failed rubric criteria: ${JSON.stringify(missed)}. If remedial practice, target these first.`,
           `Evidence-based feedback: ${JSON.stringify(feedback ?? { kind: "diagnostic" })}. Never claim mastery without independent delayed recall.`,
+          `Derived criterion profile (not a behavioral/personality inference): ${JSON.stringify(learnerProfile)}. Treat unknown as unassessed, never as weakness.`,
           `Source constraint: ${program.constraints.sourceBound
             ? "Only the explicitly selected source note(s), do not claim external facts were verified."
             : "Use provided material where available and distinguish assumptions."}`,

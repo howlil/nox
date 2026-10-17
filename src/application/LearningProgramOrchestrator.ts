@@ -3,6 +3,7 @@ import type { ContextPort, LearningStatePort, ProgramStorePort } from "./ports";
 import type { LearningProgram, ProgramCollection, ProgramConstraints, LearningDecision, SessionPauseReason } from "../domain/learning-program/types";
 import { chooseNextActivity, chooseFocusedActivity, objectiveProgress, feasibility, validateConstraints, validateCurriculum } from "../domain/learning-program/rules";
 import { startObjectiveFocus, transitionObjectiveFocus } from "../domain/learning-program/focus-transitions";
+import { deriveLearnerProfile, toLearnerProfileContext } from "../domain/learner-model/learner-profile";
 import { applyCurriculumRevision, detectStructuralGap, type CurriculumRevision, type StructuralGapReason } from "../domain/learning-program/curriculum-revision";
 import { proposeCurriculumRevision, type CurriculumRevisionPreview } from "./CurriculumRevisionService";
 import { estimateRemainingWork } from "../domain/learning-program/estimate";
@@ -499,6 +500,25 @@ export class LearningProgramOrchestrator {
       "No reviews are due. Use /progress for the next scheduled activity.";
   }
 
+  async learnerProfileSummary(): Promise<string> {
+    const program = await this.getActiveProgram();
+    if (!program) return "No active learning program.";
+    const state = await this.learningState.load();
+    const profile = deriveLearnerProfile(program, state, this.now());
+    const context = toLearnerProfileContext(profile);
+    return [
+      "Derived learner profile (read-only; only committed evidence):",
+      "Program: " + program.goal + " (revision " + program.planVersion + ")",
+      "Evidence entries: " + profile.evidenceCount,
+      ...context.objectives.map(o => [
+        "- " + o.objectiveId + " [" + o.status + ", r" + o.revision + "]",
+        ...o.criteria.map(c => "  • " + c.id + ": " + c.status +
+          (c.evidenceIds.length ? " (evidence " + c.evidenceIds.join(", ") + ")" : " (no evidence)")),
+      ].join("\n")),
+      "Unknown means insufficient verified evidence, not a negative ability judgment.",
+    ].join("\n");
+  }
+
   async progressSummary(): Promise<string> {
     const result = await this.getDecision();
     if (!result) return "No active learning program. Use /plan <goal> to create one.";
@@ -518,6 +538,7 @@ export class LearningProgramOrchestrator {
       "At risk: estimated work exceeds available time. Reduce scope or adjust deadline/time budget.";
     return [
       `Program: ${program.goal}`,
+      "Learner evidence profile: use /learner-profile to inspect verified, provisional and unknown criteria.",
       ...(detectStructuralGap(program, state.evidence) && !program.focus ?
         ["Evidence suggests a structural gap. Use /replan to preview a validated change."] : []),
       ...(program.focus ? [`Focus: ${program.focus.status} on ${program.focus.objectiveId} (revision ${program.focus.curriculumRevision}).`] : []),
