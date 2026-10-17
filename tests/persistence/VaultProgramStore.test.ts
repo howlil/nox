@@ -169,3 +169,32 @@ test("programs.json round-trips approved structural lineage and retains objectiv
   }), /revision history|lineage/);
   assert.equal((await store.load()).programs[0].planVersion, 2);
 });
+
+test("deferred notes survive vault reload; malformed records never overwrite files", async () => {
+  const vault = new MemoryVault();
+  const store = new VaultProgramStore({ vault } as never);
+  const program: LearningProgram = {
+    version: 1, id: "p", goal: "Learn locks", createdAt: 100, planVersion: 1,
+    constraints: { minutesPerSession: 45, sessionsPerWeek: 3,
+      sourceBound: false, sourcePaths: [], excludedTopics: [] },
+    objectives: [{ id: "locks", title: "Locks", outcome: "Explain concurrency",
+      prerequisiteIds: [], estimatedMinutes: 30, rubric: ["Explain a lock"],
+      sourceRefs: [], priority: "core" }],
+    deferredNotes: [{ id: "note:1", focusSessionId: "focus:1",
+      objectiveId: "locks", createdAt: 150, text: "Review deadlocks later" }],
+  };
+  await store.save({ version: 1, activeProgramId: "p", programs: [program] });
+  const reloaded = new VaultProgramStore({ vault } as never);
+  assert.deepEqual((await reloaded.load()).programs[0].deferredNotes, program.deferredNotes);
+  const durable = vault.files.get(PATH);
+  const malformed = structuredClone(program);
+  malformed.deferredNotes![0].objectiveId = "missing";
+  await assert.rejects(reloaded.save({
+    version: 1, activeProgramId: "p", programs: [malformed],
+  }), /Invalid deferred learning note/);
+  assert.equal(vault.files.get(PATH), durable);
+  const legacy = structuredClone(program);
+  delete legacy.deferredNotes;
+  await reloaded.save({ version: 1, activeProgramId: "p", programs: [legacy] });
+  assert.equal((await reloaded.load()).programs[0].deferredNotes, undefined);
+});

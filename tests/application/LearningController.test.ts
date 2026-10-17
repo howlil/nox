@@ -1342,3 +1342,36 @@ test("corrupted focus authority permits ordinary chat but rejects focus operatio
   assert.equal(focused.at(-1)?.type, "failed");
   assert.equal(h.prompts.length, 1);
 });
+
+test("focus deferral is a provider-free controller command", async () => {
+  const notes: Array<{ objectiveId: string; text: string }> = [];
+  const h = createHarness(async function* () {
+    yield { type: "text", content: "UNEXPECTED MODEL CALL" };
+    yield { type: "completed" };
+  }, { programTimer: {
+    beginAiWait: async () => false, isPlanning: () => false,
+    getActiveProgram: async () => ({ id: "p", focus: {
+      programId: "p", objectiveId: "locks", chatSessionId: "session-1",
+      status: "active" as const,
+    } }),
+    deferFocusNote: async (text: string, id: string, chat: string) => {
+      assert.equal(chat, "session-1");
+      assert.equal(id, "note-1");
+      notes.push({ objectiveId: "locks", text });
+    },
+    getDeferredNotes: async () => notes,
+  } as never });
+  const recorded = await collectEvents(h.controller.run({
+    prompt: "/defer Research lock-free queues later", action: "ask",
+    explicitContext: [], turnId: "note-1",
+  }));
+  assert.equal(recorded.at(-1)?.type, "completed");
+  assert.equal(notes.length, 1);
+  assert.equal(h.prompts.length, 0);
+  const listed = await collectEvents(h.controller.run({
+    prompt: "/deferred", action: "ask", explicitContext: [],
+  }));
+  assert.equal(listed.at(-1)?.type, "completed");
+  assert.match(JSON.stringify(listed), /Research lock-free queues later/);
+  assert.equal(h.prompts.length, 0);
+});
