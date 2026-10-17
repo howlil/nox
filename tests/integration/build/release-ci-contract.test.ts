@@ -31,7 +31,9 @@ test("auto-publication requires strict source-bound attestations on the exact do
   assert.match(release, /strict: "true"/);
   assert.match(release, /Detect unshipped release by ID rather than public tag/);
   assert.match(release, /contents: write/);
-  assert.match(release, /\.tag_name == \$v and \.draft == true/);
+  assert.match(release, /\.tag_name == \$v or \.name ==/);
+  assert.match(release, /-f tag_name="\$version"/);
+  assert.match(release, /Published tag or source SHA mismatch/);
   assert.match(release, /--target "\$GITHUB_SHA"/);
   assert.match(release, /actual_digest/);
   assert.match(release, /expected_digest/);
