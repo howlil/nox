@@ -49,6 +49,7 @@ jobs:
           echo "prepared=false" >> "$GITHUB_OUTPUT"
           node scripts/check-release.mjs
           version="$(node -p 'JSON.parse(require("fs").readFileSync(".release-plan.json")).version')"
+          echo "Release verification: release registry lookup"
           releases="$(gh api "repos/$GITHUB_REPOSITORY/releases?per_page=100")"
           published="$(jq -r --arg v "$version" '[.[] | select(.tag_name == $v and .draft == false)] | length' <<< "$releases")"
           test "$published" = 0 || { echo "Already published: $version"; exit 0; }
@@ -164,6 +165,7 @@ jobs:
         run: |
           set -euo pipefail
           for file in main.js styles.css manifest.json; do
+            echo "Release verification: attestation for $file"
             gh attestation verify "dist/$file" --repo "$GITHUB_REPOSITORY" --source-digest "$GITHUB_SHA"
           done
       - name: Extract changelog notes for this exact version
@@ -186,6 +188,7 @@ jobs:
         run: |
           set -euo pipefail
           version="$RELEASE_VERSION"
+          echo "Release verification: source identity"
           test "$(node -p 'require("./package.json").version')" = "$version"
           test "$(node -p 'require("./dist/manifest.json").version')" = "$version"
           # Never publish artifacts from an older master build if a newer merge occurred.
@@ -206,6 +209,7 @@ jobs:
             release_id="$(jq -r --arg v "$version" '[.[] | select(.tag_name == $v and .draft == true)][0].id // empty' <<< "$releases")"
             test -n "$release_id" || { echo "::error::Cannot resolve new draft ID."; exit 1; }
           else
+            echo "Release verification: replacing draft assets"
             existing="$(gh api "repos/$GITHUB_REPOSITORY/releases/$release_id/assets?per_page=100")"
             while IFS= read -r asset_id; do
               [ -n "$asset_id" ] || continue
@@ -223,17 +227,22 @@ jobs:
               -f target_commitish="$GITHUB_SHA" -f body="$(cat release-notes.md)" > /dev/null
           fi
 
+          echo "Release verification: draft source SHA"
           draft="$(gh api "repos/$GITHUB_REPOSITORY/releases/$release_id")"
           jq -e --arg v "$version" --arg sha "$GITHUB_SHA" \
-            '.tag_name == $v and .draft == true and .target_commitish == $sha' <<< "$draft" > /dev/null
+            '.tag_name == $v and .draft == true and .target_commitish == $sha' <<< "$draft" > /dev/null || {
+              echo "::error::Draft metadata mismatch (tag, draft status, or target SHA)."; exit 1;
+            }
 
           # GitHub computes SHA-256 for each uploaded release asset. Verify the
           # remote bytes match the already attested local release artifacts.
+          echo "Release verification: remote asset allowlist"
           assets="$(gh api "repos/$GITHUB_REPOSITORY/releases/$release_id/assets?per_page=100")"
           expected="$(printf '%s\n' main.js manifest.json styles.css | LC_ALL=C sort)"
           actual="$(jq -r '.[].name' <<< "$assets" | LC_ALL=C sort)"
           test "$actual" = "$expected" || { echo "::error::Release asset allowlist mismatch."; exit 1; }
           for file in main.js manifest.json styles.css; do
+            echo "Release verification: SHA256 digest for $file"
             actual_digest="$(jq -r --arg f "$file" '.[] | select(.name == $f) | .digest' <<< "$assets")"
             expected_digest="sha256:$(sha256sum "dist/$file" | cut -d' ' -f1)"
             test "$actual_digest" = "$expected_digest" || {
@@ -241,5 +250,6 @@ jobs:
             }
             gh attestation verify "dist/$file" --repo "$GITHUB_REPOSITORY" --source-digest "$GITHUB_SHA"
           done
+          echo "Release verification: all checks passed; publishing"
           gh api -X PATCH -F draft=false "repos/$GITHUB_REPOSITORY/releases/$release_id" > /dev/null
           echo "Published verified NOX $version from $GITHUB_SHA."
