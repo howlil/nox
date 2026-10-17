@@ -169,6 +169,37 @@ export class LearningController {
     }
   }
 
+  /** Native UI preview, with no transcript command or write side effects. */
+  async previewCurriculumChange(
+    action: import("../domain/learning-program/structural-revision").StructuralRevisionAction,
+    rationale: string,
+  ): Promise<import("../domain/learning-program/structural-revision").StructuralRevisionPreview> {
+    if (!this.programs) throw new Error("Learning programs are unavailable.");
+    this.assertRuntimeIdle();
+    if (this.turns.hasActivePracticeQuestion()) {
+      throw new Error("Finish the active question before adjusting the curriculum.");
+    }
+    return this.programs.previewStructuralChange(action, rationale, crypto.randomUUID());
+  }
+
+  /** A separate explicit approval; the domain rechecks version and focus atomically. */
+  async approveCurriculumChange(operationId: string): Promise<{ warning?: string }> {
+    if (!this.programs) throw new Error("Learning programs are unavailable.");
+    this.assertRuntimeIdle();
+    if (this.turns.hasActivePracticeQuestion()) {
+      throw new Error("Finish the active question before approving curriculum changes.");
+    }
+    const program = await this.programs.approveStructuralChange(operationId);
+    const revision = program.curriculumRevisions?.find(item => item.operationId === operationId);
+    if (revision && program.workspaceApproved && this.workspaceWriter?.ensureRevision) {
+      try { await this.workspaceWriter.ensureRevision(program, revision); }
+      catch {
+        return { warning: "Curriculum saved. Workspace notes will be synchronized on startup." };
+      }
+    }
+    return {};
+  }
+
   /** Read-only learning projection; never recompute mastery in the UI. */
   async getProgramOverview(): Promise<NoxProgramOverview | null> {
     if (!this.programs) return null;
