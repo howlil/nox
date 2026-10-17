@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { decodeProgramCollection, migrateProgramCollectionV1 } from "../../src/persistence/program-schema";
+import { decodeProgramCollection, migrateProgramCollectionV1, prepareProgramCollectionWrite } from "../../src/persistence/program-schema";
 
 const old = { version: 1, activeProgramId: "p", programs: [{
   version: 1, id: "p", goal: "Learn", createdAt: 1, planVersion: 1,
@@ -35,4 +35,16 @@ test("decoder rejects mixed versions, duplicate IDs, malformed identity and unsu
   ]) {
     assert.throws(() => decodeProgramCollection(bad), /Unsupported|Duplicate|Active/);
   }
+});
+
+
+test("application writer normalizes a v1 draft within v2 without relaxing persisted decoder", () => {
+  const current = migrateProgramCollectionV1(old as never);
+  const draft = structuredClone(old.programs[0]);
+  draft.id = "q";
+  const mixed = { ...current, programs: [...current.programs, draft] };
+  assert.throws(() => decodeProgramCollection(mixed), /Unsupported/);
+  const normalized = prepareProgramCollectionWrite(mixed as never);
+  assert.equal(normalized.version, 2);
+  assert.deepEqual(normalized.programs.map(x => x.version), [2, 2]);
 });

@@ -4,7 +4,7 @@ import { validateConstraints, validateCurriculum } from "../domain/learning-prog
 import { isValidSessionTiming } from "../domain/learning-program/session-time";
 import { validateObjectiveFocus } from "../domain/learning-program/focus-transitions";
 import { PersistenceError } from "./PersistenceError";
-import { decodeProgramCollection, migrateProgramCollectionV1 } from "./program-schema";
+import { decodeProgramCollection, prepareProgramCollectionWrite } from "./program-schema";
 
 const PATH = "00-learning-os/programs.json";
 const BACKUPS = "00-learning-os/backups";
@@ -173,7 +173,7 @@ export class VaultProgramStore {
       ? this.snapshots.get(next)! : this.lastKnownBytes;
     const operation = this.tail.then(async () => {
       // Read-old/write-new: migrating does not fabricate evidence or rubric provenance.
-      const nextV2 = migrateProgramCollectionV1(next);
+      const nextV2 = prepareProgramCollectionWrite(next);
       for (const program of nextV2.programs) this.validateProgram(program);
       try {
         if (!this.app.vault.getAbstractFileByPath("00-learning-os")) {

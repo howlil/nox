@@ -36,3 +36,21 @@ export function migrateProgramCollectionV1(value: ProgramCollection): ProgramCol
     programs: validated.programs.map(program => ({ ...program, version: 2 })),
   };
 }
+
+
+/** Validate and normalize application-owned updates, which may contain a new v1
+ * draft appended to a loaded v2 collection. Vault reads stay strict: mixed-version
+ * persisted JSON is never silently reinterpreted.
+ */
+export function prepareProgramCollectionWrite(value: ProgramCollection): ProgramCollection {
+  if (!isObject(value) || (value.version !== 1 && value.version !== 2) ||
+      !Array.isArray(value.programs) ||
+      !value.programs.every((p: unknown) =>
+        isObject(p) && (p.version === 1 || p.version === 2))) {
+    throw new Error("Unsupported NOX program collection.");
+  }
+  return decodeProgramCollection({
+    ...value, version: 2,
+    programs: value.programs.map(program => ({ ...program, version: 2 })),
+  });
+}
