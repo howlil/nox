@@ -1,4 +1,4 @@
-import type { LearningEvidence } from "../learning-state/types";
+import type { KnowledgeGap, LearningEvidence } from "../learning-state/types";
 import { decideFocusedLearningActivity, decideLearningActivity,
   nextEligibleRecallAt, selectEligibleObjective } from "./activity-policy";
 import { sessionRemainingMs } from "./session-time";
@@ -140,14 +140,14 @@ export { objectiveProgress } from "./objective-readiness";
 
 /** Focus always pins the requested objective; pure policy prevents topic hopping. */
 export function chooseFocusedActivity(program: LearningProgram, evidence: LearningEvidence[],
-  now = Date.now()): LearningDecision {
-  return decideFocusedLearningActivity(program, evidence, now);
+  now = Date.now(), gaps: readonly KnowledgeGap[] = []): LearningDecision {
+  return decideFocusedLearningActivity(program, evidence, now, {}, gaps);
 }
 
 /** Legacy timed sessions remain supported; objective focus is self-paced. */
 export function chooseNextActivity(program: LearningProgram, evidence: LearningEvidence[],
-  now = Date.now()): LearningDecision {
-  if (program.focus) return chooseFocusedActivity(program, evidence, now);
+  now = Date.now(), gaps: readonly KnowledgeGap[] = []): LearningDecision {
+  if (program.focus) return chooseFocusedActivity(program, evidence, now, gaps);
   if (program.constraints.deadline &&
       new Date(now).toLocaleDateString("en-CA") > program.constraints.deadline) {
     return { kind: "wait", reason: "The program deadline has passed. Replan or create a new program before continuing." };
@@ -161,7 +161,7 @@ export function chooseNextActivity(program: LearningProgram, evidence: LearningE
   if (program.session?.timing?.pauseReasons.some(reason => reason === "manual" || reason === "recovery" || reason === "app-inactive")) {
     return { kind: "wait", reason: "Learning session is paused. Use /resume-session to continue.", minutesRemaining: remaining };
   }
-  const selected = selectEligibleObjective(program, evidence, now);
+  const selected = selectEligibleObjective(program, evidence, now, {}, gaps);
   if (selected) {
     return { ...decideLearningActivity(program, selected, evidence, now), minutesRemaining: remaining };
   }

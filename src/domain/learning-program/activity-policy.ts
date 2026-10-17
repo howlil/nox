@@ -1,4 +1,4 @@
-import type { LearningEvidence } from "../learning-state/types";
+import type { KnowledgeGap, LearningEvidence } from "../learning-state/types";
 import type { LearningDecision, LearningObjective, LearningProgram } from "./types";
 import { deriveObjectiveReadiness, objectiveEvidence, objectiveProgress,
   type ObjectiveReadiness, type RetentionPolicy } from "./objective-readiness";
@@ -25,16 +25,16 @@ function normalized(options: AdaptivePolicyOptions) {
 /** Stable order from curriculum, with earlier actual due dates first. */
 export function selectEligibleObjective(
   program: LearningProgram, evidence: readonly LearningEvidence[], now = Date.now(),
-  options: AdaptivePolicyOptions = {},
+  options: AdaptivePolicyOptions = {}, gaps: readonly KnowledgeGap[] = [],
 ): ObjectiveReadiness | null {
   const config = normalized(options);
   if (program.focus) {
     const focusObjective = program.objectives.find(item => item.id === program.focus?.objectiveId);
     return focusObjective && !focusObjective.deprecated
-      ? deriveObjectiveReadiness(program, focusObjective.id, evidence, now, options) : null;
+      ? deriveObjectiveReadiness(program, focusObjective.id, evidence, now, options, gaps) : null;
   }
   const candidates = program.objectives.filter(item => !item.deprecated)
-    .map(item => deriveObjectiveReadiness(program, item.id, evidence, now, options))
+    .map(item => deriveObjectiveReadiness(program, item.id, evidence, now, options, gaps))
     .filter(state => state.prerequisiteStatus === "eligible");
   const due = candidates.filter(state =>
     (state.progress.status === "mastered" || state.progress.status === "provisional") &&
@@ -44,13 +44,11 @@ export function selectEligibleObjective(
   if (due[0]) return due[0];
   // Repair before starting a new topic, but never bounce to unrelated objectives
   // while the active focus is still pinned.
-  const repair = candidates.find(state => state.progress.status === "remediate");
+  const repair = candidates.find(state => state.progress.status === "remediate" ||
+    state.unresolvedGapIds.length > 0);
   if (repair) return repair;
   const transfer = candidates.find(state =>
-    state.progress.status === "mastered" &&
-    !objectiveEvidence(program, state.objective.id, [...evidence]).some(item =>
-      item.taskKind === "transfer" && item.outcome === "correct" &&
-      !item.assisted && item.assistance?.independent !== false));
+    state.progress.status === "mastered" && !state.transferSatisfied);
   if (transfer) return transfer;
   return candidates.find(state => state.progress.status === "unseen" &&
     state.objective.priority !== "optional") ??
@@ -97,15 +95,18 @@ export function decideLearningActivity(
         "Try an independent variation; no additional full explanation.",
     };
   }
+  if (readiness.unresolvedGapIds.length > 0 && progress.status !== "remediate" &&
+      progress.dueAt !== null && now < progress.dueAt + config.recallDueGraceMs) {
+    return { kind: "guided-practice", objective, sourceEvidenceIds: attempts.slice(-2).map(item => item.id),
+      reason: "Unresolved criterion-linked misconception requires another independent check." };
+  }
   if (progress.dueAt !== null && now >= progress.dueAt + config.recallDueGraceMs) {
     return { kind: "recall", objective, dueAt: progress.dueAt,
       targetCriterionIds: objective.criteria?.filter(item => item.required).map(item => item.id) ?? [],
       sourceEvidenceIds: attempts.slice(-2).map(item => item.id),
       reason: "Criterion-complete delayed recall is due." };
   }
-  if (progress.status === "mastered" && !attempts.some(item =>
-    item.taskKind === "transfer" && item.outcome === "correct" && !item.assisted &&
-    item.assistance?.independent !== false)) {
+  if (progress.status === "mastered" && !readiness.transferSatisfied) {
     return { kind: "transfer", objective,
       targetCriterionIds: objective.criteria?.filter(item => item.required).map(item => item.id) ?? [],
       sourceEvidenceIds: attempts.slice(-2).map(item => item.id),
@@ -122,7 +123,7 @@ export function decideLearningActivity(
 /** Pure focus policy: the pinned objective wins; no timer or unrelated due work may preempt it. */
 export function decideFocusedLearningActivity(
   program: LearningProgram, evidence: readonly LearningEvidence[], now = Date.now(),
-  options: AdaptivePolicyOptions = {},
+  options: AdaptivePolicyOptions = {}, gaps: readonly KnowledgeGap[] = [],
 ): LearningDecision {
   const focus = program.focus;
   if (!focus) throw new Error("No objective focus.");
@@ -134,7 +135,7 @@ export function decideFocusedLearningActivity(
     throw new Error("Focused objective is stale.");
   }
   return decideLearningActivity(program, deriveObjectiveReadiness(program, objective.id,
-    evidence, now, options), evidence, now, options);
+    evidence, now, options, gaps), evidence, now, options);
 }
 
 /** No eligible objective: do not thrash between completed topics before the next due recall. */

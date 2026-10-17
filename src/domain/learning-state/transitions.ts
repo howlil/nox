@@ -123,29 +123,38 @@ export function recordPracticeEvaluation(
     }
   }
 
-  // A gap can only close from new evidence about its own failed criterion.
-  // Historical correct answers and ordinary spaced practice must not close it.
+  // A gap can close only through complete, unassisted correction followed by
+  // a delayed recall of the SAME failed criterion, after its newest failure.
+  // Versioned evidence matches stable criterion IDs; legacy remains text-bound.
   for (const gap of next.gaps) {
     if (gap.status !== "improving" || gap.programId !== input.programId ||
         gap.objectiveId !== input.objectiveId) continue;
-    const relatedFailures = next.evidence.filter(item =>
-      gap.evidenceIds.includes(item.id) && item.type === "practice" &&
-      (item.outcome === "incorrect" || item.outcome === "partial"))
-      .sort((left, right) => left.createdAt - right.createdAt);
-    const failed = relatedFailures.at(-1);
-    if (!failed || failed.createdAt <= 0) continue;
-    const failedCriteria = failed.rubricResults?.filter(item => !item.met)
-      .map(item => item.criterion) ?? [];
-    // Without unambiguous criterion attribution, retain the gap for review.
-    if (failedCriteria.length !== 1) continue;
-    const criterion = failedCriteria[0];
-    const independent = next.evidence.filter(item =>
+    const scoped = next.evidence.filter(item =>
       item.scope === "learner" && item.type === "practice" &&
-      item.programId === input.programId && item.objectiveId === input.objectiveId &&
-      item.createdAt > failed.createdAt && item.outcome === "correct" &&
-      !item.assisted && item.assessmentCoverage !== "single-item" &&
+      item.programId === gap.programId && item.objectiveId === gap.objectiveId);
+    const failures = scoped.filter(item => gap.evidenceIds.includes(item.id) &&
+      (item.outcome === "incorrect" || item.outcome === "partial"));
+    const failed = failures.at(-1);
+    if (!failed || failed.createdAt <= 0) continue;
+    const unmet = failed.rubricResults?.filter(item => !item.met) ?? [];
+    if (unmet.length !== 1) continue;
+    const criterion = unmet[0];
+    const matches = (item: LearningEvidence, met: boolean): boolean =>
+      item.rubricResults?.some(result => result.met === met &&
+        (failed.objectiveRevision !== undefined && criterion.criterionId
+          ? item.objectiveRevision !== undefined && result.criterionId === criterion.criterionId
+          : item.objectiveRevision === undefined && result.criterion === criterion.criterion)) === true;
+    const latestCriterionFailure = scoped.filter(item =>
+      (item.outcome === "incorrect" || item.outcome === "partial") && matches(item, false))
+      .at(-1);
+    const failureAt = Math.max(failed.createdAt, latestCriterionFailure?.createdAt ?? 0);
+    const independent = scoped.filter(item =>
+      item.createdAt > failureAt && item.outcome === "correct" &&
+      !item.assisted && item.assistance?.independent !== false &&
+      (item.assistance?.highestHintLevel ?? 0) === 0 &&
+      item.assessmentCoverage !== "single-item" &&
       Boolean(item.rubricResults?.length) && item.rubricResults!.every(result => result.met) &&
-      item.rubricResults!.some(result => result.criterion === criterion && result.met));
+      matches(item, true));
     const verifiedRecall = independent.some(first => first.taskKind !== "recall" &&
       independent.some(recall => recall.taskKind === "recall" &&
         recall.createdAt - first.createdAt >= 12 * 3_600_000));
