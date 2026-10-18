@@ -13,6 +13,7 @@ export interface QuizCardActions {
   onSubmit: (answer: PracticeAnswer) => Promise<boolean>;
   /** Resolve true only after the canonical /hint operation has been persisted. */
   onHint: () => Promise<boolean> | boolean | void;
+  onClarify?: () => void;
 }
 
 /**
@@ -166,6 +167,12 @@ export function renderQuizCard(parent: HTMLElement, question: PracticeQuestion,
     })().catch(error => console.warn("[Nox] Quiz action failed", error)); });
   }
 
+  if (actions.active && actions.onClarify) {
+    const clarify = createNoxButton(footer, { variant: "quiet", text: "Clarify" });
+    clarify.addEventListener("click", () => {
+      if (!busy && !hintPending) actions.onClarify?.();
+    });
+  }
   submit = createNoxButton(footer, {
     cls: "nox-quiz-submit", variant: "primary",
     text: disabled ? "Evaluated" : "Submit answer",
