@@ -541,6 +541,19 @@ export class LearningController {
                 "Use /replan to retry. " + (error instanceof Error ? error.message : "");
             }
           }
+        } else if (command.kind === "revert-replan") {
+          if (this.turns.hasActivePracticeQuestion()) {
+            throw new Error("Finish the pending practice challenge before reverting.");
+          }
+          const preview = await this.programs.prepareCurriculumRevert(command.targetOperationId);
+          response = [
+            "**Curriculum revert preview — not yet applied**",
+            "Source revision: " + command.targetOperationId,
+            "Version: " + preview.fromVersion + " → " + preview.toVersion,
+            "Active objective diff: " + JSON.stringify(preview.after),
+            "Approve: /approve-replan " + preview.operationId,
+            "Reject: /cancel-replan " + preview.operationId,
+          ].join("\n");
         } else if (command.kind === "replan") {
           if (this.turns.hasActivePracticeQuestion()) {
             throw new Error("Finish the pending practice question or end its focus before replanning.");
