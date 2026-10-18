@@ -179,3 +179,20 @@ test("model-authored evaluation prose cannot become a new prompt instruction", (
 });
 
 test('long tail content', () => { const note = 'irrelevant '.repeat(20000) + ' transaction isolation prevents inconsistent reads'; const x = packageFor({ approvedNotes: [{path:'sql.md',content:note}], visible:[{type:'note',file:'sql.md',content:note}] }); assert.ok(x.visible.some(e => e.content.includes('prevents inconsistent reads'))); });
+
+test("R4 oversized source input is rejected, not silently truncated", () => {
+  const oversized = "context ".repeat(140000);
+  assert.throws(() => packageFor({
+    approvedNotes: [{ path: "sql.md", content: oversized }],
+    visible: [{ type: "note", file: "sql.md", content: oversized }],
+  }), /indexing limit/);
+});
+
+test("R4 excess short sections fail closed rather than omitting unseen chunks", () => {
+  const many = Array.from({ length: 1200 },
+    (_, i) => "## Section " + i + "\nDetails about a learning subject.").join("\n");
+  assert.throws(() => packageFor({
+    approvedNotes: [{ path: "sql.md", content: many }],
+    visible: [{ type: "note", file: "sql.md", content: many }],
+  }), /maximum retrievable chunks/);
+});
