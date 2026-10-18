@@ -24,6 +24,7 @@ function rig(payload: unknown = draft(), success = true) {
   let writes = 0;
   const context = { activeNote: { path: "notes/spanish.md", content: "Hola means hello." }, explicit: [] };
   const runtime = {
+    supportsSourceIsolation: () => true,
     send: async function* () {
       yield { type: "text", content: "```learning-program\n" +
         JSON.stringify(payload) + "\n```" };
