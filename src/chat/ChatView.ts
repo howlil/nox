@@ -2827,6 +2827,13 @@ export class ChatView extends ItemView {
             .catch(() => new Notice("Could not save quiz draft."));
         }, 450);
       },
+      onClarify: () => {
+        if (this.uiState === "RUNNING") return;
+        this.setAction("ask");
+        this.input.value = "/clarify ";
+        this.onInput();
+        this.input.focus();
+      },
       onHint: async () => {
         if (this.uiState === "RUNNING" || !this.learning.hasActivePracticeQuestion()) return false;
         const before = this.learning.getSession().messages.length;
