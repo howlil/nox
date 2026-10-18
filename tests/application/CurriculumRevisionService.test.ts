@@ -178,3 +178,23 @@ test("source-bound M2 fails closed if an approved source is missing", async () =
   assert.equal(agentCalls, 0);
   rig.dispose();
 });
+
+test("R4 unisolated CLI-like runtime is denied before source reads and provider inference", async () => {
+  const original = program();
+  original.constraints = { ...original.constraints, sourceBound: true,
+    sourcePaths: ["approved.md"] };
+  let reads = 0, calls = 0;
+  const orchestrator = new LearningProgramOrchestrator({
+    supportsSourceIsolation: () => false,
+    send: async function* () { calls++; yield { type: "completed" }; },
+  } as never, { resolve: async () => { reads++; return { explicit: [] }; } } as never,
+    { load: async () => ({ evidence: [] }) } as never,
+    { load: async () => ({ version: 2, activeProgramId: original.id,
+      programs: [structuredClone(original)] }) } as never,
+    () => undefined, () => "agy", () => 2000);
+  await assert.rejects(orchestrator.prepareCurriculumRevision("goal-change"),
+    /isolated provider/);
+  assert.equal(reads, 0);
+  assert.equal(calls, 0);
+  orchestrator.dispose();
+});
