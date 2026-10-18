@@ -26,7 +26,7 @@ export interface LearningContextPackage {
 
 const MAX_HITS = 6;
 const MAX_EVIDENCE = 6;
-const MAX_DOC_CHARS = 120_000;
+const MAX_TOTAL_INDEX_CHARS = 1_000_000;
 const SOURCE_PREFIX = "[Approved objective source";
 
 function validNoteType(value: AgentContext): boolean {
@@ -83,13 +83,18 @@ export function buildLearningContextPackage(request: LearningContextRequest): Le
     throw new Error("Required source was not resolved for the focused objective.");
   }
 
-  const index = new LocalResearchIndex();
+  const index = new LocalResearchIndex(1024);
+  let indexedChars = 0;
   for (const [path, content] of documents) {
     if (!content.trim()) {
       if (program.constraints.sourceBound) throw new Error("Required source is empty.");
       continue;
     }
-    index.upsert({ path, content: content.slice(0, MAX_DOC_CHARS), links: [], revision: "turn-local" });
+    indexedChars += content.length;
+    if (indexedChars > MAX_TOTAL_INDEX_CHARS) {
+      throw new Error("Approved learning sources exceed the per-turn indexing limit. Split the notes before continuing.");
+    }
+    index.upsert({ path, content, links: [], revision: "turn-local" });
   }
   // Project only the pinned objective to avoid O(programObjectives × events)
   // history scans in a vault containing thousands of completed attempts.
