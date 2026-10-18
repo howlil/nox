@@ -9,6 +9,7 @@ import {
 } from "../types";
 
 export interface AgentRuntimePort {
+  supportsSourceIsolation?(): boolean;
   replaceAdapter?(adapter: AgentAdapter): Promise<void>;
   check(): Promise<AgentHealth>;
   getModels(): AgentModel[];
@@ -81,6 +82,10 @@ export class AgentRuntime implements AgentRuntimePort {
 
   getModels(): AgentModel[] {
     return this.models.map((model) => ({ ...model }));
+  }
+
+  supportsSourceIsolation(): boolean {
+    return this.adapter.sourceIsolation === "no-filesystem-tools";
   }
 
   getModelDiscoveryError(): string | undefined { return this.modelDiscoveryError; }
