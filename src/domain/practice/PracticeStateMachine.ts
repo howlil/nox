@@ -102,6 +102,14 @@ export class PracticeStateMachine {
     return current.hint;
   }
 
+  /** Explicit clarification counts as guidance, never as an evaluation attempt. */
+  markClarificationUsed(): void {
+    const current = this.session?.turns[this.session.turns.length - 1];
+    if (!current || !this.isWaitingForAnswer()) return;
+    current.assisted = true;
+    current.highestHintLevel = Math.max(current.highestHintLevel ?? 0, 1) as 1 | 2 | 3 | 4;
+  }
+
   beginEvaluation(
     answer: string,
   ): PracticeEvaluationAttempt | null {
