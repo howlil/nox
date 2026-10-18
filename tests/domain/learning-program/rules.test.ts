@@ -115,7 +115,7 @@ test("timebox expiry blocks new activity without erasing progress", () => {
 
 test("completed transfer task clears transfer gate for next eligible objective", () => {
   const first = event("symbols", "correct", now - 2 * 86_400_000);
-  const second = event("symbols", "correct", now - 1000);
+  const second = { ...event("symbols", "correct", now - 1000), taskKind: "recall" as const };
   const transfer = { ...event("symbols", "correct", now), taskKind: "transfer" as const };
   const next = chooseNextActivity(program(), [first, second, transfer], now);
   assert.equal(next.objective?.id, "equations");
