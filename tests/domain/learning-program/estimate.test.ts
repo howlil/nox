@@ -31,15 +31,15 @@ function evidenceFor(id: string, at: number): LearningEvidence {
 const evidence = ["a","b","c"].flatMap(id => [
   evidenceFor(id, now - 2 * DAY), evidenceFor(id, now),
 ]);
-test("personalizes remaining work only from completed evidence and three measured objectives", () => {
+test("unverified historical success cannot reduce outstanding work or calibrate mastery pace", () => {
   const estimate = estimateRemainingWork(program, evidence, now);
-  assert.equal(estimate.basis, "calibrated");
-  assert.equal(estimate.samples, 3);
-  assert.equal(estimate.adjustment, 1.5);
-  assert.equal(estimate.minutes, 126);
+  assert.equal(estimate.basis, "initial");
+  assert.equal(estimate.samples, 0);
+  assert.equal(estimate.adjustment, 1);
+  assert.equal(estimate.minutes, 336);
 });
 test("unmeasured history is never treated as calibrated learner pace", () => {
   const estimate = estimateRemainingWork({ ...program, sessionHistory: [] }, evidence, now);
   assert.equal(estimate.basis, "initial");
-  assert.equal(estimate.minutes, 84);
+  assert.equal(estimate.minutes, 336);
 });
