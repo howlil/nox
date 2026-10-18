@@ -180,3 +180,7 @@ No merge or release for draft PR #109. M7 final acceptance and system hardening 
 Implemented hardening: authoritative non-cached progress reads; atomic evidence CAS and bounded retry on transcript-first projection; verified v2→v3 evidence backup; program CAS applied to all focus/session/creation writes; tests for concurrent updates, injected vault failure and no provider regrading after conflicts. The Obsidian plugin CI no longer builds the Cloudflare-owned landing.
 
 The full review matrix, external desktop scenario checklist, and unresolved P0/P1 risk register are in [ADAPTIVE_LEARNING_M7_ACCEPTANCE.md](ADAPTIVE_LEARNING_M7_ACCEPTANCE.md). **Do not mark M7 release accepted, merge or publish based solely on automated checks.**
+
+## R1 remediation
+
+Current-revision evidence is required for verified mastery; older unverified records remain historical and must be reassessed.
