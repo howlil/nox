@@ -57,6 +57,7 @@ export interface LearningRequest {
   turnId?: string;
   programActivity?: { programId: string; objectiveId: string; kind: "teach" };
   freePractice?: boolean;
+  practiceClarification?: { questionId: string };
   /** Typed submit from an interactive card, validated against the active question. */
   practiceSubmission?: { questionId: string; answer: PracticeAnswer };
 }
