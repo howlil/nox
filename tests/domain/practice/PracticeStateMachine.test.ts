@@ -176,3 +176,16 @@ test("M0 focus identity and M1 rubric revision survive into the same evaluated a
   assert.equal(retry?.highestHintLevel, 2);
   assert.equal(retry?.objectiveRevision, 7);
 });
+
+test("clarification keeps the same question and marks later evaluation assisted", () => {
+  const machine = new PracticeStateMachine(ids());
+  machine.start();
+  machine.acceptQuestion({ kind: "question", concept: "database",
+    question: "Why isolation?", programId: "program" }, "question-1");
+  machine.markClarificationUsed();
+  assert.equal(machine.snapshot()?.state, "waiting-answer");
+  const attempt = machine.beginEvaluation("Transactions stay isolated.");
+  assert.equal(attempt?.questionId, "question-1");
+  assert.equal(attempt?.assisted, true);
+  assert.equal(attempt?.highestHintLevel, 1);
+});
