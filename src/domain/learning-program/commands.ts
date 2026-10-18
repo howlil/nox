@@ -7,12 +7,18 @@ export type ProgramCommand =
   | { kind: "focus"; objectiveId: string }
   | { kind: "replan"; reason?: "goal-change" }
   | { kind: "approve-replan" | "cancel-replan"; operationId: string }
+  | { kind: "revert-replan"; targetOperationId: string }
   | { kind: "use-program"; id: string }
   | { kind: "extend-session"; minutes: number };
 
 /** Explicit, human-auditable constraints; never hallucinate settings from a goal. */
 export function parseProgramCommand(input: string): ProgramCommand | null {
   const value = input.trim();
+  const undo = /^\/revert-replan\s+([a-f0-9-]{36})$/i.exec(value);
+  if (undo) return { kind: "revert-replan", targetOperationId: undo[1] };
+  if (/^\/revert-replan(?:\s|$)/i.test(value)) {
+    throw new Error("Use /revert-replan <applied-operation-id>.");
+  }
   const approval = /^\/(approve-replan|cancel-replan)\s+([a-f0-9-]{36})$/i.exec(value);
   if (approval) return { kind: approval[1].toLowerCase() as "approve-replan" | "cancel-replan", operationId: approval[2] };
   if (/^\/(?:approve-replan|cancel-replan)(?:\s|$)/i.test(value)) {
