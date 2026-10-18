@@ -2,6 +2,7 @@ import type { LearningEvidence, LearningState } from "../learning-state/types";
 import type { LearningProgram, LearningObjective } from "../learning-program/types";
 import { objectiveProgress } from "../learning-program/rules";
 import { criterionIdFor } from "./feedback-policy";
+import { isCurrentPracticeEvidence } from "./evidence-eligibility";
 import { deriveGapStatus } from "../learning-state/gap-projection";
 
 export type CriterionKnowledge = "unknown" | "needs-repair" | "assisted" | "provisional" | "verified";
@@ -49,19 +50,11 @@ export function deriveLearnerProfile(program: LearningProgram, state: LearningSt
   now: number): LearnerProfile {
   const objectives = program.objectives.filter(o => !o.deprecated).map(objective => {
     const revision = objective.objectiveRevision ?? program.planVersion;
-    const history = state.evidence.filter(item => eligible(item, program, objective))
+    const history = state.evidence.filter(item => isCurrentPracticeEvidence(program, objective, item))
       .sort((a, b) => a.createdAt - b.createdAt || a.id.localeCompare(b.id));
-    // Only current-revision committed v3 evidence may establish a versioned skill.
-    // Legacy v1 programs keep their historical read compatibility, but once a
-    // curriculum has revision metadata, obsolete v2 assessments never grant mastery.
-    const legacyReadOnly = program.planVersion === 1 &&
-      objective.objectiveRevision === undefined;
     const progress = history.length
       ? objectiveProgress(program, objective.id, history, now)
-      : legacyReadOnly
-        ? objectiveProgress(program, objective.id, state.evidence.filter(item =>
-            item.evidenceVersion !== 3), now)
-        : { status: "unseen" as const, dueAt: null };
+      : { status: "unseen" as const, dueAt: null };
     const criterion: CriterionSnapshot[] = objective.rubric.map((label, index) => {
       const id = criterionIdFor(objective.id, revision, index);
       const observed = history.filter(item => item.rubricResults?.some(r => r.criterionId === id));
