@@ -2,7 +2,6 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { selectAdaptiveActivity } from "../../../src/domain/learner-model/activity-policy";
 import { startObjectiveFocus, transitionObjectiveFocus } from "../../../src/domain/learning-program/focus-transitions";
-import { chooseNextActivity } from "../../../src/domain/learning-program/rules";
 import type { LearningProgram, LearningObjective } from "../../../src/domain/learning-program/types";
 import type { LearningEvidence, LearningState } from "../../../src/domain/learning-state/types";
 
@@ -174,20 +173,19 @@ test("old rubric, other program and material evidence never establish mastery", 
   assert.equal(selected.objective?.id, "basics");
 });
 
-test("legacy v1 activity selection is preserved when no versioned evidence exists", () => {
-  const old = program({
-    version: 1, objectives: [objective("basics"), objective("advanced", ["basics"])]
-      .map(({ objectiveRevision: _unused, ...o }) => o),
-  });
-  const prior: LearningEvidence = {
-    id: "old", type: "practice", scope: "learner", concept: "basics", source: "notes",
-    programId: "learn", objectiveId: "basics", createdAt: NOW - HOUR, outcome: "incorrect",
+test("unversioned legacy practice never bypasses a prerequisite", () => {
+  const old = program({ version: 1,
+    objectives: [objective("basics"), objective("advanced", ["basics"])]
+      .map(({ objectiveRevision: _unused, ...objective }) => objective) });
+  const previous: LearningEvidence = {
+    id: "historical", type: "practice", scope: "learner",
+    concept: "basics", source: "notes", programId: "learn",
+    objectiveId: "basics", createdAt: NOW - 15 * HOUR, outcome: "correct",
   };
-  const expected = chooseNextActivity(old, [prior], NOW);
-  const actual = selectAdaptiveActivity(old, state(prior), NOW);
-  assert.equal(actual.kind, expected.kind);
-  assert.equal(actual.objective?.id, expected.objective?.id);
-  assert.equal(actual.provenance?.trigger, "legacy-compat");
+  const next = { ...previous, id: "later", createdAt: NOW };
+  const selected = selectAdaptiveActivity(old, state(previous, next), NOW);
+  assert.equal(selected.kind, "diagnostic");
+  assert.equal(selected.objective?.id, "basics");
 });
 
 test("session pause and exhaustion keep legacy timer invariants", () => {
