@@ -33,7 +33,7 @@ function tokenize(text: string): string[] {
     .filter(word => !STOP.has(word));
 }
 
-export function splitNote(path: string, content: string): ResearchChunk[] {
+export function splitNote(path: string, content: string, maxChunks = 120): ResearchChunk[] {
   const lines = content.split(/\r?\n/);
   const result: ResearchChunk[] = [];
   let heading = path, start = 1, block: string[] = [], blockLength = 0;
@@ -66,7 +66,7 @@ export function splitNote(path: string, content: string): ResearchChunk[] {
     }
   }
   flush();
-  return result.slice(0, 120);
+  return result.slice(0, maxChunks);
 }
 
 /** Deterministic breadth limit: decomposition introduces no additional LLM round trips. */
@@ -91,6 +91,7 @@ interface StoredChunk {
 type Posting = { frequency: number; titleHits: number };
 
 export class LocalResearchIndex {
+  constructor(private readonly maxChunksPerNote = 120) {}
   private notes = new Map<string, { note: IndexedNote; ids: string[]; links: Set<string> }>();
   private chunks = new Map<string, StoredChunk>();
   private postings = new Map<string, Map<string, Posting>>();
@@ -103,7 +104,7 @@ export class LocalResearchIndex {
     for (const term of tokenize(note.path)) {
       titleCounts.set(term, (titleCounts.get(term) ?? 0) + 1);
     }
-    for (const [index, chunk] of splitNote(note.path, note.content).entries()) {
+    for (const [index, chunk] of splitNote(note.path, note.content, this.maxChunksPerNote).entries()) {
       const id = note.path + "\0" + index;
       ids.push(id);
       const tokens = tokenize(chunk.heading + " " + chunk.content);
