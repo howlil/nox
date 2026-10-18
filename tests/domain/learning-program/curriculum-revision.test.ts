@@ -124,3 +124,28 @@ test("decoder rejects untrusted authority fields and malformed operations", () =
       priority: "core", hiddenAuthority: true } },
   ] }), /unauthorized/);
 });
+
+test("unversioned attempts and single-item MCQ never trigger prior mastery", () => {
+  const p = program();
+  const mcq = [evidence("mcq-a", "basics", 100, "correct"),
+    evidence("mcq-b", "basics", 200, "correct")]
+    .map(item => ({ ...item, assessmentCoverage: "single-item" as const, taskKind: "diagnostic" as const }));
+  assert.equal(detectStructuralGap(p, mcq), null);
+  const withoutQuestion = mcq.map(item => ({ ...item, questionId: undefined,
+    assessmentCoverage: undefined }));
+  assert.equal(detectStructuralGap(p, withoutQuestion), null);
+  const stale = [evidence("old-a", "basics", 100, "correct"),
+    evidence("old-b", "basics", 200, "correct")]
+    .map(item => ({ ...item, objectiveRevision: 999, taskKind: "diagnostic" as const }));
+  assert.equal(detectStructuralGap(p, stale), null);
+});
+
+test("complete independent diagnostics can open prior-mastery structural review", () => {
+  const p = program();
+  const diagnostic = [evidence("d1", "basics", 100, "correct"),
+    evidence("d2", "basics", 200, "correct")]
+    .map(item => ({ ...item, taskKind: "diagnostic" as const }));
+  assert.deepEqual(detectStructuralGap(p, diagnostic), {
+    reason: "unexpected-prior-mastery", objectiveId: "basics", evidenceIds: ["d1", "d2"],
+  });
+});
