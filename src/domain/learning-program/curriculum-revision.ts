@@ -1,5 +1,6 @@
 import type { LearningEvidence } from "../learning-state/types";
 import { validateCurriculum } from "./rules";
+import { isStructuralEvidence, isIndependentEvidence, hasCompleteRubric } from "../learner-model/evidence-eligibility";
 import type { LearningObjective, LearningProgram } from "./types";
 
 export type StructuralGapReason =
@@ -41,31 +42,29 @@ function unique(values: readonly string[]): boolean {
 /** Pure trigger detection. A model cannot define its own evidence or decide readiness. */
 export function detectStructuralGap(program: LearningProgram, evidence: readonly LearningEvidence[]): StructuralGap | null {
   const consumed = new Set(program.curriculumRevisions?.flatMap(r => r.reasonEvidenceIds) ?? []);
-  const entries = evidence.filter(item => !consumed.has(item.id) &&
-    item.scope === "learner" &&
-    item.type === "practice" && item.programId === program.id &&
-    program.objectives.some(o => o.id === item.objectiveId && !o.deprecated) &&
-    (item.objectiveRevision === undefined || item.objectiveRevision ===
-      (program.objectives.find(o => o.id === item.objectiveId)?.objectiveRevision ?? program.planVersion)))
-    .sort((a, b) => a.createdAt - b.createdAt || a.id.localeCompare(b.id));
   for (const objective of program.objectives) {
     if (objective.deprecated) continue;
-    const attempts = entries.filter(e => e.objectiveId === objective.id);
+    const attempts = evidence.filter(item => !consumed.has(item.id) &&
+      isStructuralEvidence(program, objective, item))
+      .sort((a, b) => a.createdAt - b.createdAt || a.id.localeCompare(b.id));
     const recent = attempts.slice(-3);
-    if (recent.length >= 3 && recent.every(e => e.outcome !== "correct")) {
-      const failed = recent.flatMap(e => e.rubricResults?.filter(r => !r.met)
-        .map(r => r.criterionId ?? r.criterion) ?? []);
-      if (new Set(failed).size >= 2) return { reason: "objective-too-broad", objectiveId: objective.id,
-        evidenceIds: recent.map(e => e.id) };
-      if (objective.prerequisiteIds.length > 0) return { reason: "repeated-prerequisite-gap",
-        objectiveId: objective.id, evidenceIds: recent.map(e => e.id) };
+    if (recent.length === 3 &&
+      new Set(recent.map(item => item.questionId)).size === 3 &&
+      recent.every(item => item.outcome !== "correct" &&
+        item.rubricResults?.some(result => !result.met))) {
+      const failed = recent.flatMap(item => item.rubricResults!
+        .filter(result => !result.met).map(result => result.criterionId!));
+      if (new Set(failed).size >= 2) return { reason: "objective-too-broad",
+        objectiveId: objective.id, evidenceIds: recent.map(item => item.id) };
+      if (objective.prerequisiteIds.length) return { reason: "repeated-prerequisite-gap",
+        objectiveId: objective.id, evidenceIds: recent.map(item => item.id) };
     }
-    if (attempts.length >= 2 && attempts.slice(0, 2).every(e =>
-      e.outcome === "correct" && !e.assisted &&
-      e.assistance?.independent !== false &&
-      e.rubricResults?.every(r => r.met) === true)) {
-      return { reason: "unexpected-prior-mastery",
-        objectiveId: objective.id, evidenceIds: attempts.slice(0, 2).map(e => e.id) };
+    const diagnostic = attempts.filter(item => item.taskKind === "diagnostic" &&
+      item.outcome === "correct" && isIndependentEvidence(item) &&
+      hasCompleteRubric(objective, item));
+    if (diagnostic.length >= 2 && diagnostic[0].questionId !== diagnostic[1].questionId) {
+      return { reason: "unexpected-prior-mastery", objectiveId: objective.id,
+        evidenceIds: diagnostic.slice(0, 2).map(item => item.id) };
     }
   }
   return null;
@@ -92,8 +91,10 @@ export function applyCurriculumRevision(
     "repeated-prerequisite-gap", "objective-too-broad", "unexpected-prior-mastery", "goal-change",
   ];
   if (!allowedReasons.includes(revision.reason)) throw new Error("Unknown structural trigger.");
-  const valid = new Set(evidence.filter(e => e.scope === "learner" &&
-    e.programId === program.id).map(e => e.id));
+  const valid = new Set(evidence.filter(item => {
+    const objective = program.objectives.find(o => o.id === item.objectiveId && !o.deprecated);
+    return objective && isStructuralEvidence(program, objective, item);
+  }).map(item => item.id));
   if (revision.reason !== "goal-change" && revision.reasonEvidenceIds.length === 0) {
     throw new Error("Evidence is required for an automatic structural revision.");
   }
