@@ -2,7 +2,7 @@ import type { FocusSession, LearningProgram } from "./types";
 
 export type FocusIntent =
   | { kind: "start"; objectiveId: string }
-  | { kind: "continue" | "submit-answer" | "request-hint"; chatSessionId: string; objectiveId?: string }
+  | { kind: "continue" | "submit-answer" | "request-hint" | "request-clarification"; chatSessionId: string; objectiveId?: string }
   | { kind: "pause" | "resume" | "end" | "inspect" }
   | { kind: "unrelated" };
 
