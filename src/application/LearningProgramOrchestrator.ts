@@ -301,6 +301,36 @@ export class LearningProgramOrchestrator {
     }
   }
 
+  /** Revert is a new version. Never delete receipts or evidence from the past. */
+  async prepareCurriculumRevert(targetOperationId: string): Promise<CurriculumRevisionPreview> {
+    if (this.isPlanning() || this.activeAiTurnId || this.writing) {
+      throw new Error("Finish the active learning operation before reverting.");
+    }
+    const program = await this.getActiveProgram();
+    if (!program || program.focus || program.session) {
+      throw new Error("End focus and legacy sessions before preparing a revert.");
+    }
+    const revision: CurriculumRevision = {
+      id: crypto.randomUUID(), operationId: crypto.randomUUID(),
+      programId: program.id, baseVersion: program.planVersion,
+      reason: "goal-change", reasonEvidenceIds: [],
+      operations: [{ kind: "revert", targetOperationId }],
+    };
+    const now = this.now();
+    const after = applyCurriculumRevision(program, revision, [], now).objectives;
+    const preview: CurriculumRevisionPreview = {
+      operationId: revision.operationId, programId: program.id,
+      fromVersion: program.planVersion, toVersion: program.planVersion + 1,
+      reason: "goal-change", reasonEvidenceIds: [],
+      operations: structuredClone(revision.operations),
+      expiresAt: now + 15 * 60_000,
+      before: structuredClone(program.objectives), after,
+    };
+    this.pendingRevisions.clear();
+    this.pendingRevisions.set(revision.operationId, { revision, preview });
+    return structuredClone(preview);
+  }
+
   /** Read-only in-process approval proposal. Never resurrect an expired or stale diff. */
   peekCurriculumRevision(program: LearningProgram): CurriculumRevisionPreview | undefined {
     for (const candidate of this.pendingRevisions.values()) {
