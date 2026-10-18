@@ -29,7 +29,11 @@ const event = (objectiveId: string, outcome: string, createdAt: number,
   assisted = false): LearningEvidence => ({
     id: `${objectiveId}:${createdAt}`, type: "practice", scope: "learner",
     programId: "math", objectiveId, concept: "Algebra", source: "notes.md",
-    outcome, assisted, createdAt,
+    outcome, assisted, createdAt, evidenceVersion: 3, objectiveRevision: 1,
+    questionId: objectiveId + ":" + createdAt, taskKind: createdAt === now ? "recall" : "guided-practice",
+    assistance: { independent: !assisted, highestHintLevel: assisted ? 1 : 0 },
+    rubricResults: [{ criterion: objectiveId === "symbols" ? "Use notation correctly" : "Correct transformations",
+      criterionId: objectiveId + "@1:criterion-1", met: outcome === "correct", evidence: "assessment" }],
   });
 
 test("curriculum respects prerequisite DAG and cross-domain objectives", () => {
