@@ -12,7 +12,8 @@ export type CurriculumOperation =
   | { kind: "revise"; objectiveId: string; changes: Partial<Omit<LearningObjective,
       "id" | "prerequisiteIds" | "objectiveRevision" | "deprecated" | "replacementIds">> }
   | { kind: "change-prerequisites"; objectiveId: string; prerequisiteIds: string[] }
-  | { kind: "deprecate"; objectiveId: string; replacementIds: string[] };
+  | { kind: "deprecate"; objectiveId: string; replacementIds: string[] }
+  | { kind: "revert"; targetOperationId: string };
 
 export interface CurriculumRevision {
   id: string;
@@ -27,6 +28,8 @@ export interface CurriculumRevision {
 export interface AppliedCurriculumRevision extends CurriculumRevision {
   toVersion: number;
   appliedAt: number;
+  beforeSnapshot?: LearningObjective[];
+  afterSnapshot?: LearningObjective[];
 }
 
 export interface StructuralGap {
