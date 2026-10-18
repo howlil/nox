@@ -127,7 +127,7 @@ test("source-bound M2 provider receives only explicitly approved note text", asy
   saved.programs[0].objectives = saved.programs[0].objectives.map(o =>
     ({ ...o, sourceRefs: ["approved.md"] }));
   let called = 0;
-  const runtime = { send: async function* ({ prompt }: { prompt: string }) {
+  const runtime = { supportsSourceIsolation: () => true, send: async function* ({ prompt }: { prompt: string }) {
     called++;
     assert.match(prompt, /approved.md/);
     assert.match(prompt, /SELECT is a query/);
@@ -166,6 +166,7 @@ test("source-bound M2 fails closed if an approved source is missing", async () =
   saved.programs[0].constraints.sourcePaths = ["approved.md"];
   let agentCalls = 0;
   const rig = new LearningProgramOrchestrator({
+    supportsSourceIsolation: () => true,
     send: async function* () { agentCalls++; yield { type: "completed" }; },
   } as never, { resolve: async () => ({ explicit: [], activeNote: {
     path: "not-approved.md", content: "Off-scope note",
