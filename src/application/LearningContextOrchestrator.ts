@@ -83,7 +83,7 @@ export function buildLearningContextPackage(request: LearningContextRequest): Le
     throw new Error("Required source was not resolved for the focused objective.");
   }
 
-  const index = new LocalResearchIndex(1024);
+  const index = new LocalResearchIndex(1024, true);
   let indexedChars = 0;
   for (const [path, content] of documents) {
     if (!content.trim()) {
