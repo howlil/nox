@@ -378,7 +378,11 @@ export class LearningController {
       const session = this.sessions.getSession();
       const pending = session.messages.flatMap(message => message.parts ?? [])
         .filter(part => part.type === "practice-question").at(-1);
-      if (!pending || pending.type !== "practice-question") return;
+      if (!pending || pending.type !== "practice-question" || !pending.questionId) {
+        yield { type: "failed", failure: { code: "unknown",
+          message: "The pending question has no durable identity." } };
+        return;
+      }
       request = { ...request, action: "ask",
         practiceClarification: { questionId: pending.questionId } };
     }
