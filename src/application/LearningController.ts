@@ -368,11 +368,26 @@ export class LearningController {
         diagnostic: error instanceof Error ? error.message : String(error) } };
       return;
     }
+    const clarification = /^\/clarify\s+([\s\S]*\S)\s*$/i.exec(request.prompt.trim());
+    if (clarification) {
+      if (!this.turns.hasActivePracticeQuestion()) {
+        yield { type: "failed", failure: { code: "unknown",
+          message: "No pending practice question to clarify." } };
+        return;
+      }
+      const session = this.sessions.getSession();
+      const pending = session.messages.flatMap(message => message.parts ?? [])
+        .filter(part => part.type === "practice-question").at(-1);
+      if (!pending || pending.type !== "practice-question") return;
+      request = { ...request, action: "ask",
+        practiceClarification: { questionId: pending.questionId } };
+    }
     if (globalFocus) {
       const trimmed = request.prompt.trim().toLowerCase();
       const inspect = /^\/(?:progress|programs|review-due|session-time|learner-profile)$/.test(trimmed);
       const pauseOrEnd = trimmed === "/pause-focus" || trimmed === "/end-focus";
       const next = trimmed === "/next";
+      const clarify = Boolean(request.practiceClarification);
       const hint = trimmed === "/hint";
       const question = this.turns.hasActivePracticeQuestion();
       const ordinaryAnswer = !trimmed.startsWith("/") && question &&
@@ -380,9 +395,10 @@ export class LearningController {
       const practice = request.action === "practice" && !request.freePractice &&
         !trimmed.startsWith("/");
       const intent = inspect || pauseOrEnd ? { kind: "inspect" as const }
-        : next || hint || ordinaryAnswer || practice
-          ? { kind: next || practice && !question ? "continue" as const
-            : hint ? "request-hint" as const : "submit-answer" as const,
+        : next || hint || ordinaryAnswer || practice || clarify
+          ? { kind: clarify ? "request-clarification" as const :
+              next || practice && !question ? "continue" as const
+                : hint ? "request-hint" as const : "submit-answer" as const,
             chatSessionId: this.sessions.getSession().id }
           : { kind: "unrelated" as const };
       const admission = authorizeFocusIntent(globalFocus.focus, intent);
@@ -393,6 +409,10 @@ export class LearningController {
         return;
       }
       if (ordinaryAnswer) request = { ...request, action: "practice" };
+    }
+    if (request.practiceClarification) {
+      yield* this.runTimedTurn(request);
+      return;
     }
     if (request.prompt.trim().toLowerCase() === "/hint") {
       if (this.turns.isRunning() || this.applyingProposals.size > 0) {
@@ -599,7 +619,10 @@ export class LearningController {
             }
             if (selected?.program && !selected.program.session &&
                 selected.program.focus?.status !== "active") {
-              response = "Use /focus <objective-id> for self-paced study, or /start-session for legacy timed study.";
+              response = selected?.decision.objective
+                ? "Start self-paced learning with /focus " + selected.decision.objective.id +
+                  ". No timer is required."
+                : selected?.decision.reason ?? "Choose an objective using /progress.";
             } else if (selected?.decision.kind === "teach" && selected.decision.objective) {
               const objective = selected.decision.objective;
               const state = await this.learningState.load();
