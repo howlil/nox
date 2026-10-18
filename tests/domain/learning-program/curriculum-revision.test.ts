@@ -149,3 +149,23 @@ test("complete independent diagnostics can open prior-mastery structural review"
     reason: "unexpected-prior-mastery", objectiveId: "basics", evidenceIds: ["d1", "d2"],
   });
 });
+
+test("R3 revert creates a new version, retains the previous graph and never deletes nodes", () => {
+  const before = program();
+  const changed = applyCurriculumRevision(before, proposal([{
+    kind: "add", objective: { id: "extra", title: "Extra", outcome: "Explain extras",
+      rubric: ["Explain"], estimatedMinutes: 20, prerequisiteIds: [],
+      sourceRefs: [], priority: "supporting" },
+  }]), [], 100);
+  const undo: CurriculumRevision = {
+    id: "revert", operationId: "undo", programId: "p", baseVersion: 2,
+    reason: "goal-change", reasonEvidenceIds: [],
+    operations: [{ kind: "revert", targetOperationId: "operation-1" }],
+  };
+  const restored = applyCurriculumRevision(changed, undo, [], 200);
+  assert.equal(restored.planVersion, 3);
+  assert.equal(restored.objectives.find(o => o.id === "extra")?.deprecated, true);
+  assert.equal(restored.objectives.length, 3);
+  assert.equal(restored.curriculumRevisions?.length, 2);
+  assert.equal(applyCurriculumRevision(restored, undo, [], 300).planVersion, 3);
+});
