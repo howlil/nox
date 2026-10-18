@@ -1,6 +1,5 @@
 import type { LearningEvidence, LearningState } from "../learning-state/types";
 import type { LearningDecision, LearningObjective, LearningProgram } from "../learning-program/types";
-import { chooseFocusedActivity, chooseNextActivity } from "../learning-program/rules";
 import { sessionRemainingMs } from "../learning-program/session-time";
 import { decideFeedback, type FeedbackDecision } from "./feedback-policy";
 import { deriveLearnerProfile, type ObjectiveSnapshot } from "./learner-profile";
@@ -130,21 +129,6 @@ export function selectAdaptiveActivity(
   const profile = deriveLearnerProfile(program, state, now);
   const active = program.objectives.filter(item => !item.deprecated);
   const byId = new Map(profile.objectives.map(item => [item.objectiveId, item]));
-  const scopedModernEvidence = active.some(objective => evidenceFor(program, objective, state).length > 0);
-  const anyLegacyEvidence = state.evidence.some(item => item.programId === program.id &&
-    item.type === "practice" && item.scope === "learner" && item.evidenceVersion !== 3);
-
-  // Existing v1/v2 sessions retain their original unversioned mastery semantics.
-  // New M4 evidence is revision scoped; a mixed session never silently imports legacy mastery.
-  if (!scopedModernEvidence && anyLegacyEvidence && program.planVersion === 1 &&
-      active.every(objective => objective.objectiveRevision === undefined)) {
-    const legacy = program.focus
-      ? chooseFocusedActivity(program, state.evidence, now)
-      : chooseNextActivity(program, state.evidence, now);
-    return { ...legacy, provenance: { policy: "m4-v1", trigger: "legacy-compat",
-      evidenceIds: [], criterionIds: [],
-      ...(legacy.objective ? { objectiveRevision: 1 } : {}) } };
-  }
   if (program.focus) {
     const focus = program.focus;
     if (focus.status !== "active") return decision("wait",
