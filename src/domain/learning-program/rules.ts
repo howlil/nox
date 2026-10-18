@@ -1,6 +1,7 @@
 import type { LearningEvidence } from "../learning-state/types";
 import { sessionRemainingMs } from "./session-time";
 import { decideFeedback } from "../learner-model/feedback-policy";
+import { isCurrentPracticeEvidence } from "../learner-model/evidence-eligibility";
 import type { CurriculumDraft, LearningDecision, LearningObjective, LearningProgram, ProgramConstraints } from "./types";
 
 const DAY = 86_400_000;
@@ -126,12 +127,8 @@ function objectiveEvidence(program: LearningProgram, objectiveId: string, eviden
     .sort((a, b) => a.createdAt - b.createdAt || a.id.localeCompare(b.id));
   // M1: never allow an earlier rubric revision to satisfy current criteria.
   // Historical v2-only programs retain their original non-destructive projection.
-  const expectedRevision = program.objectives.find(o => o.id === objectiveId)?.objectiveRevision ??
-    program.planVersion;
-  return attempts.some(item => item.evidenceVersion === 3)
-    ? attempts.filter(item => item.evidenceVersion === 3 &&
-        item.objectiveRevision === expectedRevision)
-    : attempts;
+  const objective = program.objectives.find(o => o.id === objectiveId);
+  return objective ? attempts.filter(item => isCurrentPracticeEvidence(program, objective, item)) : [];
 }
 
 export function objectiveProgress(program: LearningProgram, objectiveId: string,
@@ -155,13 +152,8 @@ export function objectiveProgress(program: LearningProgram, objectiveId: string,
     if (decision.kind === "transfer-check") return { status: "provisional" as const, dueAt: null, attempts: attempts.length };
     return { status: "remediate" as const, dueAt: null, attempts: attempts.length };
   }
-  const last = attempts[attempts.length - 1];
-  if (last.outcome !== "correct" || last.assisted || last.assessmentCoverage === "single-item") return { status: "remediate" as const, dueAt: null, attempts: attempts.length };
-  const correct = attempts.filter(e => e.outcome === "correct" && !e.assisted && e.assessmentCoverage !== "single-item");
-  const independent = correct.some(a => correct.some(b => b.createdAt - a.createdAt >= 12 * 3_600_000));
-  const dueAt = last.createdAt + (independent ? 3 : 1) * DAY;
-  return { status: independent ? "mastered" as const : "provisional" as const,
-    dueAt, attempts: attempts.length, due: now >= dueAt };
+  // Old unversioned outcomes stay historical, never establish v3 mastery.
+  return { status: "unseen" as const, dueAt: null, attempts: 0 };
 }
 
 /** Deterministic priority: timebox > overdue recall > remediation > next eligible concept. */
