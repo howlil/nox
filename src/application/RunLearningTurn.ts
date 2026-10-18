@@ -177,6 +177,9 @@ export class RunLearningTurn {
           practice.start(part.origin);
           practice.acceptQuestion(part.question, part.questionId);
           if (session.messages.slice(i + 1).some(item => item.role === "user" &&
+              item.content.trim().toLowerCase().startsWith("/clarify "))) {
+            practice.markClarificationUsed();
+          } else if (session.messages.slice(i + 1).some(item => item.role === "user" &&
               item.content.trim().toLowerCase() === "/hint")) practice.markHintUsed();
           return practice;
         }
@@ -317,7 +320,8 @@ export class RunLearningTurn {
     const programScope = isProgramLearningScope(scope) && scope.mode !== "FREE" ? scope : undefined;
     const lockedMode = legacyLockedMode ?? (programScope ? programScope.mode : undefined);
     const teachingProgramTurn = Boolean(programScope && request.programActivity?.kind === "teach");
-    const strictPractice = Boolean(lockedMode) && !teachingProgramTurn && !this.currentFocusPaused;
+    const strictPractice = Boolean(lockedMode) && !teachingProgramTurn &&
+      !request.practiceClarification && !this.currentFocusPaused;
     if (strictPractice) {
       if (request.action === "edit" || request.action === "review") {
         try {
@@ -339,7 +343,7 @@ export class RunLearningTurn {
     const editProposalId = request.action === "edit"
       ? `edit:${sessionAtStart.id}:${request.turnId ?? crypto.randomUUID()}`
       : undefined;
-    const existingPractice = request.action === "practice"
+    const existingPractice = request.action === "practice" || request.practiceClarification
       ? this.practiceForSession(sessionAtStart)
       : undefined;
     const previousOrigin = existingPractice?.isWaitingForAnswer()
@@ -362,7 +366,8 @@ export class RunLearningTurn {
 
     try {
       const refs = [...request.explicitContext];
-      if (this.programStore && (request.programActivity || (request.action === "practice" && !request.freePractice && (!activePracticeTurn || activePracticeTurn.programId))) && !legacyLockedMode) {
+      if (this.programStore && (request.programActivity || ((request.action === "practice" && !request.freePractice &&
+          (!activePracticeTurn || activePracticeTurn.programId)) || request.practiceClarification)) && !legacyLockedMode) {
         const collection = await this.programStore.load();
         program = collection.programs.find(item => item.id === collection.activeProgramId);
         if (programScope && programScope.programId !== program?.id) {
@@ -548,7 +553,8 @@ export class RunLearningTurn {
     if (authority) visible = constrainResearchContext(visible, authority);
     let focusedContextDigest = "";
     if (program && !legacyLockedMode &&
-        (request.action === "practice" || request.programActivity?.kind === "teach")) {
+        (request.action === "practice" || request.practiceClarification ||
+          request.programActivity?.kind === "teach")) {
       const objectiveId = program.focus?.objectiveId ??
         activePracticeTurn?.objectiveId ?? request.programActivity?.objectiveId ??
         selectAdaptiveActivity(program, state, Date.now()).objective?.id;
@@ -818,6 +824,16 @@ export class RunLearningTurn {
         hasQuestion: Boolean(practiceAttempt),
       }, preparedPrompt);
     }
+    if (request.practiceClarification) {
+      if (!activePracticeTurn || activePracticeTurn.id !== request.practiceClarification.questionId ||
+          !existingPractice?.isWaitingForAnswer()) {
+        throw new Error("The question was answered or replaced before clarification.");
+      }
+      preparedPrompt += "\n\nQUESTION CLARIFICATION ONLY: " +
+        activePracticeTurn.question + ". Explain the learner's uncertainty without revealing the answer. " +
+        "Do not grade, emit practice-question/practice-evaluation, change focus, or claim mastery. " +
+        "Keep the current question pending. Clarification counts as assistance.";
+    }
     if (focusedContextDigest) {
       preparedPrompt += "\n\nOBJECTIVE-SCOPED LEARNING CONTEXT (derived only from current-revision committed evidence):\n" +
         focusedContextDigest + "\nUse only the attached approved note excerpts for source-grounded facts. " +
@@ -870,6 +886,7 @@ export class RunLearningTurn {
         await this.sessions.recordUserMessage(request.prompt, turnSessionId, request.action,
           request.turnId, request.replyTo);
       }
+      if (request.practiceClarification) practice.markClarificationUsed();
 
       // A retry replays a durable edit decision instead of invoking the model.
       // Settled proposals must never be reopened as pending.
@@ -1124,6 +1141,10 @@ export class RunLearningTurn {
             return;
           }
 
+          if (request.practiceClarification &&
+              (practiceBuffer.question || practiceBuffer.evaluation)) {
+            throw new InvalidLearningOutputError("A clarification cannot create or grade a practice question.");
+          }
           // Terminal success is insufficient when an intent has a required result.
           if (request.action === "practice" && !practiceAttempt && !practiceBuffer.question) {
             throw new InvalidLearningOutputError("Practice completed without a question.");
