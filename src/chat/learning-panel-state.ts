@@ -19,6 +19,7 @@ export interface LearningPanelState {
 }
 
 function describeOperation(operation: CurriculumOperation): string {
+  if (operation.kind === "revert") return "Revert revision: " + operation.targetOperationId;
   if (operation.kind === "add") return "Add: " + operation.objective.title;
   if (operation.kind === "deprecate") return "Deprecate: " + operation.objectiveId;
   if (operation.kind === "change-prerequisites") {
