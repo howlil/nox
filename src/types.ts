@@ -182,6 +182,8 @@ export interface AgentModel {
 // ── Agent runtime boundary ──────────────────────────────────────────────────
 
 export interface AgentAdapter {
+  /** Explicit capability; CLI adapters with filesystem tools must never claim it. */
+  readonly sourceIsolation?: "no-filesystem-tools";
   check(): Promise<AgentHealth>;
 
   send(
