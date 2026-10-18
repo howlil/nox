@@ -27,11 +27,12 @@ const evidence = (id: string, objectiveId: string, createdAt: number,
   outcome = "incorrect"): LearningEvidence => ({
     id, type: "practice", scope: "learner", programId: "p",
     objectiveId, concept: "SQL", source: "lesson", createdAt, outcome,
-    objectiveRevision: 1, evidenceVersion: 3,
-    ...(outcome === "correct" ? { assisted: false, assistance: { highestHintLevel: 0, independent: true },
-      taskKind: "recall" as const,
-      rubricResults: [{ criterion: "Explain select", criterionId: "basics@1:criterion-1",
-        met: true, evidence: "explained" }] } : {}),
+    objectiveRevision: 1, evidenceVersion: 3, questionId: id,
+    assisted: false, assistance: { highestHintLevel: 0, independent: true },
+    taskKind: outcome === "correct" && createdAt > 12 * 3_600_000
+      ? "recall" as const : "guided-practice" as const,
+    rubricResults: [{ criterion: objectiveId === "joins" ? "Use joins" : "Explain select",
+      criterionId: objectiveId + "@1:criterion-1", met: outcome === "correct", evidence: "checked" }],
   });
 test("adding a prerequisite preserves untouched objective revision and historic mastery evidence", () => {
   const previous = program();
