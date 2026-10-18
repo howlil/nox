@@ -105,11 +105,39 @@ export function applyCurriculumRevision(
     throw new Error("Structural revision referenced unknown or out-of-program evidence.");
   }
   const nextVersion = program.planVersion + 1;
-  const objectives = program.objectives.map(o => ({
-    ...structuredClone(o), objectiveRevision: o.objectiveRevision ?? program.planVersion,
-  }));
+  const undo = revision.operations.find(op => op.kind === "revert");
+  let objectives: LearningObjective[];
+  if (undo?.kind === "revert") {
+    if (revision.operations.length !== 1 || revision.reason !== "goal-change" ||
+        revision.reasonEvidenceIds.length) throw new Error("Revert must be a single explicit operation.");
+    const last = program.curriculumRevisions?.at(-1);
+    if (!last?.beforeSnapshot?.length || last.operationId !== undo.targetOperationId) {
+      throw new Error("Only the latest revision with a durable snapshot can be reverted.");
+    }
+    const previous = new Map(last.beforeSnapshot.map(objective => [objective.id, objective]));
+    const current = new Map(program.objectives.map(objective => [objective.id, objective]));
+    objectives = last.beforeSnapshot.map(prior => {
+      const now = current.get(prior.id);
+      if (!now) throw new Error("Historical objective disappeared during revert.");
+      const old = { ...prior, objectiveRevision: 0 };
+      const fresh = { ...now, objectiveRevision: 0 };
+      return JSON.stringify(old) === JSON.stringify(fresh) ? structuredClone(now)
+        : { ...structuredClone(prior), objectiveRevision: nextVersion };
+    });
+    for (const currentObjective of program.objectives) {
+      if (!previous.has(currentObjective.id)) {
+        objectives.push({ ...structuredClone(currentObjective), deprecated: true,
+          replacementIds: [], objectiveRevision: nextVersion });
+      }
+    }
+  } else {
+    objectives = program.objectives.map(o => ({
+      ...structuredClone(o), objectiveRevision: o.objectiveRevision ?? program.planVersion,
+    }));
+  }
   const touched = new Set<string>();
-  for (const operation of revision.operations) {
+  if (!undo) for (const operation of revision.operations) {
+    if (operation.kind === "revert") throw new Error("Cannot mix revert with edits.");
     const id = operation.kind === "add" ? operation.objective.id : operation.objectiveId;
     if (touched.has(id)) throw new Error("Duplicate curriculum operation for objective: " + id);
     touched.add(id);
@@ -160,5 +188,7 @@ export function applyCurriculumRevision(
   return { ...structuredClone(program), version: 2, objectives: validated, planVersion: nextVersion,
     curriculumRevisions: [...(program.curriculumRevisions ?? []), {
       ...structuredClone(revision), toVersion: nextVersion, appliedAt,
+      beforeSnapshot: structuredClone(program.objectives),
+      afterSnapshot: structuredClone(validated),
     }] };
 }
