@@ -261,8 +261,8 @@ export class LearningProgramOrchestrator {
     if (program.focus || program.session) {
       throw new Error("End the objective focus and timed session before revising the curriculum.");
     }
-    if (program.constraints.sourceBound && this.currentProvider() !== "chatgpt") {
-      throw new Error("Source-bound revision requires the ChatGPT provider without vault filesystem tools.");
+    if (program.constraints.sourceBound && !this.runtime.supportsSourceIsolation?.()) {
+      throw new Error("Source-bound revision requires an isolated provider with no vault filesystem tools.");
     }
     // Strict source-bound proposal: only trusted, explicitly resolved allowlist notes
     // may contribute source text; no implicit active-note or filesystem expansion.
@@ -625,8 +625,8 @@ export class LearningProgramOrchestrator {
         constraints.sourcePaths = [source.file];
       }
       validateConstraints(constraints);
-      if (constraints.sourceBound && this.currentProvider() !== "chatgpt") {
-        throw new Error("A source-limited curriculum requires a provider without local vault-file access.");
+      if (constraints.sourceBound && !this.runtime.supportsSourceIsolation?.()) {
+        throw new Error("A source-limited curriculum requires an isolated provider with no vault filesystem tools.");
       }
       const instruction = [
         "You create domain-agnostic learning programs by backward design.",
