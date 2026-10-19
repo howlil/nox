@@ -37,12 +37,10 @@ import {
 } from "./prompt-token";
 import { NOX_CAPABILITIES } from "./capabilities";
 import { buildActionMenu, getPrimaryAction, type ActionMenuContext, type ActionMenuEntry } from "./action-menu";
-import { isActiveLearningScope, isProgramLearningScope, parseScopeCommand } from "../domain/practice/learning-scope";
 import { animateNoxEnter, animateNoxPopover } from "./motion";
 import { resolveNoxMarkdownLink } from "./markdown-links";
 import {
   shouldResetAction,
-  isLocallyExecutableCommand,
   TerminalOutcome,
 } from "./chat-state";
 import {
@@ -55,7 +53,9 @@ import {
   setNoxIcon,
 } from "./primitives";
 import { NoxMenuState } from "./menu";
-import { NoxHistoryList } from "./history-list";
+import { HistoryPresenter } from "./history-presenter";
+import { StreamTextPresenter } from "./stream-text-presenter";
+import { TranscriptPresenter } from "./transcript-presenter";
 import { modelMenuItems } from "./model-menu";
 import { createNoxPopover, NoxPopoverState } from "./popover";
 import { NoxComposer, type NoxComposerContext } from "./composer";
@@ -117,13 +117,12 @@ export class ChatView extends ItemView {
   private selectionActions!: NoxSelectionActions;
   private transcriptSelection: TranscriptSelectionController | null = null;
   private pendingReplyTo: ChatReplyReference | null = null;
-  private transcriptRenderEpoch = 0;
+  private readonly transcriptPresenter = new TranscriptPresenter(() =>
+    new Promise<void>(resolve => window.requestAnimationFrame(() => resolve())));
   private headerEl!: HTMLElement;
   private historyBtn!: HTMLButtonElement;
   private historyMenuEl!: HTMLElement;
-  private historyPopover!: NoxPopoverState;
-  private historyList!: NoxHistoryList;
-  private readonly historyMenuState = new NoxMenuState();
+  private historyPresenter!: HistoryPresenter;
 
   private input!: HTMLTextAreaElement;
   private sendBtn!: HTMLButtonElement;
@@ -174,8 +173,10 @@ export class ChatView extends ItemView {
   private thinkingViewportEl: HTMLElement | null = null;
   private thinkingStage = -1;
   private thinkingStageAt = 0;
-  private streamFrame: number | null = null;
-  private streamingTextNode: Text | null = null;
+  private readonly streamText = new StreamTextPresenter({
+    request: callback => window.requestAnimationFrame(callback),
+    cancel: id => window.cancelAnimationFrame(id),
+  });
   private runInspector: NoxRunInspector | null = null;
   private learningGraphEl: HTMLElement | null = null;
   private focusStripEl: HTMLButtonElement | null = null;
@@ -183,8 +184,6 @@ export class ChatView extends ItemView {
   private learningActivityEl: HTMLElement | null = null;
   private thinkingManualExpanded: boolean | null = null;
   private streamedThoughtText = "";
-  private streamedResponseText = "";
-  private streamingPendingText = "";
 
   private uiState: UIState = "EMPTY";
   private selectedAction: LearningActionKind = "ask";
@@ -240,7 +239,7 @@ export class ChatView extends ItemView {
     this.transcriptSelection = new TranscriptSelectionController(root, this.thread, reference => {
       if (this.uiState === "RUNNING" ||
           reference.sourceSessionId !== this.learning.getSession().id) return;
-      if (isActiveLearningScope(this.learning.getSession().learningScope)) {
+      if (this.learning.isActiveLearningScope(this.learning.getSession().learningScope)) {
         new Notice("Pause the assessment before asking about a chat quote.");
         return;
       }
@@ -261,7 +260,9 @@ export class ChatView extends ItemView {
   async onClose(): Promise<void> {
     this.learning.cancel();
     this.focusStripEpoch++;
-    this.transcriptRenderEpoch++;
+    this.transcriptPresenter.cancel();
+    this.streamText.dispose();
+    this.historyPresenter?.close();
     this.transcriptSelection?.destroy();
     this.transcriptSelection = null;
     this.stopLoadingTimer();
@@ -389,7 +390,7 @@ export class ChatView extends ItemView {
     this.historyBtn.setAttribute("aria-expanded", "false");
     this.historyBtn.addEventListener("click", () => this.toggleHistoryMenu());
     this.historyBtn.addEventListener("keydown", (event) => {
-      if (event.key === "Escape" && this.historyMenuState.isOpen) {
+      if (event.key === "Escape" && this.historyPresenter?.isOpen) {
         event.preventDefault();
         this.closeHistoryMenu();
       }
@@ -476,8 +477,7 @@ export class ChatView extends ItemView {
       role: "dialog",
       label: "Chat history",
     });
-    this.historyPopover = new NoxPopoverState(this.historyMenuEl);
-    this.historyList = new NoxHistoryList(this.historyMenuEl, {
+    this.historyPresenter = new HistoryPresenter(this.historyBtn, this.historyMenuEl, {
       open: id => this.selectHistorySession(id),
       mutate: async (ids, action) => {
         const result = await this.learning.mutateHistory(ids, action);
@@ -500,7 +500,7 @@ export class ChatView extends ItemView {
         );
       },
       confirmDelete: count => this.confirmHistoryDeletion(count),
-    });
+    }, () => ({ sessions: this.learning.listSessions(true), activeId: this.learning.getSession().id }));
     this.historyMenuEl.addEventListener("keydown", event => {
       if (event.key === "Escape") {
         event.preventDefault();
@@ -508,7 +508,7 @@ export class ChatView extends ItemView {
         this.historyBtn.focus();
       }
     });
-    this.syncHistoryTrigger();
+    this.historyPresenter.render();
   }
 
   private async refreshSessionClock(): Promise<void> {
@@ -606,7 +606,7 @@ export class ChatView extends ItemView {
 
   private submitLearningPanelCommand(command: string): void {
     if (this.uiState === "RUNNING" || this.pendingReplyTo) return;
-    if (!isLocallyExecutableCommand(command) && command !== "/next") return;
+    if (!this.learning.canExecuteOfflineCommand(command) && command !== "/next") return;
     this.learningGraphEl?.remove();
     this.learningGraphEl = null;
     this.setAction("ask");
@@ -640,36 +640,18 @@ export class ChatView extends ItemView {
   }
 
   private toggleHistoryMenu(): void {
-    if (this.historyMenuState.isOpen) {
-      this.closeHistoryMenu();
-      return;
-    }
-
-    this.closePromptMenu();
-    this.closeModelMenu();
-    this.historyMenuState.openAt(0);
-    this.renderHistoryMenu();
+    this.historyPresenter.toggle(() => {
+      this.closePromptMenu();
+      this.closeModelMenu();
+    });
   }
 
   private closeHistoryMenu(): void {
-    this.historyList?.resetSwipe();
-    this.historyMenuState.close();
-    this.historyPopover?.close();
-    this.syncHistoryTrigger();
-  }
-
-  private syncHistoryTrigger(): void {
-    if (!this.historyBtn) return;
-    this.historyMenuState.syncTrigger(this.historyBtn, "nox-history-menu");
+    this.historyPresenter?.close();
   }
 
   private renderHistoryMenu(): void {
-    if (!this.historyMenuEl) return;
-    this.historyPopover.setOpen(this.historyMenuState.isOpen);
-    this.syncHistoryTrigger();
-    if (!this.historyMenuState.isOpen) return;
-    this.historyList.render(this.learning.listSessions(true), this.learning.getSession().id);
-    animateNoxPopover(this.historyMenuEl);
+    this.historyPresenter?.render();
   }
 
   private confirmHistoryDeletion(count: number): Promise<boolean> {
@@ -1058,7 +1040,7 @@ export class ChatView extends ItemView {
       hasActiveSession: programState.sessionActive,
       savedProgramCount: programState.programs.length,
       hasPracticeQuestion: this.learning.hasActivePracticeQuestion(),
-      legacyMode: isActiveLearningScope(scope) ? "locked"
+      legacyMode: this.learning.isActiveLearningScope(scope) ? "locked"
         : scope?.resumeMode ? "paused" : "free",
     };
   }
@@ -1373,7 +1355,7 @@ export class ChatView extends ItemView {
   }
 
   private setAction(action: LearningActionKind): void {
-    if (isActiveLearningScope(this.learning.getSession().learningScope)) action = "practice";
+    if (this.learning.isActiveLearningScope(this.learning.getSession().learningScope)) action = "practice";
     const changed = action !== this.selectedAction;
     this.selectedAction = action;
     if (changed && this.pendingFindingSource) {
@@ -1412,7 +1394,7 @@ export class ChatView extends ItemView {
   private async refreshScopeGoal(): Promise<void> {
     const session = this.learning.getSession();
     const scope = session.learningScope;
-    if (!isProgramLearningScope(scope)) {
+    if (!this.learning.isProgramLearningScope(scope)) {
       this.scopeGoal = null;
       this.renderIntent();
       return;
@@ -1420,7 +1402,7 @@ export class ChatView extends ItemView {
     try {
       const state = await this.learning.getProgramMenuState();
       const current = this.learning.getSession();
-      if (current.id !== session.id || !isProgramLearningScope(current.learningScope) ||
+      if (current.id !== session.id || !this.learning.isProgramLearningScope(current.learningScope) ||
           current.learningScope.programId !== scope.programId) return;
       const goal = state.programs.find(item => item.id === scope.programId)?.goal;
       this.scopeGoal = goal ? { sessionId: session.id, programId: scope.programId, goal } : null;
@@ -1435,8 +1417,8 @@ export class ChatView extends ItemView {
   private renderIntent(): void {
     const session = this.learning.getSession();
     const scope = session.learningScope;
-    const program = isProgramLearningScope(scope);
-    const locked = isActiveLearningScope(scope);
+    const program = this.learning.isProgramLearningScope(scope);
+    const locked = this.learning.isActiveLearningScope(scope);
     const title = program && this.scopeGoal?.sessionId === session.id &&
       this.scopeGoal.programId === scope.programId ? this.scopeGoal.goal : "Learning program";
     const label = program
@@ -1497,7 +1479,7 @@ export class ChatView extends ItemView {
     };
 
     if (this.input) {
-      this.input.placeholder = isActiveLearningScope(this.learning.getSession().learningScope)
+      this.input.placeholder = this.learning.isActiveLearningScope(this.learning.getSession().learningScope)
         ? "Answer or clarify the current question · /pause to leave"
         : placeholders[this.selectedAction];
     }
@@ -1589,7 +1571,7 @@ export class ChatView extends ItemView {
     );
 
     // An exact mode command is submitted with Enter, not replaced by a menu row.
-    if (parseScopeCommand(this.input.value)) {
+    if (this.learning.isScopeCommand(this.input.value)) {
       this.closePromptMenu();
       return;
     }
@@ -1645,7 +1627,7 @@ export class ChatView extends ItemView {
         this.closePromptMenu();
       } else if (this.modelMenuState.isOpen) {
         this.closeModelMenu();
-      } else if (this.historyMenuState.isOpen) {
+      } else if (this.historyPresenter?.isOpen) {
         this.closeHistoryMenu();
       } else if (this.uiState === "RUNNING") {
         this.cancelBtn.click();
@@ -1706,11 +1688,7 @@ export class ChatView extends ItemView {
     this.statusEl = null;
     this.streamedThoughtText = "";
     this.thinkingThoughtEl = null;
-    this.streamedResponseText = "";
-    this.streamingPendingText = "";
-    this.streamingTextNode = null;
-    if (this.streamFrame !== null) window.cancelAnimationFrame(this.streamFrame);
-    this.streamFrame = null;
+    this.streamText.reset();
     this.thinkingStage = -1;
     this.thinkingRows.clear();
     this.thinkingToolRows.clear();
@@ -1920,7 +1898,7 @@ export class ChatView extends ItemView {
     this.thinkingViewportEl = null;
     this.thinkingStage = -1;
     this.thinkingManualExpanded = null;
-    this.streamingTextNode = null;
+    this.streamText.detach();
     this.runInspector = null;
   }
 
@@ -2096,12 +2074,12 @@ export class ChatView extends ItemView {
 
   private canSend(): boolean {
     const hasInput = this.input.value.trim().length > 0 || this.attachments.length > 0;
-    return hasInput && (this.runtimeReady || isLocallyExecutableCommand(this.input.value));
+    return hasInput && (this.runtimeReady || this.learning.canExecuteOfflineCommand(this.input.value));
   }
 
   private showEmpty(): void {
-    this.transcriptRenderEpoch++;
-    this.restoringSession = false;
+    this.transcriptPresenter.cancel();
+    this.streamText.reset();
     this.transcriptSelection?.hide();
     this.stopLoadingTimer();
     this.thread.empty();
@@ -2188,7 +2166,7 @@ export class ChatView extends ItemView {
       cls: "nox-capability-grid",
     });
 
-    const legacyLocked = isActiveLearningScope(this.learning.getSession().learningScope);
+    const legacyLocked = this.learning.isActiveLearningScope(this.learning.getSession().learningScope);
     for (const capability of NOX_CAPABILITIES.filter(item =>
       !legacyLocked || item.action === "practice")) {
       const card = grid.createEl("button", {
@@ -2328,44 +2306,21 @@ export class ChatView extends ItemView {
   }
 
   private async restoreSession(): Promise<void> {
-    const epoch = ++this.transcriptRenderEpoch;
     const messages = this.learning.getSession().messages;
-    if (messages.length === 0) {
-      this.showEmpty();
-      return;
-    }
-
-    this.thread.empty();
-    this.restoringSession = true;
-    try {
-      for (const [messageIndex, message] of messages.entries()) {
-        if (epoch !== this.transcriptRenderEpoch) return;
-        // Keep fork/switch cancellation valid across cooperative yields.
-        if (messageIndex > 0 && messageIndex % 8 === 0) {
-          await new Promise<void>(resolve => window.requestAnimationFrame(() => resolve()));
-          if (epoch !== this.transcriptRenderEpoch) return;
-        }
-        if (message.role === "user") {
-          this.appendUserBubble(message.content, message.id, message.replyTo);
-          continue;
-        }
-        if (message.thought || message.elapsedMs !== undefined) {
-          this.appendRestoredThinkingTrace(message);
-        }
-        if (message.content.trim()) {
-          await this.appendRestoredAssistant(message.content, message.sourcePath, messageIndex);
-        }
-        if (message.proposal) {
-          this.appendRestoredProposal(message);
-        }
-        this.appendRestoredStructuredParts(message);
-      }
-    } finally {
-      if (epoch === this.transcriptRenderEpoch) this.restoringSession = false;
-    }
-    if (epoch !== this.transcriptRenderEpoch) return;
-    this.setUIState(this.runtimeReady ? "ANSWER" : "ERROR");
-    this.scrollThread("auto");
+    await this.transcriptPresenter.restore(messages, {
+      clear: () => this.thread.empty(),
+      empty: () => this.showEmpty(),
+      user: message => this.appendUserBubble(message.content, message.id, message.replyTo),
+      thinking: message => { this.appendRestoredThinkingTrace(message); },
+      assistant: (message, index) =>
+        this.appendRestoredAssistant(message.content, message.sourcePath, index),
+      proposal: message => this.appendRestoredProposal(message),
+      structured: message => this.appendRestoredStructuredParts(message),
+      complete: () => {
+        this.setUIState(this.runtimeReady ? "ANSWER" : "ERROR");
+        this.scrollThread("auto");
+      },
+    });
   }
 
   private async appendRestoredAssistant(
@@ -2629,38 +2584,18 @@ export class ChatView extends ItemView {
 
   private appendToAgentBubble(text: string): void {
     this.ensureAgentBubble(true);
-    if (!this.agentContentEl) return;
-    this.streamedResponseText += text;
-    this.streamingPendingText += text;
-    // Coalesce transport deltas into one text node, at most once per frame.
-    // Word-by-word spans previously created excessive DOM and animations.
-    if (this.streamFrame === null) {
-      this.streamFrame = window.requestAnimationFrame(() => {
-        this.streamFrame = null;
-        this.flushStreamingText();
-      });
-    }
+    if (this.agentContentEl) this.streamText.append(this.agentContentEl, text);
   }
 
   private flushStreamingText(): void {
-    if (this.streamFrame !== null) {
-      window.cancelAnimationFrame(this.streamFrame);
-      this.streamFrame = null;
-    }
-    if (!this.agentContentEl || !this.streamingPendingText) return;
-    if (!this.streamingTextNode) {
-      this.streamingTextNode = this.agentContentEl.ownerDocument.createTextNode("");
-      this.agentContentEl.appendChild(this.streamingTextNode);
-    }
-    this.streamingTextNode.appendData(this.streamingPendingText);
-    this.streamingPendingText = "";
+    this.streamText.flush();
   }
 
   private renderMarkdownResponse(): void {
-    if (!this.agentContentEl || !this.streamedResponseText.trim()) return;
+    if (!this.agentContentEl || !this.streamText.text.trim()) return;
 
     const content = this.agentContentEl;
-    const markdown = this.streamedResponseText;
+    const markdown = this.streamText.text;
     const sourcePath =
       this.currentContext?.selection?.file ??
       this.currentContext?.activeNote?.path ??
@@ -2707,10 +2642,10 @@ export class ChatView extends ItemView {
   }
 
   private appendStreamActions(): void {
-    if (!this.agentCursorEl || !this.streamedResponseText.trim()) return;
+    if (!this.agentCursorEl || !this.streamText.text.trim()) return;
     const messages = this.learning.getSession().messages;
     if (messages.length) {
-      this.appendResponseActions(this.agentCursorEl, this.streamedResponseText, messages.length - 1);
+      this.appendResponseActions(this.agentCursorEl, this.streamText.text, messages.length - 1);
     }
   }
 
@@ -3163,7 +3098,7 @@ export class ChatView extends ItemView {
   }
 
   private scrollThread(behavior: ScrollBehavior = "smooth"): void {
-    if (this.restoringSession) return;
+    if (this.transcriptPresenter.isRestoring) return;
     this.thread.scrollTo({
       top: this.thread.scrollHeight,
       behavior,
