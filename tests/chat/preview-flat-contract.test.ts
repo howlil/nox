@@ -41,10 +41,11 @@ test("existing full HTML source remains unwrapped for backward compatibility", (
 test("model guidance requests progressive single-question UI only for HTML previews", () => {
   const prompt = buildActionInstruction("ask");
   assert.match(prompt, /howlil-app flat\/light tokens/);
-  assert.match(prompt, /exactly ONE active question at a time/);
-  assert.match(prompt, /Previous and Next buttons/);
+  assert.match(prompt, /nox-quiz JSON/);
+  assert.match(prompt, /NOX owns one-at-a-time Next\/Previous/);
+  assert.match(prompt, /bespoke HTML quiz/);
   assert.match(prompt, /no dark-mode variants/);
   assert.match(prompt, /avoid fixed heights/);
-  assert.doesNotMatch(buildActionInstruction("review"), /exactly ONE active question at a time/);
+  assert.doesNotMatch(buildActionInstruction("review"), /nox-quiz JSON/);
   assert.match(buildPracticeQuestionInstruction("java"), /Generate exactly one active-recall question/);
 });
