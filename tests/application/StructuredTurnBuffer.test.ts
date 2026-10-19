@@ -72,3 +72,25 @@ test("scope decision and malformed parser output are rejected outside scoped pra
   assert.throws(() => [...buffer.map([{ type: "error", message: "broken payload" }])],
     /broken payload/);
 });
+
+test("terminal practice and review require complete structured outcomes", () => {
+  const practice = new StructuredTurnBuffer(request("practice"), snapshot);
+  const review = new StructuredTurnBuffer(request("review"), snapshot);
+  assert.throws(() => practice.assertTerminalEligible(), /without a question/);
+  assert.throws(() => review.assertTerminalEligible(), /without findings/);
+  const question = { kind: "question" as const, concept: "Queues", question: "Why serialize writes?" };
+  [...practice.map([{ type: "practice-question", question }])];
+  practice.assertTerminalEligible();
+  [...review.map([{ type: "review-findings", findings: [] }])];
+  review.assertTerminalEligible();
+});
+
+test("clarification never creates or grades a question, even after nominal provider completion", () => {
+  const buffer = new StructuredTurnBuffer({
+    ...request("practice"), practiceClarification: { questionId: "q-1" },
+  }, snapshot);
+  [...buffer.map([{ type: "practice-question", question: {
+    kind: "question", concept: "ACID", question: "What is isolation?",
+  } }])];
+  assert.throws(() => buffer.assertTerminalEligible(), /clarification cannot create/);
+});
