@@ -25,6 +25,12 @@ function isApprovedEdge(from, to) {
   if (from === "src/main.ts") return true;
   if (!ALLOWED_OWNERS[owner]?.includes(target)) return false;
 
+  // M1: the Obsidian view must ask the application facade to interpret
+  // business commands/scopes, never import their policy parsers directly.
+  if ((from === "src/chat/ChatView.ts" || from === "src/chat/chat-state.ts") &&
+      (to === "src/domain/practice/learning-scope.ts" ||
+       to === "src/domain/learning-program/commands.ts")) return false;
+
   if (owner === "application") {
     // Exception: normalized parser/port, session transcript shape, and shared
     // persistence failure contract. No adapter, controller or repository.
