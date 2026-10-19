@@ -28,6 +28,7 @@ import type { ReviewFinding } from "../domain/review/types";
 import type { AgentRuntimePort } from "../agent/AgentRuntime";
 import {
   buildActionInstruction,
+  selectGraphPresentation,
   buildPracticeEvaluationInstruction,
   buildPracticeQuestionInstruction,
   buildScopedPracticeInstruction,
@@ -747,12 +748,11 @@ export class RunLearningTurn {
           : researchQuery ?? request.prompt}`;
       if (request.action === "ask" || request.action === "explain") {
         preparedPrompt += "\n\nPRESENTATION: Use short semantic Markdown headings without numeric prefixes unless specifically requested. Prefer compact Markdown tables for comparisons. Avoid emoji as status icons. Do not invent metrics or display a chart for unknown data.";
-        if (/diagram|flowchart|arsitektur|architecture|dependency graph|peta konsep|visualisasi alur|nox-flow/i.test(request.prompt)) {
-          if (/\bnox-flow\b/i.test(request.prompt)) {
-            preparedPrompt += '\nWhen explicitly requested, use fenced nox-flow JSON: {"version":1,"direction":"TB","layout":"layered","nodes":[{"id":"a","label":"Start"}],"edges":[]}. Max 24 nodes, 48 edges, and acyclic graphs. Do not invent relationships.';
-          } else {
-            preparedPrompt += '\nOutput a fenced mermaid flowchart TB or LR. Use compact descriptive node labels, faithful edges and logical branching. Avoid decorative subgraphs and invented relationships; use separate diagrams for independent lifecycles.';
-          }
+        const graphPresentation = selectGraphPresentation(request.prompt);
+        if (graphPresentation === "nox-flow") {
+          preparedPrompt += '\nUse explicitly requested fenced nox-flow JSON: {"version":1,"direction":"TB","layout":"layered","nodes":[{"id":"a","label":"Start"}],"edges":[]}. Max 24 nodes, 48 edges, and acyclic graphs. Do not invent relationships.';
+        } else if (graphPresentation === "mermaid") {
+          preparedPrompt += '\nOutput a fenced mermaid flowchart TB or LR. Use compact descriptive node labels, faithful edges and logical branching. Avoid decorative subgraphs and invented relationships; use separate diagrams for independent lifecycles.';
         }
         if (/grafik|chart|breakdown|analytics|analitik|perbandingan metrik|metric card|comparison card/i.test(request.prompt)) {
           preparedPrompt += "\nFor verified numeric analytics, a fenced nox-chart JSON object supports {\"type\":\"horizontal-bar\",\"title\":\"Title\",\"labels\":[\"A\",\"B\"],\"values\":[12,7]}. For compact comparison, fenced nox-card JSON supports {\"version\":1,\"kind\":\"comparison\",\"title\":\"Title\",\"items\":[{\"label\":\"Before\",\"value\":12},{\"label\":\"After\",\"value\":7}]}. Never produce invented values.";
