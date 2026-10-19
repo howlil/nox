@@ -91,12 +91,28 @@ export class OnboardingFlow {
     this.go("form");
   }
 
+  /** An early UI check only. Provider send still owns operational availability. */
+  private async requireProviderReady(): Promise<void> {
+    let health: Awaited<ReturnType<LearningController["checkRuntime"]>>;
+    try {
+      health = await this.learning.checkRuntime();
+    } catch {
+      throw new Error("AI provider is unavailable. Check Nox provider settings, then retry.");
+    }
+    if (health.status !== "ready") {
+      throw new Error("AI provider is not ready: " + health.failure.message +
+        " Check Nox provider settings, then retry.");
+    }
+  }
+
   private async discover(): Promise<void> {
     const epoch = ++this.requestEpoch;
     this.cancelTo = "discovery";
     this.stage = "generating";
     this.render();
     try {
+      await this.requireProviderReady();
+      if (epoch !== this.requestEpoch) return;
       const directions = await this.learning.discoverLearningDirections(this.draft.interests, this.draft.purpose);
       if (epoch !== this.requestEpoch) return;
       this.directions = directions;
@@ -119,6 +135,8 @@ export class OnboardingFlow {
     this.render();
     try {
       const constraints = onboardingConstraints(this.draft);
+      await this.requireProviderReady();
+      if (epoch !== this.requestEpoch) return;
       const prepared = await this.learning.previewLearningProgram(this.draft.goal.trim(), constraints);
       if (epoch !== this.requestEpoch) return;
       this.preview = prepared;
@@ -248,7 +266,9 @@ export class OnboardingFlow {
         this.draft.deadline = deadline.value || undefined;
         this.persist();
       });
-      if (this.draft.sourceBound) panel.createDiv({ cls: "nox-onboarding-help", text: `Source: ${this.draft.sourcePath ?? "active note"}` });
+      panel.createDiv({ cls: "nox-onboarding-help", text: this.draft.sourceBound
+        ? `AI source: ${this.draft.sourcePath ?? "current note"}. Its contents will be included in the curriculum request. You can go back to change the source.`
+        : "General plan: active-note and selected-note contents will not be included in the curriculum request." });
       this.actions(panel, "Generate blueprint", () => void this.prepare(),
         this.draft.sourceBound ? "notes" : "welcome");
     } else if (this.stage === "generating" || this.stage === "applying") {

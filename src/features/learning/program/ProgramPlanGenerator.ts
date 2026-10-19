@@ -16,12 +16,15 @@ export class ProgramPlanGenerator {
   ) {}
 
   async generate(goal: string, requested: ProgramConstraints, signal: AbortSignal): Promise<LearningProgram> {
-      const context = await this.contexts.resolve();
-      const source = context.selection ?? (context.activeNote ? {
-        file: context.activeNote.path, content: context.activeNote.content,
-      } : undefined);
       const constraints: ProgramConstraints = structuredClone(requested);
+      // General plans must not inspect or include arbitrary active note content.
+      // This is enforced at the last input construction point, not only by the UI.
+      let source: { file: string; content: string } | undefined;
       if (constraints.sourceBound) {
+        const context = await this.contexts.resolve();
+        source = context.selection ?? (context.activeNote ? {
+          file: context.activeNote.path, content: context.activeNote.content,
+        } : undefined);
         if (!source) throw new Error("Open or select a source note before using sources=active.");
         if (constraints.sourcePaths.length > 0 && !constraints.sourcePaths.includes(source.file)) {
           throw new Error("Source note changed during onboarding. Reopen the approved note and retry.");
