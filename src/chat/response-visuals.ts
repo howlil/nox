@@ -12,6 +12,8 @@ import { enhanceNoxMarkdownTables, renderNoxCard, renderNoxFlow, renderNoxHorizo
 import { setNoxIcon } from "./primitives";
 import { bindResponsivePreview } from "./preview-frame";
 import { mountNoxGraphViewport } from "./graph-viewport";
+import { parseNoxFlowV2 } from "./response-graph-v2-schema";
+import { renderNoxFlowV2 } from "./response-graph-v2-render";
 import type { IconName } from "obsidian";
 
 const SVG_NS = "http://www.w3.org/2000/svg";
@@ -349,14 +351,15 @@ export function enhanceNoxResponseVisuals(content: HTMLElement): number {
       pre.replaceWith(chart.type === "horizontal-bar" ? renderNoxHorizontalChart(chart, doc) : renderChart(chart, doc));
       enhanced++;
     } else if (kind === "nox-flow") {
-      const flow = parseNoxFlow(source);
-      if (!flow) {
+      const legacy = parseNoxFlow(source);
+      const advanced = legacy ? null : parseNoxFlowV2(source);
+      if (!legacy && !advanced) {
         const warning = element(doc, "p", "nox-visual-warning");
         warning.textContent = "Invalid flow data; displaying the original JSON.";
         pre.before(warning);
         continue;
       }
-      pre.replaceWith(renderNoxFlow(flow, doc));
+      pre.replaceWith(legacy ? renderNoxFlow(legacy, doc) : renderNoxFlowV2(advanced!, source, doc));
       enhanced++;
     } else if (kind === "nox-card") {
       const card = parseNoxCard(source);
