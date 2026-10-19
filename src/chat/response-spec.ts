@@ -1,7 +1,7 @@
 import { HOWLIL_FLAT_PREVIEW_CSS } from "./preview-design-tokens";
 
 /** Presentation-only visual formats. Never grants model output vault or plugin authority. */
-export type NoxVisualKind = "html-preview" | "svg-preview" | "js-preview" | "nox-chart" | "nox-flow" | "nox-card";
+export type NoxVisualKind = "html-preview" | "svg-preview" | "js-preview" | "nox-chart" | "nox-flow" | "nox-card" | "nox-quiz";
 
 export interface NoxChartSpec {
   type: "bar" | "line" | "horizontal-bar";
@@ -15,7 +15,8 @@ export function visualKindFromClasses(classes: readonly string[]): NoxVisualKind
   for (const name of classes) {
     const language = name.startsWith("language-") ? name.slice(9) : "";
     if (language === "html-preview" || language === "svg-preview" || language === "js-preview" ||
-        language === "nox-chart" || language === "nox-flow" || language === "nox-card") return language;
+        language === "nox-chart" || language === "nox-flow" || language === "nox-card" ||
+        language === "nox-quiz") return language;
   }
   return null;
 }
