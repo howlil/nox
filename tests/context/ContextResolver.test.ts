@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { ContextResolver } from "../../src/context/ContextResolver";
+import type { ContextSourcePort } from "../../src/context/ContextSourcePort";
 
 test("resolves vault-note refs using latest content at turn start", async () => {
   let noteContent = "old";
@@ -174,4 +175,29 @@ test("deduplicates explicit context identical to the primary context", async () 
       content: "same",
     },
   ]);
+});
+
+test("host-neutral context source forwards research authority and resolves editor freshness", async () => {
+  let noteText = "unsaved editor v1";
+  let receivedScope: unknown;
+  const source: ContextSourcePort = {
+    getSelection: () => null,
+    getCurrentNote: async () => ({ file: "open.md", content: noteText }),
+    loadNote: async path => path === "open.md" ? { file: path, content: noteText } : null,
+    searchNotes: () => [{ path: "open.md", name: "open" }],
+    searchKnowledge: async (query, options) => {
+      receivedScope = options?.scope;
+      return { query, subquestions: [], hits: [], edges: [] };
+    },
+  };
+  const resolver = new ContextResolver(source);
+  noteText = "unsaved editor v2";
+  const resolved = await resolver.resolve([{ kind: "vault-note", path: "open.md" }]);
+  assert.equal(resolved.activeNote?.content, "unsaved editor v2");
+  assert.equal(resolved.explicit[0].content, "unsaved editor v2");
+  assert.deepEqual(resolver.searchNotes("open"), [{ path: "open.md", name: "open" }]);
+  const report = await resolver.searchKnowledge("private keyword",
+    { scope: { kind: "selected", paths: ["open.md"] }, allowedPaths: ["open.md"], limit: 3 });
+  assert.equal(report.query, "private keyword");
+  assert.deepEqual(receivedScope, { kind: "selected", paths: ["open.md"] });
 });
