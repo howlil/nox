@@ -42,7 +42,8 @@ test("model guidance requests progressive single-question UI only for HTML previ
   const prompt = buildActionInstruction("ask");
   assert.match(prompt, /howlil-app flat\/light tokens/);
   assert.match(prompt, /nox-quiz JSON/);
-  assert.match(prompt, /NOX owns one-at-a-time Next\/Previous/);
+  assert.match(prompt, /answer drafts across Next\/Previous/);
+  assert.match(prompt, /Coding answers are explicitly UNGRADED/);
   assert.match(prompt, /bespoke HTML quiz/);
   assert.match(prompt, /no dark-mode variants/);
   assert.match(prompt, /avoid fixed heights/);
