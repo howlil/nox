@@ -40,6 +40,8 @@
     "learning"
   ],
   "devDependencies": {
+    "@codemirror/state": "6.5.0",
+    "@codemirror/view": "6.38.6",
     "@tailwindcss/cli": "^4.3.3",
     "@types/node": "^22.0.0",
     "@typescript-eslint/eslint-plugin": "^8.0.0",
