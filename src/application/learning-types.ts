@@ -12,7 +12,7 @@ import {
 import { ReviewFinding } from "../domain/review/types";
 import type { LearningObjective, ActivityKind } from "../domain/learning-program/types";
 import type { CriterionKnowledge } from "../domain/learner-model/learner-profile";
-import type { CurriculumRevisionPreview } from "./CurriculumRevisionService";
+import type { CurriculumRevisionPreview } from "../domain/learning-program/curriculum-preview";
 
 /** Read-only graph derived from authoritative learner evidence. */
 export interface NoxProgramOverview {

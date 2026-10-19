@@ -199,3 +199,22 @@ test("W1 projection modules live under their private feature owners", () => {
   ]);
   assert.ok(unauthorized.some(issue => issue.includes("forbidden dependency")));
 });
+
+test("R1 curriculum revision generator is private to the learning program orchestrator", () => {
+  const modules = [
+    { path: "src/features/learning/program/CurriculumRevisionGenerator.ts",
+      source: 'import type { AgentRuntimePort } from "../../../agent/AgentRuntime";' },
+    { path: "src/agent/AgentRuntime.ts", source: "" },
+    { path: "src/domain/learning-program/curriculum-preview.ts", source: "" },
+    { path: "src/application/LearningProgramOrchestrator.ts",
+      source: 'import { proposeCurriculumRevision } from "../features/learning/program/CurriculumRevisionGenerator";' },
+    { path: "src/application/learning-types.ts",
+      source: 'import type { CurriculumRevisionPreview } from "../domain/learning-program/curriculum-preview";' },
+  ];
+  assert.deepEqual(validateArchitecture(modules), []);
+  const leaks = validateArchitecture([...modules, {
+    path: "src/application/LearningController.ts",
+    source: 'import { proposeCurriculumRevision } from "../features/learning/program/CurriculumRevisionGenerator";',
+  }]);
+  assert.ok(leaks.some(message => message.includes("forbidden dependency")));
+});

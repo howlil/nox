@@ -1,21 +1,10 @@
-import type { AgentRuntimePort } from "../agent/AgentRuntime";
-import type { LearningEvidence } from "../domain/learning-state/types";
-import type { LearningProgram } from "../domain/learning-program/types";
-import { decodeCurriculumOperations } from "../domain/learning-program/curriculum-revision-schema";
-import { applyCurriculumRevision, type CurriculumRevision, type StructuralGapReason } from "../domain/learning-program/curriculum-revision";
+import type { AgentRuntimePort } from "../../../agent/AgentRuntime";
+import type { LearningEvidence } from "../../../domain/learning-state/types";
+import type { LearningProgram } from "../../../domain/learning-program/types";
+import { decodeCurriculumOperations } from "../../../domain/learning-program/curriculum-revision-schema";
+import { applyCurriculumRevision, type CurriculumRevision, type StructuralGapReason } from "../../../domain/learning-program/curriculum-revision";
 
-export interface CurriculumRevisionPreview {
-  operationId: string;
-  programId: string;
-  fromVersion: number;
-  toVersion: number;
-  reason: StructuralGapReason;
-  reasonEvidenceIds: string[];
-  operations: CurriculumRevision["operations"];
-  expiresAt: number;
-  before: LearningProgram["objectives"];
-  after: LearningProgram["objectives"];
-}
+import type { CurriculumRevisionPreview } from "../../../domain/learning-program/curriculum-preview";
 
 /** Untrusted model proposes bounded operations; only the domain reducer may validate them. */
 export async function proposeCurriculumRevision(
