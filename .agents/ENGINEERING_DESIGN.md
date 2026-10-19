@@ -8,6 +8,32 @@ Last updated: 2026-10-13
 
 ---
 
+## M0 architecture measurement and authority lock — 2026-10-19
+
+This checkpoint implements **instrumentation and regression mapping only**, not the proposed
+feature-first package migration. See `docs/ARCHITECTURE_BOUNDARY_REDESIGN.md` for
+the affected responsibility graph, public capability contracts, state-owner table,
+critical runtime flows, and milestone sequencing.
+
+- Use `pnpm architecture:graph` for deterministic TypeScript AST dependency
+  metrics (module owners, type/runtime edges, fan-in/out, cycles and unresolved
+  imports). Use `--format=json` to review complete file-to-file edges.
+- CI emits the graph to the workflow job summary. The existing
+  `pnpm check:boundaries` remains the import enforcement mechanism; structural
+  metrics **do not prove** behavioral isolation, consistency or trust boundaries.
+- SessionController + PluginDataRepository retain one authoritative serialized
+  session/plugin-data transaction path. VaultProgramStore and VaultLearningStore
+  retain CAS/concurrency semantics. Practice remains transcript-derived.
+- RunLearningTurn remains the one inference terminal-outcome coordinator; view
+  decomposition and package moves are **M1–M5**, not part of M0.
+- No source-of-truth, persistence schema, provider API, user-visible behavior,
+  or runtime import direction changed in M0.
+- A green unit/CI report is not Obsidian desktop acceptance or live provider
+  validation. Do not call the full redesign implemented until relevant
+  behavior-preserving migrations have landed.
+
+---
+
 ## Context + research incremental extension — 2026-10-14
 
 Optional `/research` uses `ContextResolver` and `ObsidianContext` to query
