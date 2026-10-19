@@ -1,20 +1,26 @@
 import type { LearningProgram } from "../domain/learning-program/types";
 import type { LearningController } from "../application/LearningController";
 import type { OnboardingDraft } from "../domain/onboarding/types";
-import { restoreOnboardingDraft, withOnboardingStage, withOnboardingSource, onboardingConstraints } from "../features/learning/onboarding/OnboardingWorkflow";
+import { restoreOnboardingDraft, withOnboardingStage, withOnboardingSource, onboardingConstraints, quickPlanCommand } from "../features/learning/onboarding/OnboardingWorkflow";
 import { planWorkspace } from "../domain/workspace/plan";
 import { feasibility } from "../domain/learning-program/rules";
 import { createNoxButton, setNoxIcon } from "./primitives";
 import { animateNoxEnter } from "./motion";
 
-interface Callbacks { onSkip(): void; onCreated(): void; onStart(): void }
+interface Callbacks {
+  onSkip(): void;
+  onCreated(): void;
+  onStart(): void;
+  onQuickPlan(command: string): Promise<void>;
+  onNoteAction(path: string, kind: "explain" | "practice"): Promise<void>;
+}
 
 /** Native NOX rendering. UI only: business mutations are owned by LearningController. */
 export class OnboardingFlow {
   private stage: OnboardingDraft["stage"] = "welcome";
   private draft: OnboardingDraft = restoreOnboardingDraft();
   private preview: LearningProgram | null = null;
-  private directions: Array<{ title: string; outcome: string }> = [];
+  private launching = false;
   private error = "";
   private applying = false;
   private operationId?: string;
@@ -35,10 +41,14 @@ export class OnboardingFlow {
     });
   }
   private go(stage: OnboardingDraft["stage"]): void {
+    this.requestEpoch++;
     this.stage = stage;
     this.error = "";
     this.persist();
     this.render();
+    const focus = this.parent.querySelector<HTMLElement>(
+      stage === "quick-goal" || stage === "form" ? ".nox-onboarding-field" : ".nox-empty-title");
+    focus?.focus();
   }
   private icon(parent: HTMLElement, name: import("obsidian").IconName): HTMLElement {
     const el = parent.createSpan({ cls: "nox-onboarding-icon" });
@@ -58,7 +68,7 @@ export class OnboardingFlow {
   private header(panel: HTMLElement, title: string, description: string): void {
     const label = panel.createSpan({ cls: "nox-onboarding-eyebrow", text: "GETTING STARTED" });
     label.setAttribute("aria-label", "Nox learning onboarding");
-    panel.createDiv({ cls: "nox-empty-title", text: title });
+    panel.createEl("h2", { cls: "nox-empty-title", text: title, attr: { tabindex: "-1" } });
     panel.createDiv({ cls: "nox-empty-description", text: description });
   }
   private choices(panel: HTMLElement, items: Array<{ icon: import("obsidian").IconName;
@@ -83,12 +93,76 @@ export class OnboardingFlow {
     input.addEventListener("change", () => this.persist());
     return input;
   }
-  private async useCurrentNote(): Promise<void> {
-    const ctx = await this.learning.getOnboardingContext();
-    if (!ctx.activeNote) throw new Error("Open a Markdown note before continuing.");
-    this.draft.goal = this.draft.goal || "Understand " + ctx.activeNote.split("/").pop();
-    this.draft = withOnboardingSource(this.draft, ctx.activeNote);
-    this.go("form");
+  /** Identify the note without reading its content. The turn resolves the explicit ref. */
+  private async selectCurrentNote(): Promise<void> {
+    this.draft = withOnboardingSource(this.draft);
+    this.go("notes");
+    const epoch = this.requestEpoch;
+    try {
+      const ctx = await this.learning.getOnboardingContext();
+      if (epoch !== this.requestEpoch) return;
+      if (!ctx.activeNote) throw new Error("Open a Markdown note in Obsidian, then retry.");
+      this.draft = withOnboardingSource(this.draft, ctx.activeNote);
+      this.persist();
+      this.render();
+      this.parent.querySelector<HTMLElement>(".nox-empty-title")?.focus();
+    } catch (error) {
+      if (epoch !== this.requestEpoch) return;
+      this.error = error instanceof Error ? error.message : String(error);
+      this.render();
+    }
+  }
+
+  private async startQuickPlan(): Promise<void> {
+    if (this.launching) return;
+    let command: string;
+    try { command = quickPlanCommand(this.draft.goal); }
+    catch (error) {
+      this.error = error instanceof Error ? error.message : String(error);
+      this.render(); return;
+    }
+    const epoch = ++this.requestEpoch;
+    this.error = "";
+    this.launching = true; this.persist(); this.render();
+    try {
+      await this.requireProviderReady();
+      if (epoch !== this.requestEpoch) return;
+      await this.callbacks.onQuickPlan(command);
+    } catch (error) {
+      if (epoch !== this.requestEpoch) return;
+      this.error = error instanceof Error ? error.message : String(error);
+    } finally {
+      this.launching = false;
+      if (epoch === this.requestEpoch && this.parent.isConnected) this.render();
+    }
+  }
+
+  private async startNoteAction(kind: "explain" | "practice"): Promise<void> {
+    if (this.launching) return;
+    const source = this.draft.sourcePath;
+    if (!source) {
+      this.error = "Open a Markdown note in Obsidian, then select it.";
+      this.render(); return;
+    }
+    const epoch = ++this.requestEpoch;
+    this.error = "";
+    this.launching = true; this.render();
+    try {
+      const current = await this.learning.getOnboardingContext();
+      if (epoch !== this.requestEpoch) return;
+      if (current.activeNote !== source) {
+        throw new Error("The active note changed. Select the current note again.");
+      }
+      await this.requireProviderReady();
+      if (epoch !== this.requestEpoch) return;
+      await this.callbacks.onNoteAction(source, kind);
+    } catch (error) {
+      if (epoch !== this.requestEpoch) return;
+      this.error = error instanceof Error ? error.message : String(error);
+    } finally {
+      this.launching = false;
+      if (epoch === this.requestEpoch && this.parent.isConnected) this.render();
+    }
   }
 
   /** An early UI check only. Provider send still owns operational availability. */
@@ -105,25 +179,6 @@ export class OnboardingFlow {
     }
   }
 
-  private async discover(): Promise<void> {
-    const epoch = ++this.requestEpoch;
-    this.cancelTo = "discovery";
-    this.stage = "generating";
-    this.render();
-    try {
-      await this.requireProviderReady();
-      if (epoch !== this.requestEpoch) return;
-      const directions = await this.learning.discoverLearningDirections(this.draft.interests, this.draft.purpose);
-      if (epoch !== this.requestEpoch) return;
-      this.directions = directions;
-      this.go("suggestions");
-    } catch (error) {
-      if (epoch !== this.requestEpoch) return;
-      this.error = error instanceof Error ? error.message : String(error);
-      this.stage = "discovery";
-      this.render();
-    }
-  }
   private async prepare(): Promise<void> {
     const epoch = ++this.requestEpoch;
     this.cancelTo = "form";
@@ -169,64 +224,52 @@ export class OnboardingFlow {
     const panel = this.parent.createDiv({ cls: "nox-onboarding-body" });
     if (this.stage === "welcome") {
       this.header(panel, "What would you like to learn?",
-        "Build a learning path or try Nox without setting up a program.");
+        "Start with a note, a learning goal, or a question. Set up a workspace later.");
       this.choices(panel, [
-        { icon: "target", title: "Guided setup", detail: "Preview a learning plan and approve workspace files", click: () => {
-          this.draft = withOnboardingSource(this.draft); this.go("form");
-        } },
-        { icon: "compass", title: "Help me decide", detail: "Explore learning directions",
-          click: () => this.go("discovery") },
-        { icon: "book-open", title: "Use my notes", detail: "Learn from current material",
-          click: () => this.go("notes") },
-        { icon: "message-circle", title: "Just explore", detail: "Chat without a plan",
+        { icon: "book-open", title: "Learn from a note",
+          detail: "Explain or practice the open Markdown note",
+          click: () => { void this.selectCurrentNote(); } },
+        { icon: "target", title: "Start with a goal",
+          detail: "Create a quick learning plan without workspace files",
+          click: () => {
+            this.draft = withOnboardingSource(this.draft); this.go("quick-goal");
+          } },
+        { icon: "message-circle", title: "Just chat",
+          detail: "Ask anything without creating a plan",
           click: () => this.callbacks.onSkip() },
       ]);
-      panel.createDiv({ cls: "nox-onboarding-help", text:
-        "Guided setup creates workspace files only after approval. For a quick plan without workspace files, type /plan followed by your goal in chat." });
-    } else if (this.stage === "discovery") {
-      this.header(panel, "Find a direction", "Choose your interests. Nox will suggest three possible goals.");
-      const interests = ["Technology", "Languages", "Finance", "Science", "Design", "Writing"];
-      const options = panel.createDiv({ cls: "nox-onboarding-chips" });
-      for (const interest of interests) {
-        const selected = this.draft.interests.includes(interest);
-        const btn = this.button(options, interest, () => {
-          this.draft.interests = selected
-            ? this.draft.interests.filter(x => x !== interest)
-            : [...this.draft.interests, interest];
-          this.persist(); this.render();
-        });
-        btn.toggleClass("is-selected", selected);
-        btn.setAttribute("aria-pressed", String(selected));
-      }
-      panel.createDiv({ cls: "nox-onboarding-label", text: "Learning motivation" });
-      const motivations = panel.createDiv({ cls: "nox-onboarding-chips" });
-      for (const item of ["career", "project", "curiosity"] as const) {
-        const btn = this.button(motivations, item, () => {
-          this.draft.purpose = item; this.persist(); this.render();
-        });
-        btn.toggleClass("is-selected", this.draft.purpose === item);
-        btn.setAttribute("aria-pressed", String(this.draft.purpose === item));
-      }
-      this.actions(panel, "Find directions", () => void this.discover());
-    } else if (this.stage === "suggestions") {
-      this.header(panel, "Suggested directions", "Select one to customize its learning outcome.");
-      this.choices(panel, this.directions.map(x => ({
-        icon: "target" as const, title: x.title, detail: x.outcome,
-        click: () => { this.draft.goal = x.title; this.draft = withOnboardingSource(this.draft); this.go("form"); },
-      })));
-      this.button(panel, "Back to interests", () => this.go("discovery"));
+    } else if (this.stage === "quick-goal") {
+      this.header(panel, "Start with a goal",
+        "Create a learning plan now. Workspace files are optional later.");
+      this.field(panel, "Learning goal", this.draft.goal, value => { this.draft.goal = value; });
+      const actions = panel.createDiv({ cls: "nox-onboarding-actions" });
+      this.button(actions, "Back", () => this.go("welcome"));
+      const quick = this.button(actions, this.launching ? "Checking provider…" : "Create quick plan",
+        () => { void this.startQuickPlan(); }, true);
+      quick.disabled = this.launching;
+      this.button(panel, "Prefer guided setup?", () => this.go("form"));
+      panel.createDiv({ cls: "nox-onboarding-help",
+        text: "Quick plan uses /plan with no workspace files. Guided setup offers preview and file approval." });
     } else if (this.stage === "notes") {
-      this.header(panel, "Learn from your notes",
-        "Open a Markdown note in Obsidian, then generate a source-limited plan.");
+      this.header(panel, "Learn from a note",
+        "Choose a note in Obsidian. Nox will use its content for the action you select.");
+      const source = this.draft.sourcePath;
       const status = panel.createDiv({ cls: "nox-onboarding-help",
-        text: "Nox uses your current note. It will not invent a source for an empty vault." });
+        text: source ? `Selected note: ${source}` : "No note selected. Open a Markdown note, then select it." });
       status.setAttribute("role", "status");
-      this.actions(panel, "Use current note", () => {
-        void this.useCurrentNote().catch(error => {
-          this.error = error instanceof Error ? error.message : String(error);
-          this.render();
-        });
-      });
+      const actions = panel.createDiv({ cls: "nox-onboarding-actions" });
+      this.button(actions, "Back", () => this.go("welcome"));
+      this.button(actions, "Use current note", () => { void this.selectCurrentNote(); });
+      if (source) {
+        const explain = this.button(panel, this.launching ? "Checking provider…" : "Explain this note",
+          () => { void this.startNoteAction("explain"); }, true);
+        const practice = this.button(panel, "Practice this note",
+          () => { void this.startNoteAction("practice"); });
+        explain.disabled = this.launching;
+        practice.disabled = this.launching;
+        panel.createDiv({ cls: "nox-onboarding-help",
+          text: "This sends the selected note as context to your AI provider. Free practice is not tracked as program mastery." });
+      }
     } else if (this.stage === "form") {
       this.header(panel, "Guided setup · preview first",
         "Review measurable objectives and prerequisites before approving workspace files.");
