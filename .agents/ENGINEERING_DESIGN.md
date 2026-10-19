@@ -2382,3 +2382,19 @@ Settings reads a snapshot through the plugin host boundary. See
 - Regression proofs: provider input capture, authority unit test, timer failure
   injection and offline command classification. Desktop acceptance remains a
   separate mandatory release gate.
+
+## R1–R4 ownership follow-up — 2026-10-20
+
+The bounded feature migration on draft PR #121 now includes four follow-ups to M5.
+Private program curriculum generation lives in `features/learning/program`; public preview
+shape is `domain/learning-program/curriculum-preview.ts`; the program orchestrator retains
+the only CAS write, request cancellation and approval lifecycle. Pure onboarding projection
+lives in `features/learning/onboarding` while the Obsidian adapter owns the request epoch,
+DOM, callbacks and draft save port. Practice UI is exclusively
+`features/practice/view`, whereas untracked legacy Quick Quiz is in
+`features/conversation/view`. Separate approval, evidence and source-bound semantics
+must remain intact. The architecture checker enforces explicitly enumerated UI bridge
+imports and denies private cross-feature access to persistence or unrelated domain policy.
+Consult `docs/FEATURE_OWNERSHIP_R1_R4.md` for code graph, failures and acceptance.
+The existing native Obsidian desktop gate is still outstanding; passing unit/integration
+CI alone does not authorize merge or release.

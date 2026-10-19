@@ -139,3 +139,11 @@ src/
 W2 does not add another focus transition owner: it simply stops a second provider inference inside the existing controller. W3 copy belongs to actual Obsidian/DOM UI adapters, not a pure domain service: migrating them wholesale would reverse host dependency direction or require broadening architecture exceptions. W4 only corrects release workflow documentation. These existing modules remain where M5 intentionally leaves host shell adapters. **If a later milestone migrates the Obsidian-facing chat shell, move its entire UI capability with an explicit host-adapter contract and tests, rather than adding duplicate delegating shims.**
 
 Architecture regression explicitly checks allowed `ChatView -> conversation/view` and `LearningProgramOrchestrator -> learning/program` edges, and disallows an unrelated chat view from reaching private program projections.
+
+## 7. R1–R4 follow-up ownership implementation
+
+W2's source behavior remains unchanged, but its provider proposal collaborator moved from `src/application/CurriculumRevisionService.ts` into `src/features/learning/program/CurriculumRevisionGenerator.ts`, with a portable domain DTO to avoid importing a private module from public response types.
+
+W3's pure onboarding transitions now live in `src/features/learning/onboarding/OnboardingWorkflow.ts`. The Obsidian renderer remains `src/chat/onboarding-flow.ts`. Tracked Practice UI and ephemeral Quick Quiz are different feature-private view packages; renderer and schema exports have one canonical physical source, with no duplicate shim.
+
+W4's tightened architecture test denies access to arbitrary domain policies by the new private views. Reference: `docs/FEATURE_OWNERSHIP_R1_R4.md`. No runtime changes to release, diagnostics, or legacy visual formats.

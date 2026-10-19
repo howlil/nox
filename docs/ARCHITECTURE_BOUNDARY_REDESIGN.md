@@ -562,3 +562,14 @@ For each migration PR attach:
 ### M0 verification status
 
 Graph instrumentation and contract mapping are implemented on this branch. The status of GitHub CI and any measured metrics must be read from the current PR run rather than assumed from source inspection. No manual Obsidian acceptance was conducted; this is not a release.
+
+## R1–R4 incremental feature ownership (2026-10-20)
+
+The M5 branch received a follow-up, **not a replacement architecture**:
+
+- **R1:** `src/features/learning/program/CurriculumRevisionGenerator.ts` owns provider-backed revision proposal validation; `src/domain/learning-program/curriculum-preview.ts` exposes the portable read-only DTO. `LearningProgramOrchestrator` retains preview lifecycle, approval, timeout, and VaultProgramStore CAS.
+- **R2:** `src/features/learning/onboarding/OnboardingWorkflow.ts` holds pure draft stage recovery, explicit source selection, and constraints. `src/chat/onboarding-flow.ts` remains the Obsidian UI/epoch/persistence adapter. There is still exactly one draft writer through `LearningController`.
+- **R3:** `src/features/practice/view` owns canonical Practice question/committed evaluation visuals and instruction rendering; `src/features/conversation/view` owns historical Quick Quiz decoding/DOM/local scoring. These are separate *semantics*: Quick Quiz does not produce durable learning evidence.
+- **R4:** `scripts/boundaries.mjs` names both new feature packages and restricts host integration imports to their actual call sites; Practice view may not import learner-model policy, and onboarding may only import its two pure shape contracts. Every active import and regression test uses canonical moved files.
+
+No new persistence writer, provider runtime, duplicated renderer, serialization format, or global application layer was added. Obsidian UI helpers `src/chat/primitives.ts` and `src/chat/code-answer-editor.ts` stay as explicit host bridges. The old M5 diagram remains the historical checkpoint; the *current* package map is `docs/FEATURE_OWNERSHIP_R1_R4.md`. Native desktop acceptance remains NOT RUN; PR #121 stays Draft.
