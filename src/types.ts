@@ -67,8 +67,20 @@ export type AgentHealth =
   | { status: "ready" }
   | { status: "unavailable" | "misconfigured"; failure: AgentFailure };
 
-/** Compatibility alias: the usage domain owns the transport-neutral value shape. */
-export type TokenUsage = import("./domain/usage/usage-types").TokenUsage;
+/** Wire-compatible provider usage counters.
+ * Mirrored by the pure usage domain because root transport contracts cannot
+ * depend on a domain feature under the architecture boundary rules.
+ */
+export interface TokenUsage {
+  inputTokens: number;
+  outputTokens: number;
+  totalTokens: number;
+  /** Cached prompt tokens already included in inputTokens. */
+  cachedInputTokens?: number;
+  /** Reasoning tokens already included in outputTokens. */
+  reasoningTokens?: number;
+  cacheWriteTokens?: number;
+}
 
 export type AgentStreamEvent =
   | { type: "text"; content: string }
