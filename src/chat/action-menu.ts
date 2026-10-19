@@ -45,7 +45,7 @@ const advanced: AdvancedEntry[] = [
   { key: "free-practice", name: "Free practice", description: "Practice outside your learning plan",
     icon: "pencil-line", command: "/free-practice", action: { type: "scope", command: "/free-practice" },
     keywords: ["independent", "quiz"], visible: noQuestion },
-  { key: "plan", name: "Create a learning plan", description: "Set a new goal and time budget",
+  { key: "plan", name: "Quick start · learning plan", description: "Create a plan without workspace files; guided setup is available on the welcome screen",
     icon: "route", command: "/plan ", action: { type: "scope", command: "/plan " },
     keywords: ["curriculum", "goal", "create"], visible: noQuestion },
   { key: "next", name: "Continue learning", description: "Your next scheduled activity",

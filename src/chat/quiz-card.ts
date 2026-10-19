@@ -25,7 +25,7 @@ export function renderQuizCard(parent: HTMLElement, question: PracticeQuestion,
   actions: QuizCardActions): void {
   const card = createNoxSurface(parent, "nox-quiz-card");
   const header = card.createDiv({ cls: "nox-quiz-heading" });
-  header.createDiv({ cls: "nox-practice-label", text: "Practice · " + question.concept });
+  header.createDiv({ cls: "nox-practice-label", text: "Practice · saved evaluation · " + question.concept });
   header.createSpan({ cls: "nox-quiz-kind", text: question.input?.type === "code"
     ? "Code challenge" : question.input?.type === "multiple-choice"
       ? "Multiple choice" : "Written answer" });

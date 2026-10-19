@@ -166,7 +166,7 @@ export class OnboardingFlow {
       this.header(panel, "What would you like to learn?",
         "Build a learning path or try Nox without setting up a program.");
       this.choices(panel, [
-        { icon: "target", title: "I have a goal", detail: "Create a learning plan", click: () => {
+        { icon: "target", title: "Guided setup", detail: "Preview a learning plan and approve workspace files", click: () => {
           this.draft.sourceBound = false; this.draft.sourcePath = undefined; this.go("form");
         } },
         { icon: "compass", title: "Help me decide", detail: "Explore learning directions",
@@ -177,7 +177,7 @@ export class OnboardingFlow {
           click: () => this.callbacks.onSkip() },
       ]);
       panel.createDiv({ cls: "nox-onboarding-help", text:
-        "Nothing is written to your vault until you approve a blueprint." });
+        "Guided setup creates workspace files only after approval. For a quick plan without workspace files, type /plan followed by your goal in chat." });
     } else if (this.stage === "discovery") {
       this.header(panel, "Find a direction", "Choose your interests. Nox will suggest three possible goals.");
       const interests = ["Technology", "Languages", "Finance", "Science", "Design", "Writing"];
@@ -223,8 +223,8 @@ export class OnboardingFlow {
         });
       });
     } else if (this.stage === "form") {
-      this.header(panel, "Build your learning path",
-        "Your goal becomes measurable objectives and prerequisite relationships.");
+      this.header(panel, "Guided setup · preview first",
+        "Review measurable objectives and prerequisites before approving workspace files.");
       this.field(panel, "What would you like to achieve?", this.draft.goal, v => { this.draft.goal = v; });
       const advanced = panel.createEl("details", { cls: "nox-onboarding-advanced" });
       advanced.createEl("summary", { text: "Advanced options (optional)" });

@@ -1474,3 +1474,51 @@ test("M7 repeated CAS contention preserves the transcript and recovers on retry"
   assert.equal(modelCalls, 2);
   assert.equal(h.getEvidence().filter(e => e.type === "practice").length, 1);
 });
+
+test("W2 end-focus commits one local transition and offers explicit replan without contacting provider", async () => {
+  const focus = { id: "focus-1", programId: "plan-1", objectiveId: "basic", curriculumRevision: 1,
+    chatSessionId: "session-1", status: "active" as const, startedAt: 100 };
+  let ended = 0;
+  let prepared = 0;
+  const program = { id: "plan-1", focus };
+  const h = createHarness(async function* () {
+    throw new Error("End focus must not invoke inference");
+  }, { programTimer: {
+    isPlanning: () => false, beginAiWait: async () => false, dispose: () => {},
+    getTurnFocusSnapshot: async () => ({
+      current: ended ? { id: "plan-1" } : program,
+      globalFocus: ended ? null : { program, focus },
+    }),
+    endFocus: async () => { ended++; return { id: "plan-1" }; },
+    detectRevisionCandidate: async () => ({ reason: "objective-gap", evidenceIds: [] }),
+    prepareCurriculumRevision: async () => { prepared++; throw new Error("Unrequested AI generation"); },
+  } as never });
+  const events = await collectEvents(h.controller.run({
+    prompt: "/end-focus", action: "ask", explicitContext: [],
+  }));
+  assert.equal(events.at(-1)?.type, "completed");
+  assert.equal(ended, 1);
+  assert.equal(prepared, 0);
+  assert.equal(h.prompts.length, 0);
+  assert.ok(events.some(x => x.type === "response-delta" && x.text.includes("/replan")));
+  h.controller.dispose();
+});
+
+test("W2 end-focus stays committed when advisory gap detection fails", async () => {
+  let ended = 0;
+  const h = createHarness(async function* () { throw new Error("No provider allowed"); },
+  { programTimer: {
+    isPlanning: () => false, beginAiWait: async () => false, dispose: () => {},
+    getGlobalActiveFocus: async () => null, getActiveProgram: async () => null,
+    endFocus: async () => { ended++; return { focus: undefined }; },
+    detectRevisionCandidate: async () => { throw new Error("Evidence store temporarily unavailable"); },
+  } as never });
+  const events = await collectEvents(h.controller.run({
+    prompt: "/end-focus", action: "ask", explicitContext: [],
+  }));
+  assert.equal(events.at(-1)?.type, "completed");
+  assert.equal(ended, 1);
+  assert.ok(events.some(x => x.type === "response-delta" && x.text.includes("gap check unavailable")));
+  assert.equal(h.prompts.length, 0);
+  h.controller.dispose();
+});

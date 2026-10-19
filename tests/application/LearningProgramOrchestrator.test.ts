@@ -22,6 +22,7 @@ function rig(payload: unknown = draft(), success = true) {
   let currentTime = Date.now();
   let stored: ProgramCollection = { version: 1, programs: [] };
   let writes = 0;
+  let reads = 0;
   const context = { activeNote: { path: "notes/spanish.md", content: "Hola means hello." }, explicit: [] };
   const runtime = {
     supportsSourceIsolation: () => true,
@@ -36,7 +37,7 @@ function rig(payload: unknown = draft(), success = true) {
     runtime as never,
     { resolve: async () => context } as never,
     { load: async () => ({ evidence: [] }) } as never,
-    { load: async () => structuredClone(stored),
+    { load: async () => { reads++; return structuredClone(stored); },
       save: async (next: ProgramCollection, expected: ProgramCollection) => {
         assert.notStrictEqual(next, expected, "Never mutate the expected loaded CAS snapshot");
         assert.deepEqual(expected, stored, "Expected CAS bytes must match the authoritative previous state");
@@ -48,6 +49,7 @@ function rig(payload: unknown = draft(), success = true) {
     () => currentTime,
   );
   return { orchestrator, stored: () => structuredClone(stored), writes: () => writes,
+    reads: () => reads,
     advance: (ms: number) => { currentTime += ms; } };
 }
 test("plan creation persists validated objectives, updates active identity and feasibility", async () => {
@@ -236,4 +238,21 @@ test("recovery and other queued mutations preserve immutable loaded snapshots", 
   assert.equal(stored().programs[0].focus?.status, "paused");
   assert.deepEqual(stored().programs[0].session?.timing?.pauseReasons, ["recovery"]);
   orchestrator.dispose();
+});
+
+test("W1 one authoritative preflight read yields active + global focus without duplicated vault loads", async () => {
+  const h = rig();
+  await h.orchestrator.createProgram("Spanish", base);
+  const before = h.reads();
+  const snapshot = await h.orchestrator.getTurnFocusSnapshot();
+  assert.equal(h.reads() - before, 1);
+  assert.equal(snapshot.current?.id, h.stored().activeProgramId);
+  assert.equal(snapshot.globalFocus, null);
+  await h.orchestrator.startSession();
+  const withSession = (await h.orchestrator.getTurnFocusSnapshot()).current;
+  const beforeProjection = h.reads();
+  const time = await h.orchestrator.getSessionTime(withSession);
+  assert.ok(time?.budgetMs);
+  assert.equal(h.reads(), beforeProjection, "projecting a known collection must not reload vault");
+  h.orchestrator.dispose();
 });

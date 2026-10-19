@@ -1,7 +1,8 @@
 name: Prepare release PR
 
 # Ordinary pushes create a release PR only after master CI succeeds.
-# Merging the PR creates an attested draft only; publication is explicitly manual.
+# Merging a verified release PR runs release.yml, which attests and publishes automatically.
+# publish-release.yml is manual recovery for an already-verified draft, not another normal publisher.
 on:
   workflow_run:
     workflows: ["CI"]
