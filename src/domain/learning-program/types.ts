@@ -80,7 +80,7 @@ export interface LearningProgram {
   creationOperationId?: string;
   workspaceApproved?: boolean;
   focus?: FocusSession;
-  curriculumRevisions?: import("./curriculum-revision").AppliedCurriculumRevision[];
+  curriculumRevisions?: AppliedCurriculumRevision[];
   session?: LearningSession;
   sessionHistory?: Array<{ startedAt: number; endedAt: number; minutesSpent: number; activeMinutes?: number; aiWaitingMinutes?: number; objectiveActiveMinutes?: Record<string, number>; dailyActiveMs?: Record<string, number>; materialActiveMinutes?: Record<string, number> }>;
   instructionEvents?: Array<{ objectiveId: string; afterEvidenceAt: number; taughtAt: number }>;
@@ -98,3 +98,34 @@ export interface LearningDecision {
   dueAt?: number;
   minutesRemaining?: number;
 }
+
+/** Durable revision contracts, isolated from revision business logic. */
+export type StructuralGapReason =
+  | "repeated-prerequisite-gap" | "objective-too-broad"
+  | "unexpected-prior-mastery" | "goal-change";
+
+export type CurriculumOperation =
+  | { kind: "add"; objective: LearningObjective }
+  | { kind: "revise"; objectiveId: string; changes: Partial<Omit<LearningObjective,
+      "id" | "prerequisiteIds" | "objectiveRevision" | "deprecated" | "replacementIds">> }
+  | { kind: "change-prerequisites"; objectiveId: string; prerequisiteIds: string[] }
+  | { kind: "deprecate"; objectiveId: string; replacementIds: string[] }
+  | { kind: "revert"; targetOperationId: string };
+
+export interface CurriculumRevision {
+  id: string;
+  programId: string;
+  baseVersion: number;
+  operationId: string;
+  reason: StructuralGapReason;
+  reasonEvidenceIds: string[];
+  operations: CurriculumOperation[];
+}
+
+export interface AppliedCurriculumRevision extends CurriculumRevision {
+  toVersion: number;
+  appliedAt: number;
+  beforeSnapshot?: LearningObjective[];
+  afterSnapshot?: LearningObjective[];
+}
+
