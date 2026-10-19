@@ -238,6 +238,47 @@ A pure one-file feature does not need controller + service + model + data direct
 - Move `isLocallyExecutableCommand` offline capability decision behind a UI-facing controller query; presentation no longer parses domain commands as policy.
 - Acceptance: no view import of data adapters; end-to-end send/history/practice/proposal behavior unchanged, navigation cleanup proven.
 
+### M1 implementation checkpoint — Presentation isolation (2026-10-19)
+
+**Scope:** M1 code has been implemented on the draft branch; **CI acceptance is pending**. This does not implement M2 (turn coordinator), M3 (program service), M4 (context/data ports), or M5 (physical feature move).
+
+**Behavior-preserving changes:**
+
+- `src/chat/history-presenter.ts` owns the history popover's open/close state, trigger ARIA sync, swipe reset, animation, and calls to the existing `NoxHistoryList`. The `ChatView` remains responsible for mapping approved user intent to `LearningController`; it does not create a second session writer.
+- `src/chat/stream-text-presenter.ts` owns animation-frame coalescing, pending deltas, the single text-node reference, cancellation, and detach/reset. Assistant response text is held in one presenter and reused for Markdown display and response actions. No transcript persistence occurs in this presenter.
+- `src/chat/transcript-presenter.ts` owns ordered transcript replay with cooperative animation-frame yields, epoch cancellation, and cleanup. It only renders immutable `ChatMessage` values obtained from `LearningController.getSession()`. Session switching/closing cancels stale replays; transaction behavior remains in `SessionController`.
+- `src/application/local-command.ts` is now the single offline command eligibility implementation. `LearningController.canExecuteOfflineCommand`, `isScopeCommand`, `isActiveLearningScope` and `isProgramLearningScope` expose UI-facing policy queries with the original type narrowing where required. `src/chat/chat-state.ts` preserves an existing backwards-compatible re-export for current tests.
+- `src/chat/ChatView.ts` delegates the extracted responsibilities without replacing the Obsidian `ItemView` lifecycle and without changing the streaming learning event protocol. Presentation may still use domain *shapes* needed for rendering, but may no longer import learning scope/command policy parsers.
+- `scripts/boundaries.mjs` now explicitly prevents direct imports of `learning-scope.ts` or `learning-program/commands.ts` from `ChatView.ts` and `chat-state.ts`; checks and tests document the allowed difference between type consumption and policy decisions.
+
+**Focused tests added:**
+
+| New / adjusted test | Proof it targets |
+|---|---|
+| `tests/chat/stream-text-presenter.test.ts` | RAF batching, one text node, reset cancellation, detach preserves action text |
+| `tests/chat/transcript-presenter.test.ts` | Transcript ordering, empty state, old-session cancellation, exception cleanup |
+| `tests/architecture/boundaries.test.ts` | No direct command parser imports in presentation; data shapes/application queries still allowed |
+| Existing `tests/chat/chat-state.test.ts` | Offline command whitelist and one-shot action compatibility |
+| Existing `tests/session/SessionController.test.ts`, `tests/integration/learning/recovery-flow.test.ts` | Persisted history authority and terminal practice/review/edit guarantees unchanged |
+
+**Invariant trace:**
+
+```text
+User gesture (ChatView)
+   -> LearningController (policy query / use case)
+   -> SessionController (single session transaction owner)
+   -> PluginDataRepository.update (single plugin-data writer)
+   -> ChatView renders committed snapshot through TranscriptPresenter
+
+Streaming delta (LearningController.run)
+   -> ChatView event mapping
+   -> StreamTextPresenter (coalesces DOM text only)
+   -> terminal outcome still owned by RunLearningTurn/SessionController
+   -> final Markdown and message actions
+```
+
+**Acceptance gate:** run `pnpm verify` plus `pnpm lint:typed` and `pnpm ci:critical` using the existing CI workflow. Do not claim green tests or desktop acceptance merely because GitHub accepted a commit. Obsidian desktop history swipe, transcript visuals, stream completion, practice cards, and proposal approval must be exercised before merging/releasing behavior-sensitive changes.
+
 ### M2 — Conversation turn coordinator
 - Keep one `RunTurn` active-turn/cancel owner.
 - Extract context request preparation, terminal validation and structured outcome reconciliation as testable functions/use cases **without introducing an independent transaction owner**.
