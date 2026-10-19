@@ -86,7 +86,7 @@ Each item has label, string/finite number value and optional unit, detail,
 semantic status (success/pending/warning/error). All values are textContent,
 never HTML. Status icons come exclusively from `setNoxIcon` in NOX primitives.
 
-For compact top-down diagrams, use fenced `nox-flow` JSON:
+For an explicitly requested custom top-down diagram, use fenced `nox-flow` JSON:
 
 ~~~nox-flow
 {
@@ -254,3 +254,43 @@ ownership and both activity variants being direct thread children.
 Manual smoke check: test 320/390px sidebar and >1200px wide Obsidian pane.
 Trigger Ask; inspect the left edges of live Waiting, settled Completed,
 assistant content and restored history. They must align.
+
+## Graph presentation parity (M1–M3, 2026-10-19)
+
+**Choice and authority (A):** Application prompts prefer fenced Mermaid `flowchart TB` or
+`flowchart LR` for ordinary architecture, dependency and flow diagrams.
+`nox-flow` is still accepted as an explicit user-requested format or when
+rehydrating existing conversations. Stored Markdown remains the sole source
+of diagram truth. NOX does not infer missing edges or rewrite user diagrams.
+
+**Rendering graph (A):** Persisted Markdown -> Obsidian MarkdownRenderer ->
+native Mermaid SVG -> NOX shared graph viewport. A validated `nox-flow`
+block instead follows `parseNoxFlow` -> `layoutNoxFlow` -> NOX SVG ->
+the same shared graph viewport. The viewport only adjusts presentation,
+not nodes, edges, learning state, or storage.
+
+**Shared interaction:** `src/chat/graph-viewport.ts` adds Fit, Zoom 75–300%,
+Expand, Escape-to-close, mouse drag-to-pan when overflowing, and native
+touch/trackpad scrolling. Sizing is clamped to the diagram's intrinsic width
+and stays within the current Obsidian chat pane. Owner document support
+preserves pop-out windows. Native Mermaid remains owned by the Obsidian host.
+
+**Visual conventions:** Nodes use compact, light-blue styling; explicit
+`nox-focus` Mermaid node classes may be used for purple emphasis.
+Only diagram-scoped CSS is changed, and unrelated Markdown content remains
+unchanged.
+
+**Failure handling (E):** Invalid `nox-flow` specs keep their JSON source,
+oversized visual blocks keep their source, and late native Mermaid uses
+the existing bounded MutationObserver. Any graph not supported by the
+limited custom DAG schema should use native Mermaid instead.
+
+**Dependencies (R):** No additional runtime or third-party graph libraries.
+This milestone does not add ELK.js, alter `nox-flow` v1, or introduce a new
+persistence store. A more capable layout engine remains a separate M4
+decision, justified by measured layout failures rather than visual guesswork.
+
+**Verification:** Unit tests cover graph routing and viewport width bounds.
+CI and Obsidian desktop verification are distinct. Desktop acceptance must
+cover native and custom diagrams in 320/390/768/1440px panes, fit/zoom/expand,
+mouse pan, pop-out behavior, invalid formats, and transcript restoration.
