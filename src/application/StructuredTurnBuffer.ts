@@ -21,6 +21,22 @@ export class StructuredTurnBuffer {
     private readonly practiceAttempt?: PracticeEvaluationAttempt,
   ) {}
 
+  /** Provider terminal success is not enough if the action's required payload is absent.
+   * This check is pure: committing candidates remains the turn coordinator's job.
+   */
+  assertTerminalEligible(): void {
+    if (this.request.practiceClarification &&
+        (this.practiceBuffer.question || this.practiceBuffer.evaluation)) {
+      throw new InvalidLearningOutputError("A clarification cannot create or grade a practice question.");
+    }
+    if (this.request.action === "practice" && !this.practiceAttempt && !this.practiceBuffer.question) {
+      throw new InvalidLearningOutputError("Practice completed without a question.");
+    }
+    if (this.request.action === "review" && !this.reviewBuffer.observed) {
+      throw new InvalidLearningOutputError("Review completed without findings payload.");
+    }
+  }
+
   *map(
     events: StructuredStreamEvent[],
   ): Iterable<LearningEvent> {
