@@ -8,6 +8,9 @@ importers:
 
   .:
     dependencies:
+      elkjs:
+        specifier: 0.11.0
+        version: 0.11.0
       motion:
         specifier: ^13.4.2
         version: 13.4.2
@@ -44,6 +47,9 @@ importers:
         version: 5.9.3
 
 packages:
+
+  elkjs@0.11.0:
+    resolution: {integrity: sha512-u4J8h9mwEDaYMqo0RYJpqNMFDoMK7f+pu4GjcV+N8jIC7TRdORgzkfSjTJemhqONFfH6fBI3wpysgWbhgVWIXw==}
 
   '@cacheable/memory@2.2.0':
     resolution: {integrity: sha512-CTLKqLItRCEixEAewD3/j9DB3/o96gpTPD4eJ1v+DGOlxZRZncRQkGYqqnAGCscYd6RNeXfGeiuCphsPtqyIfQ==}
@@ -1018,6 +1024,8 @@ packages:
     engines: {node: '>=10'}
 
 snapshots:
+
+  elkjs@0.11.0: {}
 
   '@cacheable/memory@2.2.0':
     dependencies:
