@@ -70,7 +70,7 @@ Practice: session-persisted question + answer + evaluation; eligible evidence on
 
 - Both plan paths already use a single domain generator; W3 **clarifies labels**, rather than changing onboarding persistence/approval or silently scaffolding files for Quick Plan.
 - Quiz remains untracked, ephemeral, and does not count towards verified mastery. Tracked practice retains all durable receipts and historical decoders.
-- The command menu's **single-character prefix search** is a protected behavior; the primary label is `Quick plan · no workspace` (not `Quick start`, which broke the `/s` search invariant).
+- The command menu's **single-character prefix search** is protected; the primary label is `Create plan · quick`. Labels starting with `Quick` unexpectedly matched `/q`, so descriptive naming must preserve existing command-prefix semantics.
 - No changes to note access, request authorizations, visual source validation or question grading.
 
 ### W4 — Low-value surface and delivery-contract cleanup
