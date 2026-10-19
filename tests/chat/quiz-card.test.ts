@@ -199,3 +199,47 @@ test("a failed evaluation remains retryable, and code Tab is not trapped", async
     });
   assert.equal(code.findAll("textarea")[0].handlers.has("keydown"), false);
 });
+
+
+test("M1 code input preserves draft, grows by content and locks on accepted submit", async () => {
+  const root = new FakeElement();
+  const source = "class A {\n  int x = 1;\n}";
+  const recorded: PracticeAnswer[] = [];
+  const submitted: PracticeAnswer[] = [];
+  renderQuizCard(dom(root), { kind: "question", concept: "Java", question: "Code?",
+    input: { type: "code", language: "java", executionMode: "review-only",
+      starterCode: "class A {}" } }, {
+    questionId: "code-m1", active: true,
+    draft: { type: "code", language: "java", source },
+    onDraft: answer => recorded.push(answer),
+    onSubmit: async answer => { submitted.push(answer); return true; },
+    onHint: () => false,
+  });
+  const answer = root.findAll("textarea")[0];
+  assert.equal(answer.value, source);
+  assert.equal(answer.rows, 3, "fallback uses compact intrinsic editor baseline");
+  answer.value = source + "\nint sum = x + 3;";
+  answer.trigger("input");
+  assert.equal(recorded.length, 1);
+  assert.deepEqual(recorded[0], { type: "code", language: "java", source: answer.value });
+  root.findClass("nox-quiz-submit")?.trigger("click");
+  await new Promise<void>(resolve => setImmediate(resolve));
+  assert.deepEqual(submitted[0], recorded[0]);
+  assert.equal(answer.disabled, true, "accepted evaluation must freeze code");
+});
+
+test("M1 failed evaluation reopens the code editor for retry", async () => {
+  const root = new FakeElement();
+  renderQuizCard(dom(root), { kind: "question", concept: "TS", question: "Code?",
+    input: { type: "code", language: "ts", executionMode: "review-only",
+      starterCode: "const x = 1;" } }, {
+    questionId: "code-retry", active: true,
+    onDraft: () => {}, onSubmit: async () => false, onHint: () => false,
+  });
+  const editor = root.findAll("textarea")[0];
+  const submit = root.findClass("nox-quiz-submit")!;
+  submit.trigger("click");
+  await new Promise<void>(resolve => setImmediate(resolve));
+  assert.equal(editor.disabled, false);
+  assert.equal(submit.disabled, false);
+});
