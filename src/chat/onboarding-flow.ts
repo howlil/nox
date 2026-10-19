@@ -1,6 +1,7 @@
 import type { LearningProgram } from "../domain/learning-program/types";
 import type { LearningController } from "../application/LearningController";
 import type { OnboardingDraft } from "../domain/onboarding/types";
+import { restoreOnboardingDraft, withOnboardingStage, withOnboardingSource, onboardingConstraints } from "../features/learning/onboarding/OnboardingWorkflow";
 import { planWorkspace } from "../domain/workspace/plan";
 import { feasibility } from "../domain/learning-program/rules";
 import { createNoxButton, setNoxIcon } from "./primitives";
@@ -11,11 +12,7 @@ interface Callbacks { onSkip(): void; onCreated(): void; onStart(): void }
 /** Native NOX rendering. UI only: business mutations are owned by LearningController. */
 export class OnboardingFlow {
   private stage: OnboardingDraft["stage"] = "welcome";
-  private draft: OnboardingDraft = {
-    version: 1, stage: "welcome", goal: "", interests: [],
-    purpose: "career", level: "beginner", minutesPerSession: 45, sessionsPerWeek: 3,
-    sourceBound: false,
-  };
+  private draft: OnboardingDraft = restoreOnboardingDraft();
   private preview: LearningProgram | null = null;
   private directions: Array<{ title: string; outcome: string }> = [];
   private error = "";
@@ -26,16 +23,13 @@ export class OnboardingFlow {
 
   constructor(private readonly parent: HTMLElement, private readonly learning: LearningController,
     private readonly callbacks: Callbacks, initial?: OnboardingDraft) {
-    if (initial?.version === 1) {
-      this.draft = initial;
-      this.stage = ["generating", "preview", "applying", "ready"].includes(initial.stage)
-        ? "form" : initial.stage;
-    }
+    this.draft = restoreOnboardingDraft(initial);
+    this.stage = this.draft.stage;
     this.render();
   }
 
   private persist(): void {
-    this.draft.stage = this.stage;
+    this.draft = withOnboardingStage(this.draft, this.stage);
     void this.learning.saveOnboardingDraft(this.draft).catch(error => {
       console.warn("[Nox] Could not save onboarding draft", error);
     });
@@ -93,8 +87,7 @@ export class OnboardingFlow {
     const ctx = await this.learning.getOnboardingContext();
     if (!ctx.activeNote) throw new Error("Open a Markdown note before continuing.");
     this.draft.goal = this.draft.goal || "Understand " + ctx.activeNote.split("/").pop();
-    this.draft.sourceBound = true;
-    this.draft.sourcePath = ctx.activeNote;
+    this.draft = withOnboardingSource(this.draft, ctx.activeNote);
     this.go("form");
   }
 
@@ -125,13 +118,7 @@ export class OnboardingFlow {
     this.stage = "generating";
     this.render();
     try {
-      const constraints = {
-        minutesPerSession: this.draft.minutesPerSession, sessionsPerWeek: this.draft.sessionsPerWeek,
-        startingLevel: this.draft.level,
-        ...(this.draft.deadline ? { deadline: this.draft.deadline } : {}),
-        sourceBound: this.draft.sourceBound,
-        sourcePaths: this.draft.sourcePath ? [this.draft.sourcePath] : [], excludedTopics: [],
-      };
+      const constraints = onboardingConstraints(this.draft);
       const prepared = await this.learning.previewLearningProgram(this.draft.goal.trim(), constraints);
       if (epoch !== this.requestEpoch) return;
       this.preview = prepared;
@@ -167,7 +154,7 @@ export class OnboardingFlow {
         "Build a learning path or try Nox without setting up a program.");
       this.choices(panel, [
         { icon: "target", title: "Guided setup", detail: "Preview a learning plan and approve workspace files", click: () => {
-          this.draft.sourceBound = false; this.draft.sourcePath = undefined; this.go("form");
+          this.draft = withOnboardingSource(this.draft); this.go("form");
         } },
         { icon: "compass", title: "Help me decide", detail: "Explore learning directions",
           click: () => this.go("discovery") },
@@ -207,7 +194,7 @@ export class OnboardingFlow {
       this.header(panel, "Suggested directions", "Select one to customize its learning outcome.");
       this.choices(panel, this.directions.map(x => ({
         icon: "target" as const, title: x.title, detail: x.outcome,
-        click: () => { this.draft.goal = x.title; this.draft.sourceBound = false; this.draft.sourcePath = undefined; this.go("form"); },
+        click: () => { this.draft.goal = x.title; this.draft = withOnboardingSource(this.draft); this.go("form"); },
       })));
       this.button(panel, "Back to interests", () => this.go("discovery"));
     } else if (this.stage === "notes") {

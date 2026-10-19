@@ -218,3 +218,20 @@ test("R1 curriculum revision generator is private to the learning program orches
   }]);
   assert.ok(leaks.some(message => message.includes("forbidden dependency")));
 });
+
+test("R2 onboarding has a single host adapter and no private IO access", () => {
+  const modules = [
+    { path: "src/features/learning/onboarding/OnboardingWorkflow.ts",
+      source: 'import type { OnboardingDraft } from "../../../domain/onboarding/types";' },
+    { path: "src/domain/onboarding/types.ts", source: "" },
+    { path: "src/chat/onboarding-flow.ts",
+      source: 'import { restoreOnboardingDraft } from "../features/learning/onboarding/OnboardingWorkflow";' },
+  ];
+  assert.deepEqual(validateArchitecture(modules), []);
+  const illegal = validateArchitecture([...modules,
+    { path: "src/features/learning/onboarding/Bad.ts",
+      source: 'import { LearningController } from "../../../application/LearningController";' },
+    { path: "src/application/LearningController.ts", source: "" },
+  ]);
+  assert.ok(illegal.some(message => message.includes("forbidden dependency")));
+});

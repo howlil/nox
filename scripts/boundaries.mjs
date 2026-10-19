@@ -16,7 +16,7 @@ const ALLOWED_OWNERS = {
   settings: ["settings"],
 };
 const ROOT_FILES = new Set(["src/main.ts", "src/types.ts"]);
-const FEATURE_PACKAGES = new Set(["conversation/turn", "conversation/view", "learning/program"]);
+const FEATURE_PACKAGES = new Set(["conversation/turn", "conversation/view", "learning/program", "learning/onboarding"]);
 const IMPORTS = /\b(?:from\s*|import\s*\(\s*|require\s*\(\s*|import\s*)(["'])([^"']+)\1/g;
 
 function isApprovedFeatureEdge(from, to) {
@@ -27,6 +27,7 @@ function isApprovedFeatureEdge(from, to) {
     if (from === "src/application/RunLearningTurn.ts") return toPackage === "conversation/turn";
     if (from === "src/application/LearningProgramOrchestrator.ts") return toPackage === "learning/program";
     if (from === "src/chat/ChatView.ts") return toPackage === "conversation/view";
+    if (from === "src/chat/onboarding-flow.ts") return toPackage === "learning/onboarding";
     return false;
   }
   if (!FEATURE_PACKAGES.has(fromPackage)) return false;
@@ -46,6 +47,7 @@ function isApprovedFeatureEdge(from, to) {
   if (fromPackage === "learning/program") {
     return ["src/application/ports.ts", "src/agent/AgentRuntime.ts"].includes(to);
   }
+  if (fromPackage === "learning/onboarding") return false;
   return false;
 }
 
