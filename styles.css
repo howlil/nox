@@ -3500,7 +3500,8 @@
   padding: 2px 5px;
   background: var(--nox-surface);
 }
-.nox-diagram-viewport {
+/* Shared read-only viewport for Mermaid and legacy nox-flow SVGs. */
+.nox-graph-viewport {
   width: 100%;
   max-width: 100%;
   min-width: 0;
@@ -3511,46 +3512,84 @@
   scrollbar-width: thin;
   background: var(--nox-surface);
 }
-.nox-diagram-viewport .mermaid {
+.nox-graph-canvas {
   display: block;
-  width: max-content;
-  max-width: none !important;
   min-width: 0;
   margin-inline: auto;
   padding: 8px;
   box-sizing: border-box;
 }
-.nox-root .nox-markdown .mermaid svg {
+.nox-graph-canvas > .mermaid {
+  display: block;
+  width: 100%;
   max-width: none !important;
-  height: auto !important;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
 }
-.nox-diagram-viewport .mermaid svg {
+.nox-root .nox-markdown .mermaid svg,
+.nox-graph-canvas .mermaid svg {
   display: block;
   width: 100% !important;
   max-width: none !important;
   height: auto !important;
   margin: 0 auto;
 }
-.nox-diagram-viewport.is-zoomed { overflow-x: auto; overflow-y: visible; }
-.nox-diagram-viewport .mermaid[data-nox-sizing="natural"] {
-  flex: 0 0 auto;
+.nox-graph-canvas > .nox-rich-flow-svg {
+  display: block;
+  width: 100%;
+  max-width: none;
+  height: auto;
 }
-.nox-diagram.is-expanded .nox-diagram-viewport {
-  overflow: auto;
-  min-height: 0;
-}
-.nox-diagram.is-expanded {
+.nox-graph-viewport.is-panning { cursor: grabbing; user-select: none; }
+.nox-graph-viewport.is-panning * { cursor: grabbing !important; }
+.nox-diagram.is-expanded,
+.nox-rich-flow.is-expanded {
   position: fixed;
   inset: 14px;
   z-index: 1000;
   display: flex;
   flex-direction: column;
+  width: auto !important;
   max-width: none !important;
-  margin: 0;
-}
-.nox-diagram.is-expanded .nox-diagram-viewport {
-  flex: 1;
   max-height: none;
+  margin: 0;
+  background: var(--nox-surface);
+}
+.nox-diagram.is-expanded .nox-graph-viewport,
+.nox-rich-flow.is-expanded .nox-graph-viewport {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+.nox-rich-flow.is-expanded .nox-rich-flow-details { display: none; }
+
+/* Graph-only palette: preserve authored Mermaid semantics outside NOX. */
+.nox-root .nox-diagram .mermaid .node rect {
+  rx: 11px;
+  fill: #e6f2ff !important;
+  stroke: #c4d8eb !important;
+  stroke-width: 1px;
+}
+.nox-root .nox-diagram .mermaid .node .label,
+.nox-root .nox-diagram .mermaid .nodeLabel {
+  font-size: 12px !important;
+  color: #145a91 !important;
+}
+.nox-root .nox-diagram .mermaid .cluster rect {
+  fill: var(--nox-surface) !important;
+  stroke: var(--nox-line-strong) !important;
+  stroke-width: 1px;
+  rx: 9px;
+}
+.nox-root .nox-diagram .mermaid .flowchart-link {
+  stroke: var(--nox-line-strong);
+  stroke-width: 1.15px;
+}
+.nox-root .nox-diagram .mermaid .marker {
+  fill: var(--nox-line-strong);
+  stroke: var(--nox-line-strong);
 }
 .nox-root .nox-code-block {
   position: relative;
@@ -4292,15 +4331,8 @@
 .nox-rich-bar-value { color: var(--nox-ink-2); font-size: 10px; font-variant-numeric: tabular-nums; }
 .nox-rich-bar-track { height: 8px; min-width: 0; border-radius: var(--nox-radius-pill); background: var(--nox-inset); overflow: hidden; }
 .nox-rich-bar-fill { display: block; height: 100%; border-radius: inherit; background: var(--nox-accent); }
-.nox-rich-flow-viewport {
-  max-width: 100%;
-  max-height: none;
-  overflow-x: auto;
-  overflow-y: visible;
-  overscroll-behavior-y: contain;
-  scrollbar-width: thin;
-  margin-top: 8px;
-}
+.nox-rich-flow .nox-graph-toolbar { border-radius: var(--nox-radius-card); }
+.nox-rich-flow .nox-graph-viewport { margin-top: 8px; }
 .nox-rich-flow-svg {
   display: block;
   width: min(100%, var(--nox-flow-width, 100%));
