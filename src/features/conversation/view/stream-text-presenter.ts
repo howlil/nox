@@ -26,10 +26,14 @@ export class StreamTextPresenter {
     this.accumulated += delta;
     this.pending += delta;
     if (this.frame === null) {
-      this.frame = this.scheduler.request(() => {
+      // A cancelled RAF callback can still be delivered by a test scheduler
+      // or by a host mid-frame. It must not consume the next turn's frame.
+      const requested = this.scheduler.request(() => {
+        if (this.frame !== requested) return;
         this.frame = null;
         this.flush();
       });
+      this.frame = requested;
     }
   }
 
