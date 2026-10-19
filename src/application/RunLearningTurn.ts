@@ -424,7 +424,7 @@ export class RunLearningTurn {
       // Independent vault reads share the same preflight window; required
       // source resolution and learning-policy failures still fail this turn.
       [context, [policy, state]] = await Promise.all([
-        this.contexts.resolve(refs),
+        this.contexts.resolve(refs, { includeAmbient: request.contextMode !== "explicit-only" }),
         Promise.all([this.policies.load(), this.learningState.load()]),
       ]);
       state = await this.evidence.reconcileTranscript(sessionAtStart, state);
