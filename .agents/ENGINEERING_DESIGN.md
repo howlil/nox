@@ -8,6 +8,38 @@ Last updated: 2026-10-13
 
 ---
 
+## M4 data and context dependency checkpoint — 2026-10-19
+
+M4 prevents pure token accounting and context request orchestration from
+depending on concrete Obsidian persistence/host adapters:
+
+- `src/domain/usage/usage-accounting.ts` is pure cumulative-to-delta
+  aggregation, UTC bucket rollup, input validation and untrusted persisted
+  snapshot decoding. `src/domain/usage/usage-types.ts` defines the domain value
+  shape; root `src/types.ts` retains the structurally compatible wire contract
+  because root-to-domain coupling would break architecture direction.
+- `TokenUsageRepository` only uses the existing `PluginDataRepository.update`
+  serialized writer with the same `nox-token-usage-v1` key. The accounting
+  projection cannot read/save plugin data or create an additional writer.
+  Duplicate and nonfresh AGY historical reports do not inflate token totals;
+  terminal counters and already-observed checkpoint history remain canonical.
+- `ContextResolver` now depends on host-neutral `ContextSourcePort`, not
+  `ObsidianContext`. Only the composition root creates concrete Obsidian
+  adapters. Source authorization, search filtering, live editor precedence
+  and freshness remain in existing contextual flows.
+- A targeted architecture guard forbids `ContextResolver` importing
+  `ObsidianContext` directly. Tests demonstrate structural injection,
+  scoped research forwarding, malformed bucket rejection, idempotent
+  usage totals and persistence failure behavior.
+
+M4 does not modify vault program/evidence CAS, proposal status receipt,
+undo mechanics, provider runtimes, rendering, or storage schema. See
+`docs/ARCHITECTURE_BOUNDARY_REDESIGN.md` for graphs and failure coverage.
+M5 physical package migration is still pending. CI and native Obsidian desktop
+acceptance remain independent checks; do not merge/release on docs alone.
+
+---
+
 ## M3 program responsibility and CAS checkpoint — 2026-10-19
 
 M3 isolates plan generation, focus authorization and timed-session transitions
