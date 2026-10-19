@@ -15,7 +15,7 @@ test("ask and explain prefer native Mermaid; other learning actions stay unchang
   for (const action of ["ask", "explain"] as const) {
     const prompt = buildActionInstruction(action);
     assert.match(prompt, /prefer fenced Mermaid flowcharts/);
-    assert.match(prompt, /Use nox-flow JSON only when the user explicitly requests/);
+    assert.match(prompt, /Use nox-flow v2 only when explicitly requested/);
     assert.match(prompt, /Avoid decorative subgraphs/);
   }
   assert.doesNotMatch(buildActionInstruction("review"), /prefer fenced Mermaid flowcharts/);
