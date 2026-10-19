@@ -3,21 +3,26 @@ import type { ContextPort, LearningStatePort, ProgramStorePort } from "./ports";
 import type { LearningProgram, ProgramCollection, ProgramConstraints, SessionPauseReason } from "../domain/learning-program/types";
 import { feasibility, validateConstraints, validateCurriculum } from "../domain/learning-program/rules";
 import { selectAdaptiveActivity, type AdaptiveActivityDecision } from "../domain/learner-model/activity-policy";
-import { startObjectiveFocus, transitionObjectiveFocus } from "../domain/learning-program/focus-transitions";
 import { deriveLearnerProfile, toLearnerProfileContext } from "../domain/learner-model/learner-profile";
 import { applyCurriculumRevision, detectStructuralGap, type CurriculumRevision, type StructuralGapReason } from "../domain/learning-program/curriculum-revision";
 import { proposeCurriculumRevision, type CurriculumRevisionPreview } from "./CurriculumRevisionService";
 import { estimateRemainingWork } from "../domain/learning-program/estimate";
-import { checkpointTiming, focusSessionObjective, focusSessionMaterial, newSessionTiming, projectedTiming, recoverTiming, sessionRemainingMs, sessionTimeStatus, setTimingPause } from "../domain/learning-program/session-time";
+import { projectedTiming, recoverTiming, sessionRemainingMs, sessionTimeStatus } from "../domain/learning-program/session-time";
+import { ProgramMutationQueue } from "./ProgramMutationQueue";
+import { beginObjectiveFocus, changeObjectiveFocus } from "./ProgramFocusService";
+import {
+  startTimedSession, endTimedSession, extendTimedSession, pauseTimedSession,
+  resumeTimedSession, focusTimedObjective, focusTimedMaterial,
+  checkpointTimedSession, recoverProgramSessions,
+} from "./ProgramSessionTransitions";
 
 /** Program planning and session selection. The model generates content, never transitions. */
 export class LearningProgramOrchestrator {
   private readonly preparedDrafts = new Map<string, LearningProgram>();
   private readonly pendingRevisions = new Map<string, { revision: CurriculumRevision; preview: CurriculumRevisionPreview }>();
   private planning = false;
-  private writing = false;
   private currentAbort?: AbortController;
-  private mutationTail: Promise<void> = Promise.resolve();
+  private readonly mutations = new ProgramMutationQueue();
   // Runtime-owned timer (not bound to a DOM window): safe across Obsidian popout views.
   private checkpointTimer?: ReturnType<typeof setInterval>;
   private activeAiTurnId?: string;
@@ -50,7 +55,7 @@ export class LearningProgramOrchestrator {
   }
 
   async flushTime(): Promise<void> {
-    await this.mutationTail;
+    await this.mutations.idle();
     await this.checkpointCurrentSession();
   }
 
@@ -59,29 +64,20 @@ export class LearningProgramOrchestrator {
     if (!current?.session) { this.stopCheckpointLoop(); return; }
     const timing = current.session.timing;
     if (!timing || (timing.pauseReasons.length > 0 && !timing.pauseReasons.includes("ai-running"))) return;
-    await this.updateActive(program => {
-      if (!program.session?.timing) return program;
-      return { ...program, session: { ...program.session,
-        timing: checkpointTiming(program.session.timing, this.now()) } };
-    });
+    await this.updateActive(program => checkpointTimedSession(program, this.now()));
   }
 
   /** Never infer closed-app time from a persisted wall-clock timestamp. */
   async recoverSessions(): Promise<void> {
-    const collection = await this.store.load();
-    let changed = false;
-    const now = this.now();
-    for (const program of collection.programs) {
-      if (program.focus?.status === "active") {
-        program.focus = { ...program.focus, status: "paused", pausedAt: now };
-        changed = true;
-      }
-      if (program.session) {
-        program.session = { ...program.session, timing: recoverTiming(program.session, now) };
-        changed = true;
-      }
-    }
-    if (changed) await this.store.save(collection, collection);
+    await this.mutations.run(async () => {
+      const expected = await this.store.load();
+      const now = this.now();
+      const changed = expected.programs.some(program => program.focus?.status === "active" || Boolean(program.session));
+      if (!changed) return;
+      const next: ProgramCollection = { ...expected,
+        programs: expected.programs.map(program => recoverProgramSessions(program, now)) };
+      await this.store.save(next, expected);
+    });
     this.stopCheckpointLoop();
   }
 
@@ -102,24 +98,11 @@ export class LearningProgramOrchestrator {
   }
 
   private async setPause(reason: SessionPauseReason, paused: boolean): Promise<void> {
-    await this.updateActive(program => {
-      if (!program.session) throw new Error("No active learning session.");
-      const now = this.now();
-      const previous = program.session.timing ?? recoverTiming(program.session, now);
-      return { ...program, session: { ...program.session,
-        timing: setTimingPause(previous, reason, paused, now) } };
-    });
+    await this.updateActive(program => pauseTimedSession(program, reason, paused, this.now()));
   }
 
   async focusObjective(objectiveId: string): Promise<void> {
-    await this.updateActive(program => {
-      if (!program.session) throw new Error("Start a session before studying an objective.");
-      if (!program.objectives.some(o => o.id === objectiveId)) throw new Error("Unknown objective.");
-      const now = this.now();
-      const timing = program.session.timing ?? recoverTiming(program.session, now);
-      return { ...program, session: { ...program.session,
-        timing: focusSessionObjective(timing, objectiveId, now) } };
-    });
+    await this.updateActive(program => focusTimedObjective(program, objectiveId, this.now()));
   }
 
   async setIdle(idle: boolean): Promise<void> {
@@ -135,40 +118,35 @@ export class LearningProgramOrchestrator {
     if (program.session.timing?.focusMaterialPath === path) return;
     await this.updateActive(current => {
       if (!current.session?.timing) return current;
-      return { ...current, session: { ...current.session,
-        timing: focusSessionMaterial(current.session.timing, path, this.now()) } };
+      return focusTimedMaterial(current, path, this.now());
     });
   }
 
   /** Preserve per-material attribution after an Obsidian note rename. */
   async renameMaterial(oldPath: string, newPath: string): Promise<void> {
-    const op = this.mutationTail.then(async () => {
-      this.writing = true;
-      try {
-        const collection = await this.store.load();
-        let dirty = false;
-        for (const program of collection.programs) {
-          if (program.session?.timing) {
-            const t = program.session.timing;
-            if (t.focusMaterialPath === oldPath) { t.focusMaterialPath = newPath; dirty = true; }
-            if (t.materialActiveMs?.[oldPath] !== undefined) {
-              t.materialActiveMs[newPath] = (t.materialActiveMs[newPath] ?? 0) + t.materialActiveMs[oldPath];
-              delete t.materialActiveMs[oldPath]; dirty = true;
-            }
-          }
-          for (const history of program.sessionHistory ?? []) {
-            if (history.materialActiveMinutes?.[oldPath] !== undefined) {
-              history.materialActiveMinutes[newPath] =
-                (history.materialActiveMinutes[newPath] ?? 0) + history.materialActiveMinutes[oldPath];
-              delete history.materialActiveMinutes[oldPath]; dirty = true;
-            }
+    return this.mutations.run(async () => {
+      const expected = await this.store.load();
+      const next = structuredClone(expected);
+      let dirty = false;
+      for (const program of next.programs) {
+        if (program.session?.timing) {
+          const timing = program.session.timing;
+          if (timing.focusMaterialPath === oldPath) { timing.focusMaterialPath = newPath; dirty = true; }
+          if (timing.materialActiveMs?.[oldPath] !== undefined) {
+            timing.materialActiveMs[newPath] = (timing.materialActiveMs[newPath] ?? 0) + timing.materialActiveMs[oldPath];
+            delete timing.materialActiveMs[oldPath]; dirty = true;
           }
         }
-        if (dirty) await this.store.save(collection, collection);
-      } finally { this.writing = false; }
+        for (const history of program.sessionHistory ?? []) {
+          if (history.materialActiveMinutes?.[oldPath] !== undefined) {
+            history.materialActiveMinutes[newPath] =
+              (history.materialActiveMinutes[newPath] ?? 0) + history.materialActiveMinutes[oldPath];
+            delete history.materialActiveMinutes[oldPath]; dirty = true;
+          }
+        }
+      }
+      if (dirty) await this.store.save(next, expected);
     });
-    this.mutationTail = op.then(() => {}, () => {});
-    return op;
   }
 
   async setAppInactive(inactive: boolean): Promise<void> {
@@ -179,14 +157,7 @@ export class LearningProgramOrchestrator {
 
   async pauseSession(): Promise<void> { await this.setPause("manual", true); }
   async resumeSession(): Promise<void> {
-    await this.updateActive(program => {
-      if (!program.session) throw new Error("No active learning session.");
-      const now = this.now();
-      let timing = program.session.timing ?? recoverTiming(program.session, now);
-      timing = setTimingPause(timing, "manual", false, now);
-      timing = setTimingPause(timing, "recovery", false, now);
-      return { ...program, session: { ...program.session, timing } };
-    });
+    await this.updateActive(program => resumeTimedSession(program, this.now()));
     this.startCheckpointLoop();
   }
 
@@ -212,7 +183,7 @@ export class LearningProgramOrchestrator {
     }
   }
 
-  isPlanning() { return this.planning || this.writing; }
+  isPlanning() { return this.planning || this.mutations.isWriting; }
   cancel() { this.currentAbort?.abort(); }
   async listPrograms(): Promise<ProgramCollection> { return this.store.load(); }
   async selectProgram(id: string): Promise<LearningProgram> {
@@ -303,7 +274,7 @@ export class LearningProgramOrchestrator {
 
   /** Revert is a new version. Never delete receipts or evidence from the past. */
   async prepareCurriculumRevert(targetOperationId: string): Promise<CurriculumRevisionPreview> {
-    if (this.isPlanning() || this.activeAiTurnId || this.writing) {
+    if (this.isPlanning() || this.activeAiTurnId || this.mutations.isWriting) {
       throw new Error("Finish the active learning operation before reverting.");
     }
     const program = await this.getActiveProgram();
