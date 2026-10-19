@@ -2117,9 +2117,40 @@ export class ChatView extends ItemView {
           this.learning.getSession().messages.length > 0) return;
       new OnboardingFlow(slate, this.learning, {
         onSkip: () => {
-          void this.learning.dismissOnboarding().then(() => this.showEmpty())
-            .catch(error => this.appendInlineStatus(this.thread, "failed",
-              error instanceof Error ? error.message : "Could not save onboarding choice."));
+          void this.learning.dismissOnboarding().then(() => {
+            this.showEmpty();
+            this.focusComposer();
+          }).catch(error => this.appendInlineStatus(this.thread, "failed",
+            error instanceof Error ? error.message : "Could not save onboarding choice."));
+        },
+        onQuickPlan: async command => {
+          if (this.uiState === "RUNNING" || this.input.value.trim()) {
+            throw new Error("Send or clear the current composer draft first.");
+          }
+          if (!(await this.ensureRuntimeReady())) throw new Error("Connect your AI provider, then retry.");
+          await this.learning.dismissOnboarding();
+          this.setAction("ask");
+          this.input.value = command;
+          this.onInput();
+          await this.doSend();
+        },
+        onNoteAction: async (path, kind) => {
+          if (this.uiState === "RUNNING" || this.input.value.trim()) {
+            throw new Error("Send or clear the current composer draft first.");
+          }
+          if (!(await this.ensureRuntimeReady())) throw new Error("Connect your AI provider, then retry.");
+          await this.learning.dismissOnboarding();
+          this.attachments.push({
+            name: path.split("/").pop() ?? path,
+            ref: { kind: "vault-note", path },
+          });
+          this.extraCtx = this.attachments.map(item => item.ref);
+          this.renderAttachments();
+          this.setAction(kind === "explain" ? "explain" : "ask");
+          this.input.value = kind === "practice" ? "/free-practice"
+            : "Explain the main concepts from this note with a concrete example.";
+          this.onInput();
+          await this.doSend();
         },
         onCreated: () => {
           this.showEmpty();
