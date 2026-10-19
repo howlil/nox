@@ -23,6 +23,11 @@ function isApprovedEdge(from, to) {
   const target = to === "src/types.ts" ? "types" : to.split("/")[1];
   if (from === "src/types.ts") return to === "src/session/transcript-types.ts";
   if (from === "src/main.ts") return true;
+  // M4: the context application-facing resolver consumes a structural port,
+  // never the concrete Obsidian adapter or any host-specific implementation.
+  if (from === "src/context/ContextResolver.ts" &&
+      to === "src/context/ObsidianContext.ts") return false;
+
   if (!ALLOWED_OWNERS[owner]?.includes(target)) return false;
 
   // M1: the Obsidian view must ask the application facade to interpret
