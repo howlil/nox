@@ -2147,6 +2147,7 @@ export class ChatView extends ItemView {
             action: kind === "practice" ? "ask" : "explain",
             explicitContext: [{ kind: "vault-note", path }],
             contextMode: "explicit-only",
+            ...(kind === "practice" ? { sourcePath: path } : {}),
           };
           this.setAction(request.action);
           this.lastTurnRequest = request;
