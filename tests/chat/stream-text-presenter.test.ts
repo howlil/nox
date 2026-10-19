@@ -71,3 +71,55 @@ test("detach drops stale DOM while preserving committed response text for action
   h.presenter.dispose();
   assert.equal(h.presenter.text, "");
 });
+
+test("a canceled frame delivered late cannot consume the next turn's frame", () => {
+  let next = 0;
+  const callbacks = new Map<number, FrameRequestCallback>();
+  const canceled: number[] = [];
+  const textNodes: Array<{ value: string; appendData(value: string): void }> = [];
+  const container = {
+    ownerDocument: {
+      createTextNode: (value: string) => ({
+        value, appendData(delta: string) { this.value += delta; },
+      }),
+    },
+    appendChild: (node: (typeof textNodes)[number]) => textNodes.push(node),
+  } as unknown as HTMLElement;
+  const presenter = new StreamTextPresenter({
+    request: callback => {
+      const id = ++next;
+      callbacks.set(id, callback);
+      return id;
+    },
+    cancel: id => { canceled.push(id); },
+  });
+  presenter.append(container, "stale turn");
+  const stale = callbacks.get(1)!;
+  presenter.reset();
+  presenter.append(container, "current turn");
+  assert.deepEqual(canceled, [1]);
+  stale(0); // simulate a callback already queued when cancellation occurs
+  assert.equal(textNodes.length, 0);
+  assert.equal(presenter.text, "current turn");
+  callbacks.get(2)!(16);
+  assert.equal(textNodes.length, 1);
+  assert.equal(textNodes[0].value, "current turn");
+  presenter.dispose();
+});
+
+test("switching stream DOM container flushes the old text without duplicating next text", () => {
+  const h = harness();
+  const otherNodes: Array<{ text: string; appendData(text: string): void }> = [];
+  const second = {
+    ownerDocument: h.container.ownerDocument,
+    appendChild: (node: (typeof otherNodes)[number]) => otherNodes.push(node),
+  } as unknown as HTMLElement;
+  h.presenter.append(h.container, "first");
+  h.presenter.append(second, "second");
+  assert.equal(h.nodes.length, 1);
+  assert.equal(h.nodes[0].text, "first");
+  assert.equal(otherNodes.length, 0);
+  h.fire();
+  assert.equal(otherNodes[0].text, "second");
+  assert.equal(h.presenter.text, "firstsecond");
+});
