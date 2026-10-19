@@ -1085,17 +1085,8 @@ export class RunLearningTurn {
             return;
           }
 
-          if (request.practiceClarification &&
-              (practiceBuffer.question || practiceBuffer.evaluation)) {
-            throw new InvalidLearningOutputError("A clarification cannot create or grade a practice question.");
-          }
-          // Terminal success is insufficient when an intent has a required result.
-          if (request.action === "practice" && !practiceAttempt && !practiceBuffer.question) {
-            throw new InvalidLearningOutputError("Practice completed without a question.");
-          }
-          if (request.action === "review" && !reviewBuffer.observed) {
-            throw new InvalidLearningOutputError("Review completed without findings payload.");
-          }
+          // Candidate payloads become eligible only after successful terminal output.
+          structuredBuffer.assertTerminalEligible();
 
           // A parsed question is only a candidate until the agent completes.
           // Never leave a durable or visible unanswered question after failure.
