@@ -7,6 +7,8 @@ import type { ResearchResult } from "./LocalResearch";
  * Note text comes from current editor buffers when open, not stale vault cache.
  */
 export interface ContextSourcePort {
+  /** Read-only filename metadata for onboarding, without opening editor/vault contents. */
+  getActiveNotePath?(): string | undefined;
   getSelection(): { file: string; content: string } | null;
   getCurrentNote(): Promise<{ file: string; content: string } | null>;
   loadNote(path: string): Promise<{ file: string; content: string } | null>;

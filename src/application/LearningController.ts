@@ -138,9 +138,11 @@ export class LearningController {
   async getOnboardingContext(): Promise<{ hasProgram: boolean; activeNote?: string; dismissed: boolean;
     draft?: import("../domain/onboarding/types").OnboardingDraft }> {
     const programs = await this.getProgramMenuState();
-    const context = await this.contexts.resolve();
+    // The welcome screen only needs note identity, never note/selection contents.
+    // Full context is resolved later by the explicit source-bound generator.
+    const activeNote = this.contexts.getActiveNotePath?.();
     const state = await this.onboardingState?.load();
-    return { hasProgram: programs.programs.length > 0, activeNote: context.activeNote?.path,
+    return { hasProgram: programs.programs.length > 0, activeNote,
       dismissed: state?.dismissed ?? false, draft: state?.draft };
   }
 

@@ -5,7 +5,7 @@ Scope: **M1 only** of the onboarding redesign. M2 (entry point UX), M3 (post-pla
 
 ## Product contract / preserved behavior
 
-- General goal planning may generate a curriculum from an explicit goal and the existing program constraints without implicitly sending active note or editor selection content.
+- General goal planning may generate a curriculum from an explicit goal and the existing program constraints without implicitly sending active note or editor selection content. The first-run welcome screen uses path metadata only and does not need to inspect editor buffers.
 - Source-bound planning is explicit: the source path selected in onboarding must still match the current source at provider-call time and the provider must support isolation from arbitrary vault filesystem tools.
 - Guided onboarding still previews before the user authorizes program/workspace persistence. No new account, store, telemetry, provider, or agent framework.
 - Existing goal discovery, program generator, CAS, workspace approval, and cancel/abort ownership are preserved.
@@ -80,3 +80,9 @@ The M1 guarantee is **no implicit active-note or selection text in curriculum ge
 ## M2 / later (NOT implemented)
 
 M2 will reshape the welcome into Note / Goal / Chat entries. M3 will provide an explicit first learning activity after successful plan approval. M4 will cover robust draft and partial-write recovery, and M5 will conduct native interaction/keyboard acceptance.
+
+## Code-review hardening: metadata-only onboarding lookup
+
+The initial M1 provider-egress fix was correct, but a follow-up review identified an ambient **read** remaining in the UI entry path: `LearningController.getOnboardingContext()` called `ContextPort.resolve()` merely to obtain a note path, which loads open editor/vault text. We now expose the strictly metadata-only `getActiveNotePath()` through `ContextSourcePort` → `ContextResolver` → `ContextPort`, implemented by the existing `ObsidianContext`. It reads only the active/relevant Markdown file identity, not note/selection contents. The port method is optional for existing adapters and always absent rather than falling back to reading full content. Source-bound generation still resolves full context after explicit source selection and isolation checks.
+
+Regression tests verify no editor.getValue(), editor.getSelection(), vault.cachedRead(), or ContextResolver.resolve() occurs while obtaining onboarding note identity. This maintains the UI's existing note path behavior on the real Obsidian adapter, without adding a new data authority or source reader.

@@ -201,3 +201,14 @@ test("host-neutral context source forwards research authority and resolves edito
   assert.equal(report.query, "private keyword");
   assert.deepEqual(receivedScope, { kind: "selected", paths: ["open.md"] });
 });
+
+test("M1 onboarding metadata uses only note path, never selection/editor reads", () => {
+  let contentReads = 0;
+  const resolver = new ContextResolver({
+    getActiveNotePath: () => "private-name.md",
+    getSelection: () => { contentReads++; throw Error("selection content read"); },
+    getCurrentNote: async () => { contentReads++; throw Error("note content read"); },
+  } as never);
+  assert.equal(resolver.getActiveNotePath(), "private-name.md");
+  assert.equal(contentReads, 0);
+});

@@ -16,6 +16,11 @@ import type { ResearchResult } from "./LocalResearch";
 export class ContextResolver {
   constructor(private readonly source: ContextSourcePort) {}
 
+  /** Path metadata only: unlike resolve(), this must not inspect note content. */
+  getActiveNotePath(): string | undefined {
+    return this.source.getActiveNotePath?.();
+  }
+
   async resolve(
     explicit: ExplicitContextRef[] = [],
   ): Promise<LearningContext> {

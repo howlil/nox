@@ -227,6 +227,7 @@ function createHarness(
   };
 
   const contexts = {
+    getActiveNotePath: () => options.contextOverride?.activeNote.path ?? "note.md",
     resolve: async (refs: ExplicitContextRef[] = []) => {
       options.onResolve?.(refs);
       return options.contextOverride ?? ({
@@ -1520,5 +1521,17 @@ test("W2 end-focus stays committed when advisory gap detection fails", async () 
   assert.equal(ended, 1);
   assert.ok(events.some(x => x.type === "response-delta" && x.text.includes("gap check unavailable")));
   assert.equal(h.prompts.length, 0);
+  h.controller.dispose();
+});
+
+test("M1 onboarding screen reads only note path even when an unselected note is open", async () => {
+  let contentsResolved = 0;
+  const h = createHarness(async function* () { yield { type: "completed" }; }, {
+    onResolve: () => { contentsResolved++; throw Error("onboarding read unapproved contents"); },
+  });
+  const info = await h.controller.getOnboardingContext();
+  assert.equal(info.activeNote, "note.md");
+  assert.equal(info.hasProgram, false);
+  assert.equal(contentsResolved, 0);
   h.controller.dispose();
 });
