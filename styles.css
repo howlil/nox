@@ -2875,6 +2875,19 @@
   background: #FEFEFE;
   outline: none;
 }
+.nox-root .nox-code-answer-host .nox-code-answer-limit {
+  padding: 7px 11px;
+  font-size: 11px;
+  line-height: 1.45;
+  color: #9C3F26;
+  background: #FFF7F1;
+  border-top: 1px solid #F2E1D6;
+}
+.nox-root .nox-code-answer-host .nox-code-answer-limit:empty { display: none; }
+.nox-root .nox-rich-quiz .nox-quiz-stage,
+.nox-root .nox-rich-quiz .nox-quiz-code-input,
+.nox-root .nox-quiz-card .nox-quiz-answer { min-width: 0; max-width: 100%; }
+
 .nox-root .nox-code-answer-host .nox-syntax-keyword { color: #6D3EB5; }
 .nox-root .nox-code-answer-host .nox-syntax-type { color: #175C98; }
 .nox-root .nox-code-answer-host .nox-syntax-number { color: #B04B23; }
