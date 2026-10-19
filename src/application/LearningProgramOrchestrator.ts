@@ -584,34 +584,29 @@ export class LearningProgramOrchestrator {
   async commitPrepared(draftId: string, operationId: string, workspaceApproved = false): Promise<LearningProgram> {
     if (!operationId.trim()) throw new Error("Operation ID is required.");
     if (this.isPlanning()) throw new Error("Finish preparing the curriculum before approval.");
-    const op = this.mutationTail.then(async () => {
-      this.writing = true;
-      try {
-        const collection = await this.store.load();
-        if (collection.programs.some(p => p.focus?.status === "active")) {
-          throw new Error("Pause or end objective focus before changing learning plans.");
-        }
-        const previous = collection.programs.find(p => p.creationOperationId === operationId);
-        if (previous) return previous;
-        const proposed = this.preparedDrafts.get(draftId);
-        if (!proposed) throw new Error("The preview expired. Generate a fresh learning blueprint.");
-        if (this.now() - proposed.createdAt > 15 * 60_000) {
-          this.preparedDrafts.delete(draftId);
-          throw new Error("The preview expired. Generate a fresh learning blueprint.");
-        }
-        const program: LearningProgram = {
-          ...structuredClone(proposed), creationOperationId: operationId,
-          ...(workspaceApproved ? { workspaceApproved: true } : {}),
-        };
-        collection.programs.push(program);
-        collection.activeProgramId = program.id;
-        await this.store.save(collection, collection);
+    return this.mutations.run(async () => {
+      const expected = await this.store.load();
+      if (expected.programs.some(program => program.focus?.status === "active")) {
+        throw new Error("Pause or end objective focus before changing learning plans.");
+      }
+      const previous = expected.programs.find(program => program.creationOperationId === operationId);
+      if (previous) return previous;
+      const proposed = this.preparedDrafts.get(draftId);
+      if (!proposed) throw new Error("The preview expired. Generate a fresh learning blueprint.");
+      if (this.now() - proposed.createdAt > 15 * 60_000) {
         this.preparedDrafts.delete(draftId);
-        return program;
-      } finally { this.writing = false; }
+        throw new Error("The preview expired. Generate a fresh learning blueprint.");
+      }
+      const program: LearningProgram = {
+        ...structuredClone(proposed), creationOperationId: operationId,
+        ...(workspaceApproved ? { workspaceApproved: true } : {}),
+      };
+      const next: ProgramCollection = { ...expected,
+        programs: [...expected.programs, program], activeProgramId: program.id };
+      await this.store.save(next, expected);
+      this.preparedDrafts.delete(draftId);
+      return program;
     });
-    this.mutationTail = op.then(() => {}, () => {});
-    return op;
   }
 
   /** Preserve the existing explicit /plan command behavior. */
