@@ -81,7 +81,13 @@ function resolveLocal(from, specifier, known) {
 
 function ownerOf(filename) {
   const parts = filename.split("/");
-  return parts.length > 2 && parts[0] === SOURCE_ROOT ? parts[1] : "(root)";
+  if (parts.length < 3 || parts[0] !== SOURCE_ROOT) return "(root)";
+  // Feature-private collaborators are not one giant 'features' owner.
+  // Measure cross-capability dependencies at their actual package boundary.
+  if (parts[1] === "features" && parts.length >= 5) {
+    return parts.slice(1, 4).join("/");
+  }
+  return parts[1];
 }
 
 function stronglyConnectedComponents(paths, edges) {
