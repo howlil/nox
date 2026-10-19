@@ -168,10 +168,11 @@ export function renderNoxQuiz(spec: NoxQuizSpec, doc: Document = document): HTML
     const heading = el(doc, "h3", "nox-quiz-question", "Quiz results");
     heading.tabIndex = -1;
     box.append(el(doc, "div", "nox-quiz-kicker", "Quiz finished"), heading);
-    if (result.graded > 0) {
-      box.append(el(doc, "div", "nox-quiz-score", String(result.correct) + " / " + result.graded));
-      if (result.graded !== total) {
-        box.append(el(doc, "p", "nox-quiz-score-note", "Score covers answered multiple-choice questions only."));
+    const mcqCount = spec.questions.filter(q => q.type !== "code").length;
+    if (mcqCount > 0) {
+      box.append(el(doc, "div", "nox-quiz-score", String(result.correct) + " / " + mcqCount));
+      if (mcqCount !== total) {
+        box.append(el(doc, "p", "nox-quiz-score-note", "Score covers multiple-choice questions only."));
       }
     } else {
       box.append(el(doc, "p", "nox-quiz-score-note", "No automatically graded questions."));
