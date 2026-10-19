@@ -256,3 +256,24 @@ test("R3 practice and local-quiz renderers have explicit UI owners without cross
   }, { path: "src/features/conversation/view/response-quiz-render.ts", source: "" }]);
   assert.ok(illegal.some(message => message.includes("forbidden dependency")));
 });
+
+test("R4 feature-private onboarding and practice may not read unrelated domain policies", () => {
+  const files = [
+    { path: "src/features/learning/onboarding/OnboardingWorkflow.ts",
+      source: 'import type { T } from "../../../domain/onboarding/types";' },
+    { path: "src/features/practice/view/quiz-card.ts",
+      source: 'import { validatePracticeAnswer } from "../../../domain/practice/question-schema";' },
+    { path: "src/domain/onboarding/types.ts", source: "" },
+    { path: "src/domain/practice/question-schema.ts", source: "" },
+    { path: "src/domain/learner-model/learner-profile.ts", source: "" },
+  ];
+  assert.deepEqual(validateArchitecture(files), []);
+  const invalid = validateArchitecture([...files, {
+    path: "src/features/practice/view/Bad.ts",
+    source: 'import { deriveLearnerProfile } from "../../../domain/learner-model/learner-profile";',
+  }, {
+    path: "src/features/learning/onboarding/Bad.ts",
+    source: 'import { deriveLearnerProfile } from "../../../domain/learner-model/learner-profile";',
+  }]);
+  assert.equal(invalid.filter(issue => issue.includes("forbidden dependency")).length, 2);
+});

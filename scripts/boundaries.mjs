@@ -33,7 +33,13 @@ function isApprovedFeatureEdge(from, to) {
   }
   if (!FEATURE_PACKAGES.has(fromPackage)) return false;
   if (to.startsWith("src/features/")) return toPackage === fromPackage;
-  if (to.startsWith("src/domain/")) return fromPackage !== "conversation/view";
+  if (to.startsWith("src/domain/")) {
+    if (fromPackage === "learning/onboarding") {
+      return ["src/domain/onboarding/types.ts", "src/domain/learning-program/types.ts"].includes(to);
+    }
+    if (fromPackage === "practice/view") return to.startsWith("src/domain/practice/");
+    return fromPackage !== "conversation/view";
+  }
   if (to === "src/types.ts") return true;
   if (fromPackage === "conversation/view") {
     return ["src/chat/history-list.ts", "src/chat/menu.ts",
