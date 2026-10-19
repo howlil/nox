@@ -1,6 +1,6 @@
 # NOX — Responsibility-first architecture audit and redesign
 
-Status: **target architecture proposed; M0–M4 implemented on draft PR, M5 not implemented**
+Status: **M0–M5 scoped implementation completed on draft PR; native Obsidian desktop acceptance and full target-architecture expansion remain pending**
 Audit base: `master` on 2026-10-19
 Decision scope: modular boundaries, mutable state ownership, public contracts, runtime flow, and incremental migration.
 Canonical references: `AGENTS.md`, `.agents/ENGINEERING_DESIGN.md`, `docs/ADAPTIVE_LEARNING_MILESTONES.md`.
@@ -432,6 +432,67 @@ Automated CI must pass on the **latest** branch head; native Obsidian desktop va
 - Move files with mostly import-only changes; update boundary checker **in the same slice**, preserve public compatibility facade where necessary.
 - Delete emptied old folders only when all consumers migrate. Do not keep two write paths.
 - Acceptance: TypeScript/lint/test/build/boundary guard green, release-critical artifact checks green, Obsidian desktop acceptance before release.
+
+### M5 implementation checkpoint — Feature-private package migration (2026-10-20)
+
+**Scope and outcome:** The eleven private collaborators extracted and tested in M1–M3 have moved into three concrete capability-owned packages. The stable root facades `src/chat/ChatView.ts`, `src/application/RunLearningTurn.ts`, and `src/application/LearningProgramOrchestrator.ts` remain at their existing paths and keep their public interfaces; downstream callers require no compatibility shims. This is a **bounded feature-first migration**, not a complete relocation of the historical `src/chat`, `src/agent`, `src/session`, or `src/persistence` modules.
+
+**§1 / Shapes and file ownership**
+
+```text
+src/features/
+  conversation/
+    turn/
+      StructuredTurnBuffer.ts
+      TurnProviderEnvelope.ts
+      TranscriptEvidenceReconciler.ts
+      turn-output-error.ts
+    view/
+      history-presenter.ts
+      stream-text-presenter.ts
+      transcript-presenter.ts
+  learning/
+    program/
+      ProgramMutationQueue.ts
+      ProgramFocusService.ts
+      ProgramSessionTransitions.ts
+      ProgramPlanGenerator.ts
+```
+
+Eleven old physical paths under `src/application/` and `src/chat/` were **deleted**, not retained as duplicate class definitions; all active source/test imports were rewritten in the same atomic tree commit (`f70bdc5`). GitHub recognizes them as renames. No runtime entry point, persistent schema, or storage writer moved.
+
+**§2 / Successful execution / §3 Ordering**
+
+```text
+ChatView (public Obsidian ItemView)
+  -> src/features/conversation/view/* [DOM-only presenters]
+  -> LearningController (unchanged)
+      -> RunLearningTurn (sole active turn lock, termination, ordered commit)
+          -> src/features/conversation/turn/* [untrusted stream and provider projection]
+          -> SessionController -> PluginDataRepository [canonical transcript]
+          -> TranscriptEvidenceReconciler -> LearningStatePort [same CAS ledger]
+
+LearningProgramOrchestrator (public app facade)
+  -> src/features/learning/program/* [planning, focus/timebox rules, FIFO lane]
+  -> ProgramStorePort.load() -> immutable expected -> save(next, expected)
+     -> VaultProgramStore [same CAS authority]
+```
+
+No presenter or helper starts asynchronous background work or has another persistent transaction lane. `ProgramMutationQueue` remains the sole per-orchestrator program mutation lane. The turn controller still decides terminal success before emitting an actionable structured candidate.
+
+**§4 / Failures and §5 / Dependencies**
+
+- Retain the prior error taxonomy, cancellation/timeout semantics, evidence replay IDs, CAS conflict handling, user-visible lifecycle and focus ownership.
+- `scripts/boundaries.mjs` now recognizes only explicit private packages `conversation/turn`, `conversation/view`, `learning/program`. Only each public facade can import its own package; private modules cannot reach sibling features or Obsidian/OS I/O.
+- Existing packages may import only documented pure models and constrained structural ports. Feature view presenters can access selected `src/chat/` UI primitives, but cannot import domain policy or persistence.
+- `scripts/architecture-graph.mjs` counts each new package separately, not a single global `features` bucket. This makes architecture drift visible in CI instead of inflating an anonymous owner.
+- Unknown feature packages, stale imports and private-feature leakage are rejected by regression tests. This is an incremental guard; its regex-level limitations do **not** prove source access or mutable state ownership at runtime.
+
+**§8 / Resource scope; §9 / Verification**
+
+No new persistent resource, timer, event bus, queue or provider transport introduced by the physical migration. Unit/integration tests, architecture checker, typed lint and build must pass on the final commit; architecture tests now cover illegal cross-feature imports, allowed facade edges and per-package graph statistics. Native Obsidian desktop acceptance of history swipe, streaming, practice and edit proposal actions remains a **separate release gate**. This milestone is not permission to auto-merge PR #121.
+
+**Deferred by design:** a wholesale move of historical session/data/agent adapters to the aspirational `features/` and `platform/` layout. Moving them without first demonstrating their real import dependencies and ownership would increase migration risk with no functional improvement. The target diagram in §4 is directional guidance, not a claim that all listed directories now exist.
 
 **No mass folder rename prior to M1-M4.** A rename without meaningful responsibility separation is deliberately not counted as architectural progress.
 
