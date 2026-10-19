@@ -212,3 +212,25 @@ test("M1 onboarding metadata uses only note path, never selection/editor reads",
   assert.equal(resolver.getActiveNotePath(), "private-name.md");
   assert.equal(contentReads, 0);
 });
+
+test("M2 explicit-only onboarding note never reads or forwards another ambient editor source", async () => {
+  let ambientReads = 0;
+  const resolver = new ContextResolver({
+    getSelection: () => { ambientReads++; throw Error("ambient selection leaked"); },
+    getCurrentNote: async () => { ambientReads++; throw Error("ambient note leaked"); },
+    loadNote: async (path: string) => ({
+      file: path, content: "approved note content",
+    }),
+    searchNotes: () => [],
+  } as never);
+  const result = await resolver.resolve(
+    [{ kind: "vault-note", path: "notes/Book.md" }],
+    { includeAmbient: false },
+  );
+  assert.equal(ambientReads, 0);
+  assert.equal(result.selection, undefined);
+  assert.equal(result.activeNote, undefined);
+  assert.deepEqual(resolver.toAgentContext(result), [{
+    type: "note", file: "notes/Book.md", content: "approved note content",
+  }]);
+});
