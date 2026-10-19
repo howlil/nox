@@ -135,3 +135,14 @@ test("durable program model must never depend back on executable curriculum revi
   assert.equal(graph.cycles.some(group => group.includes(modelPath) && group.includes(revisionPath)), false,
     "curriculum model and revision policy must not form a dependency cycle");
 });
+
+test("session wire and transcript contracts form no root-to-session back-edge", () => {
+  const graph = analyzeSources(collectSources());
+  assert.equal(graph.edges.some(edge => edge.from === "src/session/transcript-types.ts" &&
+    edge.to === "src/types.ts"), false,
+  "transcript services must not import their public root re-export");
+  assert.equal(graph.cycles.some(group => group.includes("src/types.ts") &&
+    group.includes("src/session/transcript-types.ts")), false);
+  assert.equal(graph.summary.cycles, 0,
+    "all historical dependency cycles should be eliminated without changing provider runtime");
+});
