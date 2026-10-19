@@ -67,7 +67,8 @@ export async function layoutNoxFlowV2(spec: NoxFlowSpecV2): Promise<NoxFlowV2Lay
   // Expensive ELK initialization is deferred until an explicit v2 block is present.
   const { default: ELK } = await import("elkjs/lib/elk.bundled.js");
   const elk = new ELK();
-  const result = await elk.layout(root);
+  // Release ELK internal resources on success and rejection (including pop-outs).
+  const result = await elk.layout(root).finally(() => elk.terminateWorker());
   const width = checked(result.width), height = checked(result.height);
   if (width <= 0 || height <= 0) throw new Error("Graph layout has no dimensions.");
 
