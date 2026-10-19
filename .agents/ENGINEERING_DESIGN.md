@@ -8,6 +8,40 @@ Last updated: 2026-10-13
 
 ---
 
+## M3 program responsibility and CAS checkpoint — 2026-10-19
+
+M3 isolates plan generation, focus authorization and timed-session transitions
+without adding any second mutable source of truth. The public program
+orchestrator remains the lifecycle and preview receipt facade; VaultProgramStore
+remains the only authoritative `programs.json` persistence adapter.
+
+- `ProgramMutationQueue` holds **one** per-orchestrator FIFO write lane shared
+  across selection, planning approvals, revision approvals, focus, session,
+  material rename, and restart recovery. Rejected work cannot poison the tail.
+- Every queued RMW reads `expected = ProgramStorePort.load()` and saves
+  `store.save(next, expected)` with a **distinct** proposed collection;
+  never modify `expected` before the CAS check. Preservation of the loaded
+  WeakMap snapshot is a correctness contract, not just a naming convention.
+- `ProgramPlanGenerator` produces validated proposal data from provider and
+  authorized note context, never durable updates. Cancellation and preview
+  lifetime are orchestrator-owned.
+- `ProgramFocusService` checks prerequisites against evidence-based learner
+  profile and delegates transitions to existing pure domain focus functions.
+- `ProgramSessionTransitions` reuses domain timing transitions and never
+  infers time during unobserved app downtime. Active learning excludes AI wait.
+- Existing curriculum revision proposer remains the only proposal generator;
+  approval receipts stay idempotent and CAS-protected in orchestrator.
+- Resource lifecycle (AbortController, timeout and 30-second checkpoint timer)
+  stays with `LearningProgramOrchestrator`; the queue has no own timer or I/O.
+
+M3 automated acceptance requires every program mutation path to use the shared
+lane and immutable expected snapshot, concurrent transition tests, restart
+recovery and legacy schema regressions. Native Obsidian desktop tests are still
+required before merge/release. M4–M5 are not implemented. Full execution graph
+and failures: `docs/ARCHITECTURE_BOUNDARY_REDESIGN.md`.
+
+---
+
 ## M2 conversation turn responsibility checkpoint — 2026-10-19
 
 The existing `RunLearningTurn` remains the **single** coordinator for the
