@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { parseNoxQuiz, scoreNoxQuiz } from "../../src/chat/response-quiz";
-import { renderNoxQuiz } from "../../src/chat/response-quiz-render";
+import { parseNoxQuiz, scoreNoxQuiz } from "../../src/features/conversation/view/response-quiz";
+import { renderNoxQuiz } from "../../src/features/conversation/view/response-quiz-render";
 import { visualKindFromClasses, MAX_VISUAL_SOURCE_CHARS } from "../../src/chat/response-spec";
 
 const sample = {

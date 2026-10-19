@@ -1,8 +1,8 @@
-import type { PracticeAnswer, PracticeQuestion } from "../domain/practice/types";
-import { validatePracticeAnswer } from "../domain/practice/question-schema";
+import type { PracticeAnswer, PracticeQuestion } from "../../../domain/practice/types";
+import { validatePracticeAnswer } from "../../../domain/practice/question-schema";
 import { renderPracticeInstructions } from "./practice-instructions";
-import { createNoxButton, createNoxSurface } from "./primitives";
-import { mountCodeAnswerEditor, type CodeAnswerEditorHandle } from "./code-answer-editor";
+import { createNoxButton, createNoxSurface } from "../../../chat/primitives";
+import { mountCodeAnswerEditor, type CodeAnswerEditorHandle } from "../../../chat/code-answer-editor";
 
 export interface QuizCardActions {
   questionId: string;

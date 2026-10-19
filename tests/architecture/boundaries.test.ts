@@ -235,3 +235,24 @@ test("R2 onboarding has a single host adapter and no private IO access", () => {
   ]);
   assert.ok(illegal.some(message => message.includes("forbidden dependency")));
 });
+
+test("R3 practice and local-quiz renderers have explicit UI owners without cross-feature writes", () => {
+  const files = [
+    { path: "src/features/practice/view/PracticeCards.ts",
+      source: 'import { createNoxButton } from "../../../chat/primitives";' },
+    { path: "src/chat/primitives.ts", source: "" },
+    { path: "src/features/conversation/view/response-quiz.ts",
+      source: 'import { MAX_VISUAL_SOURCE_CHARS } from "../../../chat/response-spec";' },
+    { path: "src/chat/response-spec.ts", source: "" },
+    { path: "src/chat/ChatView.ts",
+      source: 'import { renderPracticeQuestionCard } from "../features/practice/view/PracticeCards";' },
+    { path: "src/chat/response-visuals.ts",
+      source: 'import { parseNoxQuiz } from "../features/conversation/view/response-quiz";' },
+  ];
+  assert.deepEqual(validateArchitecture(files), []);
+  const illegal = validateArchitecture([...files, {
+    path: "src/features/practice/view/Bad.ts",
+    source: 'import { renderNoxQuiz } from "../../conversation/view/response-quiz-render";',
+  }, { path: "src/features/conversation/view/response-quiz-render.ts", source: "" }]);
+  assert.ok(illegal.some(message => message.includes("forbidden dependency")));
+});

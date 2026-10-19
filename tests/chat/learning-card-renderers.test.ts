@@ -1,10 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import {
-  renderPracticeQuestionCard,
-  renderPracticeEvaluationCard,
-  renderReviewFindingCards,
-} from "../../src/chat/learning-card-renderers";
+import { renderPracticeQuestionCard, renderPracticeEvaluationCard } from "../../src/features/practice/view/PracticeCards";
+import { renderReviewFindingCards } from "../../src/chat/learning-card-renderers";
 
 class FakeElement {
   readonly children: FakeElement[] = [];

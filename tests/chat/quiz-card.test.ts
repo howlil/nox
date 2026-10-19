@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { renderQuizCard } from "../../src/chat/quiz-card";
+import { renderQuizCard } from "../../src/features/practice/view/quiz-card";
 import type { PracticeQuestion, PracticeAnswer } from "../../src/domain/practice/types";
 
 class FakeElement {

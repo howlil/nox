@@ -15,8 +15,8 @@ import { mountNoxGraphViewport } from "./graph-viewport";
 import { parseNoxFlowV2 } from "./response-graph-v2-schema";
 import { renderNoxFlowV2 } from "./response-graph-v2-render";
 import type { IconName } from "obsidian";
-import { parseNoxQuiz } from "./response-quiz";
-import { renderNoxQuiz } from "./response-quiz-render";
+import { parseNoxQuiz } from "../features/conversation/view/response-quiz";
+import { renderNoxQuiz } from "../features/conversation/view/response-quiz-render";
 
 const SVG_NS = "http://www.w3.org/2000/svg";
 

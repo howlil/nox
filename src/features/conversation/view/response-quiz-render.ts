@@ -1,5 +1,5 @@
-import { setNoxIcon } from "./primitives";
-import { mountCodeAnswerEditor, type CodeAnswerEditorHandle } from "./code-answer-editor";
+import { setNoxIcon } from "../../../chat/primitives";
+import { mountCodeAnswerEditor, type CodeAnswerEditorHandle } from "../../../chat/code-answer-editor";
 import { scoreNoxQuiz, type NoxQuizSpec, type NoxQuizQuestion } from "./response-quiz";
 
 function el<K extends keyof HTMLElementTagNameMap>(

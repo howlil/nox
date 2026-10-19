@@ -24,11 +24,8 @@ import {
   PracticeQuestion,
 } from "../domain/practice/types";
 import { ReviewFinding } from "../domain/review/types";
-import {
-  renderPracticeQuestionCard,
-  renderPracticeEvaluationCard,
-  renderReviewFindingCards,
-} from "./learning-card-renderers";
+import { renderPracticeQuestionCard, renderPracticeEvaluationCard } from "../features/practice/view/PracticeCards";
+import { renderReviewFindingCards } from "./learning-card-renderers";
 import { ChatMessage, EditProposal, type ChatReplyReference, type AgentModel } from "../types";
 import {
   parsePromptToken,
