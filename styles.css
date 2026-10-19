@@ -3638,6 +3638,16 @@
   background: #fff;
   color-scheme: light;
 }
+/* Sandboxed previews use the light howlil-app base independently of host theme.
+   Frame height is set by validated content-origin messages after initial load. */
+.nox-root .nox-code-preview .nox-visual-stage {
+  background: #FEFEFE;
+  overflow: visible;
+}
+.nox-root .nox-code-preview .nox-visual-frame {
+  background: #FEFEFE;
+  color-scheme: light;
+}
 .nox-visual-warning { margin: 5px 0; color: var(--nox-orange); font-size: 11px; }
 .nox-visual .nox-visual-warning { padding: 8px 10px; }
 .nox-root .nox-chart-svg { display: block; width: 100%; height: auto; }
