@@ -1,4 +1,5 @@
 import { summarizeActivity } from "../domain/activity/aggregation";
+import { isLocallyExecutableCommand } from "./local-command";
 import type { AgentAdapter, AgentHealth, AgentModel, ApplyResult, ChatSession, ChatMessage } from "../types";
 import type { ExplicitContextRef, LearningContext } from "../context/context-types";
 import type { SessionPort, ContextPort, PolicyPort, MutationPort, LearningStatePort, RuntimeSettingsWrite, ProgramStorePort, WorkspaceWriterPort } from "./ports";
@@ -66,6 +67,23 @@ export class LearningController {
 
   checkRuntime(): Promise<AgentHealth> {
     return this.runtime.check();
+  }
+
+  /** UI-facing queries: domain parsing and execution eligibility stay in application. */
+  canExecuteOfflineCommand(input: string): boolean {
+    return isLocallyExecutableCommand(input);
+  }
+
+  isScopeCommand(input: string): boolean {
+    return Boolean(parseScopeCommand(input));
+  }
+
+  isActiveLearningScope(): boolean {
+    return isActiveLearningScope(this.sessions.getSession().learningScope);
+  }
+
+  isProgramLearningScope(): boolean {
+    return isProgramLearningScope(this.sessions.getSession().learningScope);
   }
 
   getSession(): ChatSession {
