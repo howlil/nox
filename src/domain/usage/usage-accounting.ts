@@ -1,4 +1,4 @@
-import type { TokenUsage } from "../../types";
+import type { TokenUsage } from "./usage-types";
 
 /** Provider-reported UTC daily usage; cached and reasoning tokens are subsets. */
 export interface UsageBucket {
