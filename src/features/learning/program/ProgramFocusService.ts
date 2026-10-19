@@ -1,7 +1,7 @@
-import type { LearningProgram } from "../domain/learning-program/types";
-import type { LearningState } from "../domain/learning-state/types";
-import { deriveLearnerProfile } from "../domain/learner-model/learner-profile";
-import { startObjectiveFocus, transitionObjectiveFocus } from "../domain/learning-program/focus-transitions";
+import type { LearningProgram } from "../../../domain/learning-program/types";
+import type { LearningState } from "../../../domain/learning-state/types";
+import { deriveLearnerProfile } from "../../../domain/learner-model/learner-profile";
+import { startObjectiveFocus, transitionObjectiveFocus } from "../../../domain/learning-program/focus-transitions";
 
 /** Pure focus authorization/transition policy. The caller owns serialized CAS. */
 export function beginObjectiveFocus(

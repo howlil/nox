@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { StructuredTurnBuffer } from "../../src/application/StructuredTurnBuffer";
-import { InvalidLearningOutputError } from "../../src/application/turn-output-error";
+import { StructuredTurnBuffer } from "../../src/features/conversation/turn/StructuredTurnBuffer";
+import { InvalidLearningOutputError } from "../../src/features/conversation/turn/turn-output-error";
 import type { LearningRequest } from "../../src/application/learning-types";
 import type { TurnContextSnapshot } from "../../src/context/context-types";
 

@@ -1,10 +1,10 @@
-import type { StructuredStreamEvent } from "../agent/StructuredStreamParser";
-import type { TurnContextSnapshot } from "../context/context-types";
-import type { EditProposal } from "../types";
-import type { ReviewFinding } from "../domain/review/types";
-import type { PracticeEvaluation, PracticeQuestion } from "../domain/practice/types";
-import type { PracticeEvaluationAttempt } from "../domain/practice/PracticeStateMachine";
-import type { LearningEvent, LearningRequest } from "./learning-types";
+import type { StructuredStreamEvent } from "../../../agent/StructuredStreamParser";
+import type { TurnContextSnapshot } from "../../../context/context-types";
+import type { EditProposal } from "../../../types";
+import type { ReviewFinding } from "../../../domain/review/types";
+import type { PracticeEvaluation, PracticeQuestion } from "../../../domain/practice/types";
+import type { PracticeEvaluationAttempt } from "../../../domain/practice/PracticeStateMachine";
+import type { LearningEvent, LearningRequest } from "../../../application/learning-types";
 import { InvalidLearningOutputError } from "./turn-output-error";
 
 /** Validates and buffers untrusted structured-stream candidates.

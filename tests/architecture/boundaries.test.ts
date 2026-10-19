@@ -111,3 +111,54 @@ test("M4 context resolver may use its structural port but not ObsidianContext", 
   assert.equal(bad.length, 1);
   assert.match(bad[0], /forbidden dependency/);
 });
+
+test("M5 public facades can import only their own private feature collaborators", () => {
+  const sources = [
+    { path: "src/features/conversation/turn/StructuredTurnBuffer.ts", source: "" },
+    { path: "src/features/learning/program/ProgramMutationQueue.ts", source: "" },
+    { path: "src/features/conversation/view/transcript-presenter.ts", source: "" },
+    { path: "src/application/RunLearningTurn.ts", source:
+      'import { StructuredTurnBuffer } from "../features/conversation/turn/StructuredTurnBuffer";' },
+    { path: "src/application/LearningProgramOrchestrator.ts", source:
+      'import { ProgramMutationQueue } from "../features/learning/program/ProgramMutationQueue";' },
+    { path: "src/chat/ChatView.ts", source:
+      'import { TranscriptPresenter } from "../features/conversation/view/transcript-presenter";' },
+  ];
+  assert.deepEqual(validateArchitecture(sources), []);
+  const illegal = validateArchitecture([...sources,
+    { path: "src/chat/BadView.ts", source:
+      'import { ProgramMutationQueue } from "../features/learning/program/ProgramMutationQueue";' },
+  ]);
+  assert.ok(illegal.some((message: string) => message.includes("forbidden dependency")));
+});
+
+test("M5 feature modules cannot bypass a writer or reach another private feature", () => {
+  const sources = [
+    { path: "src/features/conversation/turn/StructuredTurnBuffer.ts",
+      source: 'import { VaultProgramStore } from "../../../persistence/VaultProgramStore";' },
+    { path: "src/features/learning/program/ProgramMutationQueue.ts",
+      source: 'import { StructuredTurnBuffer } from "../../conversation/turn/StructuredTurnBuffer";' },
+    { path: "src/persistence/VaultProgramStore.ts", source: "" },
+  ];
+  const violations = validateArchitecture(sources);
+  assert.equal(violations.length, 2);
+  assert.ok(violations.every((message: string) => message.includes("forbidden dependency")));
+});
+
+test("M5 refuses unknown feature subpackages and unresolved relative imports", () => {
+  const issues = validateArchitecture([
+    { path: "src/features/learning/services/Fake.ts", source: "" },
+    { path: "src/features/learning/program/Good.ts",
+      source: 'import type { Unknown } from "./Missing";' },
+  ]);
+  assert.ok(issues.some((m: string) => m.includes("unknown feature package")));
+  assert.ok(issues.some((m: string) => m.includes("unresolved import")));
+});
+
+test("M5 feature modules cannot import Obsidian or node filesystem", () => {
+  const issues = validateArchitecture([
+    { path: "src/features/conversation/turn/Fake.ts",
+      source: 'import { App } from "obsidian"; import { readFile } from "fs";' },
+  ]);
+  assert.equal(issues.length, 2);
+});

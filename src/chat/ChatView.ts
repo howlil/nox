@@ -53,9 +53,9 @@ import {
   setNoxIcon,
 } from "./primitives";
 import { NoxMenuState } from "./menu";
-import { HistoryPresenter } from "./history-presenter";
-import { StreamTextPresenter } from "./stream-text-presenter";
-import { TranscriptPresenter } from "./transcript-presenter";
+import { HistoryPresenter } from "../features/conversation/view/history-presenter";
+import { StreamTextPresenter } from "../features/conversation/view/stream-text-presenter";
+import { TranscriptPresenter } from "../features/conversation/view/transcript-presenter";
 import { modelMenuItems } from "./model-menu";
 import { createNoxPopover, NoxPopoverState } from "./popover";
 import { NoxComposer, type NoxComposerContext } from "./composer";

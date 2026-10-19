@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { ChatMessage } from "../../src/types";
-import { TranscriptPresenter, type TranscriptRenderer } from "../../src/chat/transcript-presenter";
+import { TranscriptPresenter, type TranscriptRenderer } from "../../src/features/conversation/view/transcript-presenter";
 
 function renderer(events: string[]): TranscriptRenderer {
   return {

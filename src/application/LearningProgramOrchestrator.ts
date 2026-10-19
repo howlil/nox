@@ -8,14 +8,14 @@ import { applyCurriculumRevision, detectStructuralGap, type CurriculumRevision, 
 import { proposeCurriculumRevision, type CurriculumRevisionPreview } from "./CurriculumRevisionService";
 import { estimateRemainingWork } from "../domain/learning-program/estimate";
 import { projectedTiming, recoverTiming, sessionRemainingMs, sessionTimeStatus } from "../domain/learning-program/session-time";
-import { ProgramMutationQueue } from "./ProgramMutationQueue";
-import { ProgramPlanGenerator } from "./ProgramPlanGenerator";
-import { beginObjectiveFocus, changeObjectiveFocus } from "./ProgramFocusService";
+import { ProgramMutationQueue } from "../features/learning/program/ProgramMutationQueue";
+import { ProgramPlanGenerator } from "../features/learning/program/ProgramPlanGenerator";
+import { beginObjectiveFocus, changeObjectiveFocus } from "../features/learning/program/ProgramFocusService";
 import {
   startTimedSession, endTimedSession, extendTimedSession, pauseTimedSession,
   resumeTimedSession, focusTimedObjective, focusTimedMaterial,
   checkpointTimedSession, recoverProgramSessions,
-} from "./ProgramSessionTransitions";
+} from "../features/learning/program/ProgramSessionTransitions";
 
 /** Program planning and session selection. The model generates content, never transitions. */
 export class LearningProgramOrchestrator {

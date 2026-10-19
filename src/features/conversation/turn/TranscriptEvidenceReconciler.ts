@@ -1,8 +1,8 @@
-import type { ChatSession } from "../types";
-import type { LearningState } from "../domain/learning-state/types";
-import type { LearningStatePort } from "./ports";
-import { LearningStateWriteConflict } from "../persistence/PersistenceError";
-import { recordPracticeEvaluation, recordReviewFindings } from "../domain/learning-state/transitions";
+import type { ChatSession } from "../../../types";
+import type { LearningState } from "../../../domain/learning-state/types";
+import type { LearningStatePort } from "../../../application/ports";
+import { LearningStateWriteConflict } from "../../../persistence/PersistenceError";
+import { recordPracticeEvaluation, recordReviewFindings } from "../../../domain/learning-state/transitions";
 
 /** Reconciles committed transcript outcomes into the durable learning ledger.
  * Bounded CAS retries preserve one authoritative learning-state writer.

@@ -12,11 +12,11 @@ import {
 import type { SessionPort, ContextPort, PolicyPort, LearningStatePort, ProgramStorePort } from "./ports";
 import { formatReplyPrompt } from "./reply-context";
 import { PersistenceError } from "../persistence/PersistenceError";
-import { TranscriptEvidenceReconciler } from "./TranscriptEvidenceReconciler";
-import { StructuredTurnBuffer } from "./StructuredTurnBuffer";
-import { InvalidLearningOutputError } from "./turn-output-error";
+import { TranscriptEvidenceReconciler } from "../features/conversation/turn/TranscriptEvidenceReconciler";
+import { StructuredTurnBuffer } from "../features/conversation/turn/StructuredTurnBuffer";
+import { InvalidLearningOutputError } from "../features/conversation/turn/turn-output-error";
 import { buildLearningContextPackage } from "./LearningContextOrchestrator";
-import { prepareTurnInvocation } from "./TurnProviderEnvelope";
+import { prepareTurnInvocation } from "../features/conversation/turn/TurnProviderEnvelope";
 import type { ResearchResult } from "../context/LocalResearch";
 import { constrainResearchContext, parseResearchRequest, resolveResearchScope } from "./research-scope";
 import {

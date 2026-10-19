@@ -1,7 +1,7 @@
-import type { AgentRuntimePort } from "../agent/AgentRuntime";
-import type { ContextPort } from "./ports";
-import type { LearningProgram, ProgramConstraints } from "../domain/learning-program/types";
-import { validateConstraints, validateCurriculum } from "../domain/learning-program/rules";
+import type { AgentRuntimePort } from "../../../agent/AgentRuntime";
+import type { ContextPort } from "../../../application/ports";
+import type { LearningProgram, ProgramConstraints } from "../../../domain/learning-program/types";
+import { validateConstraints, validateCurriculum } from "../../../domain/learning-program/rules";
 
 /** Provider-backed curriculum proposal only.
  * This capability can create a validated preview, never persist or activate it.

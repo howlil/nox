@@ -1,8 +1,8 @@
-import type { LearningProgram, SessionPauseReason } from "../domain/learning-program/types";
+import type { LearningProgram, SessionPauseReason } from "../../../domain/learning-program/types";
 import {
   checkpointTiming, focusSessionObjective, focusSessionMaterial, newSessionTiming,
   projectedTiming, recoverTiming, setTimingPause,
-} from "../domain/learning-program/session-time";
+} from "../../../domain/learning-program/session-time";
 
 /** One program session transition at a time, invoked inside the shared CAS queue. */
 export function startTimedSession(program: LearningProgram, now: number): LearningProgram {

@@ -1,9 +1,9 @@
-import type { AgentTurnMetrics, ChatSession, ResearchScope } from "../types";
-import type { TurnContextSnapshot } from "../context/context-types";
-import type { LearningProgram } from "../domain/learning-program/types";
-import type { LearningRequest } from "./learning-types";
-import { formatReplyPrompt } from "./reply-context";
-import { prepareContextEnvelope } from "../context/ContextBudget";
+import type { AgentTurnMetrics, ChatSession, ResearchScope } from "../../../types";
+import type { TurnContextSnapshot } from "../../../context/context-types";
+import type { LearningProgram } from "../../../domain/learning-program/types";
+import type { LearningRequest } from "../../../application/learning-types";
+import { formatReplyPrompt } from "../../../application/reply-context";
+import { prepareContextEnvelope } from "../../../context/ContextBudget";
 
 interface TurnInvocationOptions {
   request: LearningRequest;

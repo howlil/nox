@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { StreamTextPresenter } from "../../src/chat/stream-text-presenter";
+import { StreamTextPresenter } from "../../src/features/conversation/view/stream-text-presenter";
 
 function harness() {
   let next = 0;

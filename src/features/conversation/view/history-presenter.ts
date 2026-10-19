@@ -1,8 +1,8 @@
-import type { ChatSession } from "../types";
-import { NoxHistoryList, type NoxHistoryCallbacks } from "./history-list";
-import { NoxMenuState } from "./menu";
-import { animateNoxPopover } from "./motion";
-import { NoxPopoverState } from "./popover";
+import type { ChatSession } from "../../../types";
+import { NoxHistoryList, type NoxHistoryCallbacks } from "../../../chat/history-list";
+import { NoxMenuState } from "../../../chat/menu";
+import { animateNoxPopover } from "../../../chat/motion";
+import { NoxPopoverState } from "../../../chat/popover";
 
 /** Owns history menu presentation, accessibility and swipe lifecycle.
  * Session selection, archive and delete are delegated to the caller.

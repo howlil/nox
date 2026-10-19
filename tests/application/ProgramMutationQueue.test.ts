@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { ProgramMutationQueue } from "../../src/application/ProgramMutationQueue";
+import { ProgramMutationQueue } from "../../src/features/learning/program/ProgramMutationQueue";
 
 test("one mutation lane preserves FIFO ordering and exposes current writer", async () => {
   const queue = new ProgramMutationQueue();
