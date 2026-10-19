@@ -179,3 +179,23 @@ test("public session message types must pass through the stable transcript contr
     .some((issue: string) => issue.includes("forbidden dependency")),
   "root must not bypass the stable transcript type contract");
 });
+
+test("W1 projection modules live under their private feature owners", () => {
+  const features = [
+    { path: "src/features/conversation/view/session-clock.ts",
+      source: "export function projectSessionClock() {}" },
+    { path: "src/features/learning/program/ProgramReadModel.ts",
+      source: "export function projectProgramFocus() {}" },
+  ];
+  assert.deepEqual(validateArchitecture([...features,
+    { path: "src/chat/ChatView.ts",
+      source: 'import { projectSessionClock } from "../features/conversation/view/session-clock";' },
+    { path: "src/application/LearningProgramOrchestrator.ts",
+      source: 'import { projectProgramFocus } from "../features/learning/program/ProgramReadModel";' },
+  ]), []);
+  const unauthorized = validateArchitecture([...features,
+    { path: "src/chat/BadView.ts",
+      source: 'import { projectProgramFocus } from "../features/learning/program/ProgramReadModel";' },
+  ]);
+  assert.ok(unauthorized.some(issue => issue.includes("forbidden dependency")));
+});

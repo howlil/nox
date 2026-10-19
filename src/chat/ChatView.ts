@@ -55,7 +55,7 @@ import {
 import { NoxMenuState } from "./menu";
 import { HistoryPresenter } from "../features/conversation/view/history-presenter";
 import { StreamTextPresenter } from "../features/conversation/view/stream-text-presenter";
-import { projectSessionClock, type SessionClockSnapshot } from "./session-clock";
+import { projectSessionClock, type SessionClockSnapshot } from "../features/conversation/view/session-clock";
 import { TranscriptPresenter } from "../features/conversation/view/transcript-presenter";
 import { modelMenuItems } from "./model-menu";
 import { createNoxPopover, NoxPopoverState } from "./popover";

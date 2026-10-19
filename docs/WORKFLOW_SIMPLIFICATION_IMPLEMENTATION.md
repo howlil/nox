@@ -34,6 +34,8 @@ VaultProgramStore.load() [fresh]
 - **Ordering:** `getTurnFocusSnapshot` reads one authoritative collection for *both* related admission facts; the turn executor retains its independent terminal authority revalidation. The UI clock is a cosmetic projection, not fresh authorization.
 - **Freshness:** 2-second ticks are local. Normal steady-state authoritative polling is one read/30s/pane, rather than one/2s/pane. Interpolation refuses negative and suspended (>120s) intervals and never treats pause/AI waiting as active study time. Normal refreshes and the existing 30-second authoritative checkpoint continue.
 - **Scope:** view disposes its interval/snapshot on close; orchestrator owns the real checkpoint and program lifetime, unchanged.
+- **Physical owner (M5-aligned):** pure visual projection `src/features/conversation/view/session-clock.ts`; immutable admission projection `src/features/learning/program/ProgramReadModel.ts`. `ChatView` and `LearningProgramOrchestrator` remain their approved public facades. No duplicate implementation remains in `src/chat/session-clock.ts`.
+
 
 ### W2 — End focus without unrequested inference
 
@@ -104,3 +106,36 @@ Practice: session-persisted question + answer + evaluation; eligible evidence on
 The 30-second clock refresh gives a theoretical upper bound of about 120 timer-induced reads/hour/pane instead of about 1,800, **not a production measurement**. Multiple panes, focus transitions and manual refreshes can change actual reads. No claim of observed provider cost, user retention or real-world elapsed time reduction is made.
 
 Not implemented: a new cache authority, automatic background summary jobs, root folder reorganization, deletion of old conversation/visual formats, rewriting release automation, or any undocumented learning mastery change.
+
+## 6. M5 physical boundary alignment
+
+The W1 additions follow the existing feature-private shape, rather than growing the legacy flat `src/chat` tree:
+
+```
+src/
+  features/
+    conversation/
+      view/
+        session-clock.ts                  # W1: pure UI interpolation
+        stream-text-presenter.ts          # M1: existing presenter
+        history-presenter.ts              # M1: existing presenter
+        transcript-presenter.ts           # M1: existing presenter
+    learning/
+      program/
+        ProgramReadModel.ts               # W1: one snapshot -> admission view
+        ProgramFocusService.ts            # M3/W2: original pure focus transition
+        ProgramMutationQueue.ts           # M3: the sole orchestrator mutation lane
+  chat/
+    ChatView.ts                           # Obsidian host-facing UI entry point
+    onboarding-flow.ts                    # Obsidian-dependent onboarding UI adapter
+    action-menu.ts                        # Obsidian IconName + capability menu adapter
+    quiz-card.ts                          # Obsidian UI editor integration
+    response-quiz-render.ts               # DOM/code editor for local quiz
+  application/
+    LearningController.ts                 # public command/turn facade
+    LearningProgramOrchestrator.ts        # public CAS/persistence coordinator
+```
+
+W2 does not add another focus transition owner: it simply stops a second provider inference inside the existing controller. W3 copy belongs to actual Obsidian/DOM UI adapters, not a pure domain service: migrating them wholesale would reverse host dependency direction or require broadening architecture exceptions. W4 only corrects release workflow documentation. These existing modules remain where M5 intentionally leaves host shell adapters. **If a later milestone migrates the Obsidian-facing chat shell, move its entire UI capability with an explicit host-adapter contract and tests, rather than adding duplicate delegating shims.**
+
+Architecture regression explicitly checks allowed `ChatView -> conversation/view` and `LearningProgramOrchestrator -> learning/program` edges, and disallows an unrelated chat view from reaching private program projections.

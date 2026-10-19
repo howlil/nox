@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { projectSessionClock, type SessionClockSnapshot } from "../../src/chat/session-clock";
+import { projectSessionClock, type SessionClockSnapshot } from "../../src/features/conversation/view/session-clock";
 
 const active: SessionClockSnapshot = { budgetMs: 60_000, activeMs: 0,
   remainingMs: 60_000, aiWaitingMs: 0, status: "active" };

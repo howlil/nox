@@ -9,6 +9,7 @@ import { proposeCurriculumRevision, type CurriculumRevisionPreview } from "./Cur
 import { estimateRemainingWork } from "../domain/learning-program/estimate";
 import { projectedTiming, recoverTiming, sessionRemainingMs, sessionTimeStatus } from "../domain/learning-program/session-time";
 import { ProgramMutationQueue } from "../features/learning/program/ProgramMutationQueue";
+import { projectProgramFocus } from "../features/learning/program/ProgramReadModel";
 import { ProgramPlanGenerator } from "../features/learning/program/ProgramPlanGenerator";
 import { beginObjectiveFocus, changeObjectiveFocus } from "../features/learning/program/ProgramFocusService";
 import {
@@ -364,11 +365,8 @@ export class LearningProgramOrchestrator {
     current: LearningProgram | null;
     globalFocus: { program: LearningProgram; focus: NonNullable<LearningProgram["focus"]> } | null;
   }> {
-    // One fresh collection for admission and the owning-chat identity.
-    const collection = await this.store.load();
-    const current = collection.programs.find(p => p.id === collection.activeProgramId) ?? null;
-    const active = collection.programs.find(item => item.focus?.status === "active");
-    return { current, globalFocus: active?.focus ? { program: active, focus: active.focus } : null };
+    // One fresh collection for admission; the capability's projection is pure.
+    return projectProgramFocus(await this.store.load());
   }
 
   async getGlobalActiveFocus(): Promise<{ program: LearningProgram; focus: NonNullable<LearningProgram["focus"]> } | null> {
