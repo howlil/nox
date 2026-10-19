@@ -8,6 +8,32 @@ Last updated: 2026-10-13
 
 ---
 
+## M1 presentation isolation checkpoint — 2026-10-19
+
+The M1 changes on the architecture refactor draft branch isolate **UI-only**
+lifecycles behind dedicated presenters; there is no new service for transcript
+persistence and no new domain store. M1 status is **implemented, verification
+pending** until current PR CI and Obsidian desktop acceptance are available.
+
+- `ChatView` is still the registered Obsidian `ItemView` and maps normalized
+  `LearningEvent` variants into presentation calls.
+- `HistoryPresenter` owns menu/ARIA/swipe presentation state and delegates all
+  session mutations through `LearningController` to `SessionController`.
+- `TranscriptPresenter` reads authoritative committed messages, sequences
+  restoration, and uses epoch cancellation to discard stale session renders.
+- `StreamTextPresenter` owns DOM text coalescing, RAF scheduling and cancellation,
+  not durable assistant output. The terminal turn coordinator remains unchanged.
+- `LearningController` owns the presentation-facing offline command and
+  learning scope queries; `ChatView` cannot import domain command parser files.
+- The architecture boundary checker encodes the last constraint, and focused
+  presenter tests check frame coalescing and restore cancellation.
+
+M2–M5 remain unimplemented. Do not interpret green static boundary checks as
+proof of native Obsidian visual or provider behavior. See
+`docs/ARCHITECTURE_BOUNDARY_REDESIGN.md` for the current-to-target map.
+
+---
+
 ## M0 architecture measurement and authority lock — 2026-10-19
 
 This checkpoint implements **instrumentation and regression mapping only**, not the proposed
