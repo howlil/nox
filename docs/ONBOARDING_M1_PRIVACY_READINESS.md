@@ -55,7 +55,7 @@ Help me decide
 
 - `unavailable/misconfigured` health or rejected check: inline error on discovery/form surface tells user to check Nox provider settings, then retry. The goal/interests/source draft remain in the existing view.
 - Context no longer read at all for general plans. For explicit note path mismatch, fail before the request is sent; never silently substitute another vault file.
-- Source-bound on a provider without filesystem-tool isolation: fail before inference and preserve draft.
+- Source-bound on a provider without filesystem-tool isolation: reject **before reading the vault** or sending inference and preserve draft.
 - Async health check or provider response after Cancel: request epoch guard prevents transition into a stale view. Generation cancel uses original `LearningController.cancel()`.
 - Invalid structured provider output, rejection/timeout and expiry: existing generator/orchestrator errors; no program or vault workspace is automatically persisted.
 

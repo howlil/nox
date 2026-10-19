@@ -67,16 +67,19 @@ test("M1 changed note rejects before provider inference without silent source su
   }, new AbortController().signal), /Source note changed/);
   assert.equal(h.inference(), 0);
 });
-test("M1 provider source isolation is required for note-bound generation", async () => {
+test("M1 provider source isolation is required before reading the vault or sending a request", async () => {
   let sent = 0;
+  let reads = 0;
   const generator = new ProgramPlanGenerator({
     supportsSourceIsolation: () => false,
     send: async function* () { sent++; yield { type: "completed" }; },
-  } as never, { resolve: async () => ({
-    activeNote: { path: "notes/selected.md", content: "secret" }, explicit: [],
-  }) } as never, () => undefined, () => Date.now());
+  } as never, { resolve: async () => {
+    reads++;
+    return { activeNote: { path: "notes/selected.md", content: "secret" }, explicit: [] };
+  } } as never, () => undefined, () => Date.now());
   await assert.rejects(generator.generate("Study note", {
     ...base, sourceBound: true, sourcePaths: ["notes/selected.md"],
   }, new AbortController().signal), /isolated provider/);
   assert.equal(sent, 0);
+  assert.equal(reads, 0);
 });

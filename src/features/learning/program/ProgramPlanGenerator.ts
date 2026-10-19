@@ -21,6 +21,10 @@ export class ProgramPlanGenerator {
       // This is enforced at the last input construction point, not only by the UI.
       let source: { file: string; content: string } | undefined;
       if (constraints.sourceBound) {
+        // Reject unsupported providers before reading any private vault contents.
+        if (!this.runtime.supportsSourceIsolation?.()) {
+          throw new Error("A source-limited curriculum requires an isolated provider with no vault filesystem tools.");
+        }
         const context = await this.contexts.resolve();
         source = context.selection ?? (context.activeNote ? {
           file: context.activeNote.path, content: context.activeNote.content,
@@ -32,9 +36,6 @@ export class ProgramPlanGenerator {
         constraints.sourcePaths = [source.file];
       }
       validateConstraints(constraints);
-      if (constraints.sourceBound && !this.runtime.supportsSourceIsolation?.()) {
-        throw new Error("A source-limited curriculum requires an isolated provider with no vault filesystem tools.");
-      }
       const instruction = [
         "You create domain-agnostic learning programs by backward design.",
         "Convert the given goal into testable competencies, not a generic list of topics.",
