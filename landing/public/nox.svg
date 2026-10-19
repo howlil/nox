@@ -1,0 +1,84 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="1254" height="1254" viewBox="0 0 1254 1254" role="img" aria-labelledby="title desc">
+<title id="title">NOX — Purple Mascot</title>
+<desc id="desc">Editable vector illustration of the NOX spirit mascot: flowing lavender flame with two luminous eyes on layered purple waves.</desc>
+<defs>
+  <radialGradient id="base" cx="48%" cy="20%" r="90%" fx="48%" fy="20%">
+    <stop offset="0" stop-color="#1a16ad"/><stop offset=".41" stop-color="#2217cd"/><stop offset=".80" stop-color="#5242fa"/><stop offset="1" stop-color="#6555ff"/>
+  </radialGradient>
+  <radialGradient id="topGlow" gradientUnits="userSpaceOnUse" cx="-80" cy="-80" r="760">
+    <stop offset="0" stop-color="#5c69ff" stop-opacity=".88"/>
+    <stop offset=".75" stop-color="#2421d8" stop-opacity=".18"/><stop offset="1" stop-color="#2521d6" stop-opacity="0"/>
+  </radialGradient>
+  <radialGradient id="rightGlow" gradientUnits="userSpaceOnUse" cx="1250" cy="-50" r="550">
+    <stop offset="0" stop-color="#4a4aff" stop-opacity=".85"/><stop offset="1" stop-color="#423dff" stop-opacity="0"/>
+  </radialGradient>
+  <linearGradient id="wave1" x1="950" y1="63" x2="410" y2="1030" gradientUnits="userSpaceOnUse">
+    <stop offset="0" stop-color="#3931ee"/><stop offset=".35" stop-color="#4336f6"/><stop offset=".78" stop-color="#8665ff"/><stop offset="1" stop-color="#9874ff"/>
+  </linearGradient>
+  <linearGradient id="wave2" x1="950" y1="140" x2="215" y2="1215" gradientUnits="userSpaceOnUse">
+    <stop offset="0" stop-color="#6751ff"/><stop offset=".35" stop-color="#5c44f9"/><stop offset=".76" stop-color="#a17bff"/><stop offset="1" stop-color="#be8dff"/>
+  </linearGradient>
+  <linearGradient id="wave3" x1="900" y1="398" x2="190" y2="1210" gradientUnits="userSpaceOnUse">
+    <stop offset="0" stop-color="#6c4cf4"/><stop offset=".42" stop-color="#9070ff"/><stop offset="1" stop-color="#c790ff"/>
+  </linearGradient>
+  <linearGradient id="wave4" x1="900" y1="602" x2="190" y2="1270" gradientUnits="userSpaceOnUse">
+    <stop offset="0" stop-color="#9d73ff"/><stop offset=".55" stop-color="#ae82ff"/><stop offset="1" stop-color="#bd88fc"/>
+  </linearGradient>
+  <linearGradient id="bottomWave" x1="210" y1="970" x2="850" y2="1300" gradientUnits="userSpaceOnUse">
+    <stop offset="0" stop-color="#bc89ff"/><stop offset="1" stop-color="#9c6fff"/>
+  </linearGradient>
+  <linearGradient id="outerFlame" x1="476" y1="485" x2="1051" y2="1223" gradientUnits="userSpaceOnUse">
+    <stop offset="0" stop-color="#fff7ff"/>
+    <stop offset=".22" stop-color="#f7eafe"/>
+    <stop offset=".60" stop-color="#e1c3f9"/>
+    <stop offset="1" stop-color="#c399fa"/>
+  </linearGradient>
+  <linearGradient id="flameInner" x1="654" y1="290" x2="878" y2="1210" gradientUnits="userSpaceOnUse">
+    <stop offset="0" stop-color="#f0dffc"/><stop offset=".38" stop-color="#dcb7fa"/><stop offset=".68" stop-color="#c7a3f9"/><stop offset="1" stop-color="#a97ff8"/>
+  </linearGradient>
+  <linearGradient id="flameInnerLeft" x1="380" y1="740" x2="780" y2="1210" gradientUnits="userSpaceOnUse">
+    <stop offset="0" stop-color="#eee1fb" stop-opacity=".77"/><stop offset=".43" stop-color="#dab8fd" stop-opacity=".9"/><stop offset="1" stop-color="#b88efc" stop-opacity=".95"/>
+  </linearGradient>
+  <linearGradient id="flameRight" x1="807" y1="438" x2="1088" y2="1140" gradientUnits="userSpaceOnUse">
+    <stop offset="0" stop-color="#e9d0fc" stop-opacity=".75"/><stop offset="1" stop-color="#b489ff" stop-opacity="0"/>
+  </linearGradient>
+  <linearGradient id="face" x1="553" y1="739" x2="954" y2="1290" gradientUnits="userSpaceOnUse">
+    <stop offset="0" stop-color="#24133d"/><stop offset=".5" stop-color="#2b1942"/><stop offset=".78" stop-color="#2c1a46"/><stop offset="1" stop-color="#392268"/>
+  </linearGradient>
+  <radialGradient id="faceGlow" gradientUnits="userSpaceOnUse" cx="738" cy="1325" r="310">
+    <stop offset="0" stop-color="#7450c6" stop-opacity=".7"/><stop offset="1" stop-color="#503386" stop-opacity="0"/>
+  </radialGradient>
+  <linearGradient id="eyeLeft" x1="617" y1="958" x2="685" y2="1130" gradientUnits="userSpaceOnUse">
+    <stop offset="0" stop-color="#fffef5"/><stop offset=".62" stop-color="#fdfbf7"/><stop offset="1" stop-color="#d9d4fb"/>
+  </linearGradient>
+  <linearGradient id="eyeRight" x1="835" y1="894" x2="891" y2="1076" gradientUnits="userSpaceOnUse">
+    <stop offset="0" stop-color="#fffef5"/><stop offset=".55" stop-color="#fffcf7"/><stop offset="1" stop-color="#e2dcfc"/>
+  </linearGradient>
+  <clipPath id="faceClip"><path d="M 741 573 C 757 619 771 677 745 728 C 709 807 603 857 515 928 C 440 986 411 1030 418 1068 C 426 1130 507 1193 594 1254 L 852 1254 C 950 1188 1044 1119 1052 1031 C 1058 952 996 833 929 746 C 865 657 787 598 741 573 Z"/></clipPath>
+</defs>
+<!-- Atmospheric blue-violet base and nested wavy strata. -->
+<rect width="1254" height="1254" fill="url(#base)"/>
+<rect width="1254" height="1254" fill="url(#topGlow)"/>
+<rect width="1254" height="1254" fill="url(#rightGlow)"/>
+<g id="background-waves">
+ <path d="M 0 393 C 81 295 169 275 223 277 C 317 275 391 321 493 261 C 605 194 643 97 785 65 C 935 25 1040 102 1099 213 C 1145 301 1173 319 1254 353 L1254 1254 L0 1254 Z" fill="url(#wave1)"/>
+ <path d="M 0 606 C 90 428 204 386 285 389 C 389 388 447 424 567 335 C 678 256 727 159 847 143 C 981 123 1050 227 1073 343 C 1090 438 1159 454 1254 491 L1254 1254 L0 1254 Z" fill="url(#wave2)"/>
+ <path d="M 0 829 C 101 725 87 571 272 517 C 354 495 399 528 495 498 C 625 468 675 382 847 394 C 957 389 1023 469 1072 542 C 1120 601 1200 619 1254 672 L1254 1254 L0 1254 Z" fill="url(#wave3)"/>
+ <path d="M 0 1016 C 65 883 140 871 196 759 C 243 654 294 612 391 610 C 487 615 543 584 636 530 C 736 464 791 465 874 501 C 1028 576 1063 682 1165 714 C 1202 739 1232 773 1254 807 L1254 1254 L0 1254 Z" fill="url(#wave4)"/>
+ <path d="M 0 1223 C 37 1122 115 1051 215 983 C 322 919 428 912 519 835 C 576 789 648 770 747 759 C 929 755 1081 932 1254 1050 L1254 1254 L0 1254 Z" fill="url(#bottomWave)" opacity=".54"/>
+</g>
+<!-- Flame silhouette and its smoothly layered inner surfaces. -->
+<g id="mascot-body">
+ <path id="outer-silhouette" d="M 930 261 C 837 248 720 303 647 360 C 581 411 551 480 550 533 C 546 646 512 661 369 773 C 234 878 145 984 145 1094 C 143 1165 165 1214 200 1254 L 1099 1254 C 1193 1196 1244 1115 1250 1034 C 1265 916 1215 804 1134 708 C 1078 643 988 579 906 507 C 835 445 812 392 862 321 C 895 276 955 257 930 261 Z" fill="url(#outerFlame)"/>
+ <path id="inner-surface" d="M 923 266 C 820 293 750 360 702 432 C 653 502 632 555 616 627 C 595 716 529 752 423 796 C 294 853 253 948 255 1069 C 255 1144 302 1216 366 1254 L 1037 1254 C 1122 1186 1132 1086 1111 982 C 1087 846 986 719 892 643 C 821 584 788 529 813 441 C 831 372 893 289 923 266 Z" fill="url(#flameInner)"/>
+ <path d="M 896 303 C 743 383 649 537 615 632 C 586 716 520 741 406 797 C 282 865 248 972 258 1074 C 269 1144 294 1209 376 1254 L 591 1254 C 469 1199 369 1105 403 1019 C 445 917 554 863 645 790 C 747 705 765 626 740 576 C 669 483 738 368 896 303 Z" fill="url(#flameInnerLeft)" opacity=".66"/>
+ <path d="M 814 441 C 805 510 832 570 911 637 C 1015 735 1097 842 1113 972 C 1137 1127 1085 1229 1037 1254 L 1099 1254 C 1199 1184 1249 1093 1250 1036 C 1260 920 1216 804 1131 709 C 1016 587 794 501 814 441 Z" fill="url(#flameRight)" opacity=".70"/>
+</g>
+<!-- Dark central character; luminous oval eye shapes are traced from source image. -->
+<g id="mascot-face">
+  <path d="M 741 573 C 757 619 771 677 745 728 C 709 807 603 857 515 928 C 440 986 411 1030 418 1068 C 426 1130 507 1193 594 1254 L 852 1254 C 950 1188 1044 1119 1052 1031 C 1058 952 996 833 929 746 C 865 657 787 598 741 573 Z" fill="url(#face)"/>
+  <g clip-path="url(#faceClip)"><rect x="400" y="900" width="690" height="400" fill="url(#faceGlow)"/></g>
+  <path id="left-eye" d="M 639.00,937.00 C 643.20,936.10 646.70,937.10 650.00,938.00 C 653.30,938.90 658.30,941.50 661.00,943.00 C 663.70,944.50 664.85,944.85 668.00,948.00 C 671.15,951.15 677.80,957.55 682.00,964.00 C 686.20,970.45 693.00,984.25 696.00,991.00 C 699.00,997.75 700.20,1001.95 702.00,1009.00 C 703.80,1016.05 706.95,1028.55 708.00,1038.00 C 709.05,1047.45 709.15,1064.65 709.00,1072.00 C 708.85,1079.35 708.05,1082.20 707.00,1087.00 C 705.95,1091.80 704.55,1098.45 702.00,1104.00 C 699.45,1109.55 693.00,1119.95 690.00,1124.00 C 687.00,1128.05 685.00,1129.20 682.00,1131.00 C 679.00,1132.80 673.45,1135.25 670.00,1136.00 C 666.55,1136.75 662.90,1136.90 659.00,1136.00 C 655.10,1135.10 648.80,1133.30 644.00,1130.00 C 639.20,1126.70 632.25,1121.05 627.00,1114.00 C 621.75,1106.95 612.60,1090.05 609.00,1083.00 C 605.40,1075.95 604.80,1073.30 603.00,1067.00 C 601.20,1060.70 598.20,1049.70 597.00,1041.00 C 595.80,1032.30 594.85,1017.25 595.00,1009.00 C 595.15,1000.75 596.80,991.85 598.00,986.00 C 599.20,980.15 600.90,974.80 603.00,970.00 C 605.10,965.20 609.15,957.90 612.00,954.00 C 614.85,950.10 617.95,946.55 622.00,944.00 C 626.05,941.45 634.80,937.90 639.00,937.00 Z" fill="url(#eyeLeft)"/>
+  <path id="right-eye" d="M 850.00,885.00 C 854.50,884.10 860.25,885.10 864.00,886.00 C 867.75,886.90 870.80,887.85 875.00,891.00 C 879.20,894.15 886.90,900.10 892.00,907.00 C 897.10,913.90 904.80,926.80 909.00,937.00 C 913.20,947.20 917.90,965.85 920.00,975.00 C 922.10,984.15 922.55,991.40 923.00,998.00 C 923.45,1004.60 923.75,1011.80 923.00,1019.00 C 922.25,1026.20 920.40,1038.50 918.00,1046.00 C 915.60,1053.50 910.15,1064.05 907.00,1069.00 C 903.85,1073.95 900.30,1076.60 897.00,1079.00 C 893.70,1081.40 889.50,1084.25 885.00,1085.00 C 880.50,1085.75 871.65,1085.20 867.00,1084.00 C 862.35,1082.80 857.60,1079.70 854.00,1077.00 C 850.40,1074.30 846.15,1069.75 843.00,1066.00 C 839.85,1062.25 835.85,1056.80 833.00,1052.00 C 830.15,1047.20 827.15,1042.55 824.00,1034.00 C 820.85,1025.45 814.25,1007.00 812.00,995.00 C 809.75,983.00 809.00,963.60 809.00,954.00 C 809.00,944.40 810.80,936.85 812.00,931.00 C 813.20,925.15 815.35,919.05 817.00,915.00 C 818.65,910.95 820.45,907.45 823.00,904.00 C 825.55,900.55 829.95,894.85 834.00,892.00 C 838.05,889.15 845.50,885.90 850.00,885.00 Z" fill="url(#eyeRight)"/>
+</g>
+</svg>
