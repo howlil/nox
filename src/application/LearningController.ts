@@ -170,6 +170,13 @@ export class LearningController {
     return this.programs.prepareProgram(goal, constraints);
   }
 
+  /** Approve the validated preview without creating workspace files. */
+  async approveLearningProgram(draftId: string, operationId: string) {
+    if (!this.programs) throw new Error("Learning programs are unavailable.");
+    this.assertRuntimeIdle();
+    return this.programs.commitPrepared(draftId, operationId);
+  }
+
   async approveLearningWorkspace(draftId: string, operationId: string) {
     if (!this.programs || !this.workspaceWriter) throw new Error("Learning workspace is unavailable.");
     this.assertRuntimeIdle();
