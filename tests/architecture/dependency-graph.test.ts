@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { analyzeSources, extractImports, formatMarkdown } from "../../scripts/architecture-graph.mjs";
+import { analyzeSources, collectSources, extractImports, formatMarkdown } from "../../scripts/architecture-graph.mjs";
 
 test("AST parser follows imports, re-exports, import types and literal dynamic imports", () => {
   const source = [
@@ -124,4 +124,14 @@ test("M5 graph counts private feature packages separately and reveals cross-pack
   assert.equal(report.summary.crossOwnerEdges, 2);
   assert.ok(report.ownerEdges.some(edge =>
     edge.edge === "application -> features/conversation/turn" && edge.count === 1));
+});
+
+test("durable program model must never depend back on executable curriculum revision policy", () => {
+  const graph = analyzeSources(collectSources());
+  const modelPath = "src/domain/learning-program/types.ts";
+  const revisionPath = "src/domain/learning-program/curriculum-revision.ts";
+  assert.equal(graph.edges.some(edge => edge.from === modelPath && edge.to === revisionPath), false,
+    "a durable model may not import revision runtime policy or its types");
+  assert.equal(graph.cycles.some(group => group.includes(modelPath) && group.includes(revisionPath)), false,
+    "curriculum model and revision policy must not form a dependency cycle");
 });
