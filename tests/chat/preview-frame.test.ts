@@ -68,3 +68,29 @@ test("two previews share one message listener per owning window", () => {
   stopB();
   assert.equal(owner.handlers.size, 0);
 });
+
+
+test("rapid content changes retain the final measured height and release cancels pending updates", () => {
+  const callbacks = new Map<number, () => void>();
+  let seq = 0;
+  const owner = fakeWindow();
+  (owner.view as Window & { setTimeout: typeof setTimeout; clearTimeout: typeof clearTimeout }).setTimeout =
+    ((cb: () => void) => { const id = ++seq; callbacks.set(id, cb); return id; }) as typeof setTimeout;
+  (owner.view as Window & { clearTimeout: typeof clearTimeout }).clearTimeout =
+    ((id: number) => { callbacks.delete(id); }) as typeof clearTimeout;
+  const { frame, source, style } = fakeFrame(owner.view);
+  const stop = bindResponsivePreview(frame, "rapid");
+  const send = (height: number): void => owner.dispatch({
+    origin: "null", source, data: { kind: "nox-preview-resize", id: "rapid", height },
+  });
+  send(560);
+  send(420);
+  send(320);
+  for (const callback of [...callbacks.values()]) callback();
+  assert.equal(style.height, "320px");
+  send(440);
+  stop();
+  stop();
+  assert.equal(callbacks.size, 0);
+  assert.equal(owner.handlers.size, 0);
+});
