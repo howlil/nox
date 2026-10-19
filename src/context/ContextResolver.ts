@@ -23,9 +23,11 @@ export class ContextResolver {
 
   async resolve(
     explicit: ExplicitContextRef[] = [],
+    options?: { includeAmbient?: boolean },
   ): Promise<LearningContext> {
-    const selection = this.source.getSelection();
-    const activeNote = await this.source.getCurrentNote();
+    // An explicitly chosen onboarding note must not read or forward another open note.
+    const selection = options?.includeAmbient === false ? null : this.source.getSelection();
+    const activeNote = options?.includeAmbient === false ? null : await this.source.getCurrentNote();
 
     const explicitDocs: ContextDocument[] = [];
 
