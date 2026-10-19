@@ -71,3 +71,28 @@ test("assistant rendering errors clear restoration state for recovery", async ()
   );
   assert.equal(presenter.isRestoring, false);
 });
+
+test("late Markdown completion cannot append proposal controls into a switched session", async () => {
+  let started!: () => void;
+  let release!: () => void;
+  const rendering = new Promise<void>(resolve => { started = resolve; });
+  const held = new Promise<void>(resolve => { release = resolve; });
+  const presenter = new TranscriptPresenter(async () => {});
+  const oldEvents: string[] = [];
+  const oldCallbacks = renderer(oldEvents);
+  oldCallbacks.assistant = async () => { started(); await held; oldEvents.push("late-assistant"); };
+  const restored = presenter.restore([{
+    role: "assistant", content: "old answer",
+    proposal: {} as NonNullable<ChatMessage["proposal"]>,
+  }], oldCallbacks);
+  await rendering;
+  presenter.cancel();
+  const nextEvents: string[] = [];
+  const next = presenter.restore([{ role: "user", content: "new session" }], renderer(nextEvents));
+  release();
+  assert.equal(await restored, false);
+  assert.equal(await next, true);
+  assert.equal(oldEvents.some(event => event.startsWith("proposal:")), false);
+  assert.equal(oldEvents.includes("structured:old answer"), false);
+  assert.deepEqual(nextEvents, ["clear", "user:new session", "complete"]);
+});
