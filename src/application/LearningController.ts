@@ -195,12 +195,14 @@ export class LearningController {
     const next = selectAdaptiveActivity(program, learning, now, profile);
     const byObjective = new Map(profile.objectives.map(item => [item.objectiveId, item]));
     const attemptCounts = new Map<string, number>();
+    const objectiveRevisions = new Map(program.objectives
+      .filter(objective => !objective.deprecated)
+      .map(objective => [objective.id, objective.objectiveRevision ?? program.planVersion] as const));
     for (const evidence of learning.evidence) {
       if (evidence.type !== "practice" || evidence.scope !== "learner" ||
           evidence.programId !== program.id || evidence.evidenceVersion !== 3 ||
-          !evidence.objectiveId) continue;
-      const objective = program.objectives.find(item => item.id === evidence.objectiveId);
-      if (!objective || evidence.objectiveRevision !== (objective.objectiveRevision ?? program.planVersion)) continue;
+          !evidence.objectiveId ||
+          objectiveRevisions.get(evidence.objectiveId) !== evidence.objectiveRevision) continue;
       attemptCounts.set(evidence.objectiveId, (attemptCounts.get(evidence.objectiveId) ?? 0) + 1);
     }
     return {
