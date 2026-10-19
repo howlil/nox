@@ -325,3 +325,84 @@ restored chats; ephemeral JS quiz answers live only inside the iframe.
   no CSS leak to NOX, no remote assets, source/preview toggle and restart work.
 - Visual acceptance remains Obsidian Desktop-specific; passing CI alone is
   insufficient to claim pixel-perfect or scroll behavior.
+
+
+## Typed one-question-at-a-time NOX quiz (2026-10-19)
+
+The native **read-only quiz** is a response visualization, not the
+`learning-practice` question/evaluation protocol. It is intended for
+an explicitly requested multi-question quiz and never commits mastery,
+grade evidence, or edits to the vault.
+
+### Source contract
+
+The AI emits one JSON block using the fenced `nox-quiz` language:
+
+~~~nox-quiz
+{
+  "version": 1,
+  "kind": "quiz",
+  "title": "Backend Engineering",
+  "questions": [
+    {
+      "id": "q1",
+      "question": "What does idempotency guarantee?",
+      "description": "Consider a retry of an HTTP request.",
+      "options": [
+        {"id": "a", "text": "Every retry is faster"},
+        {"id": "b", "text": "Repeating has no extra intended effect"}
+      ],
+      "correctOptionId": "b",
+      "explanation": "Repeated requests produce the same intended effect."
+    }
+  ]
+}
+~~~
+
+1–50 uniquely identified questions, each with 2–6 unique answer options,
+one `correctOptionId` referencing a local option, bounded text lengths,
+an optional description and optional result explanation.
+Malformed/oversized JSON remains in its original code block with a
+non-blocking warning. No untrusted HTML, CSS, or JavaScript is evaluated
+for this presentation format.
+
+### A / E / R and scope
+
+```text
+User asks for 10-question interactive quiz
+  -> Ask/Explain instructions request fenced nox-quiz
+  -> MarkdownRenderer preserves original source
+  -> response-visuals recognizes nox-quiz fence
+  -> parseNoxQuiz validates source and answer references
+  -> renderNoxQuiz creates one visible question using textContent
+  -> selection stored in local Map<QuestionId, OptionId>
+  -> Next/Previous changes index only; answer Map persists
+  -> Finish shows score + optional expanded answer review
+  -> Restart clears answers
+```
+
+**A:** At most one question/options DOM view is visible at any time.
+NOX owns page navigation, progress, selections, finish/review/restart.
+The host container grows with ordinary DOM content and has no inner
+fixed-height iframe.
+
+**E:** Missing answer keys, duplicate question/option IDs, invalid references,
+excessive options or payloads fail closed to the original source.
+Correctness is model-supplied and is appropriate only for formative
+self-checks—not verified examinations. The model's correct answer can
+still be inspected from the original Markdown source.
+
+**R:** Existing Obsidian DOM/Markdown renderer, scoped flat white NOX CSS,
+zero new runtime dependencies or iframe execution.
+
+**Scope:** Answers exist only while this visual instance is mounted.
+Transcript restoration re-renders questions from source and begins a fresh
+attempt. Native Practice persistence, hint, evaluation and outcomes are
+untouched; no automatic conversion between the protocols.
+
+**Verification:** Validate parser bounds and hostile content; exercise
+real event listeners with a fake DOM to verify one question per view,
+choice retention, skip scoring, finish/review and restart. Desktop
+acceptance checks overflow at 320px, dark-host light-only appearance,
+keyboard interaction and transcript restore. Maintain a separate draft PR
+until acceptance; coordinate rebase with the unmerged graph-rendering PR.
