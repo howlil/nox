@@ -293,3 +293,65 @@ test("M2 all-code quiz reports no graded questions, even if code was entered", (
   assert.match(stage.textContent, /Coding responses have not been executed, reviewed, or graded/);
   assert.doesNotMatch(stage.textContent, /1 \/ 1/);
 });
+
+
+test("M3 50-question stress: a single active code editor, 100-line draft and clean navigation", () => {
+  const fifty = {
+    version: 1, kind: "quiz", title: "Stress mixed quiz",
+    questions: Array.from({ length: 50 }, (_, i) => i % 2 === 0
+      ? { id: "q" + i, type: "code", question: "M3 question " + i, language: "ts",
+        starterCode: "const result = 0;", executionMode: "review-only" }
+      : { id: "q" + i, type: "multiple-choice", question: "M3 question " + i,
+        options: [{ id: "a", text: "Right" }, { id: "b", text: "Wrong" }],
+        correctOptionId: "a" }),
+  };
+  const spec = parse(fifty);
+  assert.ok(spec, "50 mixed questions fit the published JSON boundary");
+  const doc = { createElement: (tag: string) => new FakeElement(tag) } as unknown as Document;
+  const root = renderNoxQuiz(spec, doc) as unknown as FakeElement;
+  const stage = root.querySelector(".nox-quiz-stage")!;
+  const [previous, next] = root.querySelectorAll(".nox-quiz-button");
+  const longCode = Array.from({ length: 100 }, (_, n) =>
+    "const value" + n + " = " + n + ";").join("\n");
+  let lastEditor: FakeElement | undefined;
+  for (let i = 0; i < 50; i++) {
+    assert.match(stage.textContent, new RegExp("M3 question " + i + "(?!\\d)"));
+    if (i % 2 === 0) {
+      const editor = stage.querySelector("textarea");
+      assert.ok(editor);
+      assert.equal(stage.querySelectorAll("textarea").length, 1);
+      if (i === 0) {
+        editor.scrollHeight = 2400;
+        editor.value = longCode;
+        for (const handler of editor.handlers.get("input") ?? []) handler();
+        assert.equal(editor.style.height, "2400px");
+      } else {
+        editor.value = "const answer = " + i + ";";
+        for (const handler of editor.handlers.get("input") ?? []) handler();
+      }
+      lastEditor = editor;
+    } else {
+      assert.equal(stage.querySelectorAll("textarea").length, 0);
+      stage.querySelectorAll(".nox-quiz-option")[0].click();
+    }
+    assert.ok(stage.children.length <= 5, "one active question DOM, not 50 cards");
+    if (i < 49) {
+      next.click();
+      if (lastEditor) assert.equal(lastEditor.removed, true);
+      lastEditor = undefined;
+    }
+  }
+  next.click(); // finish
+  assert.equal(stage.querySelectorAll("textarea").length, 0);
+  assert.match(stage.textContent, /25 \/ 25/);
+  assert.match(stage.textContent, /25Code awaiting review/);
+  assert.match(stage.textContent, /Coding responses have not been executed, reviewed, or graded/);
+  previous.click(); // review always begins at first question
+  const restored = stage.querySelector("textarea");
+  assert.ok(restored);
+  assert.equal(restored.value, longCode, "large code answer survives complete traversal");
+  restored.scrollHeight = 50;
+  restored.value = "return 1;";
+  for (const handler of restored.handlers.get("input") ?? []) handler();
+  assert.equal(restored.style.height, "92px", "editor shrinks after deletion");
+});
