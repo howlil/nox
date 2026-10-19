@@ -55,6 +55,12 @@ export class TranscriptPresenter {
         if (message.proposal) renderer.proposal(message);
         renderer.structured(message);
       }
+    } catch (error) {
+      // A cancelled restore can reject after navigation/unload when an obsolete
+      // Markdown renderer settles. That old failure must not escape into the
+      // new session's UI flow; only errors from the current epoch propagate.
+      if (epoch !== this.epoch) return false;
+      throw error;
     } finally {
       if (epoch === this.epoch) this.restoring = false;
     }
