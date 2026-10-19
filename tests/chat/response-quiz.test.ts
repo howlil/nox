@@ -119,9 +119,11 @@ class FakeElement {
   querySelector(selector: string): FakeElement | null { return this.querySelectorAll(selector)[0] ?? null; }
   querySelectorAll(selector: string): FakeElement[] {
     const className = selector.startsWith(".") ? selector.slice(1) : "";
+    const tag = className ? "" : selector.toLowerCase();
     const result: FakeElement[] = [];
     for (const child of this.children) {
-      if (className && child.className.split(" ").includes(className)) result.push(child);
+      if ((className && child.className.split(" ").includes(className)) ||
+          (tag && child.tag === tag)) result.push(child);
       result.push(...child.querySelectorAll(selector));
     }
     return result;
@@ -261,7 +263,7 @@ test("M2 code view shares auto-height input, preserves edits/empty draft and nev
   assert.match(stage.textContent, /Quiz results/);
   assert.match(stage.textContent, /1 \/ 1/);
   assert.match(stage.textContent, /Coding responses have not been executed, reviewed, or graded/);
-  assert.match(stage.textContent, /Code awaiting review1/);
+  assert.match(stage.textContent, /1Code awaiting review/);
   assert.doesNotMatch(stage.textContent, /2 \/ 3/);
   const codeReview = stage.querySelector(".nox-quiz-submitted-code");
   assert.ok(codeReview);
@@ -269,8 +271,9 @@ test("M2 code view shares auto-height input, preserves edits/empty draft and nev
   previous.click();
   next.click();
   next.click();
+  next.click(); // result screen
   next.click(); // restart
-  next.click();
+  next.click(); // coding question
   assert.equal(stage.querySelector("textarea")?.value, "class Counter {\n  // TODO\n}",
     "restart resets code to original scaffold");
   assert.match(root.querySelector(".nox-quiz-answered")?.textContent ?? "", /0 of 3 answered/);
