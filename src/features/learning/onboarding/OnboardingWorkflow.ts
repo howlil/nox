@@ -10,7 +10,7 @@ export function restoreOnboardingDraft(initial?: OnboardingDraft): OnboardingDra
   };
   if (!initial || initial.version !== 1) return empty;
   const stage: OnboardingStage = ["generating", "preview", "applying", "ready"].includes(initial.stage)
-    ? "form" : initial.stage;
+    ? "form" : ["discovery", "suggestions"].includes(initial.stage) ? "welcome" : initial.stage;
   return { ...initial, interests: [...initial.interests], stage };
 }
 
@@ -31,4 +31,11 @@ export function onboardingConstraints(draft: OnboardingDraft): ProgramConstraint
     sourceBound: draft.sourceBound,
     sourcePaths: draft.sourcePath ? [draft.sourcePath] : [], excludedTopics: [],
   };
+}
+
+/** The quick entry uses the existing /plan command, never guided workspace writes. */
+export function quickPlanCommand(rawGoal: string): string {
+  const goal = rawGoal.trim().replace(/\s+/g, " ");
+  if (goal.length < 5) throw new Error("Enter a specific goal of at least five characters.");
+  return `/plan ${goal}`;
 }
