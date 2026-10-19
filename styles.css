@@ -3797,6 +3797,56 @@
   color: var(--nox-quiz-muted);
   overflow-wrap: anywhere;
 }
+
+/* M2 — mixed code questions reuse the M1 editor and intrinsic-height surface. */
+.nox-rich-quiz .nox-quiz-code-meta {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 6px 12px;
+  color: var(--nox-quiz-muted);
+  font-size: 11px;
+  margin: 12px 0 7px;
+}
+.nox-rich-quiz .nox-quiz-code-language { color: var(--nox-quiz-ink); font-weight: 650; }
+.nox-rich-quiz .nox-quiz-code-input { width: 100%; min-width: 0; }
+.nox-rich-quiz .nox-quiz-code-criteria { margin-top: 15px; font-size: 12px; }
+.nox-rich-quiz .nox-quiz-code-criteria strong { font-weight: 600; }
+.nox-rich-quiz .nox-quiz-code-criteria ul {
+  margin: 6px 0 0;
+  padding-left: 21px;
+  color: var(--nox-quiz-muted);
+  overflow-wrap: anywhere;
+}
+.nox-rich-quiz .nox-quiz-code-criteria li { margin: 4px 0; }
+.nox-rich-quiz .nox-quiz-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.nox-rich-quiz .nox-quiz-stat { min-width: 0; text-align: center; }
+.nox-rich-quiz .nox-quiz-score-note,
+.nox-rich-quiz .nox-quiz-code-disclaimer {
+  font-size: 12px;
+  color: var(--nox-quiz-muted);
+  line-height: 1.6;
+  margin: 8px 0;
+}
+.nox-rich-quiz .nox-quiz-submitted-code {
+  max-width: 100%;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  overflow-x: hidden;
+  overflow-y: visible;
+  border: 1px solid var(--nox-quiz-line);
+  border-radius: 10px;
+  padding: 12px;
+  background: var(--nox-quiz-surface);
+  color: var(--nox-quiz-ink);
+  font: 12px/1.6 var(--font-monospace, ui-monospace, monospace);
+}
+.nox-rich-quiz .nox-quiz-result-criteria {
+  color: var(--nox-quiz-muted);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
 .nox-rich-quiz .nox-quiz-options { display: flex; flex-direction: column; gap: 9px; }
 .nox-root .nox-rich-quiz button.nox-quiz-option {
   display: flex;
