@@ -1,6 +1,6 @@
 # NOX — Responsibility-first architecture audit and redesign
 
-Status: **target architecture proposed; M0 instrumentation implemented on draft PR, M1–M5 not implemented**
+Status: **target architecture proposed; M0, M1, and M2 implemented on draft PR, M3–M5 not implemented**
 Audit base: `master` on 2026-10-19
 Decision scope: modular boundaries, mutable state ownership, public contracts, runtime flow, and incremental migration.
 Canonical references: `AGENTS.md`, `.agents/ENGINEERING_DESIGN.md`, `docs/ADAPTIVE_LEARNING_MILESTONES.md`.
@@ -283,6 +283,58 @@ Streaming delta (LearningController.run)
 - Keep one `RunTurn` active-turn/cancel owner.
 - Extract context request preparation, terminal validation and structured outcome reconciliation as testable functions/use cases **without introducing an independent transaction owner**.
 - Acceptance: cancellation/timeouts/incomplete model output never commit phantom evidence or proposals; idempotent retry.
+
+### M2 implementation checkpoint — Single turn authority (2026-10-19)
+
+**Scope:** Extract testable work from the large `RunLearningTurn` use case **without moving the active-turn lock, timeout/cancel ownership, or terminal commit transaction**. M3–M5 remain pending.
+
+| Component | R (responsibility) | S (state / authority) | G (guarantee) |
+|---|---|---|---|
+| `RunLearningTurn` | Coordinates validation, focus authority, session preflight, model events and terminal response | One active-turn lock; cancellation cause; owns **all** transcript and structured-result commit ordering | An aborted/failed/invalid inference never promotes a provisional question, review, or proposal |
+| `TurnProviderEnvelope` | Builds bounded provider context, replay/history, retry/regenerate history and metrics | Pure deterministic projection, **no mutable writer** | A selected/source-bound/locked turn cannot inherit provider-owned hidden unrestricted history |
+| `StructuredTurnBuffer` | Decodes already-parsed stream events to display deltas and buffers untrusted structured candidates | Per-turn in-memory buffer only; no storage or externally actionable proposal | Duplicate/wrong-action/out-of-scope payloads are rejected; terminal success alone never bypasses required payloads |
+| `TranscriptEvidenceReconciler` | Replays committed transcript evidence and retries CAS conflicts | `LearningStatePort` remains the **same** authoritative ledger port; no independent store | Stable operation IDs; retries re-read fresh snapshots; non-CAS persistence failures propagate |
+| `turn-output-error` | Shared expected protocol-invalid failure type | No stored state | Existing `protocol-invalid` normalization preserved across extracted modules |
+
+**A: successful path**
+
+```text
+LearningController.run(request)
+  -> RunLearningTurn (acquire active-turn lock before async work)
+  -> policy + context resolution + committed transcript reconciliation
+  -> TurnProviderEnvelope (authorized provider-bound visible/system/history)
+  -> AgentRuntime.send (normalized incremental provider events)
+  -> StructuredStreamParser -> StructuredTurnBuffer (text events visible, structured candidate buffered)
+  -> successful provider terminal
+  -> StructuredTurnBuffer.assertTerminalEligible()
+  -> focus authority revalidation
+  -> SessionPort.recordStructuredPart / recordPracticeOutcome /
+     recordReviewOutcome / recordEditOutcome / recordAssistantMessage
+  -> TranscriptEvidenceReconciler.appendSafely (same LearningStatePort + bounded CAS)
+  -> committed UI outcome -> completed
+```
+
+**E / expected negative outcomes**
+
+- Cancel/timeout before terminal → no candidate committed; pending practice evaluation rolls back.
+- Truncated, duplicate, malformed or wrong-action structured output → protocol-invalid, no candidate commit.
+- A review/practice turn without its required structured result → protocol-invalid.
+- Focus changes during inference → reject stale candidate before commit.
+- Session transcript write failure → surface persistence failure; never project evidence first.
+- Evidence save fails **after** a durable transcript commit → later reconciliation uses committed operation IDs; do not rerun inference and invent a second verdict.
+- CAS conflict → re-read authoritative ledger and reapply up to four bounded attempts; other persistence exceptions propagate.
+- Regenerate/retry and selected source authority → provider history is filtered/rotated before calling inference.
+
+**Targeted proofs:** `tests/application/StructuredTurnBuffer.test.ts`,
+`tests/application/TranscriptEvidenceReconciler.test.ts`,
+`tests/application/TurnProviderEnvelope.test.ts`, plus existing
+`tests/integration/learning/recovery-flow.test.ts`,
+`tests/application/LearningController.test.ts` and session/vault CAS tests.
+
+**Release boundary:** No feature state model, provider wire schema, Obsidian editor adapter,
+database/writer, or `ChatView` UI interaction is changed in M2. CI verifies the TypeScript
+and unit/integration regressions; native Obsidian desktop acceptance remains separate.
+Do not infer that the entire feature-first modular monolith is implemented.
 
 ### M3 — Learning program responsibilities
 - Split plan/revision, focus transitions, and session timing handling behind shared program write serialization.
