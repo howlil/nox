@@ -1,7 +1,12 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { dirname, join, posix, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
-import ts from "typescript";
+import { createRequire } from "node:module";
+
+// Resolve the compiler from the repository workspace, not the temporary esbuild
+// test bundle location. Avoid bundling the multi-megabyte TypeScript compiler.
+const loadWorkspaceDependency = createRequire(resolve(process.cwd(), "package.json"));
+const ts = loadWorkspaceDependency("typescript");
 
 const SOURCE_ROOT = "src";
 const EXTENSIONS = [".ts", ".tsx", ".mts", ".cts"];
