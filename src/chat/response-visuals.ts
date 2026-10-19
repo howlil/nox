@@ -15,6 +15,8 @@ import { mountNoxGraphViewport } from "./graph-viewport";
 import { parseNoxFlowV2 } from "./response-graph-v2-schema";
 import { renderNoxFlowV2 } from "./response-graph-v2-render";
 import type { IconName } from "obsidian";
+import { parseNoxQuiz } from "./response-quiz";
+import { renderNoxQuiz } from "./response-quiz-render";
 
 const SVG_NS = "http://www.w3.org/2000/svg";
 
@@ -340,7 +342,17 @@ export function enhanceNoxResponseVisuals(content: HTMLElement): number {
       pre.before(warning);
       continue;
     }
-    if (kind === "nox-chart") {
+    if (kind === "nox-quiz") {
+      const spec = parseNoxQuiz(source);
+      if (!spec) {
+        const warning = element(doc, "p", "nox-visual-warning");
+        warning.textContent = "Invalid quiz data; displaying the original JSON.";
+        pre.before(warning);
+        continue;
+      }
+      pre.replaceWith(renderNoxQuiz(spec, doc));
+      enhanced++;
+    } else if (kind === "nox-chart") {
       const chart = parseNoxChart(source);
       if (!chart) {
         const warning = element(doc, "p", "nox-visual-warning");
