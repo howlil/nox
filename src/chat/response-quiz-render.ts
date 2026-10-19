@@ -1,6 +1,5 @@
 import { setNoxIcon } from "./primitives";
-import type { NoxQuizSpec, NoxQuizQuestion } from "./response-quiz";
-import { scoreNoxQuiz } from "./response-quiz";
+import { scoreNoxQuiz, type NoxQuizSpec, type NoxQuizQuestion } from "./response-quiz";
 
 function el<K extends keyof HTMLElementTagNameMap>(
   doc: Document, tag: K, className?: string, content?: string,
