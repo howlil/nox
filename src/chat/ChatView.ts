@@ -2140,17 +2140,17 @@ export class ChatView extends ItemView {
           }
           if (!(await this.ensureRuntimeReady())) throw new Error("Connect your AI provider, then retry.");
           await this.learning.dismissOnboarding();
-          this.attachments.push({
-            name: path.split("/").pop() ?? path,
-            ref: { kind: "vault-note", path },
-          });
-          this.extraCtx = this.attachments.map(item => item.ref);
-          this.renderAttachments();
-          this.setAction(kind === "explain" ? "explain" : "ask");
-          this.input.value = kind === "practice" ? "/free-practice"
-            : "Explain the main concepts from this note with a concrete example.";
-          this.onInput();
-          await this.doSend();
+          const request: LearningRequest = {
+            turnId: crypto.randomUUID(),
+            prompt: kind === "practice" ? "/free-practice"
+              : "Explain the main concepts from this note with a concrete example.",
+            action: kind === "practice" ? "ask" : "explain",
+            explicitContext: [{ kind: "vault-note", path }],
+            contextMode: "explicit-only",
+          };
+          this.setAction(request.action);
+          this.lastTurnRequest = request;
+          await this.runTurn(request, true);
         },
         onCreated: () => {
           this.showEmpty();
