@@ -750,7 +750,9 @@ export class RunLearningTurn {
         preparedPrompt += "\n\nPRESENTATION: Use short semantic Markdown headings without numeric prefixes unless specifically requested. Prefer compact Markdown tables for comparisons. Avoid emoji as status icons. Do not invent metrics or display a chart for unknown data.";
         const graphPresentation = selectGraphPresentation(request.prompt);
         if (graphPresentation === "nox-flow") {
-          preparedPrompt += '\nUse explicitly requested fenced nox-flow JSON: {"version":1,"direction":"TB","layout":"layered","nodes":[{"id":"a","label":"Start"}],"edges":[]}. Max 24 nodes, 48 edges, and acyclic graphs. Do not invent relationships.';
+          preparedPrompt += /nox-flow\s*v1/i.test(request.prompt)
+            ? '\nUse fenced nox-flow v1 JSON: version 1, direction TB, layout layered, nodes [{id,label}], edges [{from,to}]. Maximum 24 nodes and 48 edges, acyclic only.'
+            : '\nUse fenced nox-flow v2 JSON: {"version":2,"direction":"TB","layout":"layered","groups":[{"id":"layer","label":"Application Layer"}],"nodes":[{"id":"one","label":"Service","group":"layer"},{"id":"two","label":"Database"}],"edges":[{"from":"one","to":"two","label":"reads"}]}. Use TB or LR, maximum 40 nodes, 80 edges, 8 non-empty groups, one group per node. Do not invent relationships.';
         } else if (graphPresentation === "mermaid") {
           preparedPrompt += '\nOutput a fenced mermaid flowchart TB or LR. Use compact descriptive node labels, faithful edges and logical branching. Avoid decorative subgraphs and invented relationships; use separate diagrams for independent lifecycles.';
         }
