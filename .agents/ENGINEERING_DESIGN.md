@@ -8,6 +8,41 @@ Last updated: 2026-10-13
 
 ---
 
+## M2 conversation turn responsibility checkpoint — 2026-10-19
+
+The existing `RunLearningTurn` remains the **single** coordinator for the
+active-turn lock, cancellation/timeout, source/focus authority, normalized
+stream consumption, terminal gating and ordered commits. M2 extracts three
+collaborators with distinct responsibility, not a new writer or generic
+workflow framework:
+
+- `TurnProviderEnvelope`: produces the final authorized provider-bound
+  visible/system/history envelope, cursor rotation, retry/regenerate history,
+  and timing/usage estimate before invoking the runtime. Restricted modes,
+  selected sources and programs must not inherit hidden prior provider state.
+- `StructuredTurnBuffer`: per-turn untrusted candidates and text/thought
+  deltas. `assertTerminalEligible` checks required output only **after** a
+  provider completes; it cannot mutate persistent transcript/evidence.
+- `TranscriptEvidenceReconciler`: idempotent evidence projection from
+  previously committed transcript outcomes. Uses the original
+  `LearningStatePort` with bounded CAS retries and fresh snapshots on conflict.
+
+The order remains terminal validity → focus authority → transcript commit →
+evidence projection → UI completion. If projection fails after a durable
+transcript commit, repeat only idempotent reconciliation: do not invoke the
+provider again or create a second verdict. Cancellation and deadline behavior
+are still owned by `RunLearningTurn` and may not be moved behind a detached
+worker. All provider transports and data schemas remain unchanged.
+
+Focused regressions cover wrong-action/duplicate payload, terminal missing
+candidates, edit-file authority, retry and regenerated history, selected-source
+cursor isolation, duplicate evidence, CAS conflict, and non-CAS failure.
+The older recovery and vault persistence integration tests remain mandatory.
+See `docs/ARCHITECTURE_BOUNDARY_REDESIGN.md` for the runtime path and
+M3–M5 sequencing. Desktop Obsidian acceptance is not implied by green CI.
+
+---
+
 ## M1 presentation isolation checkpoint — 2026-10-19
 
 The M1 changes on the architecture refactor draft branch isolate **UI-only**
