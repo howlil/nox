@@ -1,5 +1,33 @@
 # Changelog
 
+## [1.2.1]
+
+### Interactive learning and coding
+
+- Add native, one-question-at-a-time NOX quiz rendering for multiple-choice and coding questions, including Previous/Next navigation, progress, answer retention, review, and restart.
+- Introduce a shared CodeMirror 6 coding editor in Practice and structured quizzes, with intrinsic auto-height, wrapped long lines, lexical coloring for Java, JavaScript/TypeScript, Python and SQL, and safe textarea fallback.
+- Bound coding answers to 40,000 characters, preserve the last valid draft on rejected input, and harden editor cleanup across transcript re-renders.
+- Keep generated quiz coding responses review-only and ungraded; no compilation, execution, or claim of verified correctness.
+
+### Visualizations and graph navigation
+
+- Improve Mermaid diagrams with a shared Fit, Zoom, Pan and Expand viewport in compact Obsidian panes.
+- Add opt-in `nox-flow` v2 rendering with labeled edges, grouped nodes, and local ELK orthogonal layout while retaining compatibility with v1.
+- Introduce flat, light HTML preview styling and responsive content-height updates with bounded sandbox messages.
+
+### Engineering and reliability
+
+- Integrate responsibility-first architecture boundary research and migration guidance.
+- Verify the reconciled graph and quiz changes together, including 551 unit and 123 integration tests on combined CI, plus code-editor stress and lifecycle regressions.
+- Document bundled ELK licensing in `THIRD_PARTY_NOTICES.md` and the production JavaScript header.
+
+### Compatibility and limitations
+
+- Desktop-only; requires Obsidian 1.13.0 or later. No automatic migration of existing learning data is required.
+- Coding quiz answers remain local to the mounted response; restarting or re-rendering the response starts a new quiz attempt. Native Practice draft persistence remains separate.
+- Syntax coloring is lightweight lexical highlighting, not grammar-level diagnostics.
+- Automated CI cannot establish pixel-perfect desktop behavior; live Obsidian Desktop acceptance for narrow panes, pop-outs and long code remains outstanding.
+
 ## [1.2.0]
 
 ### Adaptive learning
