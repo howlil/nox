@@ -78,12 +78,12 @@ export class LearningController {
     return Boolean(parseScopeCommand(input));
   }
 
-  isActiveLearningScope(): boolean {
-    return isActiveLearningScope(this.sessions.getSession().learningScope);
+  isActiveLearningScope(scope: import("../domain/practice/learning-scope").LearningScopeState | undefined): boolean {
+    return isActiveLearningScope(scope);
   }
 
-  isProgramLearningScope(): boolean {
-    return isProgramLearningScope(this.sessions.getSession().learningScope);
+  isProgramLearningScope(scope: unknown): scope is import("../domain/practice/learning-scope").ProgramLearningScope {
+    return isProgramLearningScope(scope);
   }
 
   getSession(): ChatSession {
