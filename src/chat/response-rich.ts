@@ -1,5 +1,6 @@
 import { setNoxIcon } from "./primitives";
 import { layoutNoxFlow } from "./response-graph-layout";
+import { mountNoxGraphViewport } from "./graph-viewport";
 import type { NoxCardSpec, NoxChartSpec, NoxFlowSpec } from "./response-spec";
 
 const NS = "http://www.w3.org/2000/svg";
@@ -127,11 +128,6 @@ export function renderNoxFlow(spec: NoxFlowSpec, doc: Document = document): HTML
   const root = el(doc, "section", "nox-visual nox-rich-flow");
   root.setAttribute("aria-label", spec.title ?? "Top-down flow diagram");
   heading(root, spec.title ?? "Flow diagram");
-  const viewport = el(doc, "div", "nox-rich-flow-viewport");
-  viewport.style.setProperty("--nox-flow-width", layout.width + "px");
-  viewport.tabIndex = 0;
-  viewport.setAttribute("role", "region");
-  viewport.setAttribute("aria-label", "Scroll vertically to inspect all diagram steps");
   const svg = svgEl(doc, "svg", {
     viewBox: `0 0 ${layout.width} ${layout.height}`,
     width: String(layout.width), height: String(layout.height),
@@ -176,8 +172,10 @@ export function renderNoxFlow(spec: NoxFlowSpec, doc: Document = document): HTML
     }
     svg.append(group);
   }
-  viewport.append(svg);
-  root.append(viewport);
+  mountNoxGraphViewport({
+    root, graphic: svg, naturalWidth: layout.width, kind: "flow",
+    label: "Flow diagram; use Fit, Zoom and Expand to inspect connections",
+  });
   const details = el(doc, "details", "nox-rich-flow-details");
   const summary = el(doc, "summary");
   summary.textContent = "View steps and connections";

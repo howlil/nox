@@ -78,4 +78,7 @@ if (!mainBundle.includes("NOX_RUNTIME_TRANSPORT_V3:node-https-sse")) {
   throw new Error("Build is missing its ChatGPT HTTP transport marker.");
 }
 
+// Track the production bundle cost of optional graph layout libraries.
+const mainBundleBytes = Buffer.byteLength(mainBundle, "utf8");
+console.log(`NOX production JavaScript: ${mainBundleBytes} bytes (${(mainBundleBytes / 1048576).toFixed(2)} MiB).`);
 console.log("Nox build artifacts verified with runtime transport marker.");

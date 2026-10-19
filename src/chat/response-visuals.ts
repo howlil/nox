@@ -11,6 +11,9 @@ import {
 import { enhanceNoxMarkdownTables, renderNoxCard, renderNoxFlow, renderNoxHorizontalChart } from "./response-rich";
 import { setNoxIcon } from "./primitives";
 import { bindResponsivePreview } from "./preview-frame";
+import { mountNoxGraphViewport } from "./graph-viewport";
+import { parseNoxFlowV2 } from "./response-graph-v2-schema";
+import { renderNoxFlowV2 } from "./response-graph-v2-render";
 import type { IconName } from "obsidian";
 
 const SVG_NS = "http://www.w3.org/2000/svg";
@@ -228,76 +231,15 @@ export function enhanceNoxMermaidDiagrams(content: HTMLElement): number {
     if (!svg.hasAttribute("viewBox") && width > 0 && height > 0) {
       svg.setAttribute("viewBox", "0 0 " + width + " " + height);
     }
-    const nativeWidth = intrinsicMermaidWidth(svg);
+    const naturalWidth = intrinsicMermaidWidth(svg);
     const root = element(doc, "section", "nox-diagram");
-    const toolbar = element(doc, "div", "nox-diagram-toolbar");
-    const viewport = element(doc, "div", "nox-diagram-viewport");
-    viewport.tabIndex = 0;
-    viewport.setAttribute("role", "region");
-    viewport.setAttribute("aria-label", "Mermaid diagram; zoom to inspect");
-    const out = button(doc, "Zoom out", "minus");
-    const fit = button(doc, "Fit diagram", "scan");
-    const zoomIn = button(doc, "Zoom in", "plus");
-    const expand = button(doc, "Expand diagram", "maximize-2");
-    toolbar.append(out, fit, zoomIn, expand);
     mermaid.replaceWith(root);
-    root.append(toolbar, viewport);
-    viewport.append(mermaid);
     mermaid.dataset.noxSizing = "natural";
     svg.setAttribute("preserveAspectRatio", "xMidYMid meet");
-
-    let zoom = 1;
-    const measure = () => {
-      // For tiny diagrams, use their natural size instead of stretching to 100%.
-      // For wide diagrams, fit the container; zoom activates local horizontal pan.
-      if (!root.isConnected) return;
-      const available = Math.max(160, viewport.clientWidth - 16);
-      const fittedWidth = Math.min(nativeWidth, available);
-      mermaid.style.width = Math.round(fittedWidth * zoom) + "px";
-      root.style.width = "min(100%, " + Math.ceil(nativeWidth + 16) + "px)";
-      out.disabled = zoom <= 0.75;
-      zoomIn.disabled = zoom >= 3;
-      fit.disabled = zoom === 1;
-    };
-    out.addEventListener("click", () => { zoom = Math.max(0.75, zoom - 0.25); measure(); });
-    zoomIn.addEventListener("click", () => { zoom = Math.min(3, zoom + 0.25); measure(); });
-    fit.addEventListener("click", () => {
-      zoom = 1;
-      measure();
-      viewport.scrollTo(0, 0);
+    mountNoxGraphViewport({
+      root, graphic: mermaid, naturalWidth, kind: "mermaid",
+      label: "Mermaid diagram; use Fit, Zoom and Expand to inspect connections",
     });
-    const collapse = () => {
-      root.classList.remove("is-expanded");
-      expand.setAttribute("aria-label", "Expand diagram");
-      expand.title = "Expand diagram";
-      setNoxIcon(expand, "maximize-2");
-      measure();
-    };
-    expand.addEventListener("click", () => {
-      if (root.classList.contains("is-expanded")) collapse();
-      else {
-        root.classList.add("is-expanded");
-        expand.setAttribute("aria-label", "Close expanded diagram");
-        expand.title = "Close expanded diagram";
-        setNoxIcon(expand, "minimize-2");
-        expand.focus();
-        measure();
-      }
-    });
-    root.addEventListener("keydown", event => {
-      if (event.key === "Escape" && root.classList.contains("is-expanded")) {
-        event.preventDefault();
-        collapse();
-      }
-    });
-    const ResizeObserverClass = doc.defaultView?.ResizeObserver;
-    if (!ResizeObserverClass) continue;
-    const resize = new ResizeObserverClass(() => {
-      if (root.isConnected) measure();
-      else resize.disconnect();
-    });
-    resize.observe(viewport);
-    measure();
     count++;
   }
   return count;
@@ -409,14 +351,15 @@ export function enhanceNoxResponseVisuals(content: HTMLElement): number {
       pre.replaceWith(chart.type === "horizontal-bar" ? renderNoxHorizontalChart(chart, doc) : renderChart(chart, doc));
       enhanced++;
     } else if (kind === "nox-flow") {
-      const flow = parseNoxFlow(source);
-      if (!flow) {
+      const legacy = parseNoxFlow(source);
+      const advanced = legacy ? null : parseNoxFlowV2(source);
+      if (!legacy && !advanced) {
         const warning = element(doc, "p", "nox-visual-warning");
         warning.textContent = "Invalid flow data; displaying the original JSON.";
         pre.before(warning);
         continue;
       }
-      pre.replaceWith(renderNoxFlow(flow, doc));
+      pre.replaceWith(legacy ? renderNoxFlow(legacy, doc) : renderNoxFlowV2(advanced!, source, doc));
       enhanced++;
     } else if (kind === "nox-card") {
       const card = parseNoxCard(source);

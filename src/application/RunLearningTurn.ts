@@ -28,6 +28,7 @@ import type { ReviewFinding } from "../domain/review/types";
 import type { AgentRuntimePort } from "../agent/AgentRuntime";
 import {
   buildActionInstruction,
+  selectGraphPresentation,
   buildPracticeEvaluationInstruction,
   buildPracticeQuestionInstruction,
   buildScopedPracticeInstruction,
@@ -747,8 +748,13 @@ export class RunLearningTurn {
           : researchQuery ?? request.prompt}`;
       if (request.action === "ask" || request.action === "explain") {
         preparedPrompt += "\n\nPRESENTATION: Use short semantic Markdown headings without numeric prefixes unless specifically requested. Prefer compact Markdown tables for comparisons. Avoid emoji as status icons. Do not invent metrics or display a chart for unknown data.";
-        if (/diagram|flowchart|arsitektur|architecture|dependency graph|peta konsep|visualisasi alur/i.test(request.prompt) && !/mermaid/i.test(request.prompt)) {
-          preparedPrompt += "\nFor a read-only top-down diagram, you may use fenced nox-flow JSON: {\"version\":1,\"direction\":\"TB\",\"layout\":\"layered\",\"nodes\":[{\"id\":\"a\",\"label\":\"Start\",\"kind\":\"focus\"}],\"edges\":[]}. Use vertical-stack only for a single linear chain; layered for 2-3 parallel branches (maximum 24 nodes, 48 edges). Keep labels short. Separate Spring startup/IoC from HTTP request lifecycle instead of connecting unrelated phases. Avoid redundant cross-links. Use Mermaid for cyclic/unsupported graphs.";
+        const graphPresentation = selectGraphPresentation(request.prompt);
+        if (graphPresentation === "nox-flow") {
+          preparedPrompt += /nox-flow\s*v1/i.test(request.prompt)
+            ? '\nUse fenced nox-flow v1 JSON: version 1, direction TB, layout layered, nodes [{id,label}], edges [{from,to}]. Maximum 24 nodes and 48 edges, acyclic only.'
+            : '\nUse fenced nox-flow v2 JSON: {"version":2,"direction":"TB","layout":"layered","groups":[{"id":"layer","label":"Application Layer"}],"nodes":[{"id":"one","label":"Service","group":"layer"},{"id":"two","label":"Database"}],"edges":[{"from":"one","to":"two","label":"reads"}]}. Use TB or LR, maximum 40 nodes, 80 edges, 8 non-empty groups, one group per node. Do not invent relationships.';
+        } else if (graphPresentation === "mermaid") {
+          preparedPrompt += '\nOutput a fenced mermaid flowchart TB or LR. Use compact descriptive node labels, faithful edges and logical branching. Avoid decorative subgraphs and invented relationships; use separate diagrams for independent lifecycles.';
         }
         if (/grafik|chart|breakdown|analytics|analitik|perbandingan metrik|metric card|comparison card/i.test(request.prompt)) {
           preparedPrompt += "\nFor verified numeric analytics, a fenced nox-chart JSON object supports {\"type\":\"horizontal-bar\",\"title\":\"Title\",\"labels\":[\"A\",\"B\"],\"values\":[12,7]}. For compact comparison, fenced nox-card JSON supports {\"version\":1,\"kind\":\"comparison\",\"title\":\"Title\",\"items\":[{\"label\":\"Before\",\"value\":12},{\"label\":\"After\",\"value\":7}]}. Never produce invented values.";

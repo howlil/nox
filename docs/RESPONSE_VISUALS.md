@@ -86,7 +86,7 @@ Each item has label, string/finite number value and optional unit, detail,
 semantic status (success/pending/warning/error). All values are textContent,
 never HTML. Status icons come exclusively from `setNoxIcon` in NOX primitives.
 
-For compact top-down diagrams, use fenced `nox-flow` JSON:
+For an explicitly requested custom top-down diagram, use fenced `nox-flow` JSON:
 
 ~~~nox-flow
 {
@@ -254,3 +254,122 @@ ownership and both activity variants being direct thread children.
 Manual smoke check: test 320/390px sidebar and >1200px wide Obsidian pane.
 Trigger Ask; inspect the left edges of live Waiting, settled Completed,
 assistant content and restored history. They must align.
+
+## Graph presentation parity (M1–M3, 2026-10-19)
+
+**Choice and authority (A):** Application prompts prefer fenced Mermaid `flowchart TB` or
+`flowchart LR` for ordinary architecture, dependency and flow diagrams.
+`nox-flow` is still accepted as an explicit user-requested format or when
+rehydrating existing conversations. Stored Markdown remains the sole source
+of diagram truth. NOX does not infer missing edges or rewrite user diagrams.
+
+**Rendering graph (A):** Persisted Markdown -> Obsidian MarkdownRenderer ->
+native Mermaid SVG -> NOX shared graph viewport. A validated `nox-flow`
+block instead follows `parseNoxFlow` -> `layoutNoxFlow` -> NOX SVG ->
+the same shared graph viewport. The viewport only adjusts presentation,
+not nodes, edges, learning state, or storage.
+
+**Shared interaction:** `src/chat/graph-viewport.ts` adds Fit, Zoom 75–300%,
+Expand, Escape-to-close, mouse drag-to-pan when overflowing, and native
+touch/trackpad scrolling. Sizing is clamped to the diagram's intrinsic width
+and stays within the current Obsidian chat pane. Owner document support
+preserves pop-out windows. Native Mermaid remains owned by the Obsidian host.
+
+**Visual conventions:** Nodes use compact, light-blue styling; explicit
+`nox-focus` Mermaid node classes may be used for purple emphasis.
+Only diagram-scoped CSS is changed, and unrelated Markdown content remains
+unchanged.
+
+**Failure handling (E):** Invalid `nox-flow` specs keep their JSON source,
+oversized visual blocks keep their source, and late native Mermaid uses
+the existing bounded MutationObserver. Any graph not supported by the
+limited custom DAG schema should use native Mermaid instead.
+
+**Dependencies (R):** No additional runtime or third-party graph libraries.
+This milestone does not add ELK.js, alter `nox-flow` v1, or introduce a new
+persistence store. A more capable layout engine remains a separate M4
+decision, justified by measured layout failures rather than visual guesswork.
+
+**Verification:** Unit tests cover graph routing and viewport width bounds.
+CI and Obsidian desktop verification are distinct. Desktop acceptance must
+cover native and custom diagrams in 320/390/768/1440px panes, fit/zoom/expand,
+mouse pan, pop-out behavior, invalid formats, and transcript restoration.
+
+
+## M4 — Advanced graph v2 with ELK layout (2026-10-19)
+
+Source-of-truth: `nox-flow` v1 remains valid, unchanged and synchronous. `nox-flow`
+v2 is explicitly opt-in; native Obsidian Mermaid remains the default for
+ordinary architecture and learning diagrams.
+
+### Typed shapes and trust boundary
+
+```nox-flow
+{
+  "version": 2,
+  "title": "NOX runtime",
+  "direction": "TB",
+  "layout": "layered",
+  "groups": [{"id":"app","label":"Application Layer"}],
+  "nodes": [
+    {"id":"ui","label":"ChatView"},
+    {"id":"runner","label":"RunLearningTurn","group":"app","kind":"focus"},
+    {"id":"provider","label":"AgentRuntime"}
+  ],
+  "edges": [
+    {"from":"ui","to":"runner","label":"request"},
+    {"from":"runner","to":"provider","label":"execute"}
+  ]
+}
+```
+
+Limits: 40 nodes, 80 edges, 8 non-empty groups, one group per node, one-level
+groups only, valid bounded IDs/labels, no unknown references or duplicates.
+TB and LR directions are permitted; cycles may be represented. Validation
+converts untrusted source to `NoxFlowSpecV2` before ELK is invoked.
+No user-provided layout options, CSS, arbitrary HTML or executable code.
+
+### A — Successful execution graph
+
+```
+persisted or new Markdown
+  -> Obsidian MarkdownRenderer
+  -> response-visuals / detect nox-flow
+  -> parseNoxFlow(v1) OR parseNoxFlowV2(v2)
+  -> v1 existing layout OR async ELK layered layout
+  -> bounded coordinate/edge validation
+  -> DOM-only SVG with textContent
+  -> shared zoom / fit / expand viewport
+```
+
+For v2, the layout uses `elk.algorithm=layered`,
+`elk.edgeRouting=ORTHOGONAL`, and hierarchy handling
+`INCLUDE_CHILDREN`, to represent grouping with crossing dependencies.
+The heavy ELK module is initialized only when v2 rendering is requested.
+The rendered SVG and graph positions are derived caches, never persisted.
+
+### E — Failure and cancellation
+
+Invalid input leaves the source in the original code fence. An ELK error,
+missing route, non-finite geometry, unsupported cross-hierarchy layout or
+oversized coordinates yields a visible source fallback. Detached chat views
+must not be rewritten by an older async render. Source is always available for
+restoration; no graph mutation has vault authority.
+
+### R — Dependencies and review risks
+
+Pinned `elkjs@0.11.0` bundles into `dist/main.js` (Obsidian community
+three-file install), avoiding remote assets, dynamic worker URLs or network
+requests. ELK is an EPL-2.0 OR GPL-3.0-or-later dependency and must retain
+applicable license notices on distribution. Build size and first render latency
+are explicit acceptance metrics.
+
+### Tests and acceptance
+
+Schema adversarial cases, duplicate IDs/edges, cyclic graph acceptance, grouped
+cross-boundary edge routing, LR orientation, v1 compatibility and all existing
+tests. Compare release artifact size to base before merging.
+Obsidian Desktop acceptance remains mandatory for light/dark host themes,
+a narrow side panel, a full window and a pop-out. If the bundled dependency
+makes startup or install unacceptably large, retain the v2 schema behind an
+explicit feature gate and reassess the layout engine.
