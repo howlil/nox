@@ -65,3 +65,31 @@ test("only concrete runtime adapters may own provider process I/O", () => {
   assert.ok(validateArchitecture([{ path: "src/agent/CodexProtocol.ts", source: 'import { spawn } from "child_process";' }])
     .some((message) => message.includes("provider/process I/O")));
 });
+
+test("M1 view and view helper cannot reach into domain command parsers", () => {
+  const domain = [
+    { path: "src/domain/practice/learning-scope.ts", source: "" },
+    { path: "src/domain/learning-program/commands.ts", source: "" },
+  ];
+  for (const caller of ["src/chat/ChatView.ts", "src/chat/chat-state.ts"]) {
+    const files = [...domain, {
+      path: caller,
+      source: 'import { parseScopeCommand } from "../domain/practice/learning-scope";\n' +
+        'import { parseProgramCommand } from "../domain/learning-program/commands";',
+    }];
+    const issues = validateArchitecture(files);
+    assert.equal(issues.length, 2, caller);
+    assert.ok(issues.every((issue: string) => issue.includes("forbidden dependency")));
+  }
+});
+
+test("M1 still permits presentation-only domain shapes and application queries", () => {
+  const files = [
+    { path: "src/chat/ChatView.ts", source:
+      'import type { PracticeQuestion } from "../domain/practice/types";\n' +
+      'import { LearningController } from "../application/LearningController";' },
+    { path: "src/domain/practice/types.ts", source: "" },
+    { path: "src/application/LearningController.ts", source: "" },
+  ];
+  assert.deepEqual(validateArchitecture(files), []);
+});
