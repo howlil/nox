@@ -1,5 +1,7 @@
 /** Bounded lexical coloring for NOX answer editors (presentation only).
  * This is intentionally not a compiler, linter or grammar parser. */
+export const MAX_CODE_ANSWER_CHARS = 40_000;
+
 export type CodeTokenKind = "keyword" | "type" | "number" | "string" | "comment" | "literal";
 export interface CodeToken { from: number; to: number; kind: CodeTokenKind }
 
@@ -24,7 +26,7 @@ export function normalizeCodeLanguage(language: string): string {
 /** A small conservative lexer: strings and comments take precedence over words.
  * Output is ordered, nonoverlapping and never executes or transforms source. */
 export function tokenizeCode(source: string, language: string): CodeToken[] {
-  if (source.length > 40_000 || !MODES.has(normalizeCodeLanguage(language))) return [];
+  if (source.length > MAX_CODE_ANSWER_CHARS || !MODES.has(normalizeCodeLanguage(language))) return [];
   const mode = normalizeCodeLanguage(language);
   const tokens: CodeToken[] = [];
   const matcher = new RegExp(REGEX.source, "g");
