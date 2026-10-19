@@ -1,7 +1,7 @@
 import type { LearningProgram } from "../domain/learning-program/types";
 import type { LearningController } from "../application/LearningController";
 import type { OnboardingDraft } from "../domain/onboarding/types";
-import { restoreOnboardingDraft, withOnboardingStage, withOnboardingSource, onboardingConstraints, quickPlanCommand } from "../features/learning/onboarding/OnboardingWorkflow";
+import { restoreOnboardingDraft, withOnboardingStage, withOnboardingSource, onboardingConstraints, quickPlanCommand, firstOnboardingObjective } from "../features/learning/onboarding/OnboardingWorkflow";
 import { planWorkspace } from "../domain/workspace/plan";
 import { feasibility } from "../domain/learning-program/rules";
 import { createNoxButton, setNoxIcon } from "./primitives";
@@ -10,7 +10,7 @@ import { animateNoxEnter } from "./motion";
 interface Callbacks {
   onSkip(): void;
   onCreated(): void;
-  onStart(): void;
+  onStart(programId: string, objectiveId: string): Promise<void>;
   onQuickPlan(command: string): Promise<void>;
   onNoteAction(path: string, kind: "explain" | "practice"): Promise<void>;
 }
@@ -20,6 +20,9 @@ export class OnboardingFlow {
   private stage: OnboardingDraft["stage"] = "welcome";
   private draft: OnboardingDraft = restoreOnboardingDraft();
   private preview: LearningProgram | null = null;
+  private readyProgram: LearningProgram | null = null;
+  private readyObjective: ReturnType<typeof firstOnboardingObjective> = null;
+  private retryWorkspace: boolean | null = null;
   private launching = false;
   private error = "";
   private applying = false;
@@ -204,20 +207,70 @@ export class OnboardingFlow {
       this.render();
     }
   }
-  private async approve(): Promise<void> {
+  private async approve(withWorkspace: boolean): Promise<void> {
     if (!this.preview || !this.operationId || this.applying) return;
+    // A workspace commit can succeed before the file writer fails. Do not let a
+    // subsequent retry silently switch to plan-only with the same operation ID.
+    if (this.retryWorkspace !== null && this.retryWorkspace !== withWorkspace) return;
+    this.retryWorkspace = withWorkspace;
     this.applying = true;
     this.stage = "applying"; this.render();
+    let committed: LearningProgram;
     try {
-      await this.learning.approveLearningWorkspace(this.preview.id, this.operationId);
-      await this.learning.dismissOnboarding();
-      this.callbacks.onCreated();
+      committed = withWorkspace
+        ? await this.learning.approveLearningWorkspace(this.preview.id, this.operationId)
+        : await this.learning.approveLearningProgram(this.preview.id, this.operationId);
     } catch (error) {
-      // A program may already have committed; a retry reuses the same operation ID.
       this.error = error instanceof Error ? error.message : String(error);
       this.stage = "preview"; this.render();
-    } finally { this.applying = false; }
+      this.applying = false;
+      return;
+    }
+    // The commit is final. Auxiliary onboarding state and read-model failures
+    // cannot send the user back to a stale approval screen.
+    this.readyProgram = committed;
+    this.readyObjective = null;
+    this.stage = "ready";
+    this.error = "";
+    this.render();
+    try {
+      await this.learning.dismissOnboarding();
+    } catch {
+      this.error = "Plan saved, but onboarding preferences could not be updated.";
+    }
+    try {
+      const overview = await this.learning.getProgramOverview();
+      const active = await this.learning.getProgramMenuState();
+      this.readyObjective = active.activeProgramId === committed.id && !overview?.active &&
+        !overview?.focus ? firstOnboardingObjective(committed, overview?.next ?? null) : null;
+    } catch {
+      this.error = "Your plan was saved, but the first activity could not be loaded. Continue in chat and use /progress.";
+    } finally {
+      this.applying = false;
+      if (this.parent.isConnected) {
+        this.render();
+        this.parent.querySelector<HTMLElement>(".nox-empty-title")?.focus();
+      }
+    }
   }
+
+  private async startFirstObjective(): Promise<void> {
+    if (this.launching || !this.readyProgram || !this.readyObjective) return;
+    const programId = this.readyProgram.id;
+    const objectiveId = this.readyObjective.id;
+    this.launching = true;
+    this.error = "";
+    this.render();
+    try {
+      await this.callbacks.onStart(programId, objectiveId);
+    } catch (error) {
+      this.error = error instanceof Error ? error.message : String(error);
+    } finally {
+      this.launching = false;
+      if (this.parent.isConnected) this.render();
+    }
+  }
+
   private render(): void {
     this.parent.empty();
     this.parent.addClass("nox-onboarding");
@@ -318,7 +371,9 @@ export class OnboardingFlow {
       this.header(panel, this.stage === "generating" ? "Preparing your learning plan…" : "Creating workspace…",
         this.stage === "generating" ? "Validating learning outcomes and dependencies." :
           "Writing the approved files to your local vault.");
-      panel.createDiv({ cls: "nox-onboarding-help", text: "You can cancel without creating a learning program." });
+      panel.createDiv({ cls: "nox-onboarding-help", text: this.stage === "generating"
+        ? "You can cancel generation without creating a learning program."
+        : "Saving your approved plan. Do not close the vault until this finishes." });
       if (this.stage === "generating") this.button(panel, "Cancel generation", () => {
         this.requestEpoch++;
         this.learning.cancel();
@@ -349,7 +404,32 @@ export class OnboardingFlow {
       for (const file of path.files) files.createDiv({ text: file.path });
       panel.createDiv({ cls: "nox-onboarding-help", text:
         "Lesson notes are generated on demand. Existing files are never overwritten." });
-      this.actions(panel, "Create workspace", () => void this.approve(), "form");
+      const actions = panel.createDiv({ cls: "nox-onboarding-actions" });
+      if (this.retryWorkspace === null) {
+        this.button(actions, "Back", () => this.go("form"));
+        this.button(actions, "Use plan only", () => { void this.approve(false); }, true);
+        this.button(actions, "Create workspace", () => { void this.approve(true); });
+      } else {
+        this.button(actions, this.retryWorkspace ? "Retry creating workspace" : "Retry saving plan",
+          () => { void this.approve(this.retryWorkspace!); }, true);
+      }
+    } else if (this.stage === "ready" && this.readyProgram) {
+      this.header(panel, "Your learning plan is ready", this.readyProgram.goal);
+      panel.createDiv({ cls: "nox-onboarding-summary", text:
+        `${this.readyProgram.objectives.length} objectives · Self-paced · ${this.readyProgram.workspaceApproved
+          ? "Workspace files approved" : "No workspace files created"}` });
+      if (this.readyObjective) {
+        const next = panel.createDiv({ cls: "nox-onboarding-objective" });
+        next.createDiv({ cls: "nox-onboarding-name", text: this.readyObjective.title });
+        next.createDiv({ cls: "nox-onboarding-detail", text: this.readyObjective.outcome });
+        const begin = this.button(panel, this.launching ? "Starting objective…" : "Start first objective",
+          () => { void this.startFirstObjective(); }, true);
+        begin.disabled = this.launching || this.applying;
+      } else {
+        panel.createDiv({ cls: "nox-onboarding-help",
+          text: "You can inspect your next activity from Learning progress in chat." });
+      }
+      this.button(panel, "Maybe later", () => this.callbacks.onCreated());
     }
     if (this.error) {
       const error = panel.createDiv({ cls: "nox-onboarding-error", text: this.error });
