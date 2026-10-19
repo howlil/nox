@@ -1,6 +1,6 @@
 # NOX — Responsibility-first architecture audit and redesign
 
-Status: **proposed architecture; not implemented**
+Status: **target architecture proposed; M0 instrumentation implemented on draft PR, M1–M5 not implemented**
 Audit base: `master` on 2026-10-19
 Decision scope: modular boundaries, mutable state ownership, public contracts, runtime flow, and incremental migration.
 Canonical references: `AGENTS.md`, `.agents/ENGINEERING_DESIGN.md`, `docs/ADAPTIVE_LEARNING_MILESTONES.md`.
@@ -284,6 +284,46 @@ For each migration PR attach:
 - focused tests and `pnpm check:boundaries`, `pnpm verify`, `pnpm docs:check`, `pnpm release:check` where applicable;
 - explicit disclosure of what CI does not prove: native Obsidian desktop behavior, Undo, live provider health, filesystem crash durability.
 
-### This proposal's validation status
+### M0 executable baseline and protected contracts (2026-10-19)
 
-Source-level audit only. NOX production files, boundaries guard, and canonical `.agents/ENGINEERING_DESIGN.md` are unchanged. No tests or manual Obsidian acceptance were run in this proposal. This plan must not be merged as though architecture refactoring is complete.
+**Implementation:** `scripts/architecture-graph.mjs` builds a deterministic, source-level graph from TypeScript AST; `tests/architecture/dependency-graph.test.ts` proves parser, cycle, resolution, and report behavior. `pnpm architecture:graph` prints Markdown, `pnpm architecture:graph --format=json` emits full machine-readable edges, and `pnpm architecture:graph --check` additionally rejects unresolved relative imports or computed dynamic import expressions. Existing `pnpm check:boundaries` remains the production guard; M0 does not treat existing cycles as automatically safe or introduce a new gate for yet-unmigrated feature contracts. CI prints the measured graph in the build job summary.
+
+**Graph units:** A node is a source file, an edge is a unique static TS import/export or literal dynamic import/require (including type-only references). `fanIn` and `fanOut` count distinct neighboring files; cross-owner counts use the *current* top-level folders, **not** the future capability grouping. Strongly connected components report cycles; type-only edges are retained so a runtime-only graph cannot conceal coupling. Computed dynamic references and missing modules are explicitly reported for investigation.
+
+**Public contracts that migration must preserve:**
+
+| Capability | Current public entry point / contract | State/effect owner |
+|---|---|---|
+| Conversation | `LearningController.run`, `SessionPort`, `SessionController` | `SessionController` serializes mutations and commits through `PluginDataRepository`; only then publishes in-memory session |
+| Program and focus | `LearningProgramOrchestrator`, `ProgramStorePort` | Shared program mutation queue + `VaultProgramStore` expected-snapshot CAS |
+| Learning evidence | `LearningStatePort`, committed transcript outcomes | `VaultLearningStore` owns the authoritative evidence ledger; failed projection can reconcile from committed transcript |
+| Practice | `PracticeSessionRegistry`, domain practice state machine | Derived session-scoped memory; **not** a second durable writer |
+| Context | `ContextPort`, `ContextResolver` | Request-time resolution under context/source authority; Obsidian vault adapter performs I/O |
+| Inference | `AgentRuntimePort`, normalized `AgentStreamEvent` | `AgentRuntime` owns provider lifecycle; terminal validity belongs to the turn coordinator |
+| Editing | `MutationPort`, `MutationService`, proposal transcript state | Authorized Obsidian editor mutation + separate proposal-status synchronization |
+| Usage and plugin data | `TokenUsageRepository`, `PluginDataRepository` | Exactly one serialized plugin-data writer; provider checkpoint deltas do not double count |
+
+**Runtime and failure contract test inventory (existing tests, not duplicated):**
+
+| Guarantee | Existing regression proof |
+|---|---|
+| Concurrent plugin-data writes keep unrelated keys, later writes survive failure | `tests/persistence/PluginDataRepository.test.ts` |
+| Failed session write cannot publish staged history; same/cross-session serialized mutation | `tests/session/SessionController.test.ts` |
+| Program CAS, stale content and migration compatibility | `tests/persistence/VaultProgramStore.test.ts` |
+| Evidence CAS and migration/error recovery | `tests/persistence/VaultLearningStore.test.ts` |
+| Interrupted/failed practice or review stream does not commit phantom evidence; edit outcome failure recovery | `tests/integration/learning/recovery-flow.test.ts` |
+| Provider swap preserves history and uses refreshed runtime state | `tests/integration/learning/runtime-switch.test.ts` |
+| Forbidden root-module imports remain denied | `tests/architecture/boundaries.test.ts` |
+
+**M0 acceptance and non-goals:**
+
+1. AST graph available as Markdown/JSON and exercised with unit tests; existing checker remains active.
+2. PR CI checks include typecheck, existing unit/integration suite, build, release artifact check; report actual outcomes before calling acceptance complete.
+3. No production TS files, vault schemas, provider transports, or runtime authority writers changed.
+4. No obligation to remove existing cycles or cross-owner edges until a behavior-preserving migration slice proves a better owner.
+5. Native desktop behavior, live providers, Obsidian Undo, and filesystem crash durability **cannot** be certified by CI.
+6. M1–M5 remain pending and the full feature-first target is **not** implemented in M0.
+
+### M0 verification status
+
+Graph instrumentation and contract mapping are implemented on this branch. The status of GitHub CI and any measured metrics must be read from the current PR run rather than assumed from source inspection. No manual Obsidian acceptance was conducted; this is not a release.
