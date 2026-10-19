@@ -55,7 +55,7 @@ a:focus-visible, button:focus-visible, input:focus-visible { outline: 2px solid 
 .floating-nav-shell.is-scrolled .floating-capsule { max-width: 1080px; height: 48px; margin-top: 12px; padding: 4px 12px; border-color: rgba(255,255,255,.65); border-radius: 9999px; color: #251647; background: rgba(250,248,255,.88); box-shadow: 0 10px 35px rgba(8,4,28,.18); -webkit-backdrop-filter: blur(20px); backdrop-filter: blur(20px); }
 .brand { display: inline-flex; align-items: center; gap: 9px; padding: 2px 4px; color: #f9f5ff; white-space: nowrap; }
 .floating-nav-shell.is-scrolled .brand { color: #211438; }
-.brand-mark { width: 33px; height: 33px; flex: none; display: block; overflow: visible; background: none; filter: drop-shadow(0 1px 2px rgba(20, 8, 45, .12)); }
+.brand-mark { width: 33px; height: 33px; flex: none; display: block; overflow: hidden; border-radius: 8px; background: none; }
 .brand > span { font-size: 19px; font-weight: 750; line-height: 1; letter-spacing: -.05em; }
 .brand-dot { color: #a77aff; }
 .floating-nav-shell.is-scrolled .brand-dot { color: #8653d5; }
