@@ -71,7 +71,7 @@ if (manifest.isDesktopOnly !== true) {
 // CI must reject a build that cannot reveal its loaded runtime identity.
 // A successful build alone does not prove Obsidian is executing this bundle.
 const mainBundle = readFileSync("dist/main.js", "utf8");
-if (!mainBundle.includes("data:image/png;base64,")) {
+if (!mainBundle.includes("data:image/svg+xml;base64,")) {
   throw new Error("Nox logo must be embedded: Obsidian does not install extra image assets.");
 }
 if (!mainBundle.includes("NOX_RUNTIME_TRANSPORT_V3:node-https-sse")) {
