@@ -490,7 +490,7 @@ No presenter or helper starts asynchronous background work or has another persis
 
 **§8 / Resource scope; §9 / Verification**
 
-No new persistent resource, timer, event bus, queue or provider transport introduced by the physical migration. Unit/integration tests, architecture checker, typed lint and build must pass on the final commit; architecture tests now cover illegal cross-feature imports, allowed facade edges and per-package graph statistics. Native Obsidian desktop acceptance of history swipe, streaming, practice and edit proposal actions remains a **separate release gate**. This milestone is not permission to auto-merge PR #121.
+No new persistent resource, timer, event bus, queue or provider transport introduced by the physical migration. Unit/integration tests, architecture checker, typed lint and build must pass on the final commit; architecture tests now cover illegal cross-feature imports, allowed facade edges and per-package graph statistics. Native Obsidian desktop acceptance of history swipe, streaming, practice and edit proposal actions remains a **separate release gate**. Execute and record the scenario matrix in `docs/ARCHITECTURE_DESKTOP_ACCEPTANCE.md` (D01–D10); absent native evidence must remain **NOT RUN**, even if CI is green. This milestone is not permission to auto-merge PR #121.
 
 **Deferred by design:** a wholesale move of historical session/data/agent adapters to the aspirational `features/` and `platform/` layout. Moving them without first demonstrating their real import dependencies and ownership would increase migration risk with no functional improvement. The target diagram in §4 is directional guidance, not a claim that all listed directories now exist.
 
