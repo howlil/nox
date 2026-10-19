@@ -47,6 +47,8 @@ export interface LearningRequest {
   replyTo?: import("../types").ChatReplyReference;
   action: LearningActionKind;
   explicitContext: ExplicitContextRef[];
+  /** Single explicitly chosen onboarding note; never include ambient editor context. */
+  contextMode?: "explicit-only";
   /** Origin of a Review finding; follow-ups must not silently retarget edits. */
   sourcePath?: string;
   /** A retry is another attempt at the same logical user turn. */
