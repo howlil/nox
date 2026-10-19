@@ -50,8 +50,8 @@ landing/
   src/components/arc/         # verbatim MIT Arc UI free component sources
   src/styles/global.css       # Tailwind CSS v4 + NOX theme override
   public/nox.png              # original repo asset, retained for social image
-  public/nox-96.webp         # 96px optimized icon for initial load
-  public/nox-mascot.svg       # optimized hero mascot vector; navbar embeds the same transparent paths inline
+  public/nox.svg              # official full-background vector logo for nav, favicon, preview, footer\n  public/nox-96.webp         # retained raster fallback
+  public/nox-mascot.svg       # transparent hero variant derived from the official vector
   public/noise.svg            # static SVG grain overlay
 ```
 
