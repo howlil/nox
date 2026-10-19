@@ -1,6 +1,6 @@
 /** User onboarding intent is not learning progress. */
 export type OnboardingStage =
-  | "welcome" | "discovery" | "suggestions" | "notes" | "form"
+  | "welcome" | "quick-goal" | "discovery" | "suggestions" | "notes" | "form"
   | "generating" | "preview" | "applying" | "ready";
 export interface OnboardingDraft {
   version: 1;
