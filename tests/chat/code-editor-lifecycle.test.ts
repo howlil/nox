@@ -6,10 +6,10 @@ class FakeObserver {
   static created: FakeObserver[] = [];
   connected = false;
   observations = 0;
-  constructor(private callback: () => void) { FakeObserver.created.push(this); }
+  constructor(private callback: (records: Array<{ removedNodes: object[] }>) => void) { FakeObserver.created.push(this); }
   observe() { this.connected = true; this.observations++; }
   disconnect() { this.connected = false; }
-  flush() { if (this.connected) this.callback(); }
+  flush(records: Array<{ removedNodes: object[] }> = []) { if (this.connected) this.callback(records); }
 }
 type Host = HTMLElement & { isConnected: boolean };
 function testDocument() {
@@ -76,4 +76,33 @@ test("M3 explicit dispose does not leak listeners or invoke stale cleanup", () =
   FakeObserver.created[0].flush();
   assert.equal(cleaned, 0, "explicit dispose owns teardown; callback does not run again");
   assert.equal(FakeObserver.created[0].connected, false);
+});
+
+test("M3 cleans same-tick mount/removal from document mutation records", () => {
+  const { host } = testDocument();
+  const node = host(false);
+  let cleaned = 0;
+  const release = watchCodeEditorRemoval(node, () => { cleaned++; });
+  // A DOM re-render can add and remove the element before the observer runs.
+  FakeObserver.created[0].flush([{ removedNodes: [{
+    contains(other: unknown) { return other === node; },
+  }] }]);
+  assert.equal(cleaned, 1);
+  assert.equal(FakeObserver.created[0].connected, false);
+  release();
+});
+
+test("M3 a failing editor teardown cannot starve other cleanup", () => {
+  const { host } = testDocument();
+  const first = host(), second = host();
+  let cleaned = 0;
+  const release1 = watchCodeEditorRemoval(first, () => { throw new Error("stale editor"); });
+  const release2 = watchCodeEditorRemoval(second, () => { cleaned++; });
+  first.isConnected = false;
+  second.isConnected = false;
+  FakeObserver.created[0].flush();
+  assert.equal(cleaned, 1);
+  assert.equal(FakeObserver.created[0].connected, false);
+  release1();
+  release2();
 });
