@@ -44,7 +44,7 @@ export function createNoxBuildOptions({ production = false, onStart, onBuild } =
       // Obsidian Community installs exactly three files. Inlining avoids
       // a runtime file dependency and keeps source import boundaries intact.
       __NOX_LOGO_DATA_URI__: JSON.stringify(
-        "data:image/png;base64," + fs.readFileSync(path.join("public", "nox.png")).toString("base64"),
+        "data:image/svg+xml;base64," + fs.readFileSync(path.join("public", "nox.svg")).toString("base64"),
       ),
       __NOX_BUILD_TIMESTAMP__: JSON.stringify(
         production ? "reproducible-release" : BUILD_TIMESTAMP_PLACEHOLDER,
