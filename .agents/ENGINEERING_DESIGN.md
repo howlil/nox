@@ -8,6 +8,49 @@ Last updated: 2026-10-13
 
 ---
 
+## M5 feature-private physical package checkpoint — 2026-10-20
+
+**State:** Scoped M0–M5 code migration is implemented in draft PR #121.
+GitHub CI verifies static/automated safety; Obsidian desktop acceptance remains
+outstanding. The full aspirational feature-first layout is NOT fully migrated.
+
+Physical ownership after moving eleven tested M1–M3 private collaborators:
+- `src/features/conversation/turn/`: `StructuredTurnBuffer`,
+  `TurnProviderEnvelope`, `TranscriptEvidenceReconciler`, protocol-invalid error.
+- `src/features/conversation/view/`: history, streaming-text and transcript
+  presenters. These may render but never commit durable session state.
+- `src/features/learning/program/`: the original single
+  `ProgramMutationQueue`, `ProgramFocusService`, `ProgramSessionTransitions`,
+  and provider `ProgramPlanGenerator`.
+
+Root public entry points remain `src/chat/ChatView.ts`,
+`src/application/RunLearningTurn.ts`, and
+`src/application/LearningProgramOrchestrator.ts`. Do not add duplicate shims
+or second owners. The physical migration and removal of old paths occurred
+atomically in Git commit `f70bdc5`.
+
+`scripts/boundaries.mjs` enforces the exact private-feature package set,
+facade-only imports, and no cross-feature direct access to private code,
+persistence or host/OS interfaces. `scripts/architecture-graph.mjs` now measures
+each feature package separately for future impact analysis. All tests referencing
+private collaborators use their new canonical paths.
+
+Protection policy remains unchanged: SessionController + PluginDataRepository
+own committed conversation snapshots; RunLearningTurn owns successful terminal
+commit order; VaultProgramStore/VaultLearningStore retain CAS and schema
+compatibility; LearningProgramOrchestrator retains the single program mutation
+lane, focus authority and timer; Obsidian editor undo and provider transports
+stay in their current adapters.
+
+**Before merge/release:** verify final CI, review new dependency graph and
+validate native Obsidian desktop behavior (history interaction, transcript and
+streaming, practice/evaluation/recovery, proposal apply/reject and Undo). Do not
+equate successful typecheck/unit/integration tests with real desktop validation.
+See `docs/ARCHITECTURE_BOUNDARY_REDESIGN.md` for the implementation graph and
+the deliberate limits of this staged architecture migration.
+
+---
+
 ## M4 data and context dependency checkpoint — 2026-10-19
 
 M4 prevents pure token accounting and context request orchestration from
