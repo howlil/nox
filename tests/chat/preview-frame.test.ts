@@ -86,7 +86,10 @@ test("rapid content changes retain the final measured height and release cancels
   send(560);
   send(420);
   send(320);
-  for (const callback of [...callbacks.values()]) callback();
+  for (const [id, callback] of [...callbacks.entries()]) {
+    callbacks.delete(id);
+    callback();
+  }
   assert.equal(style.height, "320px");
   send(440);
   stop();
