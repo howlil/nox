@@ -2,6 +2,7 @@ import type { PracticeAnswer, PracticeQuestion } from "../domain/practice/types"
 import { validatePracticeAnswer } from "../domain/practice/question-schema";
 import { renderPracticeInstructions } from "./practice-instructions";
 import { createNoxButton, createNoxSurface } from "./primitives";
+import { mountCodeAnswerEditor, type CodeAnswerEditorHandle } from "./code-answer-editor";
 
 export interface QuizCardActions {
   questionId: string;
@@ -41,6 +42,7 @@ export function renderQuizCard(parent: HTMLElement, question: PracticeQuestion,
   let busy = false;
   let hintPending = false;
   let syncOptionState = () => {};
+  let codeEditor: CodeAnswerEditorHandle | null = null;
 
   const update = (value: PracticeAnswer) => {
     answer = value;
@@ -98,18 +100,16 @@ export function renderQuizCard(parent: HTMLElement, question: PracticeQuestion,
     const toolbar = answerArea.createDiv({ cls: "nox-quiz-code-meta" });
     toolbar.createSpan({ text: input.language });
     toolbar.createSpan({ text: "Review only · Tab moves focus" });
-    const editor = answerArea.createEl("textarea", { cls: "nox-quiz-editor nox-quiz-code-editor" });
-    editor.rows = 9;
-    editor.spellcheck = false;
-    editor.setAttribute("aria-label", "Code answer");
-    editor.disabled = disabled;
-    editor.value = actions.draft?.type === "code" &&
+    const source = actions.draft?.type === "code" &&
       actions.draft.language === input.language
       ? actions.draft.source : input.starterCode ?? "";
-    if (editor.value.trim()) answer = { type: "code", language: input.language, source: editor.value };
-    editor.addEventListener("input", () => update({
-      type: "code", language: input.language, source: editor.value,
-    }));
+    if (source.trim()) answer = { type: "code", language: input.language, source };
+    codeEditor = mountCodeAnswerEditor(answerArea, {
+      language: input.language,
+      source,
+      readOnly: disabled,
+      onChange: source => update({ type: "code", language: input.language, source }),
+    });
   }
 
   // The hint body is intentionally absent from the visible UI until the
@@ -184,6 +184,7 @@ export function renderQuizCard(parent: HTMLElement, question: PracticeQuestion,
     busy = true;
     submit.disabled = true;
     if (hintButton) hintButton.disabled = true;
+    codeEditor?.setReadOnly(true);
     submit.setText("Evaluating…");
     status.setText("Evaluating your answer…");
     let committed = false;
@@ -194,6 +195,7 @@ export function renderQuizCard(parent: HTMLElement, question: PracticeQuestion,
         submit.setText("Evaluated");
         card.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>("input,textarea")
           .forEach(control => { control.disabled = true; });
+        codeEditor?.setReadOnly(true);
         syncOptionState();
       } else {
         status.setText("The answer was not evaluated. You can retry.");
@@ -203,6 +205,7 @@ export function renderQuizCard(parent: HTMLElement, question: PracticeQuestion,
     } finally {
       busy = false;
       if (!committed) {
+        codeEditor?.setReadOnly(disabled);
         submit.setText("Retry evaluation");
         if (actions.active) submit.disabled = !isValid();
         if (hintButton) hintButton.disabled = disabled;

@@ -15,6 +15,12 @@ importers:
         specifier: ^13.4.2
         version: 13.4.2
     devDependencies:
+      '@codemirror/state':
+        specifier: 6.5.0
+        version: 6.5.0
+      '@codemirror/view':
+        specifier: 6.38.6
+        version: 6.38.6
       '@tailwindcss/cli':
         specifier: ^4.3.3
         version: 4.3.3

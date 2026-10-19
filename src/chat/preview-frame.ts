@@ -4,6 +4,8 @@ interface PreviewRegistration {
   id: string;
   height: number;
   lastUpdate: number;
+  pendingHeight: number | null;
+  pendingTimer: number | null;
 }
 const frames = new WeakMap<object, PreviewRegistration>();
 const listeners = new WeakMap<Window, number>();
@@ -26,12 +28,32 @@ function handlePreviewResize(event: MessageEvent): void {
       data.kind !== "nox-preview-resize" || data.id !== entry.id) return;
   const height = normalizePreviewHeight(data.height);
   if (height === null || Math.abs(height - entry.height) < 4) return;
-  // Drop pathological model-controlled resize loops (30 updates per second).
-  const now = performance.now();
-  if (now - entry.lastUpdate < 33) return;
-  entry.lastUpdate = now;
-  entry.height = height;
-  entry.frame.style.height = height + "px";
+  // Keep the final measurement when multiple transitions complete within 33ms.
+  // Dropping the trailing update leaves one-question previews at stale heights.
+  const applyHeight = (next: number): void => {
+    if (!entry.frame.isConnected) return;
+    entry.lastUpdate = performance.now();
+    entry.height = next;
+    entry.frame.style.height = next + "px";
+  };
+  if (entry.pendingTimer !== null) {
+    entry.pendingHeight = height;
+    return;
+  }
+  const elapsed = performance.now() - entry.lastUpdate;
+  if (elapsed < 33) {
+    const win = entry.frame.ownerDocument.defaultView;
+    if (!win) return;
+    entry.pendingHeight = height;
+    entry.pendingTimer = win.setTimeout(() => {
+      entry.pendingTimer = null;
+      const pending = entry.pendingHeight;
+      entry.pendingHeight = null;
+      if (pending !== null && Math.abs(pending - entry.height) >= 4) applyHeight(pending);
+    }, Math.ceil(33 - elapsed));
+    return;
+  }
+  applyHeight(height);
 }
 
 /** Mount only AFTER the frame enters the DOM so contentWindow exists. */
@@ -43,11 +65,16 @@ export function bindResponsivePreview(frame: HTMLIFrameElement, id: string): () 
   const count = listeners.get(ownerWindow) ?? 0;
   if (count === 0) ownerWindow.addEventListener("message", handlePreviewResize);
   listeners.set(ownerWindow, count + 1);
-  frames.set(source, { frame, id, height: 240, lastUpdate: -Infinity });
+  frames.set(source, { frame, id, height: 240, lastUpdate: -Infinity,
+    pendingHeight: null, pendingTimer: null });
   let released = false;
   return () => {
     if (released) return;
     released = true;
+    const entry = frames.get(source);
+    if (entry?.pendingTimer !== null && entry?.pendingTimer !== undefined) {
+      ownerWindow.clearTimeout(entry.pendingTimer);
+    }
     frames.delete(source);
     const remaining = (listeners.get(ownerWindow) ?? 1) - 1;
     if (remaining <= 0) {

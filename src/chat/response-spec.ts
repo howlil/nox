@@ -1,5 +1,7 @@
+import { HOWLIL_FLAT_PREVIEW_CSS } from "./preview-design-tokens";
+
 /** Presentation-only visual formats. Never grants model output vault or plugin authority. */
-export type NoxVisualKind = "html-preview" | "svg-preview" | "js-preview" | "nox-chart" | "nox-flow" | "nox-card";
+export type NoxVisualKind = "html-preview" | "svg-preview" | "js-preview" | "nox-chart" | "nox-flow" | "nox-card" | "nox-quiz";
 
 export interface NoxChartSpec {
   type: "bar" | "line" | "horizontal-bar";
@@ -13,7 +15,8 @@ export function visualKindFromClasses(classes: readonly string[]): NoxVisualKind
   for (const name of classes) {
     const language = name.startsWith("language-") ? name.slice(9) : "";
     if (language === "html-preview" || language === "svg-preview" || language === "js-preview" ||
-        language === "nox-chart" || language === "nox-flow" || language === "nox-card") return language;
+        language === "nox-chart" || language === "nox-flow" || language === "nox-card" ||
+        language === "nox-quiz") return language;
   }
   return null;
 }
@@ -180,22 +183,28 @@ export function createNoxPreviewDocument(
   ].join("; ");
   // The frame owns height measurement. Host only accepts bounded size messages
   // from this exact opaque-origin contentWindow with a per-instance identifier.
+  // Measure content, not documentElement.scrollHeight: the latter includes the
+  // frame viewport and prevents a short question from shrinking after Next.
   const autoHeight = kind !== "svg-preview" && frameId && /^[a-z0-9-]{1,80}$/i.test(frameId)
     ? "<script>" + [
       "(function(){",
       "const frameId=" + JSON.stringify(frameId) + ";",
       "let pending=false;",
       "function report(){if(pending)return;pending=true;requestAnimationFrame(()=>{pending=false;",
-      "const body=document.body;",
-      "const height=Math.max(body?.scrollHeight||0,body?.offsetHeight||0);",
+      "const root=document.getElementById('nox-preview-content')||document.body;",
+      "if(!root)return;",
+      "const height=Math.ceil(Math.max(root.scrollHeight||0,root.offsetHeight||0,root.getBoundingClientRect().height||0)+2);",
       "parent.postMessage({kind:'nox-preview-resize',id:frameId,height},'*');",
       "});}",
-      "const observer=new ResizeObserver(report);",
-      "observer.observe(document.documentElement);",
-      "if(document.body)observer.observe(document.body);",
-      "else document.addEventListener('DOMContentLoaded',()=>{observer.observe(document.body);report()},{once:true});",
+      "function observe(){",
+      "const root=document.getElementById('nox-preview-content')||document.body;",
+      "if(!root)return;",
+      "const observer=new ResizeObserver(report);observer.observe(root);",
       "window.addEventListener('load',report);window.addEventListener('resize',report);",
       "report();",
+      "}",
+      "if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',observe,{once:true});",
+      "else observe();",
       "})();",
     ].join("") + "</script>" : "";
   // JavaScript has no access to the host: it runs only after an explicit click
@@ -211,12 +220,17 @@ export function createNoxPreviewDocument(
     'addEventListener("error",e=>print(e.message));' +
     'addEventListener("unhandledrejection",e=>print(String(e.reason)));' +
     '</script><script>' + safeJs + '</script>';
+  // HTML fragments receive an intrinsic content wrapper. Existing complete
+  // HTML documents keep their legacy structure; scripts remain sandboxed.
+  const sourceBody = kind === "js-preview" ? jsBody : source;
+  const fullDocument = /<!doctype\b|<html[\s>]|<body[\s>]/i.test(sourceBody);
+  const body = kind !== "svg-preview" && !fullDocument
+    ? '<main id="nox-preview-content">' + sourceBody + '</main>'
+    : sourceBody;
   return '<!doctype html><html><head><meta charset="utf-8">' +
     '<meta name="viewport" content="width=device-width, initial-scale=1">' +
     '<meta http-equiv="Content-Security-Policy" content="' + csp + '">' +
     '<meta name="referrer" content="no-referrer">' +
-    '<style>*,*::before,*::after{box-sizing:border-box}body{margin:0;' +
-    'font:14px/1.5 system-ui;overflow-wrap:anywhere;padding:12px}img,svg{max-width:100%;height:auto}' +
-    '</style>' + autoHeight + '</head><body>' + (kind === "js-preview" ? jsBody : source) +
-    '</body></html>';
+    '<style>' + HOWLIL_FLAT_PREVIEW_CSS + '</style>' +
+    autoHeight + '</head><body>' + body + '</body></html>';
 }
