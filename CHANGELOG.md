@@ -1,5 +1,30 @@
 # Changelog
 
+## [1.2.0]
+
+### Adaptive learning
+
+- Introduce evidence-driven learning programs with objective-level focus, prerequisite graphs, and self-paced study without mandatory timers.
+- Adapt the next learning activity between diagnostic, teaching, guided practice, delayed recall, and transfer, using criterion-specific feedback and scaffolded remediation.
+- Project an explainable learner mastery profile from committed revision-scoped practice evidence; historical unverified attempts do not falsely unlock prerequisites.
+- Suggest and preview evidence-grounded curriculum revisions, with explicit approval, versioned snapshots, and the ability to revert the most recent eligible revision.
+- Provide a compact learning dashboard with focus controls, mastery criteria, upcoming activities, evidence, and revision previews.
+- Allow clarification of a pending practice question without grading the request; subsequent answers are treated as assisted.
+
+### Source boundaries and reliability
+
+- Retrieve approved note excerpts from relevant sections of long source notes within explicit processing budgets, preserving source provenance.
+- Use provider capability checks to restrict source-bound curriculum planning to isolated inference transports without vault filesystem tools; unsafe CLI adapters remain denied.
+- Harden persistence with optimistic concurrency checks, transcript-based evidence reconciliation, migration backup verification, and retry-safe recovery.
+- Add regression coverage for v3 evidence eligibility, learning focus, source isolation, curriculum reversion, and fault recovery.
+
+### Compatibility and limitations
+
+- Desktop-only; requires Obsidian 1.13.0 or later. Existing learning history is retained.
+- Source-bound planning requires an isolated provider adapter; AGY/Codex CLI transports do not currently qualify.
+- Semantic curriculum reversion is supported only for the latest revision with a saved snapshot.
+- Automated CI and artifact verification do not constitute live provider or Obsidian desktop acceptance.
+
 ## [1.1.4]
 
 ### Fixes
