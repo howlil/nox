@@ -3563,7 +3563,35 @@
   min-height: 0;
   overflow: auto;
 }
-.nox-rich-flow.is-expanded .nox-rich-flow-details { display: none; }
+.nox-rich-flow.is-expanded 
+/* M4: ELK-derived compound graphs; never accept model-authored CSS. */
+.nox-root .nox-graph-v2 .nox-graph-v2-group rect {
+  fill: var(--nox-inset);
+  stroke: var(--nox-line-strong);
+  stroke-width: 1;
+}
+.nox-graph-v2-group-label { fill: var(--nox-ink-2); font-size: 12px; font-weight: 600; }
+.nox-root .nox-graph-v2 .nox-graph-v2-node rect {
+  fill: #e5f2ff;
+  stroke: #c4d8eb;
+  stroke-width: 1;
+}
+.nox-root .nox-graph-v2 .nox-graph-v2-node text {
+  fill: #155a91;
+  font-size: 12px;
+  font-weight: 550;
+}
+.nox-root .nox-graph-v2 .nox-graph-v2-node[data-kind="focus"] rect {
+  fill: var(--nox-accent-tint);
+  stroke: var(--nox-accent-border);
+}
+.nox-root .nox-graph-v2 .nox-graph-v2-node[data-kind="focus"] text { fill: var(--nox-accent-ink); }
+.nox-root .nox-graph-v2 .nox-graph-v2-edge { stroke-width: 1.2; }
+.nox-graph-v2-edge-label-bg { fill: var(--nox-surface); stroke: var(--nox-line); stroke-width: .7; }
+.nox-graph-v2-edge-label { fill: var(--nox-ink); font-size: 10px; }
+.nox-graph-v2-status { color: var(--nox-ink-2); font-size: 12px; }
+.nox-graph-v2 pre { max-width: 100%; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; }
+.nox-rich-flow-details { display: none; }
 
 /* Graph-only palette: preserve authored Mermaid semantics outside NOX. */
 .nox-root .nox-diagram .mermaid .node rect {
