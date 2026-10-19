@@ -1,5 +1,5 @@
 export type { ChatSession } from "./session/transcript-types";
-export type { ChatMessage, ChatReplyReference, ResponseVersion, EditProposal, AgentTurnMetrics } from "./session/message-types";
+export type { ChatMessage, ChatReplyReference, ResponseVersion, EditProposal, AgentTurnMetrics } from "./session/transcript-types";
 
 // Shared transport/session types.
 

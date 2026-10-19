@@ -3,6 +3,8 @@ import type { LearningScopeState } from "../domain/practice/learning-scope";
 import type { ChatMessage } from "./message-types";
 import type { TranscriptPart } from "./transcript-part-types";
 export type { TranscriptPart } from "./transcript-part-types";
+/** Public type-only compatibility exports; runtime policies stay in session. */
+export type { ChatMessage, ChatReplyReference, ResponseVersion, EditProposal, AgentTurnMetrics } from "./message-types";
 
 export interface SessionForkOrigin {
   parentSessionId: string;
