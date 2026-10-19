@@ -37,7 +37,12 @@ function rig(payload: unknown = draft(), success = true) {
     { resolve: async () => context } as never,
     { load: async () => ({ evidence: [] }) } as never,
     { load: async () => structuredClone(stored),
-      save: async (next: ProgramCollection) => { stored = structuredClone(next); writes++; } } as never,
+      save: async (next: ProgramCollection, expected: ProgramCollection) => {
+        assert.notStrictEqual(next, expected, "Never mutate the expected loaded CAS snapshot");
+        assert.deepEqual(expected, stored, "Expected CAS bytes must match the authoritative previous state");
+        stored = structuredClone(next);
+        writes++;
+      } } as never,
     () => undefined,
     () => "chatgpt",
     () => currentTime,
@@ -185,5 +190,50 @@ test("objective focus lifecycle persists without a timed session and resumes onl
   await orchestrator.pauseFocus();
   await orchestrator.endFocus();
   assert.equal(stored().programs[0].focus, undefined);
+  orchestrator.dispose();
+});
+
+test("concurrent session, focus and rename mutations never lose updates", async () => {
+  const { orchestrator, stored } = rig();
+  await orchestrator.createProgram("Learn Spanish", base);
+  await orchestrator.startSession();
+  await Promise.all([
+    orchestrator.focusObjective("basic"),
+    orchestrator.extendSession(15),
+    orchestrator.pauseSession(),
+    orchestrator.renameMaterial("notes/spanish.md", "notes/moved.md"),
+  ]);
+  const persisted = stored().programs[0];
+  assert.equal(persisted.session?.timeBudgetMinutes, 60);
+  assert.equal(persisted.session?.timing?.focusObjectiveId, "basic");
+  assert.equal(persisted.session?.timing?.focusMaterialPath, "notes/moved.md");
+  assert.deepEqual(persisted.session?.timing?.pauseReasons, ["manual"]);
+  await orchestrator.endSession();
+  orchestrator.dispose();
+});
+
+test("queued mutation failure does not block the next successful transition", async () => {
+  const { orchestrator } = rig();
+  await orchestrator.createProgram("Learn Spanish", base);
+  await orchestrator.startSession();
+  const [invalid, valid] = await Promise.allSettled([
+    orchestrator.extendSession(300),
+    orchestrator.focusObjective("basic"),
+  ]);
+  assert.equal(invalid.status, "rejected");
+  assert.equal(valid.status, "fulfilled");
+  assert.equal((await orchestrator.getActiveProgram())?.session?.timing?.focusObjectiveId, "basic");
+  await orchestrator.endSession();
+  orchestrator.dispose();
+});
+
+test("recovery and other queued mutations preserve immutable loaded snapshots", async () => {
+  const { orchestrator, stored } = rig();
+  await orchestrator.createProgram("Learn Spanish", base);
+  await orchestrator.startFocus("basic", "chat-a");
+  await orchestrator.startSession();
+  await orchestrator.recoverSessions();
+  assert.equal(stored().programs[0].focus?.status, "paused");
+  assert.deepEqual(stored().programs[0].session?.timing?.pauseReasons, ["recovery"]);
   orchestrator.dispose();
 });
