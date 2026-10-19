@@ -1,5 +1,5 @@
 import type { OnboardingDraft, OnboardingStage } from "../../../domain/onboarding/types";
-import type { ProgramConstraints } from "../../../domain/learning-program/types";
+import type { LearningProgram, LearningObjective, ProgramConstraints } from "../../../domain/learning-program/types";
 
 /** UI-independent onboarding state. Draft persistence is still an application port. */
 export function restoreOnboardingDraft(initial?: OnboardingDraft): OnboardingDraft {
@@ -38,4 +38,15 @@ export function quickPlanCommand(rawGoal: string): string {
   const goal = rawGoal.trim().replace(/\s+/g, " ");
   if (goal.length < 5) throw new Error("Enter a specific goal of at least five characters.");
   return `/plan ${goal}`;
+}
+
+/** Project the next activity from the authoritative adaptive decision, not array order. */
+export function firstOnboardingObjective(
+  program: LearningProgram,
+  decision: { objectiveId?: string; kind: string } | null,
+): LearningObjective | null {
+  if (!decision?.objectiveId || decision.kind === "wait" ||
+      decision.kind === "timebox-ended") return null;
+  return program.objectives.find(objective =>
+    objective.id === decision.objectiveId && !objective.deprecated) ?? null;
 }
