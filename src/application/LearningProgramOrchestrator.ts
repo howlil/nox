@@ -188,33 +188,26 @@ export class LearningProgramOrchestrator {
   async listPrograms(): Promise<ProgramCollection> { return this.store.load(); }
   async selectProgram(id: string): Promise<LearningProgram> {
     if (this.isPlanning() || this.activeAiTurnId) throw new Error("Finish the current learning operation before switching programs.");
-    const operation = this.mutationTail.then(async () => {
-      this.writing = true;
-      try {
-        const collection = await this.store.load();
-        const selected = collection.programs.find(p => p.id === id);
-        if (!selected) throw new Error("Unknown program ID. Run /programs to list saved plans.");
-        if (collection.programs.some(p => p.id !== id && p.focus?.status === "active")) {
-          throw new Error("Pause or end the active objective focus before switching learning programs.");
-        }
-        const previous = collection.programs.find(p => p.id === collection.activeProgramId);
-        const now = this.now();
-        if (previous?.session) {
-          previous.session = { ...previous.session, timing: recoverTiming(previous.session, now) };
-        }
-        if (selected.session) {
-          selected.session = { ...selected.session, timing: recoverTiming(selected.session, now) };
-        }
-        collection.activeProgramId = id;
-        await this.store.save(collection, collection);
-        return selected;
-      } finally { this.writing = false; }
+    const selected = await this.mutations.run(async () => {
+      const expected = await this.store.load();
+      const next = structuredClone(expected);
+      const chosen = next.programs.find(program => program.id === id);
+      if (!chosen) throw new Error("Unknown program ID. Run /programs to list saved plans.");
+      if (next.programs.some(program => program.id !== id && program.focus?.status === "active")) {
+        throw new Error("Pause or end the active objective focus before switching learning programs.");
+      }
+      const previous = next.programs.find(program => program.id === next.activeProgramId);
+      const now = this.now();
+      if (previous?.session) previous.session = { ...previous.session, timing: recoverTiming(previous.session, now) };
+      if (chosen.session) chosen.session = { ...chosen.session, timing: recoverTiming(chosen.session, now) };
+      next.activeProgramId = id;
+      await this.store.save(next, expected);
+      return chosen;
     });
-    this.mutationTail = operation.then(() => {}, () => {});
-    const selected = await operation;
     this.stopCheckpointLoop();
     return selected;
   }
+
   /** Evidence opens the revision workflow but never bypasses explicit approval. */
   async detectRevisionCandidate() {
     const program = await this.getActiveProgram();
@@ -318,39 +311,28 @@ export class LearningProgramOrchestrator {
     if (this.isPlanning() || this.activeAiTurnId) {
       throw new Error("Finish the running learning operation before approving a curriculum revision.");
     }
-    const task = this.mutationTail.then(async () => {
-      this.writing = true;
-      try {
-        const collection = await this.store.load();
-        const index = collection.programs.findIndex(p => p.id === collection.activeProgramId);
-        if (index < 0) throw new Error("No active program for revision.");
-        const program = collection.programs[index];
-        // Persisted receipt wins even after process restart.
-        if (program.curriculumRevisions?.some(r => r.operationId === operationId)) return program;
-        const pending = this.pendingRevisions.get(operationId);
-        if (!pending || this.now() > pending.preview.expiresAt ||
-            pending.revision.programId !== program.id) {
-          throw new Error("Revision preview expired or belongs to another program.");
-        }
-        const evidence = (await this.learningState.load()).evidence;
-        const next = applyCurriculumRevision(program, pending.revision, evidence, this.now());
-        if (JSON.stringify(next.objectives) !== JSON.stringify(pending.preview.after)) {
-          throw new Error("Curriculum revision no longer matches the approved diff.");
-        }
-        const proposedCollection: ProgramCollection = { ...collection,
-          programs: collection.programs.map((item, position) =>
-            position === index ? next : item) };
-        // Keep the loaded collection IMMUTABLE as the expected snapshot.
-        // Compare-and-swap rejects an intervening vault edit, never last-write-wins.
-        await this.store.save(proposedCollection, collection);
-        this.pendingRevisions.delete(operationId);
-        return next;
-      } finally {
-        this.writing = false;
+    return this.mutations.run(async () => {
+      const expected = await this.store.load();
+      const index = expected.programs.findIndex(program => program.id === expected.activeProgramId);
+      if (index < 0) throw new Error("No active program for revision.");
+      const program = expected.programs[index];
+      if (program.curriculumRevisions?.some(revision => revision.operationId === operationId)) return program;
+      const pending = this.pendingRevisions.get(operationId);
+      if (!pending || this.now() > pending.preview.expiresAt ||
+          pending.revision.programId !== program.id) {
+        throw new Error("Revision preview expired or belongs to another program.");
       }
+      const evidence = (await this.learningState.load()).evidence;
+      const nextProgram = applyCurriculumRevision(program, pending.revision, evidence, this.now());
+      if (JSON.stringify(nextProgram.objectives) !== JSON.stringify(pending.preview.after)) {
+        throw new Error("Curriculum revision no longer matches the approved diff.");
+      }
+      const next: ProgramCollection = { ...expected,
+        programs: expected.programs.map((item, position) => position === index ? nextProgram : item) };
+      await this.store.save(next, expected);
+      this.pendingRevisions.delete(operationId);
+      return nextProgram;
     });
-    this.mutationTail = task.then(() => {}, () => {});
-    return task;
   }
 
   cancelCurriculumRevision(operationId: string): void {
@@ -380,107 +362,55 @@ export class LearningProgramOrchestrator {
 
   async startFocus(objectiveId: string, chatSessionId: string): Promise<LearningProgram> {
     const state = await this.learningState.load();
-    return this.updateActive(program => {
-      const objective = program.objectives.find(item => item.id === objectiveId);
-      if (!objective) throw new Error("Unknown learning objective.");
-      const profile = deriveLearnerProfile(program, state, this.now());
-      const statuses = new Map(profile.objectives.map(item => [item.objectiveId, item.status]));
-      const eligible = objective.prerequisiteIds.every(id => statuses.get(id) === "mastered");
-      if (!eligible) throw new Error("Prerequisites are not mastered for this objective.");
-      return startObjectiveFocus(program, objectiveId, chatSessionId, this.now(), crypto.randomUUID());
-    });
+    return this.updateActive(program => beginObjectiveFocus(
+      program, state, objectiveId, chatSessionId, this.now(), crypto.randomUUID()));
   }
 
   async pauseFocus(): Promise<LearningProgram> {
-    return this.updateActive(program => transitionObjectiveFocus(program, "pause", this.now()));
+    return this.updateActive(program => changeObjectiveFocus(program, "pause", this.now()));
   }
 
   async resumeFocus(chatSessionId: string): Promise<LearningProgram> {
-    return this.updateActive(program => {
-      if (program.focus?.chatSessionId !== chatSessionId) {
-        throw new Error("Return to the original chat to resume the pending focus challenge.");
-      }
-      return transitionObjectiveFocus(program, "resume", this.now());
-    });
+    return this.updateActive(program => changeObjectiveFocus(program, "resume", this.now(), chatSessionId));
   }
 
   async endFocus(): Promise<LearningProgram> {
-    return this.updateActive(program => transitionObjectiveFocus(program, "end", this.now()));
+    return this.updateActive(program => changeObjectiveFocus(program, "end", this.now()));
   }
 
   private updateActive(edit: (program: LearningProgram) => LearningProgram): Promise<LearningProgram> {
     if (this.planning) return Promise.reject(new Error("Curriculum generation is in progress."));
-    // Serialize the read-modify-write operation in process and compare the
-    // loaded vault bytes before commit to reject concurrent external edits.
-    const operation = this.mutationTail.then(async () => {
-      this.writing = true;
-      try {
-        const collection = await this.store.load();
-        const index = collection.programs.findIndex(p => p.id === collection.activeProgramId);
-        if (index === -1) throw new Error("No active learning program. Use /plan first.");
-        const next = edit(structuredClone(collection.programs[index]));
-        collection.programs[index] = next;
-        await this.store.save(collection, collection);
-        return next;
-      } finally { this.writing = false; }
+    return this.mutations.run(async () => {
+      const expected = await this.store.load();
+      const index = expected.programs.findIndex(program => program.id === expected.activeProgramId);
+      if (index === -1) throw new Error("No active learning program. Use /plan first.");
+      const nextProgram = edit(structuredClone(expected.programs[index]));
+      const next: ProgramCollection = { ...expected,
+        programs: expected.programs.map((item, position) => position === index ? nextProgram : item) };
+      await this.store.save(next, expected);
+      return nextProgram;
     });
-    this.mutationTail = operation.then(() => {}, () => {});
-    return operation;
   }
+
   async startSession(): Promise<LearningProgram> {
-    const result = await this.updateActive(program => {
-      if (program.session) throw new Error("A study session is already active. Use /end-session before starting another.");
-      const now = this.now();
-      return { ...program,
-        session: { startedAt: now, timeBudgetMinutes: program.constraints.minutesPerSession,
-          timing: newSessionTiming(now) } };
-    });
+    const result = await this.updateActive(program => startTimedSession(program, this.now()));
     this.startCheckpointLoop();
     const context = await this.contexts.resolve().catch(() => null);
     if (context?.activeNote?.path) await this.focusMaterial(context.activeNote.path);
     return result;
   }
+
   async extendSession(minutes: number): Promise<LearningProgram> {
-    return this.updateActive(program => {
-      if (!program.session) throw new Error("Start a session before extending its timebox.");
-      if (!Number.isInteger(minutes) || minutes < 5 ||
-          program.session.timeBudgetMinutes + minutes > 240) {
-        throw new Error("Extension must be at least 5 minutes; total timebox must not exceed 240.");
-      }
-      program.session.timeBudgetMinutes += minutes;
-      return program;
-    });
+    return this.updateActive(program => extendTimedSession(program, minutes));
   }
+
   async endSession(): Promise<LearningProgram> {
-    const result = await this.updateActive(program => {
-      if (!program.session) throw new Error("No active session to end.");
-      const endedAt = this.now();
-      const startedAt = program.session.startedAt;
-      const minutesSpent = Math.max(0, (endedAt - startedAt) / 60_000);
-      const finalTiming = projectedTiming(program.session, endedAt);
-      return { ...program, session: undefined, sessionHistory: [
-        ...(program.sessionHistory ?? []), {
-          startedAt, endedAt, minutesSpent,
-          ...(finalTiming ? {
-            activeMinutes: finalTiming.activeMs / 60_000,
-            aiWaitingMinutes: finalTiming.aiWaitingMs / 60_000,
-            ...(finalTiming.dailyActiveMs ? { dailyActiveMs: finalTiming.dailyActiveMs } : {}),
-            ...(finalTiming.materialActiveMs ? {
-              materialActiveMinutes: Object.fromEntries(Object.entries(finalTiming.materialActiveMs)
-                .map(([path, ms]) => [path, ms / 60_000])),
-            } : {}),
-            ...(finalTiming.objectiveActiveMs ? {
-              objectiveActiveMinutes: Object.fromEntries(Object.entries(finalTiming.objectiveActiveMs)
-                .map(([id, ms]) => [id, ms / 60_000])),
-            } : {}),
-          } : {}),
-        },
-      ] };
-    });
+    const result = await this.updateActive(program => endTimedSession(program, this.now()));
     this.activeAiTurnId = undefined;
     this.stopCheckpointLoop();
     return result;
   }
+
   async markTaught(objectiveId: string, afterEvidenceAt: number): Promise<void> {
     await this.updateActive(program => {
       if (!program.objectives.some(item => item.id === objectiveId)) {
