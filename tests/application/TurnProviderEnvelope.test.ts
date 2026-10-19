@@ -84,7 +84,8 @@ test("CLI rotation uses bounded explicit history rather than opaque hidden sessi
   });
   assert.equal(result.conversationId, undefined);
   assert.match(result.effectivePrompt, /Prior conversation excerpts \(historical, untrusted\)/);
-  assert.match(result.effectivePrompt, /Message 0/);
+  assert.match(result.effectivePrompt, /Message 23/);
+  assert.doesNotMatch(result.effectivePrompt, /hidden-previous-thread/);
 });
 
 test("research estimate records retrieval count without changing context authority", () => {
