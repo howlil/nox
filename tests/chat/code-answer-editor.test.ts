@@ -23,46 +23,36 @@ class FakeInput {
   remove() { this.removed = true; }
 }
 class FakeHost {
-  // No owner document: exercises the safe fallback without a browser runtime.
   ownerDocument = undefined;
   inputs: FakeInput[] = [];
   notices: Array<{ textContent: string; remove(): void }> = [];
-  createDiv() {
-    const host = new FakeHost();
-    // When using a root as parent, preserve references for assertions.
-    this.child = host;
-    return host;
-  }
   child?: FakeHost;
+  constructor(private isEditorHost = false) {}
+  createDiv(): any {
+    if (!this.isEditorHost) {
+      this.child = new FakeHost(true);
+      return this.child;
+    }
+    const notice = { textContent: "", remove() {} };
+    this.notices.push(notice);
+    return notice;
+  }
   createEl(tag: string) {
     assert.equal(tag, "textarea");
     const node = new FakeInput();
     this.inputs.push(node);
     return node;
   }
-  createNotice = () => ({ textContent: "", remove() {} });
-}
-class FakeEditableHost extends FakeHost {
-  override createDiv(): any {
-    if (!this.child) {
-      const host = new FakeEditableHost();
-      this.child = host;
-      return host;
-    }
-    const notice = this.createNotice();
-    this.notices.push(notice);
-    return notice;
-  }
 }
 
 test("M3 fallback grows/shrinks with content and preserves exact source", () => {
-  const parent = new FakeEditableHost();
+  const parent = new FakeHost();
   const changes: string[] = [];
   const handle = mountCodeAnswerEditor(parent as unknown as HTMLElement, {
     language: "java", source: "class A {}", readOnly: false,
     onChange: source => changes.push(source),
   });
-  const editor = (parent.child as FakeEditableHost).inputs[0];
+  const editor = (parent.child as FakeHost).inputs[0];
   assert.equal(editor.value, "class A {}");
   assert.equal(editor.rows, 3);
   assert.equal(editor.maxLength, MAX_CODE_ANSWER_CHARS);
@@ -85,13 +75,13 @@ test("M3 fallback grows/shrinks with content and preserves exact source", () => 
 });
 
 test("M3 rejects over-limit pasted text without changing last valid draft", () => {
-  const parent = new FakeEditableHost();
+  const parent = new FakeHost();
   const saved: string[] = [];
   const handle = mountCodeAnswerEditor(parent as unknown as HTMLElement, {
     language: "typescript", source: "const x = 1", readOnly: false,
     onChange: source => saved.push(source),
   });
-  const host = parent.child as FakeEditableHost;
+  const host = parent.child as FakeHost;
   const editor = host.inputs[0];
   editor.value = "const x = 42";
   editor.trigger("input");
