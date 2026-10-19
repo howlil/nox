@@ -2816,6 +2816,72 @@
   font-size: 11.5px; min-height: 180px;
   tab-size: 2; white-space: pre; overflow: auto;
 }
+/* Shared M1 coding answer. Native CM6 owns document height, host chat owns scrolling.
+   Scoped flat/light presentation remains independent of Obsidian's host theme. */
+.nox-root .nox-code-answer-host {
+  min-width: 0;
+  width: 100%;
+  max-width: 100%;
+  border: 1px solid #dedede;
+  border-radius: 12px;
+  background: #FEFEFE;
+  color: #121212;
+  color-scheme: light;
+  box-shadow: none;
+  overflow: visible;
+}
+.nox-root .nox-code-answer-host:focus-within {
+  border-color: #9BB1FF;
+}
+.nox-root .nox-code-answer-host .cm-editor {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  height: auto;
+  max-height: none;
+  background: #FEFEFE;
+  color: #121212;
+  border-radius: inherit;
+  box-shadow: none;
+}
+.nox-root .nox-code-answer-host .cm-scroller {
+  overflow-x: hidden;
+  overflow-y: visible;
+  max-height: none;
+}
+.nox-root .nox-code-answer-host .cm-content {
+  min-height: 5.5em;
+  overflow-wrap: anywhere;
+}
+.nox-root .nox-code-answer-host .cm-line { white-space: pre-wrap; }
+.nox-root .nox-code-answer-host .cm-focused { outline: none; }
+.nox-root .nox-code-answer-host .cm-content[contenteditable="false"] {
+  cursor: default;
+  opacity: .8;
+}
+.nox-root .nox-code-answer-host .nox-quiz-code-editor {
+  display: block;
+  min-height: 92px;
+  height: auto;
+  width: 100%;
+  max-height: none;
+  resize: none;
+  overflow: hidden;
+  border: 0;
+  background: #FEFEFE;
+  color: #121212;
+}
+.nox-root .nox-code-answer-host .nox-quiz-code-editor:focus-visible {
+  background: #FEFEFE;
+  outline: none;
+}
+.nox-root .nox-code-answer-host .nox-syntax-keyword { color: #6D3EB5; }
+.nox-root .nox-code-answer-host .nox-syntax-type { color: #175C98; }
+.nox-root .nox-code-answer-host .nox-syntax-number { color: #B04B23; }
+.nox-root .nox-code-answer-host .nox-syntax-string { color: #1B784E; }
+.nox-root .nox-code-answer-host .nox-syntax-comment { color: #828282; font-style: italic; }
+.nox-root .nox-code-answer-host .nox-syntax-literal { color: #B04B23; }
+
 .nox-quiz-code-meta { display: flex; justify-content: space-between; gap: 8px;
   color: var(--nox-ink-2); font-size: 11px; margin-bottom: 6px; }
 .nox-quiz-actions { display: flex; justify-content: flex-end; gap: 8px; }
