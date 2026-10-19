@@ -1,4 +1,4 @@
-import ELK, { type ElkNode, type ElkExtendedEdge, type ElkPoint } from "elkjs/lib/elk.bundled.js";
+import type { ElkNode, ElkExtendedEdge, ElkPoint } from "elkjs/lib/elk.bundled.js";
 import type { NoxFlowSpecV2 } from "./response-graph-v2-schema";
 
 export interface NoxFlowV2Layout {
@@ -64,6 +64,8 @@ export async function layoutNoxFlowV2(spec: NoxFlowSpecV2): Promise<NoxFlowV2Lay
       targets: [edge.to],
     })),
   };
+  // Expensive ELK initialization is deferred until an explicit v2 block is present.
+  const { default: ELK } = await import("elkjs/lib/elk.bundled.js");
   const elk = new ELK();
   const result = await elk.layout(root);
   const width = checked(result.width), height = checked(result.height);
