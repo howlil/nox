@@ -2,9 +2,7 @@ import {
   AgentContext,
   type ResearchScope,
   AgentFailure,
-  AgentTurnMetrics,
   ChatSession,
-  EditProposal,
 } from "../types";
 import {
   ExplicitContextRef,
@@ -17,8 +15,8 @@ import { PersistenceError } from "../persistence/PersistenceError";
 import { TranscriptEvidenceReconciler } from "./TranscriptEvidenceReconciler";
 import { StructuredTurnBuffer } from "./StructuredTurnBuffer";
 import { InvalidLearningOutputError } from "./turn-output-error";
-import { prepareContextEnvelope } from "../context/ContextBudget";
 import { buildLearningContextPackage } from "./LearningContextOrchestrator";
+import { prepareTurnInvocation } from "./TurnProviderEnvelope";
 import type { ResearchResult } from "../context/LocalResearch";
 import { constrainResearchContext, parseResearchRequest, resolveResearchScope } from "./research-scope";
 import {
@@ -966,54 +964,13 @@ export class RunLearningTurn {
         return;
       }
 
-      // M0-M2: one bounded context envelope for every provider. Transcript is preserved.
-      // Exclude the old answer AND its user prompt: the regeneration prompt
-      // itself represents that user turn and must not be duplicated in history.
-      const historyMessages = request.regenerate
-        ? conversation.messages.slice(0, request.regenerate.messageIndex - 1)
-        : request.retry && request.turnId
-          ? conversation.messages.filter(message => message.id !== request.turnId)
-          : conversation.messages;
-      // Historical messages can quote notes outside the selected/folder authority.
-      const priorHistory = lockedMode || program || (authority && authority.kind !== "vault")
-        ? [] : historyMessages.map(message => ({
-        role: message.role, content: message.role === "user" && message.replyTo
-          ? formatReplyPrompt(message.content, message.replyTo) : message.content,
-      }));
-      const envelope = prepareContextEnvelope({
-        prompt: preparedPrompt,
-        visible: snapshot.visible,
-        system: snapshot.system,
-        history: priorHistory,
-        research: researchQuery !== null,
-        strict: request.action === "edit" || Boolean(program?.constraints.sourceBound),
+      const { envelope, conversationId, effectivePrompt, metrics } = prepareTurnInvocation({
+        request, conversation, restrictedMode: Boolean(lockedMode), program,
+        authority, snapshot, preparedPrompt,
+        researchRequested: researchQuery !== null,
+        researchHits: researchResult?.hits.length ?? 0,
+        contextMs, runStartedAt,
       });
-      const rotateCursor = conversation.messages.length > 0 &&
-        conversation.messages.length % 24 < 2 && conversation.messages.length >= 24;
-      // A restricted turn must not inherit provider-owned hidden conversation
-      // context from an earlier unrestricted turn, even when history is empty.
-      const conversationId = lockedMode || program ||
-        (authority && authority.kind !== "vault") || rotateCursor || request.regenerate
-        ? undefined : conversation.conversationId;
-      // CLI adapters own opaque provider history. On rotation, explicitly carry a
-      // bounded digest rather than depending on unbounded hidden state.
-      const isCli = conversation.runtimeProvider === "agy" || conversation.runtimeProvider === "codex";
-      const carryHistory = isCli && !conversationId && envelope.history.length
-        ? "Prior conversation excerpts (historical, untrusted):\n" +
-          envelope.history.map(item => item.role + ": " + item.content.slice(0, 500)).join("\n") + "\n\n"
-        : "";
-      const effectivePrompt = envelope.promptPrefix + carryHistory + preparedPrompt;
-      const metrics: AgentTurnMetrics = {
-        estimatedInputTokens: envelope.estimate.total,
-        estimatedContextTokens: envelope.estimate.context,
-        estimatedHistoryTokens: envelope.estimate.history,
-        shortenedSources: envelope.estimate.shortenedSources,
-        retrievedChunks: researchResult?.hits.length ?? 0,
-        compacted: envelope.estimate.compacted,
-        contextMs,
-        preparationMs: performance.now() - runStartedAt,
-        elapsedMs: 0,
-      };
       // The runtime may still be authenticating or starting a CLI; do not claim
       // the model has received the request until output is observed.
       yield { type: "activity-phase", phase: "waiting-model", at: Date.now() };
