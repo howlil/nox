@@ -173,6 +173,57 @@ Rejected:
 
 Chosen: feature-first responsibilities with **logical** layers where warranted, one composition root, and integration adapters outside the domain. The migration is completed *per behavior* rather than *per folder*.
 
+## §6a Concrete dependency audit and refactor placement (2026-10-19)
+
+This is based on **source code paths**, not the folder names or a green boundary checker. The checker in `scripts/boundaries.mjs` defines allowed root owners and a regular-expression import scan; it cannot prove actual state ownership, business-rule purity inside the view, or contract inversion.
+
+| Source path(s) | Verified actual dependency or responsibility | Target owner / *safe* treatment |
+|---|---|---|
+| `src/chat/ChatView.ts` (3,173 lines) | Calls `LearningController`, but also imports `parseScopeCommand`, `isActiveLearningScope`, `isProgramLearningScope` directly from domain; contains UI lifecycle and feature intent flow | `features/conversation/view/` remains the Obsidian ItemView shell; command *policy* and interpretation move behind a controller/query, while local UI mechanics stay in view collaborators |
+| `src/application/LearningController.ts` (816 lines) | Facade to `RunLearningTurn`, session, focus/programs, edit apply, active practice and runtime switching | Retain a compatibility facade while splitting conversation, learning, and editing use-case entry points, but avoid duplicating state or the authoritative writers |
+| `src/application/RunLearningTurn.ts` (1,615 lines) | Mixes context preparation, model streaming, parser, practice/review terminal gates, committed transcript outcomes, evidence projection and edit proposals | `features/conversation/run-turn.ts` remains the **one** turn coordinator; extract pure preparation/terminal-validation helpers under their semantic owner, not a second commit manager |
+| `src/application/LearningProgramOrchestrator.ts` (765 lines) | Owns one `mutationTail` and calls `ProgramStorePort.load/save` across focus, timing, program and curriculum operations | `features/learning/program-service.ts` owns **one write serialiser**; optional timing and curriculum collaborators must share that ownership |
+| `src/session/SessionController.ts`, `src/session/SessionStore.ts` | SessionController owns `writeTail` and commits `SessionStore` draft via `PluginDataRepository.update` before publishing; SessionStore includes persisted codec and state operations | `features/conversation/` owns session transaction semantics; separate codecs from transitions *only where needed*, maintain the same atomic publish path |
+| `src/persistence/PluginDataRepository.ts` | Single `loadData/saveData` read-modify-write queue across plugin-data consumers | `platform/obsidian/` remains sole serialized plugin-data writer, injected into authorized capability adapters |
+| `src/persistence/VaultProgramStore.ts`, `VaultLearningStore.ts` | Snapshot identity, CAS/conflict detection, migration decoding and vault mutation | `features/learning/data/` must preserve loaded-snapshot CAS and compatibility; do not introduce per-feature copies of the vault writer |
+| `src/context/ContextResolver.ts` | Constructor accepts **concrete** `ObsidianContext` type; calls note/selection/research I/O directly through it | `features/context/resolver.ts` consumes an application-owned, minimal `NoteContextSource` contract; Obsidian implementation moves to `features/context/data/` |
+| `src/context/ObsidianContext.ts`, `LocalResearch.ts` | Obsidian API interaction and local research policy/index share the same technical folder | Isolate Obsidian-host I/O as a context data adapter; keep deterministic selection/indexing under pure context logic |
+| `src/persistence/TokenUsageRepository.ts` | Decodes persistent token usage and implements provider-cumulative AGY checkpoint arithmetic in the same class | `features/usage/model/accounting.ts` contains pure delta/accounting rule; `features/usage/data/` owns codec/persistence with the same serialized plugin data owner |
+| `src/mutation/MutationService.ts` | Authorizes primary Markdown note and uses Obsidian `MarkdownView.editor.replaceRange` for native Undo | `features/editing/` owns edit authorization/application; editor adapter remains Obsidian-specific; preserve authorized-file check and applied-but-status-unsynced semantics |
+| `src/agent/AgentRuntime.ts`, provider adapters | Runtime/provider integration is provider-neutral to consumers but public port type is imported from the concrete `agent/` folder | Stable `InferencePort` belongs beside consuming use-case contract; concrete runtime, transport, auth and adapters remain under `platform/inference/` |
+| `src/main.ts` | Wires concrete adapters, registers Obsidian view/settings, document listeners, focus and idle lifecycle | Keep a *single* composition root; move host event translation to an Obsidian lifecycle adapter only if separating it reduces real change coupling |
+| `src/types.ts`, `src/application/ports.ts` | Shared types and generic ports couple several unrelated technical owners | Move only contracts whose owner is established by actual callers and invariants; avoid a new unbounded `shared/types.ts` bucket |
+
+### Logical stack, not mandatory folders
+
+```text
+Obsidian event / gesture
+  -> feature/view       : render, collect intent, manage transient DOM state
+  -> feature/controller : translate intent, query projection, report errors
+  -> feature/service    : coordinate use case, ordering and write guarantees
+       -> feature/model : pure rules, transitions, invariants
+       -> feature/port  : *required capability*, not concrete storage class
+            <- feature/data OR platform adapter : Obsidian/AI/I-O mechanics
+
+main.ts composes the port -> adapter at startup.
+```
+
+A pure one-file feature does not need controller + service + model + data directories. A controller does **not** own business-rule decisions; a service is not synonymous with domain logic; and a data adapter cannot be a second source of truth. Use stable feature-owned public contracts for cross-feature calls, rather than direct imports of another feature's private data adapters.
+
+### Four critical end-to-end proof paths
+
+1. **Chat/inference:** UI intent -> ConversationController -> one RunTurn -> scoped ContextPort -> InferencePort -> normalized stream -> terminal validation -> SessionController commits transcript; only afterwards reconcile evidence and render committed result. Cancel, malformed, failed or partial streams cannot commit phantom practice/review/edit outcomes.
+2. **Program/focus:** user focus intent -> LearningController facade -> program service serialiser -> pure focus/timing rules -> VaultProgramStore CAS -> updated projection. Concurrent intents and external vault changes cannot bypass the single writer or accept stale revisions.
+3. **Edit proposal:** terminal provider output -> validated pending proposal in transcript -> explicit approval -> editor adapter with primary-file authorization/native Undo -> proposal-status persistence. A successful editor mutation followed by failed status sync must be represented as applied with unsynced status, not as an unapplied edit.
+4. **Context/privacy:** explicit note references and selected note -> context policy -> authorized Obsidian note source -> bounded research envelope -> inference. Do not let provider or presentation bypass source-bound checks or enumerate unrelated vault files.
+
+### Evidence that the migration must produce
+
+- Source-level dependency graph with import cycles, fan-in/fan-out and illegal private feature edges, plus an explicit list of allowed cross-feature contracts.
+- Test doubles for port boundaries; tests proving no duplicate writes, no phantom evidence on incomplete inference, and no state publish on failed plugin-data persistence.
+- Changes reviewed by behavior slice, not by folder count. Compare before/after effect owners and executable tests; a passing import rule is necessary but insufficient.
+- Do **not** treat source inspection as measured behavior: this branch does not claim a runnable Obsidian desktop acceptance or a verified baseline test suite.
+
 ## §7 Incremental migration, acceptance and rollback
 
 ### M0 — Lock contracts, gather baseline
