@@ -747,8 +747,12 @@ export class RunLearningTurn {
           : researchQuery ?? request.prompt}`;
       if (request.action === "ask" || request.action === "explain") {
         preparedPrompt += "\n\nPRESENTATION: Use short semantic Markdown headings without numeric prefixes unless specifically requested. Prefer compact Markdown tables for comparisons. Avoid emoji as status icons. Do not invent metrics or display a chart for unknown data.";
-        if (/diagram|flowchart|arsitektur|architecture|dependency graph|peta konsep|visualisasi alur/i.test(request.prompt) && !/mermaid/i.test(request.prompt)) {
-          preparedPrompt += "\nFor a read-only top-down diagram, you may use fenced nox-flow JSON: {\"version\":1,\"direction\":\"TB\",\"layout\":\"layered\",\"nodes\":[{\"id\":\"a\",\"label\":\"Start\",\"kind\":\"focus\"}],\"edges\":[]}. Use vertical-stack only for a single linear chain; layered for 2-3 parallel branches (maximum 24 nodes, 48 edges). Keep labels short. Separate Spring startup/IoC from HTTP request lifecycle instead of connecting unrelated phases. Avoid redundant cross-links. Use Mermaid for cyclic/unsupported graphs.";
+        if (/diagram|flowchart|arsitektur|architecture|dependency graph|peta konsep|visualisasi alur/i.test(request.prompt)) {
+          if (/\\bnox-flow\\b/i.test(request.prompt)) {
+            preparedPrompt += "\nWhen explicitly requested, use fenced nox-flow JSON: {\\\"version\\\":1,\\\"direction\\\":\\\"TB\\\",\\\"layout\\\":\\\"layered\\\",\\\"nodes\\\":[{\\\"id\\\":\\\"a\\\",\\\"label\\\":\\\"Start\\\"}],\\\"edges\\\":[]}. Max 24 nodes and 48 edges; only DAGs. Do not invent relationships.";
+          } else {
+            preparedPrompt += "\nOutput a fenced mermaid flowchart TB or LR. Use compact descriptive node labels, faithful edges, and branches that share a rank where appropriate. Do not add decorative subgraphs or unsupported relationships. Use separate diagrams for independent lifecycles.";
+          }
         }
         if (/grafik|chart|breakdown|analytics|analitik|perbandingan metrik|metric card|comparison card/i.test(request.prompt)) {
           preparedPrompt += "\nFor verified numeric analytics, a fenced nox-chart JSON object supports {\"type\":\"horizontal-bar\",\"title\":\"Title\",\"labels\":[\"A\",\"B\"],\"values\":[12,7]}. For compact comparison, fenced nox-card JSON supports {\"version\":1,\"kind\":\"comparison\",\"title\":\"Title\",\"items\":[{\"label\":\"Before\",\"value\":12},{\"label\":\"After\",\"value\":7}]}. Never produce invented values.";
