@@ -12,6 +12,13 @@ Important environment rules:
 - Stay focused on the user's current learning goal and material.
 `.trim();
 
+/** Explicit opt-in for the legacy graph format; Mermaid owns general diagrams. */
+export function selectGraphPresentation(prompt: string): "mermaid" | "nox-flow" | null {
+  if (/\bnox-flow\b/i.test(prompt)) return "nox-flow";
+  if (/diagram|flowchart|arsitektur|architecture|dependency graph|peta konsep|visualisasi alur|\bgraph\b|graf\b/i.test(prompt)) return "mermaid";
+  return null;
+}
+
 const VISUAL_RESPONSE_INSTRUCTION = [
   "Presentation: use normal Markdown by default. For requested diagrams, prefer fenced Mermaid flowcharts (flowchart TB or LR).",
   "For architecture graphs, use short descriptive labels, real dependencies, compact branching and orthogonal-friendly paths. Avoid decorative subgraphs, unnecessary cross-links and fabricated relations; separate independent lifecycle diagrams.",
