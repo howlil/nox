@@ -294,3 +294,82 @@ decision, justified by measured layout failures rather than visual guesswork.
 CI and Obsidian desktop verification are distinct. Desktop acceptance must
 cover native and custom diagrams in 320/390/768/1440px panes, fit/zoom/expand,
 mouse pan, pop-out behavior, invalid formats, and transcript restoration.
+
+
+## M4 — Advanced graph v2 with ELK layout (2026-10-19)
+
+Source-of-truth: \`nox-flow\` v1 remains valid, unchanged and synchronous. \`nox-flow\`
+v2 is explicitly opt-in; native Obsidian Mermaid remains the default for
+ordinary architecture and learning diagrams.
+
+### Typed shapes and trust boundary
+
+\`\`\`nox-flow
+{
+  "version": 2,
+  "title": "NOX runtime",
+  "direction": "TB",
+  "layout": "layered",
+  "groups": [{"id":"app","label":"Application Layer"}],
+  "nodes": [
+    {"id":"ui","label":"ChatView"},
+    {"id":"runner","label":"RunLearningTurn","group":"app","kind":"focus"},
+    {"id":"provider","label":"AgentRuntime"}
+  ],
+  "edges": [
+    {"from":"ui","to":"runner","label":"request"},
+    {"from":"runner","to":"provider","label":"execute"}
+  ]
+}
+\`\`\`
+
+Limits: 40 nodes, 80 edges, 8 non-empty groups, one group per node, one-level
+groups only, valid bounded IDs/labels, no unknown references or duplicates.
+TB and LR directions are permitted; cycles may be represented. Validation
+converts untrusted source to \`NoxFlowSpecV2\` before ELK is invoked.
+No user-provided layout options, CSS, arbitrary HTML or executable code.
+
+### A — Successful execution graph
+
+\`\`\`
+persisted or new Markdown
+  -> Obsidian MarkdownRenderer
+  -> response-visuals / detect nox-flow
+  -> parseNoxFlow(v1) OR parseNoxFlowV2(v2)
+  -> v1 existing layout OR async ELK layered layout
+  -> bounded coordinate/edge validation
+  -> DOM-only SVG with textContent
+  -> shared zoom / fit / expand viewport
+\`\`\`
+
+For v2, the layout uses \`elk.algorithm=layered\`,
+\`elk.edgeRouting=ORTHOGONAL\`, and hierarchy handling
+\`INCLUDE_CHILDREN\`, to represent grouping with crossing dependencies.
+The heavy ELK module is initialized only when v2 rendering is requested.
+The rendered SVG and graph positions are derived caches, never persisted.
+
+### E — Failure and cancellation
+
+Invalid input leaves the source in the original code fence. An ELK error,
+missing route, non-finite geometry, unsupported cross-hierarchy layout or
+oversized coordinates yields a visible source fallback. Detached chat views
+must not be rewritten by an older async render. Source is always available for
+restoration; no graph mutation has vault authority.
+
+### R — Dependencies and review risks
+
+Pinned \`elkjs@0.11.0\` bundles into \`dist/main.js\` (Obsidian community
+three-file install), avoiding remote assets, dynamic worker URLs or network
+requests. ELK is an EPL-2.0 OR GPL-3.0-or-later dependency and must retain
+applicable license notices on distribution. Build size and first render latency
+are explicit acceptance metrics.
+
+### Tests and acceptance
+
+Schema adversarial cases, duplicate IDs/edges, cyclic graph acceptance, grouped
+cross-boundary edge routing, LR orientation, v1 compatibility and all existing
+tests. Compare release artifact size to base before merging.
+Obsidian Desktop acceptance remains mandatory for light/dark host themes,
+a narrow side panel, a full window and a pop-out. If the bundled dependency
+makes startup or install unacceptably large, retain the v2 schema behind an
+explicit feature gate and reassess the layout engine.
