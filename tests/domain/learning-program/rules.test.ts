@@ -29,7 +29,11 @@ const event = (objectiveId: string, outcome: string, createdAt: number,
   assisted = false): LearningEvidence => ({
     id: `${objectiveId}:${createdAt}`, type: "practice", scope: "learner",
     programId: "math", objectiveId, concept: "Algebra", source: "notes.md",
-    outcome, assisted, createdAt,
+    outcome, assisted, createdAt, evidenceVersion: 3, objectiveRevision: 1,
+    questionId: objectiveId + ":" + createdAt, taskKind: createdAt === now ? "recall" : "guided-practice",
+    assistance: { independent: !assisted, highestHintLevel: assisted ? 1 : 0 },
+    rubricResults: [{ criterion: objectiveId === "symbols" ? "Use notation correctly" : "Correct transformations",
+      criterionId: objectiveId + "@1:criterion-1", met: outcome === "correct", evidence: "assessment" }],
   });
 
 test("curriculum respects prerequisite DAG and cross-domain objectives", () => {
@@ -111,7 +115,7 @@ test("timebox expiry blocks new activity without erasing progress", () => {
 
 test("completed transfer task clears transfer gate for next eligible objective", () => {
   const first = event("symbols", "correct", now - 2 * 86_400_000);
-  const second = event("symbols", "correct", now - 1000);
+  const second = { ...event("symbols", "correct", now - 1000), taskKind: "recall" as const };
   const transfer = { ...event("symbols", "correct", now), taskKind: "transfer" as const };
   const next = chooseNextActivity(program(), [first, second, transfer], now);
   assert.equal(next.objective?.id, "equations");
@@ -139,4 +143,57 @@ test("correct single-item MCQ is formative evidence, not objective mastery", () 
   assert.equal(objectiveProgress(program(), "symbols", [one, two], now).status, "remediate");
   assert.equal(chooseNextActivity(program(), [one, two], now).kind, "guided-practice");
   assert.equal(chooseNextActivity(program(), [one, two], now).objective?.id, "symbols");
+});
+
+
+test("new v3 evidence cannot bypass required rubric through average score or legacy mastery", () => {
+  const p = program();
+  const last = event("symbols", "correct", now);
+  const e: LearningEvidence = {
+    ...last, id: "v3", evidenceVersion: 3, objectiveRevision: 1, questionId: "q",
+    evaluator: "llm-review", assistance: { highestHintLevel: 0, independent: true },
+    rubricResults: [{ criterion: "Use notation correctly",
+      criterionId: "symbols@1:criterion-1", met: false, evidence: "not shown" }],
+  };
+  assert.equal(objectiveProgress(p, "symbols", [event("symbols", "correct", now - 3 * 86_400_000), e], now).status, "remediate");
+});
+
+
+test("previous curriculum revision cannot establish mastery for a revised rubric", () => {
+  const p1 = program();
+  const rubric = "Use notation correctly";
+  const initial: LearningEvidence = {
+    ...event("symbols", "correct", now - 2 * 86_400_000),
+    id: "r1-initial", evidenceVersion: 3, objectiveRevision: 1,
+    questionId: "q1", evaluator: "llm-review",
+    assistance: { highestHintLevel: 0, independent: true },
+    rubricResults: [{ criterion: rubric, criterionId: "symbols@1:criterion-1",
+      met: true, evidence: "demonstrated" }],
+  };
+  const recall: LearningEvidence = {
+    ...initial, id: "r1-recall", questionId: "q2", createdAt: now,
+    taskKind: "recall",
+  };
+  assert.equal(objectiveProgress(p1, "symbols", [initial, recall], now).status, "mastered");
+
+  // The new revision has a different criterion, but the same criterion count.
+  // Reusing revision-1 evidence here would incorrectly grant mastery.
+  const p2 = program({ planVersion: 2, objectives: p1.objectives.map(item =>
+    item.id === "symbols"
+      ? { ...item, rubric: ["Explain alternate notation"] }
+      : item,
+  ) });
+  assert.equal(objectiveProgress(p2, "symbols", [initial, recall], now).status, "unseen");
+  assert.equal(chooseNextActivity(p2, [initial, recall], now).kind, "diagnostic");
+  assert.equal(chooseNextActivity(p2, [initial, recall], now).objective?.id, "symbols");
+
+  // A new independent attempt is still provisional until delayed recall.
+  const revised: LearningEvidence = {
+    ...initial, id: "r2-initial", questionId: "q3", createdAt: now,
+    objectiveRevision: 2, rubricResults: [{
+      criterion: "Explain alternate notation", criterionId: "symbols@2:criterion-1",
+      met: true, evidence: "demonstrated",
+    }],
+  };
+  assert.equal(objectiveProgress(p2, "symbols", [initial, recall, revised], now).status, "provisional");
 });

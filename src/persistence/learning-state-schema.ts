@@ -42,7 +42,8 @@ function isKnowledgeGap(value: unknown): value is KnowledgeGap {
       gap.status === "improving" ||
       gap.status === "resolved") &&
     (gap.programId === undefined || typeof gap.programId === "string") &&
-    (gap.objectiveId === undefined || typeof gap.objectiveId === "string")
+    (gap.objectiveId === undefined || typeof gap.objectiveId === "string") &&
+    (gap.criterionId === undefined || typeof gap.criterionId === "string")
   );
 }
 
@@ -65,6 +66,14 @@ function isEvidenceV1(
   );
 }
 
+function isAssistance(value: unknown): value is { highestHintLevel: 0 | 1 | 2 | 3 | 4; independent: boolean } {
+  if (!value || typeof value !== "object") return false;
+  const help = value as Record<string, unknown>;
+  return [0, 1, 2, 3, 4].includes(help.highestHintLevel as number) &&
+    typeof help.independent === "boolean" &&
+    help.independent === (help.highestHintLevel === 0);
+}
+
 function isEvidenceV2(
   value: unknown,
 ): value is LearningEvidence {
@@ -80,7 +89,17 @@ function isEvidenceV2(
     (evidence.programId === undefined || typeof evidence.programId === "string") &&
     (evidence.objectiveId === undefined || typeof evidence.objectiveId === "string") &&
     (evidence.assisted === undefined || typeof evidence.assisted === "boolean") &&
-    (evidence.rubricResults === undefined || isRubricResults(evidence.rubricResults));
+    (evidence.rubricResults === undefined || isRubricResults(evidence.rubricResults)) &&
+    (evidence.taskKind === undefined || ["diagnostic", "guided-practice", "recall", "transfer"].includes(evidence.taskKind as string)) &&
+    (evidence.evidenceVersion === undefined || evidence.evidenceVersion === 3) &&
+    (evidence.questionId === undefined || (typeof evidence.questionId === "string" && evidence.questionId.length > 0)) &&
+    (evidence.objectiveRevision === undefined || (Number.isSafeInteger(evidence.objectiveRevision) && (evidence.objectiveRevision as number) >= 0)) &&
+    (evidence.evaluator === undefined || ["deterministic", "llm-review", "verified-execution"].includes(evidence.evaluator as string)) &&
+    (evidence.assistance === undefined || isAssistance(evidence.assistance)) &&
+    (evidence.evidenceVersion !== 3 || (evidence.type === "practice" && evidence.scope === "learner" &&
+      typeof evidence.programId === "string" && typeof evidence.objectiveId === "string" &&
+      typeof evidence.questionId === "string" && typeof evidence.objectiveRevision === "number" &&
+      isAssistance(evidence.assistance) && typeof evidence.evaluator === "string"));
 }
 
 function hasSharedShape(value: Record<string, unknown>): boolean {
@@ -110,7 +129,7 @@ function isV2(value: unknown): value is LearningState {
   const state = value as Record<string, unknown>;
 
   return (
-    state.version === 2 &&
+    (state.version === 2 || state.version === 3) &&
     hasSharedShape(state) &&
     (state.evidence as unknown[]).every(isEvidenceV2)
   );
@@ -164,7 +183,10 @@ export function decodeLearningState(
         ...gap,
         evidenceIds: [...gap.evidenceIds],
       })),
-      evidence: value.evidence.map((item) => ({ ...item })),
+      evidence: value.evidence.map((item) => ({ ...item,
+        ...(item.rubricResults ? { rubricResults: item.rubricResults.map(result => ({ ...result })) } : {}),
+        ...(item.assistance ? { assistance: { ...item.assistance } } : {}),
+      })),
     };
   }
 

@@ -13,8 +13,10 @@ import {
 } from "../context/context-types";
 import type { SessionPort, ContextPort, PolicyPort, LearningStatePort, ProgramStorePort } from "./ports";
 import { formatReplyPrompt } from "./reply-context";
-import { PersistenceError } from "../persistence/PersistenceError";
+import { PersistenceError, LearningStateWriteConflict } from "../persistence/PersistenceError";
+import type { LearningState } from "../domain/learning-state/types";
 import { prepareContextEnvelope } from "../context/ContextBudget";
+import { buildLearningContextPackage } from "./LearningContextOrchestrator";
 import type { ResearchResult } from "../context/LocalResearch";
 import { constrainResearchContext, parseResearchRequest, resolveResearchScope } from "./research-scope";
 import {
@@ -45,8 +47,9 @@ import {
 } from "../domain/practice/PracticeStateMachine";
 import { PracticeSessionRegistry } from "./PracticeSessionRegistry";
 import type { LearningProgram, LearningObjective } from "../domain/learning-program/types";
-import { chooseNextActivity } from "../domain/learning-program/rules";
+import { selectAdaptiveActivity } from "../domain/learner-model/activity-policy";
 import { coversCriteria } from "../domain/learning-program/assessment-rubric";
+import { criterionIdFor, decideFeedback } from "../domain/learner-model/feedback-policy";
 import {
   StructuredStreamEvent,
   StructuredStreamParser,
@@ -68,6 +71,31 @@ class InvalidLearningOutputError extends Error {}
 
 export class RunLearningTurn {
   private readonly practices = new PracticeSessionRegistry();
+  private currentFocusId: string | null = null;
+  private currentFocusPaused = false;
+
+  /** Old focus challenges must never be inherited by a replacement focus. */
+  syncFocusSessionId(id?: string, status?: "active" | "paused"): void {
+    const next = id ?? null;
+    if (next !== this.currentFocusId) {
+      this.practices.clear();
+      this.currentFocusId = next;
+    }
+    this.currentFocusPaused = Boolean(next && status === "paused");
+  }
+
+  private async assertFocusAuthority(expected: NonNullable<LearningProgram["focus"]>, chatSessionId: string): Promise<void> {
+    if (!this.programStore) throw new Error("Focus persistence is unavailable.");
+    const collection = await this.programStore.load();
+    const current = collection.programs.find(p => p.id === expected.programId);
+    if (collection.activeProgramId !== expected.programId || current?.focus?.id !== expected.id ||
+        current.focus.status !== "active" || current.focus.chatSessionId !== chatSessionId ||
+        current.focus.objectiveId !== expected.objectiveId ||
+        current.focus.curriculumRevision !== expected.curriculumRevision ||
+        current.planVersion !== expected.curriculumRevision) {
+      throw new Error("The focused objective changed during inference; discard stale model output.");
+    }
+  }
   private activeTurn: {
     controller: AbortController;
     cancelReason?: "user" | "timeout" | "dispose";
@@ -115,7 +143,9 @@ export class RunLearningTurn {
       isLockedLearningMode(session.learningScope?.mode);
     const programId = isProgramLearningScope(session.learningScope) &&
       session.learningScope.mode !== "FREE" ? session.learningScope.programId : undefined;
-    const scoped = legacy || Boolean(programId);
+    // A paused objective can contain unrelated chat messages; preserve the
+    // committed pending challenge across those messages until focus ends.
+    const scoped = legacy || Boolean(programId) || Boolean(this.currentFocusId);
     const key = legacy ? `${session.id}:backend`
       : programId ? JSON.stringify([session.id, "program", programId]) : session.id;
     const practice = this.practices.forSession(key);
@@ -136,11 +166,20 @@ export class RunLearningTurn {
           ? part.scope !== "program" ||
             (part.type === "practice-question" ? part.question.programId : part.evaluation.programId) !== programId
           : part.scope === "backend" || part.scope === "program") continue;
+        if (part.type === "practice-evaluation" && (this.currentFocusId
+          ? part.evaluation.focusSessionId !== this.currentFocusId
+          : Boolean(part.evaluation.focusSessionId))) continue;
         if (part.type === "practice-evaluation") return practice;
+        if (part.type === "practice-question" && (this.currentFocusId
+          ? part.question.focusSessionId !== this.currentFocusId
+          : Boolean(part.question.focusSessionId))) continue;
         if (part.type === "practice-question") {
           practice.start(part.origin);
           practice.acceptQuestion(part.question, part.questionId);
           if (session.messages.slice(i + 1).some(item => item.role === "user" &&
+              item.content.trim().toLowerCase().startsWith("/clarify "))) {
+            practice.markClarificationUsed();
+          } else if (session.messages.slice(i + 1).some(item => item.role === "user" &&
               item.content.trim().toLowerCase() === "/hint")) practice.markHintUsed();
           return practice;
         }
@@ -281,7 +320,8 @@ export class RunLearningTurn {
     const programScope = isProgramLearningScope(scope) && scope.mode !== "FREE" ? scope : undefined;
     const lockedMode = legacyLockedMode ?? (programScope ? programScope.mode : undefined);
     const teachingProgramTurn = Boolean(programScope && request.programActivity?.kind === "teach");
-    const strictPractice = Boolean(lockedMode) && !teachingProgramTurn;
+    const strictPractice = Boolean(lockedMode) && !teachingProgramTurn &&
+      !request.practiceClarification && !this.currentFocusPaused;
     if (strictPractice) {
       if (request.action === "edit" || request.action === "review") {
         try {
@@ -303,7 +343,7 @@ export class RunLearningTurn {
     const editProposalId = request.action === "edit"
       ? `edit:${sessionAtStart.id}:${request.turnId ?? crypto.randomUUID()}`
       : undefined;
-    const existingPractice = request.action === "practice"
+    const existingPractice = request.action === "practice" || request.practiceClarification
       ? this.practiceForSession(sessionAtStart)
       : undefined;
     const previousOrigin = existingPractice?.isWaitingForAnswer()
@@ -326,7 +366,8 @@ export class RunLearningTurn {
 
     try {
       const refs = [...request.explicitContext];
-      if (this.programStore && (request.programActivity || (request.action === "practice" && !request.freePractice && (!activePracticeTurn || activePracticeTurn.programId))) && !legacyLockedMode) {
+      if (this.programStore && (request.programActivity || ((request.action === "practice" && !request.freePractice &&
+          (!activePracticeTurn || activePracticeTurn.programId)) || request.practiceClarification)) && !legacyLockedMode) {
         const collection = await this.programStore.load();
         program = collection.programs.find(item => item.id === collection.activeProgramId);
         if (programScope && programScope.programId !== program?.id) {
@@ -339,11 +380,28 @@ export class RunLearningTurn {
         if (activePracticeTurn?.programId && activePracticeTurn.programId !== program?.id) {
           throw new Error("The active question belongs to another learning program. Switch back to that program before answering.");
         }
+        if (activePracticeTurn?.questionSpec?.focusSessionId &&
+            activePracticeTurn.questionSpec.focusSessionId !== program?.focus?.id) {
+          throw new Error("This question belongs to a previous objective focus.");
+        }
+        if (program?.focus && (program.focus.status !== "active" ||
+            program.focus.chatSessionId !== sessionAtStart.id ||
+            (request.programActivity && request.programActivity.objectiveId !== program.focus.objectiveId))) {
+          throw new Error("The persisted objective focus does not authorize this turn.");
+        }
         if (program?.constraints.sourceBound && sessionAtStart.runtimeProvider !== "chatgpt") {
           throw new Error("Strict source-bound learning requires the ChatGPT provider without vault filesystem tools. Local CLI agents can read beyond selected notes.");
         }
         if (program?.constraints.sourceBound) {
-          for (const path of program.constraints.sourcePaths) {
+          // Read only objective-specific, already approved sources when focus
+          // or a pending challenge establishes which objective is authoritative.
+          const sourceObjectiveId = program.focus?.objectiveId ??
+            activePracticeTurn?.objectiveId ?? request.programActivity?.objectiveId;
+          const sourceObjective = program.objectives.find(item => item.id === sourceObjectiveId &&
+            !item.deprecated);
+          const neededPaths = sourceObjective?.sourceRefs.length
+            ? sourceObjective.sourceRefs : program.constraints.sourcePaths;
+          for (const path of neededPaths) {
             if (!refs.some(ref => ref.kind === "vault-note" && ref.path === path)) {
               refs.push({ kind: "vault-note", path });
             }
@@ -353,6 +411,16 @@ export class RunLearningTurn {
       const sourceRef = pinnedPracticeSource ?? request.sourcePath;
       if (sourceRef && !refs.some((ref) => ref.kind === "vault-note" && ref.path === sourceRef)) {
         refs.push({ kind: "vault-note", path: sourceRef });
+      }
+      // Filter user-provided attachments and unrelated vault references BEFORE
+      // loading file bytes. Source boundaries are authorization, not relevance.
+      if (program?.constraints.sourceBound) {
+        const approved = new Set(program.constraints.sourcePaths);
+        if (sourceRef && !approved.has(sourceRef)) {
+          throw new Error("Practice source is outside the approved learning material.");
+        }
+        const scopedRefs = refs.filter(ref => ref.kind === "vault-note" && approved.has(ref.path));
+        refs.splice(0, refs.length, ...scopedRefs);
       }
       // Independent vault reads share the same preflight window; required
       // source resolution and learning-policy failures still fail this turn.
@@ -387,7 +455,7 @@ export class RunLearningTurn {
           : request.action === "review" ? "review"
           : request.action === "explain" ? "teaching"
           : request.action === "practice" && program && !activePracticeTurn &&
-              chooseNextActivity(program, state.evidence).kind === "diagnostic"
+              selectAdaptiveActivity(program, state, Date.now()).kind === "diagnostic"
             ? "assessment" : undefined;
         if (skillKind) selectedSkill = await this.policies.loadSkill(skillKind);
       }
@@ -483,6 +551,34 @@ export class RunLearningTurn {
       ? { kind: "selected", paths: program.constraints.sourcePaths }
       : researchScope;
     if (authority) visible = constrainResearchContext(visible, authority);
+    let focusedContextDigest = "";
+    if (program && !legacyLockedMode &&
+        (request.action === "practice" || request.practiceClarification ||
+          request.programActivity?.kind === "teach")) {
+      const objectiveId = program.focus?.objectiveId ??
+        activePracticeTurn?.objectiveId ?? request.programActivity?.objectiveId ??
+        selectAdaptiveActivity(program, state, Date.now()).objective?.id;
+      if (objectiveId) {
+        try {
+          const packageForTurn = buildLearningContextPackage({
+            program, state, objectiveId, visible,
+            approvedNotes: context.explicit.filter(item =>
+              item.type === "note" && item.source === "explicit" &&
+              !item.path.startsWith("attachment/"))
+              .map(item => ({ path: item.path, content: item.content })),
+            prompt: request.prompt, now: Date.now(),
+          });
+          visible = packageForTurn.visible;
+          focusedContextDigest = packageForTurn.digest;
+        } catch (error) {
+          if (this.activeTurn === activeTurn) this.activeTurn = null;
+          yield { type: "failed", failure: { code: "unknown",
+            message: "NOX could not assemble authorized learning context. No provider call was made.",
+            diagnostic: error instanceof Error ? error.message : String(error) } };
+          return;
+        }
+      }
+    }
     const system: AgentContext[] = [];
     if (selectedSkill?.content.trim()) {
       system.push({ type: "note", file: selectedSkill.path, content: selectedSkill.content });
@@ -504,7 +600,7 @@ export class RunLearningTurn {
       }
     }
 
-    if (!program?.constraints.sourceBound) system.push({
+    if (!program) system.push({
       type: "note",
       file: "00-learning-os/progress.json",
       content: JSON.stringify(
@@ -546,16 +642,17 @@ export class RunLearningTurn {
     const conversation = this.sessions.getSession();
     const turnSessionId = conversation.id;
     const practice = this.practiceForSession(conversation);
-    if (program && request.action === "practice" && !practice.isWaitingForAnswer() && !program.session) {
+    if (program && request.action === "practice" && !practice.isWaitingForAnswer() &&
+        !program.session && program.focus?.status !== "active") {
       if (this.activeTurn === activeTurn) this.activeTurn = null;
       yield { type: "failed", failure: { code: "busy", message: "Start a timeboxed session with /start-session before practicing your program." } };
       return;
     }
     const decision = program && request.action === "practice" && !practice.isWaitingForAnswer()
-      ? chooseNextActivity(program, state.evidence)
+      ? selectAdaptiveActivity(program, state, Date.now())
       : undefined;
     const objective: LearningObjective | undefined = decision?.objective;
-    if (decision && (!objective || decision.kind === "timebox-ended")) {
+    if (decision && (!objective || decision.kind === "timebox-ended" || decision.kind === "wait")) {
       if (this.activeTurn === activeTurn) this.activeTurn = null;
       yield { type: "failed", failure: { code: "busy",
         message: decision.reason + " Use /progress to inspect the current plan." } };
@@ -683,8 +780,14 @@ export class RunLearningTurn {
         : objective;
       if (activeObjective) {
         const lastEvidence = state.evidence.filter(item => item.scope === "learner" &&
-          item.programId === program.id && item.objectiveId === activeObjective.id).slice(-1)[0];
+          item.programId === program.id && item.objectiveId === activeObjective.id &&
+          item.evidenceVersion === 3 &&
+          item.objectiveRevision === (activeObjective.objectiveRevision ?? program.planVersion))
+          .sort((a, b) => a.createdAt - b.createdAt || a.id.localeCompare(b.id)).at(-1);
         const missed = lastEvidence?.rubricResults?.filter(result => !result.met).map(result => result.criterion) ?? [];
+        const feedback = !practiceAttempt && lastEvidence?.evidenceVersion === 3 &&
+          lastEvidence.objectiveRevision === (activeObjective.objectiveRevision ?? program.planVersion)
+          ? decideFeedback(activeObjective, state.evidence, lastEvidence) : undefined;
         preparedPrompt += [
           "\n\nLEARNING PROGRAM CONTRACT (set by the application, not user-provided notes):",
           `Program ID: ${program.id}. Goal: ${program.goal}`,
@@ -693,6 +796,11 @@ export class RunLearningTurn {
           `Activity: ${practiceAttempt ? "evaluate current answer" : decision?.kind}`,
           "For guided practice use appropriate scaffolding; for transfer test application in a new context.",
           `Previously failed rubric criteria: ${JSON.stringify(missed)}. If remedial practice, target these first.`,
+          `Evidence-based feedback: ${JSON.stringify(feedback ?? { kind: "diagnostic" })}. Never claim mastery without independent delayed recall.`,
+          `Application-selected activity: ${JSON.stringify(decision ? {
+            kind: decision.kind, objectiveId: decision.objective?.id,
+            provenance: decision.provenance,
+          } : { kind: "evaluate-existing-question" })}. The model cannot change or override this choice.`,
           `Source constraint: ${program.constraints.sourceBound
             ? "Only the explicitly selected source note(s), do not claim external facts were verified."
             : "Use provided material where available and distinguish assumptions."}`,
@@ -715,6 +823,21 @@ export class RunLearningTurn {
         objective: activeObjective,
         hasQuestion: Boolean(practiceAttempt),
       }, preparedPrompt);
+    }
+    if (request.practiceClarification) {
+      if (!activePracticeTurn || activePracticeTurn.id !== request.practiceClarification.questionId ||
+          !existingPractice?.isWaitingForAnswer()) {
+        throw new Error("The question was answered or replaced before clarification.");
+      }
+      preparedPrompt += "\n\nQUESTION CLARIFICATION ONLY: " +
+        activePracticeTurn.question + ". Explain the learner's uncertainty without revealing the answer. " +
+        "Do not grade, emit practice-question/practice-evaluation, change focus, or claim mastery. " +
+        "Keep the current question pending. Clarification counts as assistance.";
+    }
+    if (focusedContextDigest) {
+      preparedPrompt += "\n\nOBJECTIVE-SCOPED LEARNING CONTEXT (derived only from current-revision committed evidence):\n" +
+        focusedContextDigest + "\nUse only the attached approved note excerpts for source-grounded facts. " +
+        "A previous hidden provider conversation or lossy chat digest is never evidence of mastery.";
     }
     const parser = new StructuredStreamParser();
     const scopedEvents: StructuredStreamEvent[] = [];
@@ -763,6 +886,7 @@ export class RunLearningTurn {
         await this.sessions.recordUserMessage(request.prompt, turnSessionId, request.action,
           request.turnId, request.replyTo);
       }
+      if (request.practiceClarification) practice.markClarificationUsed();
 
       // A retry replays a durable edit decision instead of invoking the model.
       // Settled proposals must never be reopened as pending.
@@ -823,6 +947,11 @@ export class RunLearningTurn {
           ...graded, programId: practiceAttempt.programId,
           objectiveId: practiceAttempt.objectiveId,
           assisted: Boolean(practiceAttempt.assisted),
+          focusSessionId: practiceAttempt.focusSessionId,
+          assistance: { highestHintLevel: practiceAttempt.highestHintLevel,
+            independent: practiceAttempt.highestHintLevel === 0 },
+          evaluator: "deterministic",
+          objectiveRevision: practiceAttempt.objectiveRevision,
           taskKind: practiceAttempt.taskKind,
           assessmentCoverage: practiceAttempt.programId ? "single-item" : undefined,
         };
@@ -1012,6 +1141,10 @@ export class RunLearningTurn {
             return;
           }
 
+          if (request.practiceClarification &&
+              (practiceBuffer.question || practiceBuffer.evaluation)) {
+            throw new InvalidLearningOutputError("A clarification cannot create or grade a practice question.");
+          }
           // Terminal success is insufficient when an intent has a required result.
           if (request.action === "practice" && !practiceAttempt && !practiceBuffer.question) {
             throw new InvalidLearningOutputError("Practice completed without a question.");
@@ -1022,10 +1155,12 @@ export class RunLearningTurn {
 
           // A parsed question is only a candidate until the agent completes.
           // Never leave a durable or visible unanswered question after failure.
+          if (program?.focus) await this.assertFocusAuthority(program.focus, turnSessionId);
           if (practiceBuffer.question) {
             practiceBuffer.question = program && objective
               ? { ...practiceBuffer.question, concept: objective.title, programId: program.id,
-                  objectiveId: objective.id, taskKind: decision?.kind === "transfer" || decision?.kind === "recall" ||
+                  objectiveId: objective.id, focusSessionId: program.focus?.id,
+                  objectiveRevision: objective.objectiveRevision ?? program.planVersion, taskKind: decision?.kind === "transfer" || decision?.kind === "recall" ||
                     decision?.kind === "guided-practice" ? decision.kind : "diagnostic" as const }
               : { ...practiceBuffer.question, programId: undefined, objectiveId: undefined };
             const questionId = crypto.randomUUID();
@@ -1048,12 +1183,27 @@ export class RunLearningTurn {
                 throw new InvalidLearningOutputError("Evaluation did not fully and consistently assess the objective rubric.");
               }
             }
-            const evaluation = practiceAttempt.programId
-              ? { ...practiceBuffer.evaluation, programId: practiceAttempt.programId,
-                  objectiveId: practiceAttempt.objectiveId, nextQuestion: undefined,
-                  assisted: Boolean(practiceAttempt.assisted), taskKind: practiceAttempt.taskKind }
-              : { ...practiceBuffer.evaluation,
-                  programId: undefined, objectiveId: undefined, assisted: Boolean(practiceAttempt.assisted) };
+            const activeObjective = practiceAttempt.programId
+              ? program?.objectives.find(item => item.id === practiceAttempt.objectiveId) : undefined;
+            const rubricResults = activeObjective && practiceAttempt.objectiveRevision !== undefined
+              ? practiceBuffer.evaluation.rubricResults?.map(result => ({
+                  ...result, criterionId: criterionIdFor(activeObjective.id,
+                    practiceAttempt.objectiveRevision!, activeObjective.rubric.indexOf(result.criterion)),
+                })) : practiceBuffer.evaluation.rubricResults;
+            const evaluation: PracticeEvaluation = {
+              ...practiceBuffer.evaluation,
+              programId: practiceAttempt.programId,
+              objectiveId: practiceAttempt.objectiveId,
+              focusSessionId: practiceAttempt.focusSessionId,
+              objectiveRevision: practiceAttempt.objectiveRevision,
+              rubricResults,
+              nextQuestion: practiceAttempt.programId ? undefined : practiceBuffer.evaluation.nextQuestion,
+              assisted: Boolean(practiceAttempt.assisted),
+              assistance: { highestHintLevel: practiceAttempt.highestHintLevel,
+                independent: practiceAttempt.highestHintLevel === 0 },
+              evaluator: "llm-review",
+              taskKind: practiceAttempt.taskKind,
+            };
             for await (const mapped of this.commitPracticeOutcome(
               evaluation,
               snapshot,
@@ -1086,14 +1236,10 @@ export class RunLearningTurn {
               source,
               turnSessionId,
             );
-            const before = await this.learningState.load();
-            const after = recordReviewFindings(before, {
+            const outcome = await this.appendEvidenceSafely(before => recordReviewFindings(before, {
               findings: committed.findings, source: committed.sourcePath ?? source, reviewId,
-            });
-            if (after.evidence.length !== before.evidence.length) {
-              await this.learningState.save(after);
-              yield { type: "learning-state-updated", state: after };
-            }
+            }));
+            if (outcome.appended) yield { type: "learning-state-updated", state: outcome.state };
             yield { type: "review-findings", findings: committed.findings };
           }
           // Save the narrative and proposal atomically before UI gets Apply.
@@ -1209,53 +1355,77 @@ export class RunLearningTurn {
     }
   }
 
-  /** Replays committed transcript outcomes missing from progress.json. */
+  /**
+   * Project a committed transcript event against the latest durable evidence
+   * snapshot. CAS conflicts are recoverable; duplicate event IDs are no-ops.
+   * Other persistence failures are surfaced rather than silently ignored.
+   */
+  private async appendEvidenceSafely(
+    transition: (current: LearningState) => LearningState,
+    initial?: LearningState,
+  ): Promise<{ state: LearningState; appended: boolean }> {
+    for (let attempt = 0; attempt < 4; attempt++) {
+      const before = attempt === 0 && initial ? initial : await this.learningState.load();
+      const after = transition(before);
+      if (after.evidence.length === before.evidence.length) {
+        return { state: before, appended: false };
+      }
+      try {
+        await this.learningState.save(after, before);
+        return { state: after, appended: true };
+      } catch (error) {
+        if (!(error instanceof LearningStateWriteConflict) || attempt === 3) throw error;
+      }
+    }
+    throw new LearningStateWriteConflict();
+  }
+
+  /** Replays transcript outcomes after a failed progress write without reevaluation. */
   private async reconcileTranscriptEvidence(
     session: ChatSession,
-    initial: Awaited<ReturnType<LearningStatePort["load"]>>,
-  ): Promise<Awaited<ReturnType<LearningStatePort["load"]>>> {
-    let state = initial;
-    let changed = false;
-    // Preserve fork boundaries while skipping already committed evidence.
-    const existingIds = new Set(initial.evidence.map(item => item.id));
-    for (const message of session.messages.slice(session.fork?.inheritedMessageCount ?? 0)) {
-      for (const part of message.parts ?? []) {
-        if (part.type === "practice-evaluation" && part.questionId) {
-          const operationId = part.operationId ?? `practice:${session.id}:${part.questionId}`;
-          if (existingIds.has(operationId)) continue;
-          const next = recordPracticeEvaluation(state, {
-            evaluation: part.evaluation,
-            source: part.sourcePath ?? message.sourcePath ?? "learning-session",
-            evidenceId: operationId,
-            programId: part.evaluation.programId,
-            objectiveId: part.evaluation.objectiveId,
-            assisted: part.evaluation.assisted,
-          });
-          if (next.evidence.length !== state.evidence.length) {
-            changed = true;
-            state = next;
-            existingIds.add(operationId);
+    initial: LearningState,
+  ): Promise<LearningState> {
+    const replay = (source: LearningState): LearningState => {
+      let state = source;
+      const existingIds = new Set(source.evidence.map(item => item.id));
+      for (const message of session.messages.slice(session.fork?.inheritedMessageCount ?? 0)) {
+        for (const part of message.parts ?? []) {
+          if (part.type === "practice-evaluation" && part.questionId) {
+            const operationId = part.operationId ?? `practice:${session.id}:${part.questionId}`;
+            if (existingIds.has(operationId)) continue;
+            const next = recordPracticeEvaluation(state, {
+              evaluation: part.evaluation,
+              source: part.sourcePath ?? message.sourcePath ?? "learning-session",
+              evidenceId: operationId,
+              programId: part.evaluation.programId,
+              objectiveId: part.evaluation.objectiveId,
+              assisted: part.evaluation.assisted,
+              questionId: part.questionId,
+            });
+            if (next.evidence.length !== state.evidence.length) {
+              state = next;
+              existingIds.add(operationId);
+            }
           }
-        }
-        if (part.type === "review-findings" && part.reviewId) {
-          if (part.findings.every((_, index) => existingIds.has(part.reviewId + ":" + index))) continue;
-          const next = recordReviewFindings(state, {
-            findings: part.findings,
-            source: part.sourcePath ?? message.sourcePath ?? "learning-session",
-            reviewId: part.reviewId,
-          });
-          if (next.evidence.length !== state.evidence.length) {
-            changed = true;
-            state = next;
-            for (let index = 0; index < part.findings.length; index++) {
-              existingIds.add(part.reviewId + ":" + index);
+          if (part.type === "review-findings" && part.reviewId) {
+            if (part.findings.every((_, index) => existingIds.has(part.reviewId + ":" + index))) continue;
+            const next = recordReviewFindings(state, {
+              findings: part.findings,
+              source: part.sourcePath ?? message.sourcePath ?? "learning-session",
+              reviewId: part.reviewId,
+            });
+            if (next.evidence.length !== state.evidence.length) {
+              state = next;
+              for (let index = 0; index < part.findings.length; index++) {
+                existingIds.add(part.reviewId + ":" + index);
+              }
             }
           }
         }
       }
-    }
-    if (changed) await this.learningState.save(state);
-    return state;
+      return state;
+    };
+    return (await this.appendEvidenceSafely(replay, initial)).state;
   }
 
   cancel(): void {
@@ -1294,6 +1464,15 @@ export class RunLearningTurn {
           ? { kind: "question", concept: evaluation.concept, question: nextText }
           : undefined;
         const nextId = nextQuestion ? crypto.randomUUID() : undefined;
+        if (practiceAttempt.focusSessionId) {
+          if (!this.programStore) throw new Error("Focus persistence is unavailable.");
+          const collection = await this.programStore.load();
+          const current = collection.programs.find(p => p.id === practiceAttempt.programId);
+          if (!current?.focus || current.focus.id !== practiceAttempt.focusSessionId) {
+            throw new Error("Cannot commit evaluation from a replaced objective focus.");
+          }
+          await this.assertFocusAuthority(current.focus, sessionId);
+        }
         const operationId = `practice:${sessionId}:${practiceAttempt.questionId}`;
         const parts: TranscriptPart[] = [
           { type: "practice-evaluation", evaluation: evaluation,
@@ -1313,18 +1492,16 @@ export class RunLearningTurn {
         if (!evaluationPart || evaluationPart.type !== "practice-evaluation") {
           throw new Error("Committed practice outcome missing evaluation");
         }
-        const currentState = await this.learningState.load();
-        const nextState = recordPracticeEvaluation(currentState, {
+        const projection = await this.appendEvidenceSafely(before => recordPracticeEvaluation(before, {
           evaluation: evaluationPart.evaluation,
           source: evaluationPart.sourcePath ?? source,
           evidenceId: operationId,
           programId: evaluationPart.evaluation.programId,
           objectiveId: evaluationPart.evaluation.objectiveId,
           assisted: evaluationPart.evaluation.assisted,
-        });
-        if (nextState.evidence.length !== currentState.evidence.length) {
-          await this.learningState.save(nextState);
-        }
+          questionId: evaluationPart.questionId,
+        }));
+        const nextState = projection.state;
 
         practice.commitEvaluation(practiceAttempt, evaluationPart.evaluation, evaluationPart.nextQuestionId);
         yield { type: "practice-evaluation", evaluation: evaluationPart.evaluation,

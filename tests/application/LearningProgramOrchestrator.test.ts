@@ -24,6 +24,7 @@ function rig(payload: unknown = draft(), success = true) {
   let writes = 0;
   const context = { activeNote: { path: "notes/spanish.md", content: "Hola means hello." }, explicit: [] };
   const runtime = {
+    supportsSourceIsolation: () => true,
     send: async function* () {
       yield { type: "text", content: "```learning-program\n" +
         JSON.stringify(payload) + "\n```" };
@@ -164,4 +165,25 @@ test("cancelled or invalid preview never writes a program", async () => {
   const { orchestrator, writes } = rig({ kind: "curriculum", objectives: [] });
   await assert.rejects(orchestrator.prepareProgram("Learn something", base), /1–60/);
   assert.equal(writes(), 0);
+});
+
+test("objective focus lifecycle persists without a timed session and resumes only in owning chat", async () => {
+  const { orchestrator, stored } = rig();
+  await orchestrator.createProgram("Spanish", base);
+  await assert.rejects(orchestrator.startFocus("apply", "chat-a"), /Prerequisites/);
+  const focused = await orchestrator.startFocus("basic", "chat-a");
+  assert.equal(focused.session, undefined);
+  assert.equal(focused.focus?.objectiveId, "basic");
+  assert.equal((await orchestrator.getDecision())?.decision.kind, "diagnostic");
+  await assert.rejects(orchestrator.startFocus("basic", "chat-a"), /End the existing/);
+  await assert.rejects(orchestrator.prepareProgram("Other", base), /Pause or end/);
+  await orchestrator.recoverSessions();
+  assert.equal(stored().programs[0].focus?.status, "paused");
+  await assert.rejects(orchestrator.resumeFocus("chat-b"), /original chat/);
+  await orchestrator.resumeFocus("chat-a");
+  assert.equal(stored().programs[0].focus?.id, focused.focus?.id);
+  await orchestrator.pauseFocus();
+  await orchestrator.endFocus();
+  assert.equal(stored().programs[0].focus, undefined);
+  orchestrator.dispose();
 });

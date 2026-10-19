@@ -64,6 +64,16 @@ function makeRig(withProgram = false) {
     getAbstractFileByPath: (path: string) => folders.has(path) ? { path } : null,
     createFolder: async (path: string) => { folders.add(path); },
     cachedRead: async (file: TFile) => files.get(file.path)!.content,
+    read: async (file: TFile) => files.get(file.path)!.content,
+    process: async (file: TFile, update: (current: string) => string) => {
+      if (file.path.endsWith("progress.json") && failProgressWrites-- > 0) {
+        throw new Error("simulated atomic vault write failure");
+      }
+      const entry = files.get(file.path);
+      if (!entry) throw new Error("Missing vault file for atomic update");
+      // Match Vault.process: callback failure never replaces bytes.
+      entry.content = update(entry.content);
+    },
     modify: async (file: TFile, content: string) => {
       if (file.path.endsWith("progress.json") && failProgressWrites-- > 0) {
         throw new Error("simulated vault write failure");

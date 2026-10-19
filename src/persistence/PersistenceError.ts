@@ -8,3 +8,11 @@ export class PersistenceError extends Error {
     this.diagnostic = cause instanceof Error ? cause.message : String(cause);
   }
 }
+
+/** Optimistic vault snapshot conflict, safe to retry after a fresh load. */
+export class LearningStateWriteConflict extends Error {
+  constructor() {
+    super("Learning progress changed since it was loaded. Reload and retry evidence projection.");
+    this.name = "LearningStateWriteConflict";
+  }
+}

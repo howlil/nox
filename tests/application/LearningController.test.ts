@@ -10,8 +10,12 @@ import {
 } from "../../src/types";
 import { LearningController } from "../../src/application/LearningController";
 import { LearningState } from "../../src/domain/learning-state/types";
+import { LearningStateWriteConflict } from "../../src/persistence/PersistenceError";
 import { collectEvents } from "../support/collect-events";
 import type { ResearchResult } from "../../src/context/LocalResearch";
+import type { ProgramStorePort } from "../../src/application/ports";
+import type { ExplicitContextRef } from "../../src/context/context-types";
+import type { LearningProgram } from "../../src/domain/learning-program/types";
 
 function baseState(): LearningState {
   return {
@@ -35,7 +39,11 @@ function createHarness(
     researchResult?: ResearchResult;
     initialConversationId?: string;
     learningSaveFailures?: number;
+    learningConflictFailures?: number;
     evaluationTranscriptFailures?: number;
+    programStore?: ProgramStorePort;
+    runtimeProvider?: ChatSession["runtimeProvider"];
+    onResolve?: (refs: ExplicitContextRef[]) => void;
     programTimer?: { beginAiWait(id: string): Promise<boolean>;
       finishAiWait?(id: string): Promise<void>; isPlanning(): boolean };
   } = {},
@@ -43,6 +51,7 @@ function createHarness(
   let session: ChatSession = {
     id: "session-1",
     conversationId: options.initialConversationId,
+    runtimeProvider: options.runtimeProvider,
     messages: [],
     createdAt: 1,
     updatedAt: 1,
@@ -218,13 +227,16 @@ function createHarness(
   };
 
   const contexts = {
-    resolve: async () => options.contextOverride ?? ({
+    resolve: async (refs: ExplicitContextRef[] = []) => {
+      options.onResolve?.(refs);
+      return options.contextOverride ?? ({
       activeNote: {
         path: "note.md",
         content: "current note",
       },
       explicit: [],
-    }),
+    });
+    },
     searchNotes: () => [],
     searchKnowledge: async (query: string) => options.researchResult ?? {
       query, subquestions: [query], hits: [], edges: [],
@@ -256,11 +268,23 @@ function createHarness(
 
   let state = baseState();
   let saveFailures = options.learningSaveFailures ?? 0;
+  let conflictFailures = options.learningConflictFailures ?? 0;
   const learningState = {
-    load: async () => state,
-    save: async (next: LearningState) => {
+    load: async () => structuredClone(state),
+    save: async (next: LearningState, expected?: LearningState) => {
       if (saveFailures-- > 0) throw new Error("Simulated vault persistence failure");
-      state = next;
+      if (conflictFailures-- > 0) {
+        state = { ...state, evidence: [...state.evidence, {
+          id: "concurrent-review-" + conflictFailures, type: "review",
+          scope: "material", concept: "Other note", source: "other.md",
+          outcome: "gap", createdAt: 2,
+        }] };
+        throw new LearningStateWriteConflict();
+      }
+      if (expected && JSON.stringify(expected) !== JSON.stringify(state)) {
+        throw new LearningStateWriteConflict();
+      }
+      state = structuredClone(next);
     },
   };
 
@@ -271,7 +295,7 @@ function createHarness(
     policies,
     mutations,
     learningState,
-    { turnTimeoutMs: 50 },
+    { turnTimeoutMs: 50, programStore: options.programStore },
     options.programTimer as never,
   );
 
@@ -1283,4 +1307,170 @@ test("failed ancillary timer commit never converts durable model success into fa
     event.type === "failed").map(event => event.type), ["completed"]);
   assert.equal(h.getSentContexts().length, 1);
   assert.equal(checkpoints, 1);
+});
+
+
+test("global focus admission blocks unrelated and cross-chat turns before provider invocation", async () => {
+  const focus = {
+    id: "focus-1", programId: "p", objectiveId: "race", curriculumRevision: 1,
+    chatSessionId: "session-1", status: "active" as const, startedAt: 100,
+  };
+  const harness = createHarness(async function* () {
+    throw new Error("Agent must never be called by a blocked learning intent.");
+  }, { programTimer: {
+    isPlanning: () => false,
+    dispose: () => {},
+    beginAiWait: async () => false,
+    getGlobalActiveFocus: async () => ({ program: { id: "p", focus }, focus }),
+    getActiveProgram: async () => ({ id: "p", focus }),
+  } as never });
+  const first = await collectEvents(harness.controller.run({
+    prompt: "Explain astronomy", action: "ask", explicitContext: [],
+  }));
+  assert.ok(first.some(event => event.type === "failed"));
+  assert.equal(harness.prompts.length, 0);
+  await harness.controller.newSession();
+  const second = await collectEvents(harness.controller.run({
+    prompt: "Solve this practice question", action: "practice", explicitContext: [],
+  }));
+  assert.ok(second.some(event => event.type === "failed"));
+  assert.equal(harness.prompts.length, 0);
+  harness.controller.dispose();
+});
+
+
+test("M5 source-bound provider receives only objective-grounded chunks and scoped learning evidence", async () => {
+  const source = "# SQL\nTransaction isolation prevents inconsistent reads.";
+  const plan: LearningProgram = {
+    id: "plan", goal: "Learn transaction isolation", createdAt: 1, planVersion: 1, version: 2,
+    constraints: { sourceBound: true, sourcePaths: ["sql.md"], excludedTopics: [],
+      minutesPerSession: 45, sessionsPerWeek: 3 },
+    objectives: [{ id: "isolation", title: "Transaction isolation",
+      outcome: "Explain transaction isolation", prerequisiteIds: [],
+      estimatedMinutes: 30, rubric: ["Explain isolation"],
+      priority: "core", sourceRefs: ["sql.md"] }],
+    session: { startedAt: Date.now(), timeBudgetMinutes: 45 },
+  };
+  const requestedRefs: ExplicitContextRef[][] = [];
+  const harness = createHarness(async function* () {
+    yield { type: "text", content: [
+      "\`\`\`learning-practice", JSON.stringify({
+        kind: "question", concept: "Transaction isolation",
+        question: "How does isolation prevent inconsistent reads?",
+      }), "\`\`\`",
+    ].join("\n") };
+    yield { type: "completed" };
+  }, {
+    runtimeProvider: "chatgpt",
+    programStore: { load: async () => ({ version: 2, activeProgramId: "plan",
+      programs: [structuredClone(plan)] }), save: async () => {} },
+    onResolve: refs => requestedRefs.push([...refs]),
+    contextOverride: { activeNote: { path: "private.md", content: "OFF_TOPIC_SECRET_M5" },
+      explicit: [{ type: "note", path: "sql.md", content: source, source: "explicit" }] },
+    agentContexts: [{ type: "note", file: "private.md", content: "OFF_TOPIC_SECRET_M5" },
+      { type: "note", file: "sql.md", content: source }],
+  });
+  const events = await collectEvents(harness.controller.run({
+    prompt: "Ask a question on transaction isolation", action: "practice",
+    explicitContext: [
+      { kind: "vault-note", path: "private.md" },
+      { kind: "attachment", name: "outside.txt", content: "UNAPPROVED_ATTACHMENT_M5" },
+    ],
+  }));
+  assert.equal(harness.prompts.length, 1);
+  assert.ok(events.some(e => e.type === "completed"));
+  assert.deepEqual(requestedRefs[0], [{ kind: "vault-note", path: "sql.md" }]);
+  const sent = harness.getSentContexts()[0] ?? [];
+  assert.ok(sent.some(item => item.file === "sql.md" && item.content.includes("line ")));
+  assert.ok(sent.every(item => item.file === "sql.md"));
+  assert.ok(!JSON.stringify(sent).includes("OFF_TOPIC_SECRET_M5"));
+  assert.ok(!JSON.stringify(sent).includes("UNAPPROVED_ATTACHMENT_M5"));
+  assert.ok(harness.prompts[0].includes("OBJECTIVE-SCOPED LEARNING CONTEXT"));
+  assert.ok(!harness.prompts[0].includes("00-learning-os/progress.json"));
+  assert.deepEqual(harness.getSentHistories()[0], []);
+  assert.equal(harness.getSentCursors()[0], undefined);
+});
+
+test("M5 missing source cannot reach provider and produces recoverable failed event", async () => {
+  const plan: LearningProgram = {
+    id: "plan", goal: "SQL", createdAt: 1, planVersion: 1, version: 2,
+    constraints: { sourceBound: true, sourcePaths: ["sql.md"], excludedTopics: [],
+      minutesPerSession: 45, sessionsPerWeek: 3 },
+    objectives: [{ id: "isolation", title: "Transaction isolation",
+      outcome: "Explain transaction isolation", prerequisiteIds: [],
+      estimatedMinutes: 30, rubric: ["Explain isolation"],
+      priority: "core", sourceRefs: ["sql.md"] }],
+    session: { startedAt: Date.now(), timeBudgetMinutes: 45 },
+  };
+  const harness = createHarness(async function* () {
+    throw new Error("Provider should never be called");
+    yield { type: "completed" };
+  }, {
+    runtimeProvider: "chatgpt",
+    programStore: { load: async () => ({ version: 2, activeProgramId: "plan",
+      programs: [structuredClone(plan)] }), save: async () => {} },
+    contextOverride: { activeNote: { path: "private.md", content: "do not send" }, explicit: [] },
+    agentContexts: [{ type: "note", file: "private.md", content: "do not send" }],
+  });
+  const events = await collectEvents(harness.controller.run({
+    prompt: "Practice isolation", action: "practice", explicitContext: [],
+  }));
+  assert.equal(harness.prompts.length, 0);
+  assert.ok(events.some(e => e.type === "failed"));
+});
+
+test("M7 CAS conflict retries the same durable evaluation without dropping concurrent evidence", async () => {
+  const fence = "```";
+  let modelCalls = 0;
+  const h = createHarness(async function* () {
+    modelCalls++;
+    const payload = modelCalls === 1
+      ? { kind: "question", concept: "atomicity", question: "What is atomicity?" }
+      : { kind: "evaluation", concept: "atomicity", outcome: "correct",
+          feedback: "All-or-nothing", misconceptions: [] };
+    yield { type: "text", content: fence + "learning-practice\n" +
+      JSON.stringify(payload) + "\n" + fence };
+    yield { type: "completed" };
+  }, { learningConflictFailures: 1 });
+  await collectEvents(h.controller.run({
+    prompt: "Practice", action: "practice", explicitContext: [],
+  }));
+  const result = await collectEvents(h.controller.run({
+    prompt: "An atomic transaction commits entirely", action: "practice", explicitContext: [],
+  }));
+  assert.ok(result.some(x => x.type === "practice-evaluation"));
+  assert.ok(result.some(x => x.type === "completed"));
+  assert.equal(modelCalls, 2, "projection retry must not repeat provider grading");
+  const events = h.getEvidence();
+  assert.equal(events.length, 2);
+  assert.ok(events.some(e => e.id.startsWith("concurrent-review-")));
+  assert.equal(events.filter(e => e.type === "practice").length, 1);
+  assert.equal(h.getStructuredParts().filter(p => p.type === "practice-evaluation").length, 1);
+});
+
+test("M7 repeated CAS contention preserves the transcript and recovers on retry", async () => {
+  const fence = "```";
+  let modelCalls = 0;
+  const h = createHarness(async function* () {
+    modelCalls++;
+    const payload = modelCalls === 1
+      ? { kind: "question", concept: "isolation", question: "Define isolation." }
+      : { kind: "evaluation", concept: "isolation", outcome: "correct",
+          feedback: "Transactions are isolated", misconceptions: [] };
+    yield { type: "text", content: fence + "learning-practice\n" +
+      JSON.stringify(payload) + "\n" + fence };
+    yield { type: "completed" };
+  }, { learningConflictFailures: 4 });
+  await collectEvents(h.controller.run({ prompt: "Quiz", action: "practice", explicitContext: [] }));
+  const failed = await collectEvents(h.controller.run({
+    prompt: "No intermediate reads", action: "practice", explicitContext: [],
+  }));
+  assert.ok(failed.some(x => x.type === "failed"));
+  assert.equal(h.getStructuredParts().filter(p => p.type === "practice-evaluation").length, 1);
+  const replay = await collectEvents(h.controller.run({
+    prompt: "No intermediate reads", action: "practice", explicitContext: [], retry: true,
+  }));
+  assert.ok(replay.some(x => x.type === "practice-evaluation"));
+  assert.equal(modelCalls, 2);
+  assert.equal(h.getEvidence().filter(e => e.type === "practice").length, 1);
 });

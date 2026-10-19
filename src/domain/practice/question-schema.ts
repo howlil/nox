@@ -59,7 +59,8 @@ export function isPracticeQuestion(input: unknown): input is PracticeQuestion {
     (x.instructions === undefined || isInstructions(x.instructions)) &&
     (x.input === undefined || isPracticeInput(x.input)) &&
     (x.programId === undefined || text(x.programId, 250)) &&
-    (x.objectiveId === undefined || text(x.objectiveId, 250));
+    (x.objectiveId === undefined || text(x.objectiveId, 250)) &&
+    (x.focusSessionId === undefined || text(x.focusSessionId, 250));
 }
 
 export function isPracticeAnswer(input: unknown): input is PracticeAnswer {

@@ -76,6 +76,7 @@ export interface ChatGptAdapterDeps { fetch: typeof fetch }
 
 /** Official Responses API via the account's OAuth grant; no API key or ChatGPT web session scraping. */
 export class ChatGptAdapter implements AgentAdapter {
+  readonly sourceIsolation = "no-filesystem-tools" as const;
   private readonly http: typeof fetch;
   private catalog?: { expires: number; models: AgentModel[] };
   constructor(private readonly auth: ChatGptAuth, deps: ChatGptAdapterDeps) {

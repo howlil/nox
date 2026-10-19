@@ -1,6 +1,8 @@
 import type { NoxProgramOverview } from "../application/learning-types";
 import { createNoxButton, setNoxIcon } from "./primitives";
 import { layoutLearningMap, LEARNING_MAP_NODE_SIZE, type LearningMapLayout } from "./learning-graph-layout";
+import { projectLearningPanel } from "./learning-panel-state";
+import { renderAdaptiveLearningPanel } from "./learning-panel-renderer";
 
 const SVG_NS = "http://www.w3.org/2000/svg";
 
@@ -81,6 +83,7 @@ export function renderLearningGraph(
   overview: NoxProgramOverview | null,
   onClose: () => void,
   onNext: () => void,
+  onCommand: (command: string) => void = () => {},
 ): HTMLElement {
   const root = parent.createDiv({ cls: "nox-learning-graph" });
   parent.prepend(root);
@@ -93,13 +96,15 @@ export function renderLearningGraph(
     return root;
   }
   root.createDiv({ cls: "nox-learning-graph-goal", text: overview.goal });
-  const mastered = overview.objectives.filter(item => item.status === "mastered").length;
-  root.createDiv({ cls: "nox-inspector-muted", text: `${mastered} of ${overview.objectives.length} mastered · Mastery requires independent recall` });
+  const panel = projectLearningPanel(overview, Date.now());
+  const mastered = panel.mastered;
+  root.createDiv({ cls: "nox-inspector-muted", text: `${mastered} of ${panel.total} mastered · Mastery requires independent recall` });
   const track = root.createDiv({ cls: "nox-learning-graph-track", attr: { role: "progressbar",
     "aria-label": "Mastered learning objectives", "aria-valuemin": "0",
     "aria-valuemax": String(overview.objectives.length), "aria-valuenow": String(mastered) } });
   const fill = track.createDiv();
   fill.style.width = (overview.objectives.length ? (mastered / overview.objectives.length) * 100 : 0) + "%";
+  renderAdaptiveLearningPanel(root, panel, onCommand);
   const layout = layoutLearningMap(overview.objectives.map(item => ({
     id: item.objective.id, title: item.objective.title, status: item.status,
     prerequisiteIds: item.objective.prerequisiteIds,
@@ -129,12 +134,24 @@ export function renderLearningGraph(
       text: "Next recall: " + new Date(item.dueAt).toLocaleString() });
     if (item.objective.sourceRefs.length) body.createDiv({ cls: "nox-inspector-muted",
       text: "Sources: " + item.objective.sourceRefs.join(", ") });
+    if (item.criteria.length) {
+      const rubric = body.createEl("details", { cls: "nox-adaptive-node-rubric" });
+      rubric.createEl("summary", { text: "Criterion evidence (" +
+        item.criteria.filter(criterion => criterion.status === "verified").length + "/" +
+        item.criteria.length + ")" });
+      for (const criterion of item.criteria) {
+        const line = rubric.createDiv({ cls: "nox-adaptive-node-criterion" });
+        line.createSpan({ text: criterion.label });
+        line.createSpan({ text: criterion.status.replace(/-/g, " ") });
+      }
+    }
   }
   const next = root.createDiv({ cls: "nox-graph-next" });
   next.createDiv({ cls: "nox-inspector-heading", text: "Recommended next" });
   next.createDiv({ text: overview.next.reason });
   const action = createNoxButton(next, { variant: "secondary",
-    text: overview.active ? "Continue" : "Start session" });
+    text: overview.focus?.status === "paused" ? "Resume focus" :
+      overview.active ? "Continue" : overview.next.objectiveId ? "Start focus" : "See progress" });
   action.addEventListener("click", onNext);
   return root;
 }

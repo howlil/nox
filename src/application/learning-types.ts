@@ -11,19 +11,27 @@ import {
 } from "../domain/practice/types";
 import { ReviewFinding } from "../domain/review/types";
 import type { LearningObjective, ActivityKind } from "../domain/learning-program/types";
+import type { CriterionKnowledge } from "../domain/learner-model/learner-profile";
+import type { CurriculumRevisionPreview } from "./CurriculumRevisionService";
 
 /** Read-only graph derived from authoritative learner evidence. */
 export interface NoxProgramOverview {
   goal: string;
+  planVersion: number;
+  revisionPreview?: CurriculumRevisionPreview;
   active: boolean;
+  focus?: { status: "active" | "paused"; objectiveId: string };
   sessionTime?: {
     budgetMs: number; activeMs: number; remainingMs: number; aiWaitingMs: number;
     status: "active" | "waiting-ai" | "paused" | "recovered" | "exhausted";
   };
-  next: { kind: ActivityKind; objectiveId?: string; reason: string };
+  next: { kind: ActivityKind; objectiveId?: string; reason: string; dueAt?: number;
+    trigger?: string; criterionIds?: string[]; scaffoldLevel?: number };
   objectives: Array<{ objective: LearningObjective;
     status: "unseen" | "remediate" | "provisional" | "mastered";
-    attempts: number; dueAt: number | null }>;
+    attempts: number; dueAt: number | null;
+    criteria: Array<{ id: string; label: string; status: CriterionKnowledge;
+      evidenceIds: string[] }> }>;
 }
 
 
@@ -49,6 +57,7 @@ export interface LearningRequest {
   turnId?: string;
   programActivity?: { programId: string; objectiveId: string; kind: "teach" };
   freePractice?: boolean;
+  practiceClarification?: { questionId: string };
   /** Typed submit from an interactive card, validated against the active question. */
   practiceSubmission?: { questionId: string; answer: PracticeAnswer };
 }

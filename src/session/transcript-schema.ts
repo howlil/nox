@@ -29,6 +29,7 @@ export function isTranscriptPart(value: unknown): value is TranscriptPart {
       (e.nextQuestion === undefined || typeof e.nextQuestion === "string") &&
       (e.programId === undefined || typeof e.programId === "string") &&
       (e.objectiveId === undefined || typeof e.objectiveId === "string") &&
+      (e.focusSessionId === undefined || (typeof e.focusSessionId === "string" && e.focusSessionId.length > 0)) &&
       (e.assisted === undefined || typeof e.assisted === "boolean") &&
       (e.assessmentCoverage === undefined || e.assessmentCoverage === "single-item") &&
       (e.rubricResults === undefined || isRubricResults(e.rubricResults)) &&

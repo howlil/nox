@@ -1,5 +1,7 @@
 import type { LearningEvidence } from "../learning-state/types";
 import { sessionRemainingMs } from "./session-time";
+import { decideFeedback } from "../learner-model/feedback-policy";
+import { isCurrentPracticeEvidence } from "../learner-model/evidence-eligibility";
 import type { CurriculumDraft, LearningDecision, LearningObjective, LearningProgram, ProgramConstraints } from "./types";
 
 const DAY = 86_400_000;
@@ -51,7 +53,12 @@ export function validateCurriculum(value: unknown, constraints: ProgramConstrain
       throw new Error("Objective IDs must be unique, stable ASCII identifiers.");
     }
     seen.add(o.id);
-    if (!isText(o.title) || !isText(o.outcome) || !Number.isInteger(o.estimatedMinutes) ||
+    if ((o.objectiveRevision !== undefined &&
+          (!Number.isInteger(o.objectiveRevision) || (o.objectiveRevision as number) < 1)) ||
+        (o.deprecated !== undefined && typeof o.deprecated !== "boolean") ||
+        (o.replacementIds !== undefined && !isStringList(o.replacementIds)) ||
+        (o.requiresTransfer !== undefined && typeof o.requiresTransfer !== "boolean") ||
+        !isText(o.title) || !isText(o.outcome) || !Number.isInteger(o.estimatedMinutes) ||
         (o.estimatedMinutes as number) < 5 || (o.estimatedMinutes as number) > 1200 ||
         !isStringList(o.prerequisiteIds) || !isStringList(o.rubric) || o.rubric.length < 1 || new Set(o.rubric).size !== o.rubric.length ||
         !isStringList(o.sourceRefs) ||
@@ -75,6 +82,10 @@ export function validateCurriculum(value: unknown, constraints: ProgramConstrain
       estimatedMinutes: o.estimatedMinutes as number,
       rubric: o.rubric as string[], sourceRefs,
       priority: o.priority as LearningObjective["priority"],
+      ...(o.objectiveRevision !== undefined ? { objectiveRevision: o.objectiveRevision as number } : {}),
+      ...(o.deprecated !== undefined ? { deprecated: o.deprecated as boolean } : {}),
+      ...(o.replacementIds !== undefined ? { replacementIds: o.replacementIds as string[] } : {}),
+      ...(o.requiresTransfer !== undefined ? { requiresTransfer: o.requiresTransfer as boolean } : {}),
     };
   });
   const byId = new Map(objectives.map(o => [o.id, o]));
@@ -110,23 +121,39 @@ export function feasibility(program: LearningProgram, now = Date.now()) {
 }
 
 function objectiveEvidence(program: LearningProgram, objectiveId: string, evidence: LearningEvidence[]) {
-  return evidence
+  const attempts = evidence
     .filter(item => item.scope === "learner" && item.type === "practice" &&
       item.programId === program.id && item.objectiveId === objectiveId)
-    .sort((a, b) => a.createdAt - b.createdAt);
+    .sort((a, b) => a.createdAt - b.createdAt || a.id.localeCompare(b.id));
+  // M1: never allow an earlier rubric revision to satisfy current criteria.
+  // Historical v2-only programs retain their original non-destructive projection.
+  const objective = program.objectives.find(o => o.id === objectiveId);
+  return objective ? attempts.filter(item => isCurrentPracticeEvidence(program, objective, item)) : [];
 }
 
 export function objectiveProgress(program: LearningProgram, objectiveId: string,
   evidence: LearningEvidence[], now = Date.now()) {
+  const target = program.objectives.find(item => item.id === objectiveId);
+  if (target?.deprecated) return { status: "unseen" as const, dueAt: null, attempts: 0 };
   const attempts = objectiveEvidence(program, objectiveId, evidence);
   if (!attempts.length) return { status: "unseen" as const, dueAt: null, attempts: 0 };
-  const last = attempts[attempts.length - 1];
-  if (last.outcome !== "correct" || last.assisted || last.assessmentCoverage === "single-item") return { status: "remediate" as const, dueAt: null, attempts: attempts.length };
-  const correct = attempts.filter(e => e.outcome === "correct" && !e.assisted && e.assessmentCoverage !== "single-item");
-  const independent = correct.some(a => correct.some(b => b.createdAt - a.createdAt >= 12 * 3_600_000));
-  const dueAt = last.createdAt + (independent ? 3 : 1) * DAY;
-  return { status: independent ? "mastered" as const : "provisional" as const,
-    dueAt, attempts: attempts.length, due: now >= dueAt };
+  const latestV3 = [...attempts].reverse().find(item => item.evidenceVersion === 3);
+  const objective = program.objectives.find(item => item.id === objectiveId);
+  if (latestV3 && objective) {
+    const decision = decideFeedback(objective, attempts, latestV3);
+    if (decision.kind === "ready-to-advance") {
+      const dueAt = latestV3.createdAt + 3 * DAY;
+      return { status: "mastered" as const, dueAt, attempts: attempts.length, due: now >= dueAt };
+    }
+    if (decision.kind === "delayed-recall") {
+      return { status: "provisional" as const, dueAt: decision.dueAt,
+        attempts: attempts.length, due: now >= decision.dueAt };
+    }
+    if (decision.kind === "transfer-check") return { status: "provisional" as const, dueAt: null, attempts: attempts.length };
+    return { status: "remediate" as const, dueAt: null, attempts: attempts.length };
+  }
+  // Old unversioned outcomes stay historical, never establish v3 mastery.
+  return { status: "unseen" as const, dueAt: null, attempts: 0 };
 }
 
 /** Deterministic priority: timebox > overdue recall > remediation > next eligible concept. */
@@ -147,7 +174,7 @@ export function chooseNextActivity(program: LearningProgram, evidence: LearningE
   }
   const states = new Map(program.objectives.map(item =>
     [item.id, objectiveProgress(program, item.id, evidence, now)] as const));
-  const candidates = program.objectives.filter(item => item.prerequisiteIds.every(id =>
+  const candidates = program.objectives.filter(item => !item.deprecated && item.prerequisiteIds.every(id =>
     states.get(id)?.status === "mastered"));
   const overdue = candidates.filter(item => {
     const state = states.get(item.id);
@@ -162,15 +189,24 @@ export function chooseNextActivity(program: LearningProgram, evidence: LearningE
     const last = attempts[attempts.length - 1];
     const taught = program.instructionEvents?.some(item =>
       item.objectiveId === remediation.id && item.afterEvidenceAt === last.createdAt);
-    const kind = last.outcome === "correct" && (last.assisted || last.assessmentCoverage === "single-item") ? "guided-practice" :
+    const kind = last.outcome === "correct" &&
+      (last.assisted || last.assistance?.independent === false ||
+        last.assessmentCoverage === "single-item") ? "guided-practice" :
       taught ? "guided-practice" : "teach";
     return { kind, objective: remediation,
       reason: kind === "teach" ? "Teach the missed concept before retrying." :
         "Guided practice should target the most recent failed criterion.",
       minutesRemaining: remaining };
   }
-  const transfer = candidates.find(item => states.get(item.id)?.status === "mastered" &&
-    !objectiveEvidence(program, item.id, evidence).some(attempt => attempt.taskKind === "transfer"));
+  const transfer = candidates.find(item => {
+    const state = states.get(item.id);
+    const hasIndependentTransfer = objectiveEvidence(program, item.id, evidence).some(attempt =>
+      attempt.taskKind === "transfer" && attempt.outcome === "correct" &&
+      attempt.assistance?.independent !== false && !attempt.assisted);
+    return (state?.status === "mastered" ||
+      (state?.status === "provisional" && item.requiresTransfer === true && state.dueAt === null)) &&
+      !hasIndependentTransfer;
+  });
   if (transfer) return { kind: "transfer", objective: transfer,
     reason: "Check whether knowledge transfers to a new situation.", minutesRemaining: remaining };
   const eligible = candidates.find(item => states.get(item.id)?.status === "unseen" && item.priority !== "optional") ??
@@ -182,4 +218,68 @@ export function chooseNextActivity(program: LearningProgram, evidence: LearningE
   return { kind: "wait", reason: pending.length ? "No eligible activity is due. Next review is scheduled." :
     "Prerequisites are not yet mastered or the program is complete.", dueAt: pending[0],
     minutesRemaining: remaining };
+}
+
+/**
+ * Focused activity deliberately bypasses time budget/deadline and objective
+ * selection. Only committed evidence for the pinned objective determines pacing.
+ */
+export function chooseFocusedActivity(program: LearningProgram, evidence: LearningEvidence[],
+  now = Date.now()): LearningDecision {
+  const focus = program.focus;
+  if (!focus || focus.status !== "active") return { kind: "wait", reason: "Resume objective focus first." };
+  const objective = program.objectives.find(o => o.id === focus.objectiveId);
+  if (!objective || objective.deprecated || focus.curriculumRevision !== program.planVersion) {
+    return { kind: "wait", reason: "The focus no longer matches the curriculum." };
+  }
+  const history = objectiveEvidence(program, objective.id, evidence);
+  if (!history.length) return { kind: "diagnostic", objective, reason: "Assess the pinned objective." };
+  const latest = history.at(-1)!;
+  // Evidence v3 is authoritative for current-revision mastery. Do not accidentally
+  // turn an assisted success into mastery or repeatedly schedule completed transfer.
+  if (latest.evidenceVersion === 3) {
+    const feedback = decideFeedback(objective, history, latest);
+    if (feedback.kind === "scaffold") {
+      return { kind: "guided-practice", objective,
+        reason: "Repeated criterion errors require graduated scaffolding." };
+    }
+    if (feedback.kind === "repair") {
+      return { kind: latest.outcome === "correct" ? "guided-practice" : "teach",
+        objective, reason: "Repair the specific missing rubric criteria." };
+    }
+    if (feedback.kind === "independent-check") {
+      return { kind: "guided-practice", objective,
+        reason: "An independent criterion check is required after assistance or a single item." };
+    }
+    if (feedback.kind === "delayed-recall") {
+      return now >= feedback.dueAt
+        ? { kind: "recall", objective, reason: "Independent delayed retrieval is due.", dueAt: feedback.dueAt }
+        : { kind: "wait", reason: "Independent delayed retrieval is not due yet.", dueAt: feedback.dueAt };
+    }
+    if (feedback.kind === "transfer-check") {
+      return { kind: "transfer", objective, reason: "Demonstrate the required transfer." };
+    }
+    const progress = objectiveProgress(program, objective.id, history, now);
+    if (progress.dueAt !== null && now >= progress.dueAt) {
+      return { kind: "recall", objective, reason: "Maintenance retrieval is due.", dueAt: progress.dueAt };
+    }
+    return { kind: "wait", reason: "Objective readiness is demonstrated. End focus or await the next recall.",
+      dueAt: progress.dueAt ?? undefined };
+  }
+  // Legacy attempts retain historical pacing, but never change the locked objective.
+  if (latest.outcome !== "correct") return { kind: "teach", objective, reason: "Repair the last misconception." };
+  if (latest.assisted || latest.assessmentCoverage === "single-item") {
+    return { kind: "guided-practice", objective, reason: "Verify the correction independently." };
+  }
+  const progress = objectiveProgress(program, objective.id, history, now);
+  if (progress.dueAt !== null && now >= progress.dueAt) {
+    return { kind: "recall", objective, reason: "Delayed retrieval is due.", dueAt: progress.dueAt };
+  }
+  if (progress.status === "mastered") {
+    const hasTransfer = history.some(item => item.taskKind === "transfer" &&
+      item.outcome === "correct" && item.assisted !== true);
+    if (!hasTransfer) return { kind: "transfer", objective, reason: "Verify transfer independently." };
+    return { kind: "wait", reason: "Objective is ready; use /end-focus to select another." };
+  }
+  return { kind: "wait", reason: "Independent recall is not due yet.", dueAt: progress.dueAt ?? undefined };
 }
