@@ -2097,6 +2097,40 @@ export class ChatView extends ItemView {
     return hasInput && (this.runtimeReady || this.learning.canExecuteOfflineCommand(this.input.value));
   }
 
+  /** Enter the first actual learning activity via the existing focus and next commands. */
+  private async beginFirstOnboardingObjective(programId: string, objectiveId: string): Promise<void> {
+    if (this.uiState === "RUNNING" || this.pendingReplyTo || this.input.value.trim()) {
+      throw new Error("Send or clear the composer before starting the objective.");
+    }
+    const menu = await this.learning.getProgramMenuState();
+    const overview = await this.learning.getProgramOverview();
+    if (menu.activeProgramId !== programId || !overview ||
+        overview.focus || overview.next.objectiveId !== objectiveId) {
+      throw new Error("The learning plan changed. Review your current objective in /progress.");
+    }
+    const makeCommand = (prompt: string): LearningRequest => ({
+      turnId: crypto.randomUUID(), prompt, action: "ask", explicitContext: [],
+    });
+    const focus = makeCommand("/focus " + objectiveId);
+    this.setAction("ask");
+    this.lastTurnRequest = focus;
+    await this.runTurn(focus, true);
+    // A failed /focus does not make an inference request. Confirm durable authority
+    // before issuing /next, which can call a provider and produce learning evidence.
+    const after = await this.learning.getProgramOverview();
+    const current = await this.learning.getProgramMenuState();
+    if (current.activeProgramId !== programId ||
+        after?.focus?.status !== "active" || after.focus.objectiveId !== objectiveId) {
+      throw new Error("Objective focus was not started. Check the last response before retrying.");
+    }
+    if (!(await this.ensureRuntimeReady())) {
+      throw new Error("Focus started, but the AI provider is unavailable. Reconnect and use /next.");
+    }
+    const next = makeCommand("/next");
+    this.lastTurnRequest = next;
+    await this.runTurn(next, true);
+  }
+
   private showEmpty(): void {
     this.transcriptPresenter.cancel();
     this.streamText.reset();
@@ -2156,11 +2190,8 @@ export class ChatView extends ItemView {
         onCreated: () => {
           this.showEmpty();
         },
-        onStart: () => {
-          void this.learning.getProgramOverview().then(overview => {
-            this.input.value = overview?.next.objectiveId ? "/focus " + overview.next.objectiveId : "/progress";
-            return this.doSend();
-          }).catch(error => new Notice(error instanceof Error ? error.message : "Cannot start objective focus."));
+        onStart: async (programId, objectiveId) => {
+          await this.beginFirstOnboardingObjective(programId, objectiveId);
         },
       }, state.draft);
     }).catch(error => {
