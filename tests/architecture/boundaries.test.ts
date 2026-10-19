@@ -93,3 +93,21 @@ test("M1 still permits presentation-only domain shapes and application queries",
   ];
   assert.deepEqual(validateArchitecture(files), []);
 });
+
+test("M4 context resolver may use its structural port but not ObsidianContext", () => {
+  const sources = [
+    { path: "src/context/ContextSourcePort.ts", source: "" },
+    { path: "src/context/ObsidianContext.ts", source: "" },
+  ];
+  const good = validateArchitecture([...sources,
+    { path: "src/context/ContextResolver.ts", source:
+      'import type { ContextSourcePort } from "./ContextSourcePort";' },
+  ]);
+  assert.deepEqual(good, []);
+  const bad = validateArchitecture([...sources,
+    { path: "src/context/ContextResolver.ts", source:
+      'import type { ObsidianContext } from "./ObsidianContext";' },
+  ]);
+  assert.equal(bad.length, 1);
+  assert.match(bad[0], /forbidden dependency/);
+});
