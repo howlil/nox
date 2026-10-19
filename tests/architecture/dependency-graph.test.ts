@@ -105,3 +105,23 @@ test("duplicate module paths are rejected and comments are not counted as edges"
   assert.equal(report.summary.externalImports, 0);
   assert.equal(report.summary.internalEdges, 0);
 });
+
+test("M5 graph counts private feature packages separately and reveals cross-package edges", () => {
+  const report = analyzeSources([
+    { path: "src/application/RunLearningTurn.ts",
+      source: 'import { Buffer } from "../features/conversation/turn/StructuredTurnBuffer";' },
+    { path: "src/features/conversation/turn/StructuredTurnBuffer.ts",
+      source: 'import type { State } from "../../../domain/practice/types"; export class Buffer {}' },
+    { path: "src/domain/practice/types.ts", source: "export interface State {}" },
+    { path: "src/features/learning/program/ProgramMutationQueue.ts", source: "export class Queue {}" },
+  ]);
+  assert.deepEqual(report.owners, [
+    { owner: "application", files: 1 },
+    { owner: "domain", files: 1 },
+    { owner: "features/conversation/turn", files: 1 },
+    { owner: "features/learning/program", files: 1 },
+  ]);
+  assert.equal(report.summary.crossOwnerEdges, 2);
+  assert.ok(report.ownerEdges.some(edge =>
+    edge.edge === "application -> features/conversation/turn" && edge.count === 1));
+});
