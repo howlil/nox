@@ -254,3 +254,74 @@ ownership and both activity variants being direct thread children.
 Manual smoke check: test 320/390px sidebar and >1200px wide Obsidian pane.
 Trigger Ask; inspect the left edges of live Waiting, settled Completed,
 assistant content and restored history. They must align.
+
+
+## Flat HTML preview and progressive question UI (2026-10-19)
+
+### UX contract
+
+- An explicitly requested HTML playground receives the **light, flat** design baseline from
+  `howlil/howlil-app/src/styles/global.css` (a local pinned subset in
+  `src/chat/preview-design-tokens.ts`); default page #FEFEFE, surface #F7F7F7,
+  text #121212, border #BFBFBF, accent #9BB1FF, pill controls, no gradients,
+  drop shadows or dark variant. Custom user-authored inline CSS may override
+  the baseline *inside the sandbox only*.
+- For a request such as “generate 10 quiz questions as HTML preview”, the model
+  should generate a **single visible question** per view, with clear “X of N” progress,
+  keyboard-accessible Previous/Next, persistent answers while navigating,
+  no auto-advance, and a finish state. Remaining questions live in a JS data
+  array, not as ten expanded DOM cards or a horizontal scrolling gallery.
+  This is a **model presentation rule** for HTML; it does not change the
+  native one-question-per-turn Practice protocol, grading or learner evidence.
+  Because free-form HTML is model-produced, the renderer cannot guarantee
+  the model's quiz interaction structure without a future typed quiz contract.
+- Embed a fragment (not a full HTML document) when possible; existing full-document
+  HTML and JS/SVG preview content remain supported.
+
+### Design-thinking implementation graph
+
+```text
+Request for HTML prototype
+  -> buildActionInstruction: flat-light + progressive-question constraints
+  -> model: opt-in fenced html-preview source
+  -> createNoxPreviewDocument: local tokens + CSP + opaque-origin sandbox
+  -> renderPreview: user clicks Run -> isolated iframe
+  -> ResizeObserver: measure #nox-preview-content, not iframe document viewport
+  -> postMessage(id,height) to owning Obsidian window
+  -> preview-frame: verify exact source window, origin null, matching id, bounds
+  -> coalesced frame.style.height = intrinsic content height
+  -> NOX transcript scrolls naturally; no nested scroll on normal-sized HTML
+```
+
+### A / E / R / lifetime
+
+**A:** A single `html-preview` response contains the requested number of
+questions as *data* but renders one question at a time. Local transition
+`next/previous` changes only the sandbox DOM and triggers ResizeObserver.
+The host tracks only height; it never reads an answer or stores quiz state.
+
+**E:** Invalid/oversized source retains original code; untrusted or mismatched
+resize messages are rejected; very large reported heights remain capped at
+12,000 px; if script execution is blocked, the iframe retains its static
+fallback height. A hostile or broken preview cannot access Obsidian vault,
+network, plugin origin, or parent DOM. It is not a trusted evaluation engine.
+
+**R:** The prebundled token snapshot, native iframe, browser ResizeObserver,
+postMessage and Obsidian owner document. No CDN, font download, runtime network
+calls, database, or extra renderer framework.
+
+**Scope:** Starting/restarting source preview replaces the old execution realm
+and releases its message registration. Switching to code view cancels any
+pending trailing height update. Source Markdown remains authoritative for
+restored chats; ephemeral JS quiz answers live only inside the iframe.
+
+### Verification
+
+- Assertions for token palette, no gradient, sandbox policy and intrinsic
+  wrapper measurements; browser pop-out ownership preserved.
+- Regression test for rapid shrinking height changes and final size delivery.
+- Acceptance: 1/10 -> Next -> Previous -> final screen; no nested scrollbar,
+  fit at 320px sidebar and wide pane, iframe shrinks after a long question,
+  no CSS leak to NOX, no remote assets, source/preview toggle and restart work.
+- Visual acceptance remains Obsidian Desktop-specific; passing CI alone is
+  insufficient to claim pixel-perfect or scroll behavior.
