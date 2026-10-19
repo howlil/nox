@@ -2,7 +2,7 @@ import type { LearningEvidence, LearningState } from "../learning-state/types";
 import type { LearningDecision, LearningObjective, LearningProgram } from "../learning-program/types";
 import { sessionRemainingMs } from "../learning-program/session-time";
 import { decideFeedback, type FeedbackDecision } from "./feedback-policy";
-import { deriveLearnerProfile, type ObjectiveSnapshot } from "./learner-profile";
+import { deriveLearnerProfile, type ObjectiveSnapshot, type LearnerProfile } from "./learner-profile";
 
 const DAY = 86_400_000;
 export type AdaptiveTrigger =
@@ -125,8 +125,8 @@ function forObjective(
 /** Pure M4 selector: program lock, M3 revision-scoped state, M1 feedback and explicit legacy compatibility. */
 export function selectAdaptiveActivity(
   program: LearningProgram, state: LearningState, now: number,
+  profile: LearnerProfile = deriveLearnerProfile(program, state, now),
 ): AdaptiveActivityDecision {
-  const profile = deriveLearnerProfile(program, state, now);
   const active = program.objectives.filter(item => !item.deprecated);
   const byId = new Map(profile.objectives.map(item => [item.objectiveId, item]));
   if (program.focus) {

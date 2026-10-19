@@ -85,11 +85,13 @@ export class LearningProgramOrchestrator {
     this.stopCheckpointLoop();
   }
 
-  async getSessionTime(): Promise<{
+  async getSessionTime(snapshot?: LearningProgram | null): Promise<{
     budgetMs: number; activeMs: number; remainingMs: number; aiWaitingMs: number;
     status: "active" | "waiting-ai" | "paused" | "recovered" | "exhausted";
   } | null> {
-    const program = await this.getActiveProgram();
+    // Callers holding an authoritative read snapshot can project without re-reading Vault.
+    // Mutations and turn authorization still load fresh CAS snapshots.
+    const program = snapshot === undefined ? await this.getActiveProgram() : snapshot;
     if (!program?.session) return null;
     const current = projectedTiming(program.session, this.now());
     return {
@@ -358,10 +360,19 @@ export class LearningProgramOrchestrator {
     return (await this.getActiveProgram())?.focus;
   }
 
-  async getGlobalActiveFocus(): Promise<{ program: LearningProgram; focus: NonNullable<LearningProgram["focus"]> } | null> {
+  async getTurnFocusSnapshot(): Promise<{
+    current: LearningProgram | null;
+    globalFocus: { program: LearningProgram; focus: NonNullable<LearningProgram["focus"]> } | null;
+  }> {
+    // One fresh collection for admission and the owning-chat identity.
     const collection = await this.store.load();
-    const program = collection.programs.find(item => item.focus?.status === "active");
-    return program?.focus ? { program, focus: program.focus } : null;
+    const current = collection.programs.find(p => p.id === collection.activeProgramId) ?? null;
+    const active = collection.programs.find(item => item.focus?.status === "active");
+    return { current, globalFocus: active?.focus ? { program: active, focus: active.focus } : null };
+  }
+
+  async getGlobalActiveFocus(): Promise<{ program: LearningProgram; focus: NonNullable<LearningProgram["focus"]> } | null> {
+    return (await this.getTurnFocusSnapshot()).globalFocus;
   }
 
   async startFocus(objectiveId: string, chatSessionId: string): Promise<LearningProgram> {

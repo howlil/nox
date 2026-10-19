@@ -192,8 +192,17 @@ export class LearningController {
     const learning = await this.learningState.load();
     const now = Date.now();
     const profile = deriveLearnerProfile(program, learning, now);
-    const next = selectAdaptiveActivity(program, learning, now);
+    const next = selectAdaptiveActivity(program, learning, now, profile);
     const byObjective = new Map(profile.objectives.map(item => [item.objectiveId, item]));
+    const attemptCounts = new Map<string, number>();
+    for (const evidence of learning.evidence) {
+      if (evidence.type !== "practice" || evidence.scope !== "learner" ||
+          evidence.programId !== program.id || evidence.evidenceVersion !== 3 ||
+          !evidence.objectiveId) continue;
+      const objective = program.objectives.find(item => item.id === evidence.objectiveId);
+      if (!objective || evidence.objectiveRevision !== (objective.objectiveRevision ?? program.planVersion)) continue;
+      attemptCounts.set(evidence.objectiveId, (attemptCounts.get(evidence.objectiveId) ?? 0) + 1);
+    }
     return {
       goal: program.goal,
       planVersion: program.planVersion,
@@ -203,7 +212,7 @@ export class LearningController {
       active: Boolean(program.session || program.focus?.status === "active"),
       focus: program.focus ? { status: program.focus.status,
         objectiveId: program.focus.objectiveId } : undefined,
-      ...(program.session ? { sessionTime: (await this.programs.getSessionTime()) ?? undefined } : {}),
+      ...(program.session ? { sessionTime: (await this.programs.getSessionTime(program)) ?? undefined } : {}),
       next: { kind: next.kind, objectiveId: next.objective?.id,
         reason: next.reason, dueAt: next.dueAt,
         trigger: next.provenance?.trigger,
@@ -211,11 +220,7 @@ export class LearningController {
         scaffoldLevel: next.provenance?.scaffoldLevel },
       objectives: program.objectives.filter(objective => !objective.deprecated).map(objective => {
         const projected = byObjective.get(objective.id);
-        const current = learning.evidence.filter(item => item.type === "practice" &&
-          item.scope === "learner" && item.programId === program.id &&
-          item.objectiveId === objective.id && item.evidenceVersion === 3 &&
-          item.objectiveRevision === (objective.objectiveRevision ?? program.planVersion));
-        return { objective, status: projected?.status ?? "unseen", attempts: current.length,
+        return { objective, status: projected?.status ?? "unseen", attempts: attemptCounts.get(objective.id) ?? 0,
           dueAt: projected?.dueAt ?? null,
           criteria: projected?.criterion ?? [] };
       }),
@@ -376,8 +381,10 @@ export class LearningController {
     // intent BEFORE command routing, context resolution, or provider inference.
     let globalFocus: Awaited<ReturnType<LearningProgramOrchestrator["getGlobalActiveFocus"]>>;
     try {
-      globalFocus = await this.programs?.getGlobalActiveFocus?.() ?? null;
-      const current = await this.programs?.getActiveProgram?.();
+      // Single program read for admission; keep older adapters usable in test/legacy composition.
+      const snapshot = await this.programs?.getTurnFocusSnapshot?.();
+      globalFocus = snapshot ? snapshot.globalFocus : await this.programs?.getGlobalActiveFocus?.() ?? null;
+      const current = snapshot ? snapshot.current : await this.programs?.getActiveProgram?.();
       this.turns.syncFocusSessionId(current?.focus?.chatSessionId === this.sessions.getSession().id
         ? current.focus.id : undefined, current?.focus?.status);
     } catch (error) {
@@ -540,24 +547,17 @@ export class LearningController {
           await this.programs.endFocus();
           this.turns.syncFocusSessionId(undefined);
           response = "Objective focus ended. Committed learning evidence remains saved.";
-          // M2: automatically offer a structural preview after a completed focus,
-          // never commit a provider proposal without explicit learner approval.
-          const gap = await this.programs.detectRevisionCandidate();
-          if (gap) {
-            try {
-              const preview = await this.programs.prepareCurriculumRevision();
-              response += "\n\nEvidence suggests **" + preview.reason +
-                "**. Proposed curriculum v" + preview.toVersion +
-                " with " + preview.operations.length + " structural operation(s).\n" +
-                "Preview diff: " + JSON.stringify(preview.operations) +
-                "\nApprove: /approve-replan " + preview.operationId +
-                "\nReject: /cancel-replan " + preview.operationId;
-            } catch (error) {
-              // Focus termination is already durable. Model/provider failure
-              // must not roll it back or report the entire operation as failed.
-              response += "\n\nStructural gap detected, but a revision preview could not be created. " +
-                "Use /replan to retry. " + (error instanceof Error ? error.message : "");
+          // Detection is a read-only hint. Generating a provider-backed revision must
+          // remain an explicit /replan action: ending focus must never spend tokens.
+          try {
+            const gap = await this.programs.detectRevisionCandidate();
+            if (gap) {
+              response += "\n\nEvidence suggests a structural curriculum gap (" + gap.reason +
+                "). Use /replan to generate and review a proposal; nothing changes without approval.";
             }
+          } catch {
+            // End-focus is already committed: a failed advisory read cannot undo it.
+            response += "\n\nCurriculum gap check unavailable. You can use /replan later.";
           }
         } else if (command.kind === "revert-replan") {
           if (this.turns.hasActivePracticeQuestion()) {
