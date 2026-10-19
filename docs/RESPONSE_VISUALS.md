@@ -298,13 +298,13 @@ mouse pan, pop-out behavior, invalid formats, and transcript restoration.
 
 ## M4 — Advanced graph v2 with ELK layout (2026-10-19)
 
-Source-of-truth: \`nox-flow\` v1 remains valid, unchanged and synchronous. \`nox-flow\`
+Source-of-truth: `nox-flow` v1 remains valid, unchanged and synchronous. `nox-flow`
 v2 is explicitly opt-in; native Obsidian Mermaid remains the default for
 ordinary architecture and learning diagrams.
 
 ### Typed shapes and trust boundary
 
-\`\`\`nox-flow
+```nox-flow
 {
   "version": 2,
   "title": "NOX runtime",
@@ -321,17 +321,17 @@ ordinary architecture and learning diagrams.
     {"from":"runner","to":"provider","label":"execute"}
   ]
 }
-\`\`\`
+```
 
 Limits: 40 nodes, 80 edges, 8 non-empty groups, one group per node, one-level
 groups only, valid bounded IDs/labels, no unknown references or duplicates.
 TB and LR directions are permitted; cycles may be represented. Validation
-converts untrusted source to \`NoxFlowSpecV2\` before ELK is invoked.
+converts untrusted source to `NoxFlowSpecV2` before ELK is invoked.
 No user-provided layout options, CSS, arbitrary HTML or executable code.
 
 ### A — Successful execution graph
 
-\`\`\`
+```
 persisted or new Markdown
   -> Obsidian MarkdownRenderer
   -> response-visuals / detect nox-flow
@@ -340,11 +340,11 @@ persisted or new Markdown
   -> bounded coordinate/edge validation
   -> DOM-only SVG with textContent
   -> shared zoom / fit / expand viewport
-\`\`\`
+```
 
-For v2, the layout uses \`elk.algorithm=layered\`,
-\`elk.edgeRouting=ORTHOGONAL\`, and hierarchy handling
-\`INCLUDE_CHILDREN\`, to represent grouping with crossing dependencies.
+For v2, the layout uses `elk.algorithm=layered`,
+`elk.edgeRouting=ORTHOGONAL`, and hierarchy handling
+`INCLUDE_CHILDREN`, to represent grouping with crossing dependencies.
 The heavy ELK module is initialized only when v2 rendering is requested.
 The rendered SVG and graph positions are derived caches, never persisted.
 
@@ -358,7 +358,7 @@ restoration; no graph mutation has vault authority.
 
 ### R — Dependencies and review risks
 
-Pinned \`elkjs@0.11.0\` bundles into \`dist/main.js\` (Obsidian community
+Pinned `elkjs@0.11.0` bundles into `dist/main.js` (Obsidian community
 three-file install), avoiding remote assets, dynamic worker URLs or network
 requests. ELK is an EPL-2.0 OR GPL-3.0-or-later dependency and must retain
 applicable license notices on distribution. Build size and first render latency
