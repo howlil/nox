@@ -1,6 +1,6 @@
 # NOX — Responsibility-first architecture audit and redesign
 
-Status: **target architecture proposed; M0–M3 implemented on draft PR, M4–M5 not implemented**
+Status: **target architecture proposed; M0–M4 implemented on draft PR, M5 not implemented**
 Audit base: `master` on 2026-10-19
 Decision scope: modular boundaries, mutable state ownership, public contracts, runtime flow, and incremental migration.
 Canonical references: `AGENTS.md`, `.agents/ENGINEERING_DESIGN.md`, `docs/ADAPTIVE_LEARNING_MILESTONES.md`.
@@ -381,6 +381,52 @@ UI/controller calls
 - Move context application ports/types out of concrete Obsidian adapter dependencies when usages prove boundary.
 - Preserve serialized plugin data writer, vault `process` CAS, status receipt and native Obsidian Undo path.
 - Acceptance: same usage totals for cumulative AGY, other providers, replay and restart; same context selections and privacy constraints.
+
+### M4 implementation checkpoint — Data and context contracts (2026-10-19)
+
+**Intent:** Make the arithmetic and context contracts independent of Obsidian adapters, while preserving the existing durable persistence authority and trust boundaries. There is no new storage schema, no second writer, and no provider protocol change.
+
+| Responsibility R | Implementation | State and guarantee |
+|---|---|---|
+| Pure token accounting | `src/domain/usage/usage-accounting.ts` | `decodeUsageSnapshot`, `assertUsageReport`, and `accumulateUsage` are deterministic for a supplied timestamp; no plugin I/O, no provider API, no mutable singleton |
+| Provider-neutral usage data | `src/domain/usage/usage-types.ts` | Usage domain owns a structurally compatible TokenUsage shape. Root `src/types.ts` retains its public transport shape because root-to-domain imports are forbidden |
+| Serialized usage storage | `src/persistence/TokenUsageRepository.ts` | Retains `nox-token-usage-v1` key, read/serialized update through the **same** `PluginDataRepository` writer and snapshot decoding at ingress |
+| Host-neutral context boundary | `src/context/ContextSourcePort.ts` | `ContextResolver` consumes selection, current editor note, explicit note lookup, research and filename search through structural capabilities; no dependency on `ObsidianContext` |
+| Concrete Obsidian context | `src/context/ObsidianContext.ts` composed in `src/main.ts` | Still owns unsaved editor buffer precedence, file events, invalidation and scoped research pre-filtering; behavior unchanged |
+| Import regression | `scripts/boundaries.mjs` | Direct `ContextResolver → ObsidianContext` import is rejected; domain imports from root transport/persistence remain forbidden |
+
+**Success A graph**
+
+```text
+Provider usage event
+  -> Agent usage normalization (unchanged)
+  -> TokenUsageRepository.record
+      -> PluginDataRepository.update (one serialized plugin-data writer)
+          -> decodeUsageSnapshot(current["nox-token-usage-v1"])
+          -> accumulateUsage(snapshot, provider, model, usage, options, UTC timestamp)
+              -> AGY cumulative checkpoint delta or ordinary per-request increment
+              -> immutable daily bucket / no-op
+          -> saveData(updated plugin record)
+
+LearningController
+  -> ContextResolver(ContextSourcePort)
+      -> ObsidianContext (at composition root, not by concrete resolver dependency)
+      -> latest unsaved editor selection/note and permitted explicit sources
+      -> ContextPort + restricted provider envelope (unchanged)
+```
+
+**Expected failure E / trust transitions**
+
+- Malformed persisted bucket or AGY checkpoint is ignored at decode; invalid provider/usage inputs and unsafe integer totals reject before a durable bucket increment.
+- First *resumed* AGY cumulative report establishes a checkpoint without attributing unobserved history. Fresh conversation includes its first observed terminal; duplicate/stale/reset totals remain no-ops. Cache/reasoning counters remain subsets, never added to overall totals.
+- A `PluginDataRepository.saveData` failure propagates and preserves the previous in-memory source-of-truth; the existing serialization lane continues serving settings and session data.
+- `ContextSourcePort` is an I/O capability only. It does **not** authorize reading extra vault files; source/path authority still belongs to the calling use case and `ObsidianContext.searchKnowledge` filters metadata before content reads.
+- The adapter prefers live unsaved editor buffers over cached vault text; explicit missing note still fails before provider invocation.
+- All existing provider handling, vault CAS for program/evidence, edit proposal status receipts and native Undo paths remain untouched.
+
+**Verification §9:** `tests/domain/usage/usage-accounting.test.ts` covers UTC bucketing, aggregation, cumulative baseline/delta/reset/dedup, fresh AGY, overflow and malformed snapshots. Existing `tests/persistence/TokenUsageRepository.test.ts` covers adapter serialization and failure. `tests/context/ContextResolver.test.ts` now explicitly exercises a typed structural source port with fresh editor values and selected research scope. `tests/context/ObsidianContext.test.ts` and `tests/integration/research/research-privacy.test.ts` remain unchanged; architecture guard test ensures no concrete resolver import.
+
+Automated CI must pass on the **latest** branch head; native Obsidian desktop validation is still required before merging/releasing. M5 physical folder reorganization is **not** implemented.
 
 ### M5 — Move packages after behavior is decoupled
 - Move files with mostly import-only changes; update boundary checker **in the same slice**, preserve public compatibility facade where necessary.
