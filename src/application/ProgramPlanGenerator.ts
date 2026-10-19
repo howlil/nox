@@ -51,7 +51,7 @@ export class ProgramPlanGenerator {
       ].join("\n\n");
       let output = "", completed = false;
       const messages = this.runtime.send({ prompt: instruction, context: [] },
-        { model: this.currentModel() }, signal);
+        { model: this.model() }, signal);
       for await (const event of messages) {
         if (signal.aborted) throw new Error("Curriculum generation timed out.");
         if (event.type === "failed") throw new Error(event.failure.message);
