@@ -37,6 +37,8 @@ export function createNoxBuildOptions({ production = false, onStart, onBuild } =
   const revision = production ? "release/" + releaseVersion : currentRevision();
   return {
     entryPoints: ["src/main.ts"],
+    // Keep mandatory third-party notice in the three-file Obsidian release bundle.
+    banner: { js: "/*! Includes elkjs 0.11.0 (EPL-2.0 OR GPL-3.0-or-later); source: https://github.com/kieler/elkjs ; license: https://github.com/kieler/elkjs/blob/v0.11.0/LICENSE.md */" },
     define: {
       __NOX_BUILD_REVISION__: JSON.stringify(revision),
       // Obsidian Community installs exactly three files. Inlining avoids
