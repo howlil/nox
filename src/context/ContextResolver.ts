@@ -1,5 +1,5 @@
 import { AgentContext, type ResearchScope } from "../types";
-import type { ObsidianContext } from "./ObsidianContext";
+import type { ContextSourcePort } from "./ContextSourcePort";
 import {
   ContextDocument,
   ExplicitContextRef,
@@ -14,13 +14,13 @@ import type { ResearchResult } from "./LocalResearch";
  * buffer is resolved immediately before the agent request is built.
  */
 export class ContextResolver {
-  constructor(private readonly obsidian: ObsidianContext) {}
+  constructor(private readonly source: ContextSourcePort) {}
 
   async resolve(
     explicit: ExplicitContextRef[] = [],
   ): Promise<LearningContext> {
-    const selection = this.obsidian.getSelection();
-    const activeNote = await this.obsidian.getCurrentNote();
+    const selection = this.source.getSelection();
+    const activeNote = await this.source.getCurrentNote();
 
     const explicitDocs: ContextDocument[] = [];
 
@@ -35,7 +35,7 @@ export class ContextResolver {
         continue;
       }
 
-      const note = await this.obsidian.loadNote(ref.path);
+      const note = await this.source.loadNote(ref.path);
       if (!note) {
         throw new Error(
           `Explicit context note no longer exists: ${ref.path}`,
@@ -63,14 +63,14 @@ export class ContextResolver {
   }
 
   searchKnowledge(query: string, options?: { allowedPaths?: string[]; scope?: ResearchScope; limit?: number }): Promise<ResearchResult> {
-    return this.obsidian.searchKnowledge(query, options);
+    return this.source.searchKnowledge(query, options);
   }
 
   searchNotes(
     query: string,
     limit = 8,
   ): Array<{ path: string; name: string }> {
-    return this.obsidian.searchNotes(query, limit);
+    return this.source.searchNotes(query, limit);
   }
 
   toAgentContext(context: LearningContext): AgentContext[] {
