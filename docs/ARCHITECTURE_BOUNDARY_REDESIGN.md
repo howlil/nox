@@ -1,6 +1,6 @@
 # NOX — Responsibility-first architecture audit and redesign
 
-Status: **target architecture proposed; M0, M1, and M2 implemented on draft PR, M3–M5 not implemented**
+Status: **target architecture proposed; M0–M3 implemented on draft PR, M4–M5 not implemented**
 Audit base: `master` on 2026-10-19
 Decision scope: modular boundaries, mutable state ownership, public contracts, runtime flow, and incremental migration.
 Canonical references: `AGENTS.md`, `.agents/ENGINEERING_DESIGN.md`, `docs/ADAPTIVE_LEARNING_MILESTONES.md`.
@@ -340,6 +340,41 @@ Do not infer that the entire feature-first modular monolith is implemented.
 - Split plan/revision, focus transitions, and session timing handling behind shared program write serialization.
 - Keep CAS expected-read snapshot identity and operation IDs intact.
 - Acceptance: concurrent focus/timer/revision commands cannot overwrite or violate one-active-focus invariant; restart recovery/legacy program data compatible.
+
+### M3 implementation checkpoint — Program ownership (2026-10-19)
+
+**Scope:** M3 separates program planning, curriculum version approval, objective focus and session timing behind one authoritative program write lane. This is a behavior-preserving modular-monolith refactor, not a new domain persistence layer.
+
+**R / A / E execution contract**
+
+| Capability (R) | Actual implementation / A (successful path) | E / failure and owner |
+|---|---|---|
+| Program write serialization | `ProgramMutationQueue.run`: FIFO lane shared by all program changes, including selecting, approving, recovering, renaming, focus and session changes | A rejected mutation does not poison the queue; original error propagates |
+| Program store CAS | Orchestrator calls `store.load()` once **inside** the queue, builds proposed `ProgramCollection` separately and calls `store.save(next, expected)` | External modification must be rejected by VaultProgramStore CAS; no mutated expected snapshot or last-write-wins |
+| Curriculum planning | `ProgramPlanGenerator.generate` resolves source context and generates a validated curriculum preview using the current model and abort signal | An unsupported source-bound provider, malformed JSON, aborted stream, or missing terminal event cannot persist a plan |
+| Curriculum approval/revision | Existing `CurriculumRevisionService` generates evidence-backed proposals; `LearningProgramOrchestrator` owns short-lived previews and serializes approval with stable operation receipts | Stale/expired/mismatching version/operation rejected; replay returns existing receipt |
+| Focus transitions | `ProgramFocusService` performs prerequisites check via learner profile; reuses pure domain `startObjectiveFocus` / `transitionObjectiveFocus`; active program write queued | Wrong chat, unmastered prerequisites, stale focus, or invalid transition rejects before CAS save |
+| Session timebox | `ProgramSessionTransitions` composes existing pure `session-time` operations, including start/extend/end, pause/recovery, focus attribution and checkpoints | AI wait excluded from active time; app downtime not silently counted; invalid extension denied |
+| Resource lifetime | Orchestrator retains one interval checkpoint, AbortController and 30-second timer; mutation lane instance has no independent scheduled work or store | Cancellation/timeout clears generation; dispose cancels and stops the timer |
+
+**Graph:**
+
+```text
+UI/controller calls
+  -> LearningProgramOrchestrator (per-plugin lifecycle, preview receipts, command facade)
+      -> ProgramPlanGenerator (proposal generation, no durable writes)
+      -> ProgramFocusService (pure focus transition)
+      -> ProgramSessionTransitions (pure time and focus attribution)
+      -> ProgramMutationQueue (one FIFO lane for every program mutation)
+          -> load original ProgramCollection expected snapshot
+          -> compute new, distinct ProgramCollection
+          -> ProgramStorePort.save(next, expected) [CAS]
+              -> VaultProgramStore (single programs.json authority)
+```
+
+**M3 protected behavior:** No second store, no persistence schema migration, no domain-specific calendar closure, no program switching while a different focus is active, no implicit evidence/mastery mutation. `RunLearningTurn` and `LearningController` public contracts remain intact.
+
+**Verification:** Existing `tests/application/LearningProgramOrchestrator.test.ts` exercises plan constraints, source allowlists, malformed provider result, operation deduplication, resume/recover, timed budget, focus sessions and concurrent mutations. M3 strengthens its fake store to verify **expected identity and unchanged snapshot**, and adds simultaneous focus/session/rename/recovery and failed-queue tests. `tests/application/ProgramMutationQueue.test.ts` proves FIFO and recovery after rejection. The current PR CI run must be green before marking automated acceptance passed. Desktop Obsidian acceptance remains mandatory before release.
 
 ### M4 — Data/contract direction
 - Move usage arithmetic into pure accounting module; keep ledger repository I/O only.
