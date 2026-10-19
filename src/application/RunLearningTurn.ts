@@ -13,8 +13,10 @@ import {
 } from "../context/context-types";
 import type { SessionPort, ContextPort, PolicyPort, LearningStatePort, ProgramStorePort } from "./ports";
 import { formatReplyPrompt } from "./reply-context";
-import { PersistenceError, LearningStateWriteConflict } from "../persistence/PersistenceError";
-import type { LearningState } from "../domain/learning-state/types";
+import { PersistenceError } from "../persistence/PersistenceError";
+import { TranscriptEvidenceReconciler } from "./TranscriptEvidenceReconciler";
+import { StructuredTurnBuffer } from "./StructuredTurnBuffer";
+import { InvalidLearningOutputError } from "./turn-output-error";
 import { prepareContextEnvelope } from "../context/ContextBudget";
 import { buildLearningContextPackage } from "./LearningContextOrchestrator";
 import type { ResearchResult } from "../context/LocalResearch";
@@ -24,7 +26,6 @@ import {
   recordReviewFindings,
 } from "../domain/learning-state/transitions";
 import { findCommittedPracticeOutcome, findCommittedReview, type TranscriptPart } from "../session/transcript-types";
-import type { ReviewFinding } from "../domain/review/types";
 import type { AgentRuntimePort } from "../agent/AgentRuntime";
 import {
   buildActionInstruction,
@@ -52,7 +53,7 @@ import { selectAdaptiveActivity } from "../domain/learner-model/activity-policy"
 import { coversCriteria } from "../domain/learning-program/assessment-rubric";
 import { criterionIdFor, decideFeedback } from "../domain/learner-model/feedback-policy";
 import {
-  StructuredStreamEvent,
+  type StructuredStreamEvent,
   StructuredStreamParser,
 } from "../agent/StructuredStreamParser";
 
@@ -67,11 +68,9 @@ import {
  * Application use case: one learning turn and its session-scoped practice state.
  * This is the sole owner of the active-turn lock, timeout, and normalized stream.
  */
-/** An otherwise successful provider turn violated the selected product action. */
-class InvalidLearningOutputError extends Error {}
-
 export class RunLearningTurn {
   private readonly practices = new PracticeSessionRegistry();
+  private readonly evidence: TranscriptEvidenceReconciler;
   private currentFocusId: string | null = null;
   private currentFocusPaused = false;
 
@@ -115,6 +114,7 @@ export class RunLearningTurn {
     // Hard turn deadline: long reasoning/streaming must not fail at the former 60s cutoff.
     this.turnTimeoutMs = options.turnTimeoutMs ?? 300_000;
     this.programStore = options.programStore;
+    this.evidence = new TranscriptEvidenceReconciler(learningState);
   }
 
   isRunning(): boolean {
@@ -429,7 +429,7 @@ export class RunLearningTurn {
         this.contexts.resolve(refs),
         Promise.all([this.policies.load(), this.learningState.load()]),
       ]);
-      state = await this.reconcileTranscriptEvidence(sessionAtStart, state);
+      state = await this.evidence.reconcileTranscript(sessionAtStart, state);
       if (researchQuery && research && this.contexts.searchKnowledge) {
         const selectedPaths = [
           ...context.explicit.filter(item => item.source === "explicit" && item.type === "note" &&
@@ -858,11 +858,8 @@ export class RunLearningTurn {
     let thoughtText = "";
     let firstVisibleMs: number | undefined;
     let executionPhase: "agent" | "processing" = "agent";
-    const reviewBuffer: { observed: boolean; findings: ReviewFinding[] } = {
-      observed: false, findings: [],
-    };
-    const practiceBuffer: { evaluation?: PracticeEvaluation; question?: PracticeQuestion } = {};
-    const proposalBuffer: { proposal?: EditProposal } = {};
+    const structuredBuffer = new StructuredTurnBuffer(request, snapshot, practiceAttempt);
+    const { reviewBuffer, practiceBuffer, proposalBuffer } = structuredBuffer;
 
     // Streamed text remains visible; a proposal cannot be actionable before
     // a successful terminal event and a durable transcript commit.
@@ -1047,15 +1044,7 @@ export class RunLearningTurn {
             executionPhase = "agent";
             continue;
           }
-          for await (const mapped of this.mapStructuredEvents(
-            parser.push(event.content),
-            request,
-            snapshot,
-            reviewBuffer,
-            practiceBuffer,
-            proposalBuffer,
-            practiceAttempt,
-          )) {
+          for await (const mapped of structuredBuffer.map(parser.push(event.content))) {
             persistMappedEvent(mapped);
             yield mapped;
           }
@@ -1120,15 +1109,7 @@ export class RunLearningTurn {
               return;
             }
           }
-          for await (const mapped of this.mapStructuredEvents(
-            completedEvents,
-            request,
-            snapshot,
-            reviewBuffer,
-            practiceBuffer,
-            proposalBuffer,
-            practiceAttempt,
-          )) {
+          for await (const mapped of structuredBuffer.map(completedEvents)) {
             persistMappedEvent(mapped);
             yield mapped;
           }
@@ -1242,7 +1223,7 @@ export class RunLearningTurn {
               source,
               turnSessionId,
             );
-            const outcome = await this.appendEvidenceSafely(before => recordReviewFindings(before, {
+            const outcome = await this.evidence.appendSafely(before => recordReviewFindings(before, {
               findings: committed.findings, source: committed.sourcePath ?? source, reviewId,
             }));
             if (outcome.appended) yield { type: "learning-state-updated", state: outcome.state };
@@ -1361,79 +1342,6 @@ export class RunLearningTurn {
     }
   }
 
-  /**
-   * Project a committed transcript event against the latest durable evidence
-   * snapshot. CAS conflicts are recoverable; duplicate event IDs are no-ops.
-   * Other persistence failures are surfaced rather than silently ignored.
-   */
-  private async appendEvidenceSafely(
-    transition: (current: LearningState) => LearningState,
-    initial?: LearningState,
-  ): Promise<{ state: LearningState; appended: boolean }> {
-    for (let attempt = 0; attempt < 4; attempt++) {
-      const before = attempt === 0 && initial ? initial : await this.learningState.load();
-      const after = transition(before);
-      if (after.evidence.length === before.evidence.length) {
-        return { state: before, appended: false };
-      }
-      try {
-        await this.learningState.save(after, before);
-        return { state: after, appended: true };
-      } catch (error) {
-        if (!(error instanceof LearningStateWriteConflict) || attempt === 3) throw error;
-      }
-    }
-    throw new LearningStateWriteConflict();
-  }
-
-  /** Replays transcript outcomes after a failed progress write without reevaluation. */
-  private async reconcileTranscriptEvidence(
-    session: ChatSession,
-    initial: LearningState,
-  ): Promise<LearningState> {
-    const replay = (source: LearningState): LearningState => {
-      let state = source;
-      const existingIds = new Set(source.evidence.map(item => item.id));
-      for (const message of session.messages.slice(session.fork?.inheritedMessageCount ?? 0)) {
-        for (const part of message.parts ?? []) {
-          if (part.type === "practice-evaluation" && part.questionId) {
-            const operationId = part.operationId ?? `practice:${session.id}:${part.questionId}`;
-            if (existingIds.has(operationId)) continue;
-            const next = recordPracticeEvaluation(state, {
-              evaluation: part.evaluation,
-              source: part.sourcePath ?? message.sourcePath ?? "learning-session",
-              evidenceId: operationId,
-              programId: part.evaluation.programId,
-              objectiveId: part.evaluation.objectiveId,
-              assisted: part.evaluation.assisted,
-              questionId: part.questionId,
-            });
-            if (next.evidence.length !== state.evidence.length) {
-              state = next;
-              existingIds.add(operationId);
-            }
-          }
-          if (part.type === "review-findings" && part.reviewId) {
-            if (part.findings.every((_, index) => existingIds.has(part.reviewId + ":" + index))) continue;
-            const next = recordReviewFindings(state, {
-              findings: part.findings,
-              source: part.sourcePath ?? message.sourcePath ?? "learning-session",
-              reviewId: part.reviewId,
-            });
-            if (next.evidence.length !== state.evidence.length) {
-              state = next;
-              for (let index = 0; index < part.findings.length; index++) {
-                existingIds.add(part.reviewId + ":" + index);
-              }
-            }
-          }
-        }
-      }
-      return state;
-    };
-    return (await this.appendEvidenceSafely(replay, initial)).state;
-  }
-
   cancel(): void {
     if (!this.activeTurn) return;
     this.activeTurn.cancelReason = "user";
@@ -1498,7 +1406,7 @@ export class RunLearningTurn {
         if (!evaluationPart || evaluationPart.type !== "practice-evaluation") {
           throw new Error("Committed practice outcome missing evaluation");
         }
-        const projection = await this.appendEvidenceSafely(before => recordPracticeEvaluation(before, {
+        const projection = await this.evidence.appendSafely(before => recordPracticeEvaluation(before, {
           evaluation: evaluationPart.evaluation,
           source: evaluationPart.sourcePath ?? source,
           evidenceId: operationId,
@@ -1522,93 +1430,4 @@ export class RunLearningTurn {
 
   }
 
-  private async *mapStructuredEvents(
-    events: StructuredStreamEvent[],
-    request: LearningRequest,
-    context: TurnContextSnapshot,
-    reviewBuffer: { observed: boolean; findings: ReviewFinding[] },
-    practiceBuffer: { evaluation?: PracticeEvaluation; question?: PracticeQuestion },
-    proposalBuffer: { proposal?: EditProposal },
-    practiceAttempt?: PracticeEvaluationAttempt,
-  ): AsyncIterable<LearningEvent> {
-    for (const event of events) {
-      if (event.type === "scope-decision") {
-        throw new InvalidLearningOutputError("Unexpected scope decision outside a locked learning mode.");
-      }
-      if (event.type === "text") {
-        if (event.text) {
-          yield {
-            type: "response-delta",
-            text: event.text,
-          };
-        }
-        continue;
-      }
-
-      if (event.type === "thought") {
-        if (event.text) {
-          yield {
-            type: "thought-delta",
-            text: event.text,
-          };
-        }
-        continue;
-      }
-
-      if (event.type === "proposal") {
-        if (request.action !== "edit") {
-          throw new InvalidLearningOutputError("Edit proposal is not valid for this action.");
-        }
-        if (!context.mutableFile || event.proposal.file !== context.mutableFile) {
-          throw new InvalidLearningOutputError(`Edit target is not the active mutable note: ${event.proposal.file}`);
-        }
-        if (proposalBuffer.proposal) {
-          throw new InvalidLearningOutputError("Agent returned multiple edit proposals for one turn.");
-        }
-        proposalBuffer.proposal = event.proposal;
-        continue;
-      }
-
-      if (event.type === "practice-question") {
-        if (request.action !== "practice") {
-          throw new InvalidLearningOutputError("Practice question is not valid for this action.");
-        }
-        if (practiceAttempt) {
-          throw new InvalidLearningOutputError("Agent returned a new practice question before finishing evaluation.");
-        }
-        if (practiceBuffer.question) {
-          throw new InvalidLearningOutputError("Agent returned multiple questions for one Practice turn.");
-        }
-        // Parser output is not durable or actionable before terminal success.
-        practiceBuffer.question = event.question;
-        continue;
-      }
-
-      if (event.type === "review-findings") {
-        if (request.action !== "review" || reviewBuffer.observed) {
-          throw new InvalidLearningOutputError("Unexpected or duplicate Review payload.");
-        }
-        // A complete provider turn is required before committing Review.
-        // Do not persist partial findings if the stream later fails.
-        reviewBuffer.observed = true;
-        reviewBuffer.findings.push(...event.findings);
-        continue;
-      }
-
-      if (event.type === "practice-evaluation") {
-        if (request.action !== "practice" || !practiceAttempt) {
-          throw new InvalidLearningOutputError("Practice evaluation arrived without an active answer attempt.");
-        }
-        if (practiceBuffer.evaluation) {
-          throw new InvalidLearningOutputError("Agent returned multiple evaluations for the same question.");
-        }
-        // Do not persist an evaluation just because its fenced block parsed.
-        // The runtime can still fail, cancel, or emit malformed output afterwards.
-        practiceBuffer.evaluation = event.evaluation;
-        continue;
-      }
-
-      throw new InvalidLearningOutputError(event.message);
-    }
-  }
 }
