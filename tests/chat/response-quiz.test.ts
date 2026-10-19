@@ -261,7 +261,7 @@ test("M2 code view shares auto-height input, preserves edits/empty draft and nev
   next.click();
   next.click();
   assert.match(stage.textContent, /Quiz results/);
-  assert.match(stage.textContent, /1 \/ 1/);
+  assert.match(stage.textContent, /1 \/ 2/);
   assert.match(stage.textContent, /Coding responses have not been executed, reviewed, or graded/);
   assert.match(stage.textContent, /1Code awaiting review/);
   assert.doesNotMatch(stage.textContent, /2 \/ 3/);
