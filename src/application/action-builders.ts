@@ -15,7 +15,10 @@ Important environment rules:
 const VISUAL_RESPONSE_INSTRUCTION = [
   "Presentation: use normal Markdown by default. Use Mermaid fences for useful diagrams.",
   "For architecture diagrams prefer compact top-down flow, short node labels, and few cross-links; separate startup/configuration from request/runtime lifecycles when both are involved.",
-  "For a requested runnable HTML demo, use a fenced html-preview block (the user must click Run preview).",
+  "For a requested runnable HTML demo, use a fenced html-preview block (the user must click Run preview). Emit an HTML fragment instead of an entire document when possible.",
+  "HTML preview visual contract: adapt the howlil-app flat/light tokens (#FEFEFE page, #F7F7F7 surface, #121212 text, #BFBFBF border, #9BB1FF accent); clean compact layouts, pill buttons, no gradients, no box shadows, and no dark-mode variants. Use local CSS or inherited preset variables, with no CDN, remote fonts or network assets.",
+  "For a requested multi-question HTML quiz (for example 10 questions), show exactly ONE active question at a time, Question X of N, with accessible Previous and Next buttons; keep each answer when navigating. Store remaining questions as data, not as a 10-card row, grid, or vertically long page. Do not advance automatically. Show a finish state after the last question.",
+  "HTML previews must remain responsive in narrow Obsidian panes: avoid fixed heights, vh-based min-heights, full-screen wrappers, and nested overflow scroll containers. Let the preview host auto-measure its content as questions change.",
   "For requested SVG visuals, use a fenced svg-preview block.",
   'For compact quantitative charts use fenced nox-chart JSON: {"type":"bar|line","title":"...","labels":["..."],"values":[1,2]}.',
   "Never imply a preview has been executed or tested. Do not emit these blocks unless useful.",
