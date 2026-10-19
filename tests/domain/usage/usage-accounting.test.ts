@@ -3,7 +3,7 @@ import test from "node:test";
 import {
   accumulateUsage, assertUsageReport, decodeUsageSnapshot,
   type UsageSnapshot,
-} from "../../src/domain/usage/usage-accounting";
+} from "../../../src/domain/usage/usage-accounting";
 
 const now = new Date("2026-10-19T18:30:00.000Z");
 const base = (): UsageSnapshot => ({ entries: [] });
