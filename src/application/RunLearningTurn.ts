@@ -747,11 +747,11 @@ export class RunLearningTurn {
           : researchQuery ?? request.prompt}`;
       if (request.action === "ask" || request.action === "explain") {
         preparedPrompt += "\n\nPRESENTATION: Use short semantic Markdown headings without numeric prefixes unless specifically requested. Prefer compact Markdown tables for comparisons. Avoid emoji as status icons. Do not invent metrics or display a chart for unknown data.";
-        if (/diagram|flowchart|arsitektur|architecture|dependency graph|peta konsep|visualisasi alur/i.test(request.prompt)) {
-          if (/\\bnox-flow\\b/i.test(request.prompt)) {
-            preparedPrompt += "\nWhen explicitly requested, use fenced nox-flow JSON: {\\\"version\\\":1,\\\"direction\\\":\\\"TB\\\",\\\"layout\\\":\\\"layered\\\",\\\"nodes\\\":[{\\\"id\\\":\\\"a\\\",\\\"label\\\":\\\"Start\\\"}],\\\"edges\\\":[]}. Max 24 nodes and 48 edges; only DAGs. Do not invent relationships.";
+        if (/diagram|flowchart|arsitektur|architecture|dependency graph|peta konsep|visualisasi alur|nox-flow/i.test(request.prompt)) {
+          if (/\bnox-flow\b/i.test(request.prompt)) {
+            preparedPrompt += '\nWhen explicitly requested, use fenced nox-flow JSON: {"version":1,"direction":"TB","layout":"layered","nodes":[{"id":"a","label":"Start"}],"edges":[]}. Max 24 nodes, 48 edges, and acyclic graphs. Do not invent relationships.';
           } else {
-            preparedPrompt += "\nOutput a fenced mermaid flowchart TB or LR. Use compact descriptive node labels, faithful edges, and branches that share a rank where appropriate. Do not add decorative subgraphs or unsupported relationships. Use separate diagrams for independent lifecycles.";
+            preparedPrompt += '\nOutput a fenced mermaid flowchart TB or LR. Use compact descriptive node labels, faithful edges and logical branching. Avoid decorative subgraphs and invented relationships; use separate diagrams for independent lifecycles.';
           }
         }
         if (/grafik|chart|breakdown|analytics|analitik|perbandingan metrik|metric card|comparison card/i.test(request.prompt)) {
