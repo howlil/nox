@@ -75,7 +75,7 @@ Practice: session-persisted question + answer + evaluation; eligible evidence on
 
 ### W4 — Low-value surface and delivery-contract cleanup
 
-- `NoxPlugin.getBuildDiagnostics()` had no repository call site; removed it and its only-use injected build metadata declarations. Runtime functionality, `getLogoUrl()` and default Obsidian settings contract are unchanged.
+- **Do not remove** `NoxPlugin.getBuildDiagnostics()` or its build timestamp constants merely because no UI calls them. The esbuild dev artifact pipeline requires `__NOX_BUILD_TIMESTAMP__` to survive bundling for each incremental build. Initial removal failed the real dev-orchestrator integration test; we restored the original contract instead of suppressing the test.
 - Aligned `prepare-release.yml` comments with the **actual** automatic, signed/attested normal publisher in `release.yml`. `publish-release.yml` remains manual recovery for an existing verified draft. No change to workflow gates, SHA provenance, artifacts, secrets, attestation, Community scanner or Cloudflare ownership.
 - Mermaid remains default; `nox-flow` v1 historical decoder, v2, preview formats and `nox-card` are **intentionally retained** pending usage evidence. Low discoverability is not proof of zero impact.
 
