@@ -67,16 +67,8 @@ export type AgentHealth =
   | { status: "ready" }
   | { status: "unavailable" | "misconfigured"; failure: AgentFailure };
 
-export interface TokenUsage {
-  inputTokens: number;
-  outputTokens: number;
-  totalTokens: number;
-  /** Cached prompt tokens already included in inputTokens. */
-  cachedInputTokens?: number;
-  /** Reasoning tokens already included in outputTokens. */
-  reasoningTokens?: number;
-  cacheWriteTokens?: number;
-}
+/** Compatibility alias: the usage domain owns the transport-neutral value shape. */
+export type TokenUsage = import("./domain/usage/usage-types").TokenUsage;
 
 export type AgentStreamEvent =
   | { type: "text"; content: string }
