@@ -28,8 +28,8 @@ Open empty NOX -> getOnboardingContext(path metadata only) -> OnboardingFlow
   |-- Note -> selectCurrentNote(path) -> notes surface -> Explain/Practice
   |      -> verify active note still equals selected path -> checkRuntime
   |      -> ChatView.onNoteAction -> dismissOnboarding
-  |      -> explicit vault-note ref -> existing LearningController/RunLearningTurn
-  |      -> existing context resolver -> provider stream -> durable conversation
+  |      -> explicit vault-note ref + explicit-only context -> existing LearningController/RunLearningTurn
+  |      -> ContextResolver.resolve(includeAmbient=false) -> provider stream -> durable conversation
   |-- Goal -> quick-goal input -> normalize + validate -> checkRuntime
   |      -> ChatView.onQuickPlan -> dismissOnboarding -> /plan <goal>
   |      -> existing curriculum preview/commit command (NO workspace files)
@@ -60,7 +60,7 @@ OnboardingStateRepository -> sole draft persistence owner
 VaultProgramStore / VaultWorkspaceWriter -> unchanged CAS and create-only ownership
 ```
 
-Security: choosing a note is explicit user intent, but ordinary Explain/Free Practice uses the existing conversation context behavior; this does not provide strict filesystem sandboxing for CLI providers. M1 source-bound curriculum isolation is unchanged. Do not describe general note chat as source-isolated.
+Security: the note-first entry uses `LearningRequest.contextMode="explicit-only"`, which skips ambient editor selection/note reads and forwards the chosen explicit vault note. Normal chat keeps its previous automatic-context behavior. This input-context restriction does **not** provide filesystem sandboxing for CLI providers; M1 source-bound curriculum isolation is unchanged. Do not describe local CLI executions as source-isolated.
 
 ## Design Graph — interface surfaces and actions
 
@@ -78,7 +78,7 @@ Interaction: native buttons are keyboard-reachable; on stage transitions focus m
 
 - `tests/chat/onboarding-entry.test.ts`: three cards only, chat skip, quick `/plan`, note practice, changed path blocks send, provider not ready blocks send.
 - `tests/application/OnboardingWorkflow.test.ts`: legacy discovery stages migrate to welcome; quick-goal state survives restore, source scope resets, invalid goals rejected.
-- Existing `ProgramPlanGeneratorPrivacy.test.ts` protects M1 provider egress and pre-read isolation.
+- `tests/context/ContextResolver.test.ts` asserts explicit-only requests perform zero ambient reads and forward only the authorized note.\n- Existing `ProgramPlanGeneratorPrivacy.test.ts` protects M1 provider egress and pre-read isolation.
 - CI should run `pnpm verify` plus architecture graph verification. Real Obsidian desktop interaction remains unverified until M5.
 
 M2 does **not** wire `onStart` after guided approval (M3), prove workspace partial-write recovery (M4), or claim native desktop acceptance (M5).
