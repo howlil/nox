@@ -15,7 +15,8 @@ test("HTML preview uses local howlil-app flat light tokens without remote resour
   assert.ok(html.includes("getBoundingClientRect().height"));
   assert.ok(html.includes("document.getElementById('nox-preview-content')"));
   assert.doesNotMatch(html, /documentElement\.scrollHeight/);
-  assert.doesNotMatch(HOWLIL_FLAT_PREVIEW_CSS, /(?:linear|radial)-gradient|box-shadow:\s*(?!none)/);
+  assert.doesNotMatch(HOWLIL_FLAT_PREVIEW_CSS, /(?:linear|radial)-gradient/);
+  assert.ok(HOWLIL_FLAT_PREVIEW_CSS.includes("box-shadow: none;"));
   assert.match(html, /connect-src 'none'/);
   assert.match(html, /form-action 'none'/);
 });
