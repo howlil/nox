@@ -13,8 +13,9 @@ Important environment rules:
 `.trim();
 
 const VISUAL_RESPONSE_INSTRUCTION = [
-  "Presentation: use normal Markdown by default. Use Mermaid fences for useful diagrams.",
-  "For architecture diagrams prefer compact top-down flow, short node labels, and few cross-links; separate startup/configuration from request/runtime lifecycles when both are involved.",
+  "Presentation: use normal Markdown by default. For requested diagrams, prefer fenced Mermaid flowcharts (flowchart TB or LR).",
+  "For architecture graphs, use short descriptive labels, real dependencies, compact branching and orthogonal-friendly paths. Avoid decorative subgraphs, unnecessary cross-links and fabricated relations; separate independent lifecycle diagrams.",
+  "Use nox-flow JSON only when the user explicitly requests that format; existing nox-flow blocks remain supported for history.",
   "For a requested runnable HTML demo, use a fenced html-preview block (the user must click Run preview).",
   "For requested SVG visuals, use a fenced svg-preview block.",
   'For compact quantitative charts use fenced nox-chart JSON: {"type":"bar|line","title":"...","labels":["..."],"values":[1,2]}.',
