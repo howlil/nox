@@ -23,6 +23,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: pnpm/action-setup@v4
         with:
           version: 10
@@ -95,3 +97,28 @@ jobs:
             }
           done
           echo "::notice::Staged verified DRAFT $version. It is NOT a public Community Directory release."
+
+      - name: Publish reviewed candidate after automated certification
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="$(node -p 'require("./manifest.json").version')"
+          test "$version" = "1.3.1"
+          certified_sha="a93ed61a6889f2e3231b9b275c03e4af3dcc5292"
+          certified_run="39440944007"
+          test "$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$certified_run" --jq '.conclusion')" = success
+          test "$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$certified_run" --jq '.head_sha')" = "$certified_sha"
+          git diff --quiet "$certified_sha" HEAD -- src styles.css scripts tests esbuild.config.mjs manifest.json package.json versions.json
+          release="$(gh api "repos/$GITHUB_REPOSITORY/releases?per_page=100" | jq -c --arg v "$version" '[.[] | select(.tag_name == $v)][0]')"
+          jq -e --arg sha "$certified_sha" '.draft == true and .target_commitish == $sha' <<< "$release" >/dev/null
+          expected="$(printf '%s\n' main.js manifest.json styles.css | LC_ALL=C sort)"
+          actual="$(jq -r '.assets[].name' <<< "$release" | LC_ALL=C sort)"
+          test "$expected" = "$actual"
+          jq -e 'all(.assets[]; .size > 0 and (.digest | startswith("sha256:")))' <<< "$release" >/dev/null
+          release_id="$(jq -r '.id' <<< "$release")"
+          gh api -X PATCH -F draft=false -f tag_name="$version" \
+            -f target_commitish="$certified_sha" "repos/$GITHUB_REPOSITORY/releases/$release_id" >/dev/null
+          gh api "repos/$GITHUB_REPOSITORY/releases/$release_id" \
+            --jq '{version: .tag_name, draft: .draft, published_at: .published_at}'
