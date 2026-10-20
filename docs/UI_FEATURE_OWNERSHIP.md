@@ -85,7 +85,19 @@ Proof: pnpm check:boundaries, typecheck, lint, unit/integration, build, artifact
 | M2 | Existing History/Transcript presenters retained; response toolbar moved to `response-actions-presenter.ts` with typed session-scoped callbacks | Desktop navigation, fork and regenerated-response smoke |
 | M3 | `LearningPresenter` owns Learning Map, Activity, Focus Strip, session clock/cache/polling; original `OnboardingFlow` remains the sole onboarding owner | Desktop focus and onboarding recovery smoke |
 | M4 | ChatView composes Practice/Learning/Model/Prompt/**Thinking** presenters. `ThinkingPresenter` owns live/restored trace, observed stages, tool rows, disclosure, elapsed time, stale-event guard and interval lifecycle. ChatView retains cross-feature routing and canonical turn dispatch. | Desktop Thinking/stream acceptance remains |
-| M5 | Explicit architecture allow-list; model-menu, prompt-menu keyboard/async, practice draft, Thinking trace/terminal/restore, and stale-response regression tests added | CI on final HEAD, Obsidian desktop acceptance |
+| M5 | Explicit architecture allow-list, presenter tests and final race-condition fixes (single-flight Practice draft, post-close streaming guard, retryable Model selection), plus D01–D10 native acceptance plan | CI on final HEAD; native Obsidian desktop acceptance NOT RUN |
+
+### M5 audit findings and verification boundary (2026-10-21)
+
+**Code-review findings resolved in this branch:**
+
+1. **Practice write ordering:** overlapping draft flushes could write older text after newer input. `PracticePresenter.flushDraft()` now serializes in-flight writes and loops until the newest pending edit has been committed. Failed writes retain the draft for retry. `onSubmit` waits for a successful pending draft write rather than discarding it pre-emptively.
+2. **Stale stream after leaf close:** `runTurn()` now compares its captured `viewEpoch` before forwarding each provider event, completing regenerate restoration, and displaying unexpected failures. Late events on detached view are cancelled and ignored.
+3. **Model save failure:** `ModelMenuPresenter` no longer closes/pretends success after a failed model selection; selection requests are single-flight, with a visible retry path.
+
+**Automated verification:** `tests/chat/practice-presenter.test.ts`, `tests/chat/model-menu.test.ts`, and `tests/architecture/ui-feature-ownership.test.ts` include regression proof for these fixes. The existing CI runs architecture, TypeScript, lint, integration, CSS, build and artifact checks.
+
+**Native UI acceptance:** `docs/UI_M5_DESKTOP_ACCEPTANCE.md` contains a concrete D01–D10 procedure, and its status is **NOT RUN**. Native Obsidian Desktop was not operated in this workflow; no genuine host screenshots, runtime console captures, or `docs/desktop-acceptance.json` were generated. Green CI is not permission to merge/publish.
 
 ### M4 follow-up: Thinking UI owner (2026-10-21)
 
