@@ -20,6 +20,8 @@ export interface PracticeUiCallbacks {
  */
 export class PracticePresenter {
   private draftTimer: number | null = null;
+  /** Single-flight write queue, including newer edits received during an in-flight save. */
+  private draftFlush: Promise<void> | null = null;
   private pendingDraft: { questionId: string; answer: PracticeAnswer; sessionId: string; epoch: number } | null = null;
   private epoch = 0;
 
@@ -36,13 +38,25 @@ export class PracticePresenter {
   async flushDraft(): Promise<void> {
     if (this.draftTimer !== null) window.clearTimeout(this.draftTimer);
     this.draftTimer = null;
-    const draft = this.pendingDraft;
-    if (!draft) return;
-    // Keep the pending draft if persistence fails, allowing the user to retry.
-    if (draft.epoch !== this.epoch || this.actions.session().id !== draft.sessionId ||
-        this.actions.isBusy()) return;
-    await this.actions.saveDraft(draft.questionId, draft.answer, draft.sessionId);
-    if (this.pendingDraft === draft) this.pendingDraft = null;
+    if (this.draftFlush) return this.draftFlush;
+
+    const operation = (async () => {
+      // Serialize writes; only clear an entry after the exact draft was persisted.
+      // Edits typed while a save is pending are committed in a later iteration.
+      while (this.pendingDraft) {
+        const draft = this.pendingDraft;
+        if (draft.epoch !== this.epoch || this.actions.session().id !== draft.sessionId ||
+            this.actions.isBusy()) return;
+        await this.actions.saveDraft(draft.questionId, draft.answer, draft.sessionId);
+        if (this.pendingDraft === draft) this.pendingDraft = null;
+      }
+    })();
+    this.draftFlush = operation;
+    try {
+      await operation;
+    } finally {
+      if (this.draftFlush === operation) this.draftFlush = null;
+    }
   }
 
   dispose(): void { this.reset(); }
@@ -86,9 +100,15 @@ export class PracticePresenter {
       },
       onSubmit: async answer => {
         if (!active || !stillCurrent()) return false;
-        if (this.draftTimer !== null) window.clearTimeout(this.draftTimer);
-        this.draftTimer = null;
-        this.pendingDraft = null;
+        try {
+          // A submission may fail before it reaches the canonical turn; retain the
+          // pending answer until a successful write has actually completed.
+          await this.flushDraft();
+        } catch {
+          this.actions.reportError("Could not save quiz draft. Retry the submission.");
+          return false;
+        }
+        if (!stillCurrent()) return false;
         return this.actions.submit(questionId, answer, session.id);
       },
     } : undefined);
