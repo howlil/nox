@@ -66,6 +66,11 @@ jobs:
       - name: Documentation and release metadata checks
         run: pnpm docs:check && pnpm release:check
 
+      - name: Enforce Obsidian public manifest = published release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: node scripts/ci/check-public-release.mjs
+
       - name: Unit tests
         run: pnpm test:unit
 
