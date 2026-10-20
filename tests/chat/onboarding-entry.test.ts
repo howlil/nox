@@ -66,7 +66,7 @@ function setup() {
   } as unknown as LearningController;
   const callbacks = {
     onSkip: () => { sent.push("chat"); },
-    onCreated: () => { sent.push("created"); },
+    onCreated: async () => { sent.push("created"); },
     onStart: async () => { sent.push("start"); },
     onQuickPlan: async (command: string) => { sent.push(command); },
     onNoteAction: async (path: string, kind: "explain" | "practice") => {
@@ -198,7 +198,7 @@ function setupM3(overrides: {
   } as unknown as LearningController;
   const callbacks = {
     onSkip: () => {},
-    onCreated: () => { calls.push("later"); },
+    onCreated: async () => { calls.push("later"); },
     onStart: async (id: string, objective: string) => { calls.push("start:" + id + ":" + objective); },
     onQuickPlan: async () => {},
     onNoteAction: async () => {},
@@ -225,7 +225,7 @@ test("M3 guided setup can approve a plan without workspace and offers first adap
   assert.equal(x.root.buttons("Maybe later").length, 1);
   assert.equal(x.root.findAll().find(el => el.cls === "nox-onboarding-name" &&
     el.text === firstObjective.title)?.text, firstObjective.title);
-  assert.deepEqual(x.calls.slice(1), ["approve-only", "dismiss", "overview"]);
+  assert.deepEqual(x.calls.slice(1), ["approve-only", "overview"]);
   x.root.buttons("Start first objective")[0].click();
   await flush();
   assert.equal(x.calls.at(-1), "start:" + programId + ":intro");
@@ -267,4 +267,99 @@ test("M3 post-commit storage/read model failure never returns to approval and ne
   assert.equal(x.root.buttons("Start first objective").length, 0);
   assert.equal(x.calls.filter(item => item === "approve-only").length, 1);
   assert.equal(x.root.findAll().some(el => el.cls === "nox-onboarding-error"), true);
+});
+
+test("M4 restart after committed plan recovers ready state without reapproval", async () => {
+  const root = new FakeElement();
+  const receipt = { programId, operationId: "11111111-1111-4111-8111-111111111111",
+    withWorkspace: false };
+  const calls: string[] = [];
+  const drafts: Array<{ stage: string }> = [];
+  const learning = {
+    recoverOnboardingApproval: async () => {
+      calls.push("reconcile"); return { ...m3Program, creationOperationId: receipt.operationId };
+    },
+    saveOnboardingDraft: async (draft: { stage: string }) => { drafts.push(draft); },
+    getProgramOverview: async () => ({ active: false,
+      next: { kind: "diagnostic", objectiveId: "intro" } }),
+    getProgramMenuState: async () => ({ activeProgramId: programId }),
+  } as unknown as LearningController;
+  new OnboardingFlow(dom(root), learning, {
+    onSkip: () => {},
+    onCreated: async () => {},
+    onStart: async () => { calls.push("start"); },
+    onQuickPlan: async () => {},
+    onNoteAction: async () => {},
+  }, { version: 1, stage: "applying", goal: m3Program.goal, interests: [],
+    purpose: "career", level: "beginner", minutesPerSession: 45, sessionsPerWeek: 3,
+    sourceBound: false, approval: receipt });
+  await flush();
+  assert.deepEqual(calls, ["reconcile"]);
+  assert.equal(drafts.at(-1)?.stage, "ready");
+  assert.equal(root.buttons("Start first objective").length, 1);
+  root.buttons("Start first objective")[0].click();
+  await flush();
+  assert.deepEqual(calls, ["reconcile", "start"]);
+});
+
+test("M4 partial workspace restore retries materialization without issuing another approval", async () => {
+  const root = new FakeElement();
+  const receipt = { programId, operationId: "11111111-1111-4111-8111-111111111111",
+    withWorkspace: true };
+  let attempts = 0;
+  let approvals = 0;
+  const learning = {
+    recoverOnboardingApproval: async () => {
+      attempts++;
+      if (attempts === 1) throw Error("Workspace path is occupied by an unowned note");
+      return { ...m3Program, workspaceApproved: true, creationOperationId: receipt.operationId };
+    },
+    approveLearningWorkspace: async () => { approvals++; throw Error("Never replay approval"); },
+    saveOnboardingDraft: async () => {},
+    getProgramOverview: async () => ({ active: false,
+      next: { kind: "diagnostic", objectiveId: "intro" } }),
+    getProgramMenuState: async () => ({ activeProgramId: programId }),
+  } as unknown as LearningController;
+  new OnboardingFlow(dom(root), learning, {
+    onSkip: () => {},
+    onCreated: async () => {},
+    onStart: async () => {},
+    onQuickPlan: async () => {},
+    onNoteAction: async () => {},
+  }, { version: 1, stage: "ready", goal: m3Program.goal, interests: [],
+    purpose: "career", level: "beginner", minutesPerSession: 45, sessionsPerWeek: 3,
+    sourceBound: false, approval: receipt });
+  await flush();
+  assert.equal(root.buttons("Retry recovery").length, 1);
+  assert.equal(root.buttons("Start first objective").length, 0);
+  root.buttons("Retry recovery")[0].click();
+  await flush();
+  assert.equal(attempts, 2);
+  assert.equal(approvals, 0);
+  assert.equal(root.buttons("Start first objective").length, 1);
+});
+
+test("M4 interrupted approval before CAS commit never silently recreates a program", async () => {
+  const root = new FakeElement();
+  const receipt = { programId, operationId: "11111111-1111-4111-8111-111111111111",
+    withWorkspace: true };
+  const calls: string[] = [];
+  const learning = {
+    recoverOnboardingApproval: async () => { calls.push("read-only reconciliation"); return null; },
+    saveOnboardingDraft: async () => { calls.push("clear stale receipt"); },
+  } as unknown as LearningController;
+  new OnboardingFlow(dom(root), learning, {
+    onSkip: () => {},
+    onCreated: async () => {},
+    onStart: async () => {},
+    onQuickPlan: async () => {},
+    onNoteAction: async () => {},
+  }, { version: 1, stage: "applying", goal: m3Program.goal, interests: [],
+    purpose: "career", level: "beginner", minutesPerSession: 45, sessionsPerWeek: 3,
+    sourceBound: false, approval: receipt });
+  await flush();
+  assert.deepEqual(calls, ["read-only reconciliation", "clear stale receipt"]);
+  assert.ok(root.findAll().some(el => el.cls === "nox-onboarding-error" &&
+    el.text.includes("interrupted before commit")));
+  assert.equal(root.buttons("Generate blueprint").length, 1);
 });
