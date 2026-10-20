@@ -2700,7 +2700,7 @@ export class ChatView extends ItemView {
       this.learning.hasActivePracticeQuestion(), {
         isBusy: () => this.uiState === "RUNNING",
         canRegenerate: () => this.uiState !== "RUNNING" && this.runtimeReady,
-        onFork: id => { void this.forkMessage(id); },
+        onFork: id => this.forkMessage(id),
         onSelectVersion: (index, version, sessionId) => {
           if (this.learning.getSession().id !== sessionId) return;
           void this.learning.selectResponseVersion(index, version)
