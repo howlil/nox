@@ -602,6 +602,7 @@ export class ChatView extends ItemView {
   /** Shell-only cross-feature invalidation; presenters keep their own timers and overlays. */
   private invalidateSessionPresentation(): void {
     ++this.viewEpoch;
+    this.thinkingUi?.reset();
     this.practiceUi.reset();
     this.learningUi.reset();
     this.transcriptPresenter.cancel();
