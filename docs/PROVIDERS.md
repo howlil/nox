@@ -1,56 +1,39 @@
-# Agent providers and privacy
+# Providers & privacy
 
-Nox implements the learning experience; inference runs through an **external provider**. Nox does not include a model, paid tokens, or a hosted AI account.
+Nox runs inference through an **external AI provider**. It includes no model, account, credits, or paid usage.
 
-| Provider | Setup requirement | Network or file impact |
+| Provider | Connect | Important limit |
 | --- | --- | --- |
-| AGY CLI | Install and authenticate AGY separately; select executable | The chosen CLI/upstream service may access external files or network |
-| Codex CLI | Install Codex and run `codex login` separately | CLI behavior is governed by its own permissions and services |
-| ChatGPT plan | Sign in using explicit OAuth, with a supported account entitlement | OpenAI authentication, model discovery, and inference endpoints |
+| AGY CLI | Install and authenticate the CLI; select its executable in Nox. | The executable may have its own file/network access. |
+| Codex CLI | Install Codex and run \`codex login\`; select Codex in Nox. | CLI permissions and upstream usage terms apply. |
+| ChatGPT plan | **Settings → Nox → ChatGPT plan → Continue with ChatGPT**. | Account eligibility and usage limits apply; sign-in does not guarantee inference access. |
 
-## Set up AGY or Codex
+If a CLI is not found, configure its absolute executable path. Never share tokens, callback URLs, or credential files.
 
-Install the CLI from its upstream project. Confirm the executable works in a terminal. In Nox settings select the provider and configure the absolute executable path if PATH discovery fails. For Codex, authenticate with `codex login` outside Obsidian. Credentials and provider billing are managed by the upstream tools.
+## What leaves your vault?
 
-## Set up ChatGPT plan
+Nox may read selected text, your active note, or explicitly attached/researched Markdown. **Text supplied to AI requests can leave your device for the chosen provider.** An external CLI can independently access files or the network beyond Nox's selected context; do not treat note scoping as an OS sandbox.
 
-Select **ChatGPT plan → Continue with ChatGPT** and complete authorization in a browser. Your account must have the relevant inference permission and usage capacity; successful OAuth authentication alone is insufficient. Nox keeps OAuth credentials and basic account metadata outside the vault, using Windows user-local DPAPI protection or private Unix filesystem permissions where supported.
+- Sessions, learning progress, and token usage are stored locally in Obsidian plugin data.
+- Proposed Markdown edits are applied only after your approval.
+- ChatGPT OAuth credentials are stored **outside the vault** in user-local config: \`%LOCALAPPDATA%\\nox\\chatgpt-auth.json\` on Windows; \`$XDG_CONFIG_HOME/nox/chatgpt-auth.json\` (default \`~/.config/nox/chatgpt-auth.json\`) on Unix. Windows uses user-scoped DPAPI; Unix uses private file/directory permissions where supported.
+- Disconnect in Nox settings to clear credentials. If local credentials become unreadable, **Back up and reset credentials** preserves a recovery copy before clearing sign-in.
 
-Disconnect from Nox settings to clear local tokens. Never share provider tokens, callback URLs, or the local configuration directory.
+## Research scope
 
-## Bounded provider discovery and credential recovery
+\`\`\`text
+/research question
+/research --scope=selected question
+/research --scope=folder:"Study Notes" question
+/research --scope=vault question
+\`\`\`
 
-Nox loads local sessions without waiting for AGY/Codex model discovery. Opening the model picker performs an explicit catalog lookup. AGY catalog requests have a timeout and output limit; raw CLI stderr is not surfaced in notices. Local CLI executables retain their own independent operating-system permissions.
+Broad research indexes up to 600 recent Markdown notes on demand. Selected/folder modes constrain the **final provider-bound context**, including historical context; they are not a guarantee against every local read. Strict source-bound curricula require an isolated provider capability—AGY/Codex CLI transports are not assumed isolated.
 
-ChatGPT credentials are loaded only when needed. If the protected file cannot be read, Nox keeps it unchanged, marks ChatGPT unavailable, and allows other providers to continue. In Settings, the **Back up and reset credentials** action requires confirmation and preserves the original encrypted (Windows) or owner-only (Unix) file under a recovery-suffixed filename before clearing the local sign-in state.
+## Desktop permissions
 
-## Research scopes
+Nox uses Node.js desktop APIs to launch configured CLI executables (argument-based \`spawn\`) and protect local OAuth credentials. It may enumerate Markdown filenames for search; copy actions write to the clipboard when triggered by you. Nox does not intentionally read clipboard history or use browser local/session storage as its data store.
 
-`/research question` keeps the existing vault-wide behavior and indexes at most 600 recent Markdown notes on demand. To narrow which note contents can be read and sent to a model, use:
+The Codex adapter uses its documented read-only invocation settings; this does not restrict other external binaries. Review each provider's data retention, billing, and permissions before using confidential notes.
 
-- `/research --scope=selected question` — explicit/selected note(s), falling back to the active Markdown note.
-- `/research --scope=folder:"Study Notes" question` — notes inside that vault-relative folder.
-- `/research --scope=vault question` — the existing vault search behavior.
-
-An active strict source-bound program overrides broader scopes. Switching scopes also filters cached research results. Selected/folder research additionally filters the final provider-bound note context (including ambient notes, attachments, vault policy/progress, and historical transcript history), and source-bound programs apply the same final-context restriction. User-typed prompt text is still sent verbatim. Search enumerates Markdown metadata using Obsidian's Vault API; automatically resolved ambient context may be read locally before provider filtering, so this is a provider-payload guarantee rather than a guarantee about every local Obsidian read. Restricted turns also avoid reuse of an opaque provider conversation cursor from previous unrestricted turns.
-
-## Desktop capabilities and threat boundaries
-
-NOX is a **desktop-only** Obsidian plugin. A community-plugin scanner correctly detects access to Node.js filesystem and subprocess APIs. These capabilities are not hidden permissions or unrestricted shell entrypoints exposed by the chat UI:
-
-- **External filesystem:** the direct ChatGPT OAuth client stores its own identity and credentials in the OS user configuration directory (`%LOCALAPPDATA%\\nox\\chatgpt-auth.json` on Windows, or `$XDG_CONFIG_HOME/nox/chatgpt-auth.json`, defaulting to `~/.config/nox/chatgpt-auth.json`, on Unix). This is outside the vault to avoid syncing tokens with notes. Windows credential payloads use user-scoped DPAPI; Unix files use mode `0600` with a `0700` directory where supported. NOX does not claim that local administrator or malware on the user's OS can be isolated.
-- **Shell/process execution:** the AGY and Codex integrations launch locally installed executables through Node `spawn()` with argument arrays, not shell-interpolated chat text. The Windows credential implementation also invokes a fixed PowerShell DPAPI command with its payload supplied via standard input. Provider executables are third-party software and may have independent filesystem/network permissions.
-- **Provider boundaries:** Codex inference currently starts with `--sandbox read-only`, `approval_policy="never"`, and `--ignore-user-config`. This is a Codex-specific restriction, **not** a sandbox guarantee for arbitrary configured AGY executables. Review CLI trust and provider permissions before using NOX.
-- **Vault enumeration:** filename search uses `vault.getMarkdownFiles()`; optional research indexes a bounded subset of Markdown notes only on demand. When `allowedPaths` is supplied it filters research candidates. Do not run broad research in a confidential vault without inspecting the requested context.
-- **Clipboard:** user-triggered copy actions write diagnostics or selected text to the system clipboard. NOX does not intentionally read clipboard history.
-- **Local plugin data:** Sessions, settings and learning progress use the Obsidian plugin data repository; Nox does not use browser `localStorage` or `sessionStorage`.
-
-The external-provider boundary must remain visible: a locally installed CLI can have **broader permissions than NOX's own Obsidian vault mutation flow**. Only install trusted binaries and use a disposable vault for a new provider.
-
-## What data is accessed?
-
-Nox may read the selected text, active Markdown notes, and explicit attached/researched context. Content actually supplied with an AI request can be transmitted to the selected provider. Nox stores sessions, progress, and usage locally and writes proposed Markdown edits only after approval. The CLIs may access files outside your vault independently of Nox and may contact external upstream services.
-
-A separate provider subscription, account, entitlement, or usage-based cost can apply. Review each provider's own privacy and retention policies before sending confidential notes. Nox has no separate mandatory account to install the plugin.
-
-Next: [Troubleshooting](TROUBLESHOOTING.md), [Architecture](../.agents/ENGINEERING_DESIGN.md).
+[Get started](GETTING_STARTED.md) · [Troubleshooting](TROUBLESHOOTING.md) · [Security](../SECURITY.md)
