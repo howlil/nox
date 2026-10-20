@@ -75,3 +75,39 @@ test("all learning turns flush Practice drafts before any composer clear or prov
   assert.ok(newSession.indexOf("await this.practiceUi.flushDraft()") <
     newSession.indexOf("await this.learning.newSession()"));
 });
+
+
+test("a closed or superseded Obsidian leaf cannot accept late streaming events", () => {
+  const view=readFileSync("src/chat/ChatView.ts","utf8");
+  const start=view.indexOf("  private async runTurn(");
+  const end=view.indexOf("  private handleLearningEvent(",start);
+  assert.ok(start>=0 && end>start);
+  const turn=view.slice(start,end);
+  const iterator=turn.indexOf("for await (const event of this.learning.run(");
+  const epochGuard=turn.indexOf("if (epoch !== this.viewEpoch) {",iterator);
+  const cancel=turn.indexOf("this.learning.cancel();",epochGuard);
+  const dispatch=turn.indexOf("this.handleLearningEvent(event);",iterator);
+  const restoration=turn.indexOf("epoch === this.viewEpoch && request.regenerate");
+  const catchGuard=turn.indexOf("if (epoch !== this.viewEpoch) return;",dispatch);
+  assert.ok(iterator>=0 && epochGuard>iterator && cancel>epochGuard &&
+    dispatch>cancel && restoration>dispatch && catchGuard>dispatch,
+    "epoch guard must intercept late activity, regenerate restoration and errors");
+  assert.match(view,/async onClose\(\): Promise<void> \{\s*\+\+this\.viewEpoch;/);
+  assert.match(view,/private invalidateSessionPresentation\(\): void \{\s*\+\+this\.viewEpoch;/);
+});
+
+test("presenters do not duplicate domain repositories or persistence authority",()=>{
+  for(const filename of [
+    "src/chat/thinking-presenter.ts",
+    "src/chat/prompt-menu-presenter.ts",
+    "src/chat/model-menu.ts",
+    "src/features/practice/view/PracticePresenter.ts",
+    "src/features/learning/view/LearningPresenter.ts",
+  ]){
+    const text=readFileSync(filename,"utf8");
+    assert.doesNotMatch(text,/from ["'][^"']*(?:VaultProgramStore|VaultLearningStore|PluginDataRepository|AgentRuntime)/,
+      filename+" must not import a persistence or provider adapter");
+    assert.doesNotMatch(text,/new (?:VaultProgramStore|VaultLearningStore|PluginDataRepository|SessionController)\(/,
+      filename+" must not instantiate durable data ownership");
+  }
+});
