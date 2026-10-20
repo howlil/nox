@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.3.2]
+
+### Fixes
+
+- eliminate direct CSS style assignments and prevent regressions
+- register staging workflow on master (#127)
+
+### Maintenance
+
+- synchronize NOX 1.3.1 public manifest (#126)
+
 ## [1.3.1]
 
 ### Fixes
