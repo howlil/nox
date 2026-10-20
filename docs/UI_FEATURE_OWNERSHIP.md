@@ -84,8 +84,22 @@ Proof: pnpm check:boundaries, typecheck, lint, unit/integration, build, artifact
 | M1 | `PracticePresenter` owns question/evaluation projection and one stale-safe draft debounce; ChatView exposes narrow request callbacks | Desktop quiz/CodeMirror smoke |
 | M2 | Existing History/Transcript presenters retained; response toolbar moved to `response-actions-presenter.ts` with typed session-scoped callbacks | Desktop navigation, fork and regenerated-response smoke |
 | M3 | `LearningPresenter` owns Learning Map, Activity, Focus Strip, session clock/cache/polling; original `OnboardingFlow` remains the sole onboarding owner | Desktop focus and onboarding recovery smoke |
-| M4 | ChatView composes Practice/Learning/Model/**Prompt** presenters; `PromptMenuPresenter` owns `@`/`/` popover, search display, program-page navigation, keyboard focus, aria and stale async results. **Thin-shell objective remains partial** because Thinking presentation still lives in ChatView | Thinking UI extraction and host smoke remain |
-| M5 | Explicit architecture allow-list; model-menu, prompt-menu keyboard/async, practice-draft flushing, and stale-response regression tests added | CI on final HEAD, Obsidian desktop acceptance |
+| M4 | ChatView composes Practice/Learning/Model/Prompt/**Thinking** presenters. `ThinkingPresenter` owns live/restored trace, observed stages, tool rows, disclosure, elapsed time, stale-event guard and interval lifecycle. ChatView retains cross-feature routing and canonical turn dispatch. | Desktop Thinking/stream acceptance remains |
+| M5 | Explicit architecture allow-list; model-menu, prompt-menu keyboard/async, practice draft, Thinking trace/terminal/restore, and stale-response regression tests added | CI on final HEAD, Obsidian desktop acceptance |
+
+### M4 follow-up: Thinking UI owner (2026-10-21)
+
+**Surface:** Live agent activity trace above the assistant response; restored traces reconstructed from committed conversation messages.
+
+- **C:** real observed runtime phases, tool start/completion, context inspector, optional model thought text, elapsed time, response-completed or interrupted label.
+- **V:** actively running (expanded by default), waiting for model, tool running/done/failed/interrupted, completed (auto-collapsed unless explicitly expanded), stopped/failed, historical restored trace (collapsed by default).
+- **N:** stream event emitter from LearningController, a valid ChatView thread mount, action label and NOX logo URL. The UI does **not** own inference, program state, transcript writes, or token accounting.
+- **Moves:** incoming event → incremental phase/tool UI; manual disclosure toggle → expanded/collapsed with aria sync; terminal event → final label + mark pending tool calls interrupted; restore → read-only historical activity display.
+- **Ownership:** `ThinkingPresenter` owns all live trace DOM references, stage/tool map, `NoxRunInspector`, elapsed 500ms interval, auto-follow of activity viewport, optional thought projection, restored trace renderer, and cleanup. `ChatView` owns `streamText` and assistant bubble responses and forwards only observed runtime events.
+- **Ordering/invariants:** No fabricated phases or tools; tool-completed without observed tool-started is ignored; historical model-provided thought text must not be auto-disclosed; settlement retains the DOM but releases only the live state/timer; close/session change/dispose invalidate live state. After terminal/cancel, stale thought/tool events cannot re-open the activity trace.
+- **Trust:** model-supplied thought/tool labels are rendered with textContent/Obsidian text helpers, not HTML injection. No raw model output is used to issue host actions.
+
+**Regression proof:** `tests/chat/thinking-presenter.test.ts` covers observed-only stages, interrupted tools, restored disclosure state, timer count/cleanup, and late-event admission; `tests/chat/thinking-layout.test.ts` now verifies the presenter directly owns both live and restored thread child nodes. No data migration or style token changes.
 
 ### M4 follow-up: Prompt Menu owner (2026-10-21)
 
