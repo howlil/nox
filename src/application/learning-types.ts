@@ -49,6 +49,8 @@ export interface LearningRequest {
   explicitContext: ExplicitContextRef[];
   /** Single explicitly chosen onboarding note; never include ambient editor context. */
   contextMode?: "explicit-only";
+  /** Expected program for onboarding focus; checked inside the program CAS mutation. */
+  focusProgramId?: string;
   /** Origin of a Review finding; follow-ups must not silently retarget edits. */
   sourcePath?: string;
   /** A retry is another attempt at the same logical user turn. */
