@@ -1,10 +1,9 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync, writeFileSync, readFileSync } from "node:fs";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
 import test from "node:test";
-import { findDirectStyleViolations } from "../../../scripts/ci/obsidian-critical-policy.mjs";
 
 const policy = "scripts/ci/obsidian-critical-policy.mjs";
 function check(source: string) {
@@ -82,7 +81,9 @@ test("Community: allow native CSS helpers and CSS classes", () => {
   }
 });
 
-test("Community: CI source scanner covers code-answer-editor.ts and every TS source", () => {
-  const editor = readFileSync("src/chat/code-answer-editor.ts", "utf8");
-  assert.deepEqual(findDirectStyleViolations(editor,"src/chat/code-answer-editor.ts"), []);
+test("Community: CI source scanner rejects direct CSSOM writes in source", () => {
+  const selected = spawnSync(process.execPath, [policy, "src/chat/code-answer-editor.ts"], { encoding: "utf8" });
+  assert.equal(selected.status, 0, selected.stderr);
+  const all = spawnSync(process.execPath, [policy], { encoding: "utf8" });
+  assert.equal(all.status, 0, all.stderr);
 });
