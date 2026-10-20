@@ -37,10 +37,8 @@ import {
   TerminalOutcome,
 } from "./chat-state";
 import {
-  createNoxButton,
   createNoxIconButton,
   createNoxMessageMeta,
-  createNoxSurface,
   createNoxStatus,
   setNoxIcon,
 } from "./primitives";
