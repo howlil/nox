@@ -1460,6 +1460,14 @@ export class ChatView extends ItemView {
     request: LearningRequest,
     appendUserMessage: boolean,
   ): Promise<void> {
+    // This applies to /hint, normal sends, retry and regenerate alike.
+    // Never clear the composer or start a turn before any typed Practice draft is durable.
+    try {
+      await this.practiceUi.flushDraft();
+    } catch {
+      new Notice("Could not save the quiz draft. Retry before sending.");
+      return;
+    }
     this.closePromptMenu();
     this.clearReplyReference();
 
