@@ -64,3 +64,20 @@ test("M3 first objective uses adaptive decision instead of first curriculum posi
     objectives: [{ ...goals[1], deprecated: true }] },
   { kind: "diagnostic", objectiveId: "first" }), null);
 });
+
+test("M4 interrupted approvals restore as recovery without restarting AI generation", () => {
+  const draft = restoreOnboardingDraft();
+  const receipt = {
+    programId: "11111111-1111-4111-8111-111111111111",
+    operationId: "22222222-2222-4222-8222-222222222222",
+    withWorkspace: true,
+  };
+  for (const stage of ["preview", "applying", "ready", "form"] as const) {
+    const restored = restoreOnboardingDraft({ ...draft, stage, goal: "Learn resilience",
+      approval: receipt });
+    assert.equal(restored.stage, "recovering");
+    assert.deepEqual(restored.approval, receipt);
+    assert.equal(restored.goal, "Learn resilience");
+  }
+  assert.equal(restoreOnboardingDraft({ ...draft, stage: "recovering" }).stage, "form");
+});
