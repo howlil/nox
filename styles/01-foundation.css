@@ -1,0 +1,2325 @@
+@theme inline {
+  --color-nox-page: var(--nox-page);
+  --color-nox-canvas: var(--nox-canvas);
+  --color-nox-surface: var(--nox-surface);
+  --color-nox-inset: var(--nox-inset);
+  --color-nox-hover: var(--nox-hover);
+  --color-nox-ink: var(--nox-ink);
+  --color-nox-ink-2: var(--nox-ink-2);
+  --color-nox-ink-3: var(--nox-ink-3);
+  --color-nox-line: var(--nox-line);
+  --color-nox-line-strong: var(--nox-line-strong);
+  --color-nox-accent: var(--nox-accent);
+  --color-nox-accent-tint: var(--nox-accent-tint);
+  --radius-nox-chip: 6px;
+  --radius-nox-control: 8px;
+  --radius-nox-card: 8px;
+  --radius-nox-window: 10px;
+}
+
+.nox-root,
+.nox-root * {
+  box-sizing: border-box;
+}
+
+.nox-root,
+.nox-settings,
+.nox-theme-portal {
+  /* Shared flat tokens for the Nox sidebar and Obsidian settings. */
+  /* Howlil neutral ramp × Nox purple. Every fill is a solid color. */
+  --nox-page: #FEFEFE;
+  --nox-canvas: #FEFEFE;
+  --nox-surface: #FEFEFE;
+  --nox-inset: #F7F7F7;
+  --nox-hover: #F5F5F5;
+  --nox-card-hover: #FAFAFA;
+  --nox-hover-2: #ECECEC;
+  --nox-ink: #161616;
+  --nox-ink-2: #626262;
+  --nox-ink-3: #757575;
+  --nox-line: #EAEAEA;
+  --nox-line-strong: #DCDCDC;
+  --nox-line-soft: #F0F0F0;
+  --nox-field: #F7F7F7;
+  --nox-accent: #8653D5;
+  --nox-accent-hover: #7541C4;
+  --nox-accent-ink: #7140BC;
+  --nox-accent-soft: #F4EDFF;
+  --nox-accent-border: #C9B0ED;
+  --nox-accent-tint: var(--nox-accent-soft);
+  --nox-on-accent: #FFFFFF;
+  --nox-green: #27804D;
+  --nox-orange: #A66920;
+  --nox-red: #BF4242;
+  --nox-error-soft: #FFF0F0;
+  --nox-success-soft: #EFF8F1;
+
+  /* A NOX appearance must also control Obsidian-rendered content inside
+     its boundary. These variables are scoped, NEVER written to body. */
+  --background-primary: var(--nox-page);
+  --background-secondary: var(--nox-surface);
+  --background-secondary-alt: var(--nox-inset);
+  --background-modifier-border: var(--nox-line);
+  --background-modifier-hover: var(--nox-hover);
+  --text-normal: var(--nox-ink);
+  --text-muted: var(--nox-ink-2);
+  --text-faint: var(--nox-ink-3);
+  --text-accent: var(--nox-accent-ink);
+  --text-error: var(--nox-red);
+  --text-on-accent: var(--nox-on-accent);
+  --interactive-normal: var(--nox-inset);
+  --interactive-hover: var(--nox-hover);
+  --interactive-accent: var(--nox-accent);
+  --interactive-accent-hover: var(--nox-accent-hover);
+  --code-background: var(--nox-inset);
+  --code-normal: var(--nox-ink);
+  --code-comment: var(--nox-ink-3);
+  --code-keyword: var(--nox-accent-ink);
+  --code-function: var(--nox-ink);
+  --code-string: var(--nox-green);
+  --link-color: var(--nox-accent-ink);
+  --link-decoration-color: var(--nox-accent-border);
+
+  /* Browser-painted checkboxes, select menus and scrollbars follow NOX,
+     even when Obsidian's base appearance differs. */
+  color-scheme: light;
+  accent-color: var(--nox-accent);
+  scrollbar-color: var(--nox-line-strong) var(--nox-page);
+  /* Howlil 4px spacing rhythm. */
+  --nox-space-1: 4px;
+  --nox-space-2: 8px;
+  --nox-space-3: 12px;
+  --nox-space-4: 16px;
+  --nox-space-5: 20px;
+  --nox-space-6: 24px;
+  --nox-space-8: 32px;
+  --nox-radius-chip: 6px;
+  --nox-radius-control: 8px;
+  --nox-radius-card: 8px;
+  --nox-radius-window: 10px;
+  --nox-radius-pill: 9999px;
+  --nox-motion-fast: 160ms;
+  --nox-motion-standard: 240ms;
+  --nox-ease-out-strong: cubic-bezier(0.22, 1, 0.36, 1);
+  --nox-ease-link: cubic-bezier(0.16, 1, 0.3, 1);
+  --nox-popover-shadow: none;
+  --nox-popover-max-height: min(360px, calc(100vh - 120px));
+  --nox-composer-shadow: none;
+}
+
+.nox-root {
+  @apply flex h-full min-h-0 flex-col overflow-hidden;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--nox-page);
+  color: var(--nox-ink);
+  font-family: var(--font-interface, sans-serif);
+  font-size: 14px;
+  letter-spacing: -0.01em;
+}
+
+.nox-root :focus-visible,
+.nox-settings :focus-visible {
+  outline: none;
+  box-shadow: none;
+}
+
+/* No outer ring: accessible keyboard focus is indicated by a solid fill and
+   border/text contrast change on the focused interactive surface. */
+.nox-root :is(button, [role="option"], summary):focus-visible,
+.nox-settings :is(button, select, input):focus-visible {
+  border-color: var(--nox-accent-border);
+  background-color: var(--nox-accent-soft);
+  color: var(--nox-accent-ink);
+}
+.nox-root a:focus-visible { text-decoration: underline; text-underline-offset: 3px; }
+.nox-root .nox-input:focus-visible { outline: none; }
+
+/* Obsidian themes may inject button and field shadows/background images.
+   Normalize these only inside Nox-owned surfaces. */
+.nox-root :is(button, textarea, input, select),
+.nox-settings :is(button, input, select) {
+  box-shadow: none !important;
+  background-image: none !important;
+}
+
+.nox-header {
+  @apply flex shrink-0 flex-col;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-height: 44px;
+  padding: 7px 12px 6px;
+  border-bottom: 1px solid var(--nox-line);
+  background: var(--nox-surface);
+  flex-shrink: 0;
+}
+
+
+/* One-line learning budget, not a persistent dashboard/card. */
+.nox-session-clock {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  min-width: 0;
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--nox-ink-2);
+}
+.nox-session-clock.nox-hidden,
+.nox-session-clock-button.nox-hidden { display: none; }
+.nox-session-clock-label {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+.nox-session-clock-button {
+  flex: 0 0 auto;
+  min-height: 26px;
+  padding: 3px 8px;
+  color: var(--nox-ink-2);
+  background: var(--nox-inset);
+  border: 1px solid transparent;
+  border-radius: var(--nox-radius-chip);
+  box-shadow: none;
+  font: inherit;
+  font-weight: 500;
+  cursor: pointer;
+}
+.nox-session-clock-button:hover { background: var(--nox-hover); }
+.nox-session-clock-button:disabled { opacity: 0.5; cursor: default; }
+
+.nox-header-top {
+  @apply flex w-full min-w-0 items-center justify-between;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  min-width: 0;
+}
+
+.nox-header-brand,
+.nox-header-right,
+.nox-context-row,
+.nox-composer-controls,
+.nox-composer-footer,
+.nox-btn-group {
+  display: flex;
+  align-items: center;
+}
+
+.nox-header-brand {
+  min-width: 0;
+  gap: 8px;
+}
+
+.nox-header-logo {
+  display: block;
+  width: 26px;
+  height: 26px;
+  flex: 0 0 auto;
+  border-radius: var(--nox-radius-control);
+  object-fit: cover;
+}
+
+.nox-header-copy {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  gap: 1px;
+}
+
+.nox-header-title {
+  overflow: hidden;
+  color: var(--nox-ink);
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nox-header-subtitle {
+  color: var(--nox-ink-3);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  line-height: 1.1;
+  text-transform: uppercase;
+}
+
+.nox-header-right {
+  min-width: 0;
+  gap: 4px;
+  margin-left: auto;
+}
+
+.nox-root .svg-icon,
+.nox-settings .svg-icon { stroke-width: 1.8; }
+
+.nox-new-btn,
+.nox-more-btn,
+.nox-send-btn,
+.nox-cancel-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  border: 0;
+  box-shadow: none;
+  cursor: pointer;
+}
+
+.nox-header-right > :is(.nox-map-btn, .nox-history-btn, .nox-new-btn, .nox-more-btn) {
+  display: inline-flex;
+  width: 32px;
+  height: 32px;
+  min-width: 32px;
+  min-height: 32px;
+  padding: 0;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid transparent;
+  border-radius: var(--nox-radius-pill);
+  background: var(--nox-inset);
+  color: var(--nox-ink-2);
+  box-shadow: none;
+  line-height: 1;
+}
+.nox-header-right > :is(.nox-map-btn, .nox-history-btn, .nox-new-btn, .nox-more-btn):hover {
+  background: var(--nox-hover);
+  color: var(--nox-ink);
+}
+.nox-header-right > :is(.nox-map-btn, .nox-history-btn, .nox-new-btn, .nox-more-btn):focus-visible {
+  background: var(--nox-accent-soft);
+  color: var(--nox-accent-ink);
+}
+.nox-header-right > :is(.nox-map-btn, .nox-history-btn)[aria-expanded="true"] {
+  background: var(--nox-accent-soft);
+  color: var(--nox-accent-ink);
+}
+
+.nox-thread {
+  /* Single reading-column authority for streamed, restored, and activity UI. */
+  --nox-reading-width: 768px;
+  @apply flex min-h-0 flex-1 flex-col overflow-y-auto;
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  flex-direction: column;
+  gap: 8px;
+  overflow-y: auto;
+  padding: 12px 12px 16px;
+  background: var(--nox-canvas);
+  scroll-behavior: smooth;
+  scrollbar-gutter: stable;
+  overflow-x: hidden;
+}
+
+/* One readable column regardless of Obsidian pane width. Visuals own their scroll. */
+.nox-thread > :not(.nox-bubble--user) {
+  width: min(100%, var(--nox-reading-width));
+  max-width: var(--nox-reading-width);
+  min-width: 0;
+  margin-inline: auto;
+}
+.nox-thread > .nox-bubble--user {
+  max-width: min(84%, 630px);
+  min-width: 0;
+  margin-right: max(0px, calc((100% - 768px) / 2));
+  margin-left: auto;
+}
+
+.nox-thread::-webkit-scrollbar {
+  width: 8px;
+}
+
+.nox-thread::-webkit-scrollbar-thumb {
+  border: 2px solid transparent;
+  border-radius: var(--nox-radius-control);
+  background: var(--nox-line);
+  background-clip: padding-box;
+}
+
+.nox-empty-slate {
+  display: flex;
+  width: min(520px, 100%);
+  flex: 0 0 auto;
+  min-height: 0;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: flex-start;
+  gap: 12px;
+  margin: 12px auto 0;
+  padding: 0;
+  text-align: left;
+}
+
+
+
+
+
+
+
+
+
+
+.nox-button {
+  display: inline-flex;
+  min-height: 28px;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 5px 9px;
+  border: 1px solid transparent;
+  border-radius: var(--nox-radius-control);
+  background: var(--nox-inset);
+  color: var(--nox-ink);
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  line-height: 1.2;
+  box-shadow: none;
+  transition: background-color 120ms ease, border-color 120ms ease, color 120ms ease;
+}
+
+.nox-button:hover,
+.nox-button:focus-visible {
+  border-color: var(--nox-line-strong);
+  background: var(--nox-hover);
+}
+
+.nox-button:active:not(:disabled) { background-color: var(--nox-hover-2); }
+.nox-button:disabled { cursor: not-allowed; opacity: 0.55; }
+.nox-button--primary {
+  border-color: transparent;
+  background: var(--nox-accent);
+  color: var(--nox-on-accent);
+  font-weight: 600;
+}
+.nox-button--primary:hover,
+.nox-button--primary:focus-visible {
+  border-color: transparent;
+  background: var(--nox-accent-hover);
+  color: var(--nox-on-accent);
+}
+.nox-button--accent {
+  border-color: transparent;
+  background: var(--nox-accent-tint);
+  color: var(--nox-accent-ink);
+}
+.nox-button--quiet {
+  border-color: transparent;
+  background: transparent;
+  color: var(--nox-ink-2);
+}
+.nox-button--quiet:hover,
+.nox-button--quiet:focus-visible {
+  border-color: transparent;
+  background: var(--nox-hover);
+  color: var(--nox-ink);
+}
+.nox-button-icon { display: inline-flex; align-items: center; }
+
+.nox-bubble {
+  max-width: 100%;
+  padding: 10px 12px;
+  border-radius: var(--nox-radius-card);
+  font-size: var(--font-ui-small, 13px);
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.nox-bubble--user {
+  align-self: flex-end;
+  max-width: 84%;
+  padding: 8px 10px;
+  border: 1px solid var(--nox-accent-border);
+  border-radius: var(--nox-radius-card);
+  background: var(--nox-accent-tint);
+  color: var(--nox-ink);
+  box-shadow: none;
+}
+
+.nox-root .nox-bubble--agent,
+.nox-root .nox-proposal {
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+.nox-bubble--agent {
+  align-self: flex-start;
+  width: 100%;
+  max-width: 100%;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.nox-response-meta {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-bottom: 6px;
+  color: var(--nox-ink-2);
+  font-size: 11px;
+  line-height: 1.3;
+}
+
+.nox-response-label {
+  color: var(--nox-ink);
+  font-weight: 600;
+}
+
+.nox-response-sub {
+  color: var(--nox-ink-2);
+}
+
+.nox-response-time {
+  color: var(--nox-ink);
+}
+
+.nox-response-label,
+.nox-response-sub,
+.nox-response-time {
+  white-space: nowrap;
+}
+
+.nox-bubble-label {
+  margin-bottom: 5px;
+  color: var(--nox-accent);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  line-height: 1.2;
+  text-transform: uppercase;
+}
+
+.nox-bubble-content {
+  display: block;
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+
+.nox-bubble-content.nox-markdown {
+  @apply whitespace-normal;
+  color: var(--nox-ink);
+  line-height: 1.6;
+}
+
+.nox-markdown-error {
+  color: var(--nox-red);
+  font-size: 12px;
+}
+
+.nox-markdown > :first-child {
+  margin-top: 0;
+}
+
+.nox-markdown > :last-child {
+  margin-bottom: 0;
+}
+
+.nox-markdown p {
+  margin: 0.65em 0;
+}
+
+.nox-markdown h1,
+.nox-markdown h2,
+.nox-markdown h3,
+.nox-markdown h4 {
+  margin: 1em 0 0.45em;
+  color: var(--nox-ink);
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.nox-markdown h1 { font-size: 1.25em; }
+.nox-markdown h2 { font-size: 1.15em; }
+.nox-markdown h3,
+.nox-markdown h4 { font-size: 1.05em; }
+
+.nox-markdown ul,
+.nox-markdown ol {
+  margin: 0.65em 0;
+  padding-left: 1.5em;
+}
+
+.nox-markdown li + li {
+  margin-top: 0.25em;
+}
+
+.nox-markdown blockquote {
+  margin: 0.75em 0;
+  padding: 0.1em 0 0.1em 0.9em;
+  border-left: 2px solid var(--nox-accent);
+  color: var(--nox-ink-2);
+}
+
+.nox-markdown pre {
+  margin: 0.8em 0;
+  overflow-x: auto;
+  border: 1px solid var(--nox-line);
+  border-radius: var(--nox-radius-control);
+  background: var(--nox-inset);
+  padding: 10px;
+  font-family: var(--font-monospace);
+  font-size: 0.88em;
+  line-height: 1.55;
+  white-space: pre;
+}
+
+.nox-markdown code {
+  color: var(--nox-ink);
+  border-radius: var(--nox-radius-chip);
+  background: var(--nox-inset);
+  padding: 0.12em 0.3em;
+  font-family: var(--font-monospace);
+  font-size: 0.9em;
+}
+
+.nox-markdown pre code {
+  color: var(--nox-ink);
+  background: transparent;
+  padding: 0;
+  font-size: inherit;
+}
+
+.nox-markdown a {
+  color: var(--nox-accent-ink);
+  text-decoration: underline;
+  text-decoration-color: var(--nox-accent-border);
+  text-underline-offset: 2px;
+}
+
+.nox-markdown hr {
+  margin: 1em 0;
+  border: 0;
+  border-top: 1px solid var(--nox-line);
+}
+
+.nox-markdown table {
+  display: block;
+  max-width: 100%;
+  margin: 0.8em 0;
+  overflow-x: auto;
+  border-collapse: collapse;
+  font-size: 0.92em;
+}
+
+.nox-markdown th,
+.nox-markdown td {
+  border: 1px solid var(--nox-line);
+  padding: 6px 10px;
+  text-align: left;
+}
+
+.nox-markdown th {
+  background: var(--nox-inset);
+  color: var(--nox-ink);
+  font-weight: 600;
+}
+
+.nox-stream-word {
+  display: inline;
+  opacity: 0.2;
+  filter: blur(3px);
+  animation: nox-stream-word-resolve 280ms cubic-bezier(0.23, 1, 0.32, 1) both;
+}
+
+.nox-stream-actions {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 3px;
+  margin-top: 9px;
+  padding-top: 7px;
+  border-top: 1px solid var(--nox-line);
+  animation: nox-stream-actions-in 300ms ease-out both;
+  white-space: normal;
+}
+
+.nox-stream-action {
+  display: inline-flex;
+  width: 30px;
+  height: 30px;
+  min-height: 30px;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border-radius: var(--nox-radius-pill);
+}
+.nox-stream-action:disabled { opacity: 0.45; cursor: not-allowed; }
+.nox-response-variant-index {
+  align-self: center;
+  padding: 0 4px;
+  font-size: 11px;
+  color: var(--nox-ink-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.nox-bubble--streaming::after {
+  color: var(--nox-accent);
+  content: "▋";
+  animation: nox-blink 0.8s step-end infinite;
+}
+
+.nox-thinking {
+  /* Width/alignment are owned by .nox-thread, not the activity panel. */
+  min-width: 0;
+  margin-inline: auto;
+}
+
+.nox-thinking-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: fit-content;
+  min-height: 28px;
+  margin-left: -6px;
+  padding: 4px 6px;
+  border: 0;
+  border-radius: var(--nox-radius-control);
+  background: transparent;
+  color: var(--nox-ink-2);
+  cursor: pointer;
+  box-shadow: none;
+}
+
+.nox-thinking-toggle:hover,
+.nox-thinking-toggle:focus-visible {
+  background: var(--nox-hover);
+}
+
+.nox-thinking-logo {
+  display: block;
+  width: 16px;
+  height: 16px;
+  flex: 0 0 auto;
+  border-radius: 5px;
+  object-fit: cover;
+}
+
+.nox-thinking-label {
+  overflow: hidden;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.3;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nox-thinking-label--active {
+  color: var(--nox-ink-2);
+  animation: nox-thinking-pulse 1.4s ease-in-out infinite;
+}
+
+.nox-thinking-label--done {
+  color: var(--nox-ink-2);
+}
+
+.nox-thinking-elapsed {
+  color: var(--nox-ink-3);
+  font-family: var(--font-monospace);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.nox-thinking-chevron {
+  color: var(--nox-ink-3);
+  font-size: 16px;
+  line-height: 1;
+  transform: rotate(0deg);
+  transition: transform 300ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+.nox-thinking-chevron.is-expanded {
+  transform: rotate(180deg);
+}
+
+.nox-thinking-panel {
+  display: grid;
+  grid-template-rows: 0fr;
+  opacity: 0;
+  transition:
+    grid-template-rows 400ms cubic-bezier(0.23, 1, 0.32, 1),
+    opacity 250ms ease;
+}
+
+.nox-thinking-panel.is-expanded {
+  grid-template-rows: 1fr;
+  opacity: 1;
+}
+
+.nox-thinking-trace {
+  position: relative;
+  display: flex;
+  min-height: 0;
+  flex-direction: column;
+  gap: 4px;
+  margin: 1px 0 0 5px;
+  padding: 4px 0 4px 16px;
+  overflow: hidden;
+}
+
+.nox-thinking-trace::before {
+  position: absolute;
+  top: -5px;
+  bottom: 0;
+  left: 3px;
+  width: 1px;
+  background: var(--nox-line);
+  content: "";
+}
+
+.nox-thinking-row {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  min-height: 28px;
+  gap: 8px;
+  padding: 2px 6px;
+  border-radius: var(--nox-radius-chip);
+  color: var(--nox-ink-2);
+  animation: nox-thinking-fade-up 320ms cubic-bezier(0.23, 1, 0.32, 1) both;
+}
+
+.nox-thinking-row.is-active {
+  background: var(--nox-hover);
+  color: var(--nox-ink);
+}
+
+.nox-thinking-row.is-done {
+  color: var(--nox-ink-2);
+}
+
+.nox-thinking-marker {
+  display: inline-flex;
+  width: 14px;
+  height: 14px;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  color: var(--nox-ink-3);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.nox-thinking-marker--spinner {
+  border: 1.5px solid var(--nox-line);
+  border-top-color: var(--nox-ink);
+  border-radius: 50%;
+  animation: nox-thinking-spin 700ms linear infinite;
+}
+
+.nox-thinking-primary {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  font-size: 12.5px;
+  font-weight: 500;
+  line-height: 1.45;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nox-thinking-phase-time {
+  margin-left: auto;
+  color: var(--nox-ink-3);
+  font-family: var(--font-monospace);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.nox-thinking-row.is-interrupted .nox-thinking-marker {
+  color: var(--nox-red);
+}
+
+.nox-thinking-marker .nox-icon {
+  color: currentColor;
+}
+
+.nox-thinking-secondary {
+  flex: 0 0 auto;
+  max-width: 45%;
+  overflow: hidden;
+  color: var(--nox-ink-3);
+  font-family: var(--font-monospace);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nox-thinking-thought {
+  margin: 6px 0 4px 20px;
+  padding: 8px 12px;
+  border-left: 2px solid var(--nox-line-strong);
+  background: var(--nox-inset);
+  border-radius: var(--nox-radius-chip);
+  color: var(--nox-ink-2);
+  font-size: 12px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 260px;
+  overflow-y: auto;
+}
+
+.nox-inline-status {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 10px;
+  border: 1px solid var(--nox-line);
+  border-radius: var(--nox-radius-control);
+  background: var(--nox-inset);
+  color: var(--nox-ink-2);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.nox-status {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.nox-status-message { min-width: 0; flex: 1; }
+.nox-status--neutral { color: var(--nox-ink-2); }
+.nox-status--success { color: var(--nox-green); }
+.nox-status--warning { color: var(--nox-orange); }
+.nox-status--error { color: var(--nox-red); }
+
+.nox-inline-status--failed {
+  border-color: color-mix(in oklch, var(--nox-red) 20%, transparent);
+  background: color-mix(in oklch, var(--nox-red) 6%, var(--nox-surface));
+  color: var(--nox-red);
+}
+
+.nox-inline-status-retry {
+  flex: 0 0 auto;
+  min-height: 24px;
+  padding: 2px 8px;
+  border: 1px solid currentColor;
+  border-radius: var(--nox-radius-chip);
+  font-size: 11px;
+}
+
+.nox-inline-status-retry:hover,
+.nox-inline-status-retry:focus-visible {
+  background: var(--nox-surface);
+}
+
+.nox-practice-card,
+.nox-practice-evaluation {
+  margin-top: 10px;
+}
+
+.nox-practice-card {
+  border-color: var(--nox-line-strong);
+}
+
+.nox-practice-evaluation {
+  border-color: var(--nox-line);
+}
+
+.nox-practice-label,
+.nox-practice-gaps-label {
+  color: var(--nox-accent);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+
+.nox-practice-question,
+.nox-practice-feedback {
+  margin-top: 6px;
+  color: var(--nox-ink);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.nox-practice-hint {
+  margin-top: 7px;
+  color: var(--nox-ink-2);
+  font-size: 11px;
+  padding: 7px 8px;
+  border-radius: var(--nox-radius-control);
+  background: var(--nox-inset);
+  font-style: normal;
+}
+
+.nox-practice-gaps {
+  margin-top: 10px;
+  padding-top: 9px;
+  border-top: 1px solid var(--nox-line);
+}
+
+.nox-practice-gap {
+  margin-top: 4px;
+  color: var(--nox-ink-2);
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.nox-practice-gap::before {
+  margin-right: 5px;
+  color: var(--nox-orange);
+  content: "•";
+}
+
+.nox-proposal {
+  font-size: 12px;
+}
+
+.nox-proposal-badge,
+.nox-proposal-reason,
+.nox-proposal-actions,
+.nox-result-badge {
+  padding: 8px 10px;
+}
+
+.nox-proposal-badge {
+  border-bottom: 1px solid var(--nox-line);
+  background: var(--nox-surface);
+  color: var(--nox-ink);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.nox-proposal-reason {
+  border-bottom: 1px solid var(--nox-line);
+  background: var(--nox-inset);
+  color: var(--nox-ink-2);
+  font-size: 11px;
+  font-style: normal;
+  line-height: 1.4;
+}
+
+.nox-proposal-diff {
+  padding: 9px 10px;
+  background: var(--nox-surface);
+  font-family: var(--font-monospace);
+  font-size: 11px;
+  line-height: 1.75;
+  overflow-x: auto;
+}
+
+.nox-diff-removed,
+.nox-diff-added {
+  display: block;
+  padding: 1px 5px;
+  border-radius: var(--nox-radius-chip);
+  white-space: pre-wrap;
+}
+
+.nox-diff-removed {
+  background: var(--nox-error-soft);
+  color: var(--nox-red);
+}
+
+.nox-diff-added {
+  background: var(--nox-success-soft);
+  color: var(--nox-green);
+}
+
+.nox-proposal-actions {
+  display: flex;
+  gap: 7px;
+  border-top: 1px solid var(--nox-line);
+  background: var(--nox-inset);
+}
+
+.nox-btn-reject,
+.nox-btn-apply {
+  flex: 1;
+  min-height: 28px;
+  border-radius: var(--nox-radius-control);
+}
+
+.nox-result-badge {
+  border-top: 1px solid var(--nox-line);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.nox-badge--applied {
+  background: var(--nox-success-soft);
+  color: var(--nox-green);
+}
+
+.nox-badge--rejected {
+  color: var(--nox-ink-2);
+}
+
+.nox-badge--stale {
+  color: var(--nox-orange);
+}
+
+.nox-composer {
+  @apply relative shrink-0;
+  position: relative;
+  flex-shrink: 0;
+  padding: 6px max(10px, calc((100% - 768px) / 2)) 8px;
+  border-top: 1px solid var(--nox-line);
+  background: var(--nox-page);
+}
+
+.nox-context-row {
+  display: flex;
+  gap: 8px;
+  min-height: 22px;
+  margin-bottom: 5px;
+}
+
+.nox-prompt-anchor {
+  position: relative;
+}
+
+.nox-prompt-menu {
+  @apply absolute z-20 overflow-hidden rounded-[10px] p-1;
+  position: absolute;
+  right: auto;
+  bottom: calc(100% + 8px);
+  left: 0;
+  width: min(392px, 100%);
+  max-height: min(330px, calc(100vh - 120px));
+  z-index: 20;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  padding: 4px;
+  border: 1px solid var(--nox-line-strong);
+  border-radius: var(--nox-radius-card);
+  background: var(--nox-surface);
+  box-shadow: var(--nox-popover-shadow);
+}
+
+.nox-menu-row {
+  box-shadow: none !important;
+  font: inherit;
+}
+
+.nox-popover {
+  isolation: isolate;
+}
+
+.nox-menu-row-trailing {
+  display: inline-flex;
+  width: 15px;
+  height: 15px;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+}
+
+.nox-menu-row-trailing .svg-icon {
+  width: 14px;
+  height: 14px;
+}
+
+.nox-menu-row:focus-visible {
+  outline: none;
+  background: var(--nox-accent-soft);
+  color: var(--nox-accent-ink);
+}
+
+.nox-prompt-menu-row {
+  @apply grid w-full min-h-[34px] items-center gap-2 rounded-[6px] border-0 px-2 py-1.5 text-left;
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 40px;
+  padding: 6px 9px;
+  border: 0;
+  border-radius: var(--nox-radius-chip);
+  background: transparent;
+  color: var(--nox-ink);
+  cursor: pointer;
+  appearance: none;
+  box-shadow: none !important;
+  font: inherit;
+  outline: none;
+  text-align: left;
+}
+
+.nox-prompt-menu-row:hover {
+  background: var(--nox-hover);
+}
+
+.nox-prompt-menu-row.is-active {
+  background: var(--nox-accent-tint);
+  color: var(--nox-ink);
+}
+
+.nox-prompt-menu-row.is-active .nox-prompt-menu-icon {
+  color: var(--nox-accent-ink);
+}
+
+.nox-prompt-menu-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+  padding: 8px 9px 6px;
+  color: var(--nox-ink);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.nox-prompt-menu-heading-hint {
+  color: var(--nox-ink-3);
+  font-size: 10px;
+  font-weight: 400;
+}
+
+.nox-prompt-menu-body {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  gap: 1px;
+}
+
+.nox-prompt-menu-body > .nox-prompt-menu-name,
+.nox-prompt-menu-body > .nox-prompt-menu-description {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+}
+
+.nox-prompt-menu-row .nox-prompt-menu-command {
+  justify-self: end;
+  max-width: 96px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nox-prompt-menu-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: var(--nox-radius-chip);
+  color: var(--nox-ink-2);
+  font-size: 15px;
+}
+
+.nox-prompt-menu-icon .svg-icon,
+.nox-attachment-icon .svg-icon,
+.nox-attachment-remove .svg-icon,
+.nox-intent-remove .svg-icon,
+.nox-progress-mark .svg-icon,
+.nox-new-btn .svg-icon,
+.nox-more-btn .svg-icon,
+.nox-prompt-plus .svg-icon,
+.nox-send-btn .svg-icon,
+.nox-cancel-btn .svg-icon {
+  width: 15px;
+  height: 15px;
+}
+
+.nox-prompt-menu-name {
+  overflow: hidden;
+  font-size: 12px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nox-prompt-menu-description {
+  overflow: hidden;
+  color: var(--nox-ink-3);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nox-prompt-menu-empty,
+.nox-prompt-menu-hint {
+  padding: 7px 8px;
+  color: var(--nox-ink-3);
+  font-size: 10px;
+}
+
+.nox-prompt-menu-hint {
+  margin-top: 3px;
+  border-top: 1px solid var(--nox-line);
+}
+
+.nox-context-label {
+  flex: 0 0 auto;
+  color: var(--nox-ink-3);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.nox-chips {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.nox-chip {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+  gap: 5px;
+  padding: 3px 8px;
+  overflow: hidden;
+  border: 1px solid var(--nox-line);
+  border-radius: var(--nox-radius-pill);
+  background: var(--nox-surface);
+  color: var(--nox-ink-2);
+  font-size: 10px;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nox-chip--intent {
+  border-color: var(--nox-accent-border);
+  background: var(--nox-accent-tint);
+  color: var(--nox-accent-ink);
+}
+
+.nox-chip--attachment {
+  border-color: transparent;
+  border-radius: var(--nox-radius-chip);
+  background: var(--nox-inset);
+}
+
+.nox-chip-icon { display: inline-flex; flex: 0 0 auto; align-items: center; }
+
+.nox-chip-remove {
+  display: inline-flex;
+  width: 20px;
+  height: 20px;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  padding: 0;
+  border: 0;
+  border-radius: var(--nox-radius-pill);
+  background: transparent;
+  color: var(--nox-ink-3);
+  cursor: pointer;
+}
+
+.nox-chip-dot {
+  width: 5px;
+  height: 5px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: var(--nox-accent);
+}
+
+.nox-composer-box {
+  display: block;
+  padding: 5px 6px 5px 8px;
+  border: 1px solid var(--nox-line);
+  border-radius: var(--nox-radius-pill);
+  background: var(--nox-surface);
+  box-shadow: none;
+  cursor: text;
+}
+.nox-composer-box:focus-within {
+  /* The focused composer is a 1px border, so use the contrast-safe token. */
+  border-color: var(--nox-accent-ink);
+}
+.nox-composer-box.is-expanded {
+  padding: 8px 7px 7px 10px;
+  border-radius: 16px;
+}
+
+.nox-attachments {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding-bottom: 1px;
+}
+
+.nox-attachment-chip {
+  display: inline-flex;
+  align-items: center;
+  max-width: 100%;
+  gap: 5px;
+  min-height: 25px;
+  padding: 3px 4px 3px 7px;
+  border-radius: var(--nox-radius-chip);
+  background: var(--nox-inset);
+  color: var(--nox-ink-2);
+  font-size: 11px;
+}
+
+.nox-attachment-icon {
+  color: var(--nox-accent);
+}
+
+.nox-attachment-name {
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nox-attachment-remove {
+  color: var(--nox-ink-3);
+}
+
+.nox-attachment-remove:hover,
+.nox-attachment-remove:focus-visible {
+  background: var(--nox-hover);
+  color: var(--nox-ink);
+}
+
+.nox-file-input {
+  display: none;
+}
+
+.nox-composer-controls {
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr) auto 32px;
+  grid-template-rows: 32px;
+  align-items: center;
+  width: 100%;
+  min-width: 0;
+  gap: 4px;
+}
+
+.nox-prompt-plus {
+  display: inline-flex;
+  grid-column: 1;
+  grid-row: 1;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  flex: 0 0 32px;
+  padding: 0;
+  border: 1px solid transparent !important;
+  border-radius: var(--nox-radius-pill);
+  background: var(--nox-inset);
+  color: var(--nox-ink-2);
+  cursor: pointer;
+  appearance: none;
+  box-shadow: none !important;
+  line-height: 1;
+}
+
+.nox-prompt-plus:hover,
+.nox-prompt-plus:focus-visible {
+  background: var(--nox-hover);
+  color: var(--nox-ink);
+}
+
+.nox-root textarea.nox-input,
+.nox-root textarea.nox-input:is(:hover, :focus, :focus-visible, :active) {
+  min-height: 20px;
+  max-height: 92px;
+  flex: 1;
+  padding: 0;
+  resize: none;
+  border: 0 !important;
+  border-radius: 0;
+  outline: none !important;
+  background: transparent !important;
+  color: var(--nox-ink);
+  box-shadow: none !important;
+  font-family: var(--font-interface);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.nox-input::placeholder {
+  color: var(--nox-ink-3);
+}
+
+.nox-input:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.nox-composer-footer {
+  display: contents;
+}
+
+.nox-btn-group {
+  grid-column: 4;
+  grid-row: 1;
+  align-items: center;
+  gap: 4px;
+}
+
+.nox-composer-tools {
+  @apply flex items-center gap-1;
+  display: flex;
+  grid-column: 3;
+  grid-row: 1;
+  align-items: center;
+  min-width: 0;
+  gap: 4px;
+}
+
+.nox-send-btn,
+.nox-cancel-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: var(--nox-radius-pill);
+  font-size: 16px;
+  line-height: 1;
+}
+
+.nox-send-btn {
+  background: var(--nox-inset);
+  color: var(--nox-ink-3);
+}
+
+.nox-send-btn:not(:disabled) {
+  background: var(--nox-accent);
+  color: var(--nox-on-accent);
+}
+
+.nox-send-btn:not(:disabled):hover,
+.nox-send-btn:not(:disabled):focus-visible {
+  background: var(--nox-accent-hover);
+  color: var(--nox-on-accent);
+}
+
+.nox-send-btn:disabled {
+  cursor: not-allowed;
+}
+
+.nox-cancel-btn {
+  background: var(--nox-hover);
+  color: var(--nox-ink-2);
+}
+
+.nox-cancel-btn:hover,
+.nox-cancel-btn:focus-visible {
+  color: var(--nox-red);
+}
+
+.nox-composer-hint {
+  margin-top: 5px;
+  color: var(--nox-ink-3);
+  font-size: 10px;
+  line-height: 1.3;
+  text-align: right;
+}
+
+.nox-hidden,
+.nox-chip--hidden {
+  display: none !important;
+}
+
+@keyframes nox-blink {
+  50% { opacity: 0; }
+}
+
+@keyframes nox-stream-word-resolve {
+  from { opacity: 0.2; filter: blur(3px); }
+  to { opacity: 1; filter: blur(0); }
+}
+
+@keyframes nox-stream-actions-in {
+  from { opacity: 0; transform: translateY(2px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes nox-thinking-pulse {
+  50% { opacity: 0.58; }
+}
+
+@keyframes nox-thinking-fade-up {
+  from { opacity: 0; transform: translateY(3px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes nox-thinking-spin {
+  to { transform: rotate(360deg); }
+}
+
+@media (max-width: 420px) {
+  .nox-header {
+    padding-inline: 9px;
+  }
+
+  .nox-thread {
+    padding-inline: 10px;
+  }
+
+  .nox-composer {
+    padding-inline: 9px;
+  }
+
+  .nox-composer-hint {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nox-thread {
+    scroll-behavior: auto;
+  }
+
+  .nox-bubble--streaming::after,
+  .nox-stream-word,
+  .nox-stream-actions,
+  .nox-thinking-label--active,
+  .nox-thinking-row,
+  .nox-thinking-marker--spinner {
+    animation: none;
+  }
+
+  .nox-thinking-panel,
+  .nox-thinking-chevron {
+    transition: none;
+  }
+
+  .nox-thinking-marker--spinner {
+    transform: none;
+  }
+}
+
+/* ── Nox workspace composition v3 ───────────────────────────────────────
+ * Reference composition:
+ * context -> focused actions -> intent -> composer.
+ * The layout is decomposed into real Obsidian surfaces rather than a
+ * standalone HTML mock. Purple remains reserved for active AI meaning.
+ */
+.nox-root {
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+  background: var(--nox-page);
+  color: var(--nox-ink);
+}
+
+.nox-empty-context {
+  display: flex;
+  min-height: 56px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border-color: var(--nox-line-strong);
+}
+
+.nox-surface {
+  border: 1px solid var(--nox-line);
+  border-radius: var(--nox-radius-card);
+  background: var(--nox-surface);
+  box-shadow: none;
+}
+
+.nox-surface.nox-empty-context {
+  padding: 10px 12px;
+  border: 0;
+  background: var(--nox-inset);
+}
+.nox-surface.nox-practice-card { border-color: var(--nox-line); }
+
+.nox-surface--card { padding: 12px; }
+.nox-surface--approval { overflow: hidden; padding: 0; }
+
+.nox-empty-context-main {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 9px;
+}
+
+.nox-empty-context-icon {
+  display: inline-flex;
+  width: 28px;
+  height: 28px;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: var(--nox-radius-control);
+  background: var(--nox-accent-tint);
+  color: var(--nox-accent-ink);
+}
+
+.nox-empty-context-icon svg {
+  width: 14px;
+  height: 14px;
+}
+
+.nox-empty-context-copy {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.nox-empty-context-label,
+.nox-empty-context-meta {
+  color: var(--nox-ink-3);
+  font-size: 11px;
+  line-height: 1.3;
+}
+
+.nox-empty-context-file {
+  overflow: hidden;
+  color: var(--nox-ink);
+  font-size: 13px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nox-empty-context-meta {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+.nox-empty-intro {
+  padding: 0 1px;
+}
+
+.nox-empty-title {
+  margin: 0 0 4px;
+  color: var(--nox-ink);
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1.3;
+}
+
+.nox-empty-description {
+  max-width: 440px;
+  color: var(--nox-ink-2);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.nox-capability-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.nox-capability-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 1px;
+}
+
+.nox-capability-label {
+  color: var(--nox-ink-3);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.nox-capability-command-hint {
+  display: inline-flex;
+  min-height: 20px;
+  align-items: center;
+  padding: 2px 0;
+  border: 0 !important;
+  background: transparent !important;
+  color: var(--nox-ink-3);
+  cursor: pointer;
+  appearance: none;
+  font-size: 11px;
+  font-weight: 400;
+  line-height: 1.3;
+  box-shadow: none !important;
+}
+
+.nox-capability-command-hint:hover,
+.nox-capability-command-hint:focus-visible {
+  color: var(--nox-accent-ink);
+}
+
+.nox-learning-start {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  min-height: 58px;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 10px;
+  border: 1px solid var(--nox-line);
+  border-radius: var(--nox-radius-card);
+  background: var(--nox-surface);
+  color: var(--nox-ink);
+  box-shadow: none !important;
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+  transition: background-color 120ms ease, border-color 120ms ease;
+}
+
+.nox-learning-start:hover {
+  border-color: var(--nox-line-strong);
+  background: var(--nox-card-hover);
+}
+.nox-learning-start:focus-visible {
+  border-color: var(--nox-accent-border);
+  background: var(--nox-accent-soft);
+}
+
+.nox-capability-card:focus-visible {
+  border-color: var(--nox-accent-border);
+  background: var(--nox-accent-soft);
+}
+
+.nox-learning-start-icon {
+  display: inline-flex;
+  width: 28px;
+  height: 28px;
+  flex: 0 0 28px;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--nox-radius-chip);
+  background: var(--nox-inset);
+  color: var(--nox-accent-ink);
+}
+
+.nox-learning-start-icon .svg-icon {
+  width: 16px;
+  height: 16px;
+}
+
+.nox-learning-start-body {
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.nox-learning-start-title {
+  overflow: hidden;
+  color: var(--nox-ink);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.3;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nox-learning-start-description {
+  color: var(--nox-ink-2);
+  font-size: 11px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.nox-learning-start-arrow {
+  display: inline-flex;
+  flex: 0 0 auto;
+  color: var(--nox-ink-3);
+}
+
+.nox-learning-start-arrow .svg-icon {
+  width: 15px;
+  height: 15px;
+}
+
+.nox-capability-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--nox-space-2);
+}
+
+.nox-capability-card {
+  display: block !important;
+  position: relative;
+  width: 100%;
+  min-width: 0;
+  min-height: 90px;
+  overflow: hidden;
+  padding: 10px;
+  border: 1px solid var(--nox-line);
+  border-radius: var(--nox-radius-card);
+  background: var(--nox-surface);
+  color: var(--nox-ink);
+  box-shadow: none;
+  cursor: pointer;
+  text-align: left;
+  appearance: none;
+  font: inherit;
+  line-height: inherit;
+  transition: border-color var(--nox-motion-fast) var(--nox-ease-out-strong),
+    background-color var(--nox-motion-fast) var(--nox-ease-out-strong);
+}
+
+.nox-capability-card:hover {
+  background: var(--nox-card-hover);
+  border-color: var(--nox-line-strong);
+}
+
+.nox-capability-card.is-selected {
+  background: var(--nox-accent-soft);
+  border-color: var(--nox-accent-border);
+}
+
+/* Tone names remain available in capability metadata, not decorative gradients.
+   All four tools share one neutral component; action selection alone uses purple. */
+.nox-capability-card::before { display: none; }
+
+.nox-capability-card-top {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  margin-bottom: 5px;
+}
+
+.nox-capability-name {
+  display: flex;
+  min-width: 0;
+  overflow: hidden;
+  align-items: center;
+  gap: 7px;
+}
+
+.nox-capability-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--nox-accent-ink);
+}
+
+.nox-capability-icon svg {
+  width: 16px;
+  height: 16px;
+}
+
+.nox-capability-title {
+  overflow: hidden;
+  color: var(--nox-ink);
+  font-size: 13px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nox-prompt-menu-command {
+  flex: 0 0 auto;
+  color: var(--nox-ink-3);
+  font-family: var(--font-monospace, monospace);
+  font-size: 10px;
+}
+
+.nox-capability-command {
+  flex: 0 0 auto;
+  color: var(--nox-ink-3);
+  font-family: var(--font-monospace, monospace);
+  font-size: 10px;
+}
+
+.nox-capability-description {
+  display: block;
+  width: 100%;
+  position: relative;
+  z-index: 1;
+  max-width: none;
+  overflow-wrap: anywhere;
+  color: var(--nox-ink-2);
+  font-size: 11px;
+  line-height: 1.45;
+  white-space: normal;
+}
+
+.nox-capability-meta {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  min-height: 16px;
+  height: auto;
+  align-items: center;
+  margin-top: 8px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--nox-ink-3);
+  font-size: 10px;
+}
+
+.nox-context-label {
+  display: none;
+}
+
+.nox-context-row .nox-chips {
+  gap: 5px;
+}
+
+.nox-context-row .nox-chip {
+  border-radius: var(--nox-radius-chip);
+  background: var(--nox-inset);
+}
+
+.nox-input {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  min-height: 28px;
+  max-width: none;
+  padding: 5px 4px;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.nox-action-menu-btn {
+  display: inline-flex;
+  width: 32px;
+  height: 32px;
+  flex: 0 0 32px;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 1px solid transparent !important;
+  border-radius: var(--nox-radius-pill);
+  background: var(--nox-inset);
+  color: var(--nox-ink-2);
+  cursor: pointer;
+  font-size: 16px;
+  box-shadow: none !important;
+}
+
+.nox-action-menu-btn:hover,
+.nox-action-menu-btn:focus-visible {
+  background: var(--nox-hover);
+  color: var(--nox-ink);
+}
+
+.nox-action-menu-btn[aria-expanded="true"] {
+  background: var(--nox-accent-tint) !important;
+  color: var(--nox-accent-ink);
+}
+
+.nox-action-menu-key {
+  font-family: var(--font-interface, sans-serif);
+  font-size: 17px;
+  font-weight: 500;
+  line-height: 1;
+}
+
+.nox-model-trigger {
+  display: inline-flex;
+  width: 32px;
+  max-width: 32px;
+  height: 32px;
+  min-width: 32px;
+  flex: 0 0 32px;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid transparent !important;
+  border-radius: var(--nox-radius-pill);
+  background: var(--nox-inset);
+  color: var(--nox-ink-2);
+  cursor: pointer;
+  box-shadow: none !important;
+}
+
+.nox-model-trigger:hover,
+.nox-model-trigger:focus-visible {
+  background: var(--nox-hover);
+  color: var(--nox-ink);
+}
+
+.nox-model-trigger[aria-expanded="true"] {
+  background: var(--nox-accent-tint);
+  color: var(--nox-accent-ink);
+}
+
+.nox-model-menu {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 8px);
+  z-index: 21;
+  display: flex;
+  width: min(280px, 100%);
+  max-height: var(--nox-popover-max-height);
+  flex-direction: column;
+  gap: 2px;
+  overflow-y: auto;
+  padding: 4px;
+  border: 1px solid var(--nox-line-strong);
+  border-radius: var(--nox-radius-card);
+  background: var(--nox-surface);
+  box-shadow: var(--nox-popover-shadow);
+  scrollbar-width: thin;
+}
+
+.nox-model-menu-error {
+  padding: 8px;
+  color: var(--nox-ink-2);
+  font-size: 12px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.nox-model-menu-retry {
+  width: 100%;
+  min-height: 30px;
+  padding: 5px 8px;
+  border: 1px solid var(--nox-line-strong) !important;
+  border-radius: var(--nox-radius-chip);
+  background: var(--nox-surface) !important;
+  color: var(--nox-ink);
+  font-size: 12px;
+  text-align: center;
+  cursor: pointer;
+  box-shadow: none !important;
+}
+
+.nox-model-menu-retry:disabled {
+  cursor: wait;
+  opacity: .6;
+}
+
+.nox-root .nox-model-menu-row {
+  display: flex;
+  width: 100%;
+  min-height: 30px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 5px 8px;
+  border: 0;
+  border-radius: var(--nox-radius-chip);
+  background: transparent;
+  color: var(--nox-ink);
+  cursor: pointer;
+  appearance: none;
+  font: inherit;
+  font-size: 12px;
+  text-align: left;
+  box-shadow: none;
+}
+
+.nox-root .nox-model-menu-row:hover {
+  background: var(--nox-hover);
+}
+
+.nox-root .nox-model-menu-row.is-active {
+  /* Arrow-key navigation keeps physical focus on the trigger. */
+  background: var(--nox-accent-tint);
+  color: var(--nox-ink);
+  outline: 2px solid var(--nox-accent-ink);
+  outline-offset: -2px;
+}
+
+.nox-root .nox-model-menu-row:focus-visible {
+  background: var(--nox-accent-soft);
+  color: var(--nox-accent-ink);
+  outline: 2px solid var(--nox-accent-ink);
+  outline-offset: -2px;
+}
+
+.nox-model-menu-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nox-model-menu-check {
+  display: inline-flex;
+  width: 15px;
+  height: 15px;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  color: var(--nox-accent-ink);
+}
+
+.nox-model-menu-check .svg-icon {
+  width: 14px;
+  height: 14px;
+}
+
+.nox-motion-active { will-change: opacity, transform; }
+
+/* Portal icons have no .nox-root ancestor; keep the same fixed geometry. */
+.nox-theme-portal .nox-icon {
+  display: block;
+  width: 16px;
+  height: 16px;
+  min-width: 16px;
+  min-height: 16px;
+}
+
+.nox-root .nox-new-btn > .svg-icon,
+.nox-root .nox-more-btn > .svg-icon,
+.nox-root .nox-prompt-plus > .svg-icon,
+.nox-root .nox-send-btn > .svg-icon,
+.nox-root .nox-cancel-btn > .svg-icon,
+.nox-root .nox-icon {
+  display: block !important;
+  width: 16px !important;
+  height: 16px !important;
+  min-width: 16px !important;
+  min-height: 16px !important;
+  flex: 0 0 16px !important;
+  overflow: visible !important;
+  opacity: 1 !important;
+}
+
+@media (max-width: 600px) {
+  .nox-header {
+    padding-inline: 9px;
+  }
+
+  .nox-thread {
+    padding-inline: 10px;
+  }
+
+  .nox-empty-slate {
+    margin-top: 14px;
+  }
+
+
+  .nox-composer {
+    padding-inline: 9px;
+  }
+
+  .nox-model-trigger {
+    width: 118px;
+    max-width: 118px;
+  }
+}
+
+@media (max-width: 360px) {
+  .nox-capability-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .nox-model-trigger {
+    width: 96px;
+    max-width: 96px;
+  }
+
+  .nox-action-menu-btn {
+    gap: 3px;
+    padding-inline: 5px;
+  }
+}
+
+/* ── Nox learning object system v1 ─────────────────────────────────────── */
+.nox-bubble-content.nox-markdown { line-height: 1.5; }
+
+.nox-intent-row { display: flex; align-items: center; gap: 6px; }
+.nox-intent-row.nox-hidden { display: none; }
+.nox-intent-chip {
+  min-height: 26px;
+  padding: 3px 6px 3px 9px;
+  font-size: 12px;
+  font-weight: 500;
+}
+.nox-intent-remove {
+  color: var(--nox-ink-2);
+}
+.nox-intent-remove:hover,
+.nox-intent-remove:focus-visible { background: var(--nox-hover); color: var(--nox-ink); }
+
+.nox-prompt-menu-row:disabled { cursor: default; opacity: 0.72; }
+.nox-prompt-menu-row:disabled:hover { background: transparent; }
+
+.nox-thinking-panel {
+  transition: grid-template-rows 220ms cubic-bezier(0.23,1,0.32,1), opacity 160ms ease;
+}
+.nox-thinking-trace--facts::before { display: none; }
+.nox-thinking-trace--facts { gap: 2px; margin-left: 20px; padding-left: 0; }
+.nox-thinking-trace--facts .nox-thinking-row {
+  min-height: 24px;
+  padding: 1px 4px;
+  animation: none;
+  background: transparent;
+}
+
+.nox-review-card {
+  margin-top: 10px;
+}
+.nox-practice-evaluation.nox-outcome--correct .nox-practice-label { color: var(--nox-green); }
+.nox-practice-evaluation.nox-outcome--partial .nox-practice-label { color: var(--nox-orange); }
+.nox-practice-evaluation.nox-outcome--incorrect .nox-practice-label { color: var(--nox-red); }
+
+.nox-review { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
+.nox-review-summary { color: var(--nox-ink-2); font-size: 12px; font-weight: 500; }
+.nox-review-card { margin-top: 0; }
+.nox-review-kind {
+  color: var(--nox-orange);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.nox-review-card--factual-error .nox-review-kind,
+.nox-review-card--misconception .nox-review-kind { color: var(--nox-red); }
+.nox-review-title { margin-top: 5px; color: var(--nox-ink); font-size: 13px; font-weight: 600; line-height: 1.4; }
+.nox-review-detail { margin-top: 4px; color: var(--nox-ink-2); font-size: 12px; line-height: 1.5; }
+.nox-review-actions { display: flex; gap: 5px; margin-top: 9px; padding-top: 8px; border-top: 1px solid var(--nox-line); }
+.nox-review-action {
+  min-height: 27px;
+  padding: 3px 9px;
+  border-radius: var(--nox-radius-pill);
+  font-size: 12px;
+  font-weight: 500;
+}
+.nox-review-action:hover,
+.nox-review-action:focus-visible {
+  border-color: var(--nox-accent-border);
+  background: var(--nox-accent-tint);
+  color: var(--nox-ink);
+}
+
+.nox-progress-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 26px;
+  color: var(--nox-ink-3);
+  font-size: 11px;
+}
+.nox-progress-mark { color: var(--nox-green); }
+
+@media (prefers-reduced-motion: reduce) {
+  .nox-thinking-label--active,
+  .nox-stream-word,
+  .nox-bubble--streaming::after { animation: none !important; }
+}
+

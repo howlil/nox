@@ -1,0 +1,502 @@
+/* Native Mermaid diagrams must not enlarge the chat scroll container. */
+.nox-root .nox-markdown .mermaid,
+.nox-root .nox-markdown .nox-diagram {
+  min-width: 0;
+  max-width: 100%;
+}
+.nox-root .nox-diagram {
+  margin: 10px auto;
+  overflow: hidden;
+  border: 1px solid var(--nox-line);
+  border-radius: var(--nox-radius-card);
+  background: var(--nox-surface);
+}
+.nox-diagram-toolbar, .nox-code-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 3px;
+  min-height: 32px;
+  padding: 2px 5px;
+  background: var(--nox-surface);
+}
+/* Shared read-only viewport for Mermaid and legacy nox-flow SVGs. */
+.nox-graph-viewport {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  max-height: none;
+  overflow-x: auto;
+  overflow-y: visible;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  background: var(--nox-surface);
+}
+.nox-graph-canvas {
+  display: block;
+  min-width: 0;
+  margin-inline: auto;
+  padding: 8px;
+  box-sizing: border-box;
+}
+.nox-graph-canvas > .mermaid {
+  display: block;
+  width: 100%;
+  max-width: none !important;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+.nox-root .nox-markdown .mermaid svg,
+.nox-graph-canvas .mermaid svg {
+  display: block;
+  width: 100% !important;
+  max-width: none !important;
+  height: auto !important;
+  margin: 0 auto;
+}
+.nox-graph-canvas > .nox-rich-flow-svg {
+  display: block;
+  width: 100%;
+  max-width: none;
+  height: auto;
+}
+.nox-graph-viewport.is-panning { cursor: grabbing; user-select: none; }
+.nox-graph-viewport.is-panning * { cursor: grabbing !important; }
+.nox-diagram.is-expanded,
+.nox-rich-flow.is-expanded {
+  position: fixed;
+  inset: 14px;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  width: auto !important;
+  max-width: none !important;
+  max-height: none;
+  margin: 0;
+  background: var(--nox-surface);
+}
+.nox-diagram.is-expanded .nox-graph-viewport,
+.nox-rich-flow.is-expanded .nox-graph-viewport {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+/* M4: ELK-derived compound graphs; never accept model-authored CSS. */
+.nox-root .nox-graph-v2 .nox-graph-v2-group rect {
+  fill: var(--nox-inset);
+  stroke: var(--nox-line-strong);
+  stroke-width: 1;
+}
+.nox-graph-v2-group-label { fill: var(--nox-ink-2); font-size: 12px; font-weight: 600; }
+.nox-root .nox-graph-v2 .nox-graph-v2-node rect {
+  fill: #e5f2ff;
+  stroke: #c4d8eb;
+  stroke-width: 1;
+}
+.nox-root .nox-graph-v2 .nox-graph-v2-node text {
+  fill: #155a91;
+  font-size: 12px;
+  font-weight: 550;
+}
+.nox-root .nox-graph-v2 .nox-graph-v2-node[data-kind="focus"] rect {
+  fill: var(--nox-accent-tint);
+  stroke: var(--nox-accent-border);
+}
+.nox-root .nox-graph-v2 .nox-graph-v2-node[data-kind="focus"] text { fill: var(--nox-accent-ink); }
+.nox-root .nox-graph-v2 .nox-graph-v2-edge { stroke-width: 1.2; }
+.nox-graph-v2-edge-label-bg { fill: var(--nox-surface); stroke: var(--nox-line); stroke-width: .7; }
+.nox-graph-v2-edge-label { fill: var(--nox-ink); font-size: 10px; }
+.nox-graph-v2-status { color: var(--nox-ink-2); font-size: 12px; }
+.nox-graph-v2 pre { max-width: 100%; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; }
+.nox-rich-flow-details { display: none; }
+
+/* Graph-only palette: preserve authored Mermaid semantics outside NOX. */
+.nox-root .nox-diagram .mermaid .node rect {
+  rx: 11px;
+  fill: #e6f2ff !important;
+  stroke: #c4d8eb !important;
+  stroke-width: 1px;
+}
+.nox-root .nox-diagram .mermaid .node .label,
+.nox-root .nox-diagram .mermaid .nodeLabel {
+  font-size: 12px !important;
+  color: #145a91 !important;
+}
+.nox-root .nox-diagram .mermaid .node.nox-focus rect {
+  fill: #ede9fe !important;
+  stroke: #9585ff !important;
+}
+.nox-root .nox-diagram .mermaid .cluster rect {
+  fill: var(--nox-surface) !important;
+  stroke: var(--nox-line-strong) !important;
+  stroke-width: 1px;
+  rx: 9px;
+}
+.nox-root .nox-diagram .mermaid .flowchart-link {
+  stroke: var(--nox-line-strong);
+  stroke-width: 1.15px;
+}
+.nox-root .nox-diagram .mermaid .marker {
+  fill: var(--nox-line-strong);
+  stroke: var(--nox-line-strong);
+}
+.nox-root .nox-code-block {
+  position: relative;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  margin: 10px 0;
+  border: 1px solid var(--nox-line);
+  border-radius: var(--nox-radius-card);
+  background: var(--nox-inset);
+}
+.nox-root .nox-code-block pre {
+  margin: 0;
+  max-width: 100%;
+  border: 0;
+  border-radius: 0;
+}
+.nox-code-block .copy-code-button { display: none !important; }
+
+/* Assistant response visuals: content-first, theme-aware, no floating nested cards. */
+.nox-root .nox-visual {
+  min-width: 0;
+  max-width: 100%;
+  margin: 12px 0;
+  border: 1px solid var(--nox-line);
+  border-radius: var(--nox-radius-card);
+  background: var(--nox-surface);
+  overflow: hidden;
+}
+.nox-visual-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 7px 10px;
+  border-bottom: 1px solid var(--nox-line);
+}
+.nox-visual-title { font-size: 12px; font-weight: 600; color: var(--nox-ink); }
+.nox-visual-controls { display: flex; flex-wrap: wrap; gap: 3px; }
+.nox-visual-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  font: inherit;
+  font-size: 11px;
+  line-height: 1.4;
+  min-height: 30px;
+  padding: 0;
+  border-radius: var(--nox-radius-control);
+  background: transparent;
+  color: var(--nox-ink-2);
+  border: 1px solid transparent;
+  cursor: pointer;
+}
+.nox-visual-action:hover { background: var(--nox-hover); color: var(--nox-ink); }
+.nox-visual-action[aria-pressed="true"] {
+  color: var(--nox-ink);
+  background: var(--nox-inset);
+  border-color: var(--nox-line);
+}
+.nox-visual-action:disabled { opacity: .5; cursor: not-allowed; }
+.nox-visual-action[hidden] { display: none; }
+.nox-visual-stage {
+  min-width: 0;
+  width: 100%;
+  max-width: 100%;
+  overflow: visible;
+  background: var(--nox-inset);
+}
+.nox-root .nox-visual-source {
+  margin: 0;
+  max-height: 350px;
+  overflow: auto;
+  border: 0;
+  border-radius: 0;
+}
+.nox-root .nox-visual-frame {
+  display: block;
+  width: 100%;
+  height: 240px; /* Updated by a validated resize signal; fallback for non-script SVG. */
+  border: 0;
+  background: #fff;
+  color-scheme: light;
+}
+/* Sandboxed previews use the light howlil-app base independently of host theme.
+   Frame height is set by validated content-origin messages after initial load. */
+.nox-root .nox-code-preview .nox-visual-stage {
+  background: #FEFEFE;
+  overflow: visible;
+}
+.nox-root .nox-code-preview .nox-visual-frame {
+  background: #FEFEFE;
+  color-scheme: light;
+}
+
+/* Read-only quiz output: howlil-app flat/light identity, one question per view. */
+.nox-root .nox-visual.nox-rich-quiz {
+  --nox-quiz-page: #FEFEFE;
+  --nox-quiz-ink: #121212;
+  --nox-quiz-muted: #626262;
+  --nox-quiz-line: #E5E5E5;
+  --nox-quiz-surface: #F7F7F7;
+  --nox-quiz-focus: #9BB1FF;
+  width: 100%;
+  min-width: 0;
+  padding: 20px;
+  overflow: visible;
+  color-scheme: light;
+  background: var(--nox-quiz-page);
+  color: var(--nox-quiz-ink);
+  font: 13px/1.5 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  box-shadow: none;
+}
+.nox-rich-quiz * { box-sizing: border-box; }
+.nox-rich-quiz .nox-quiz-header,
+.nox-rich-quiz .nox-quiz-meta,
+.nox-rich-quiz .nox-quiz-footer,
+.nox-rich-quiz .nox-quiz-actions,
+.nox-rich-quiz .nox-quiz-brand { display: flex; align-items: center; }
+.nox-rich-quiz .nox-quiz-header,
+.nox-rich-quiz .nox-quiz-meta,
+.nox-rich-quiz .nox-quiz-footer { justify-content: space-between; gap: 12px; }
+.nox-rich-quiz .nox-quiz-header { margin-bottom: 23px; }
+.nox-rich-quiz .nox-quiz-brand { gap: 9px; font-size: 13px; }
+.nox-rich-quiz .nox-quiz-logo {
+  display: grid;
+  width: 27px;
+  height: 27px;
+  place-items: center;
+  border-radius: 9px;
+  background: var(--nox-quiz-ink);
+  color: #fff;
+}
+.nox-rich-quiz .nox-quiz-label {
+  font-size: 11px;
+  border: 1px solid var(--nox-quiz-line);
+  border-radius: 999px;
+  padding: 4px 10px;
+  color: var(--nox-quiz-muted);
+}
+.nox-rich-quiz .nox-quiz-meta { font-size: 12px; color: var(--nox-quiz-muted); margin-bottom: 9px; }
+.nox-rich-quiz .nox-quiz-meta > span:first-child { min-width: 0; overflow-wrap: anywhere; }
+.nox-rich-quiz .nox-quiz-meta > span:last-child { white-space: nowrap; }
+.nox-rich-quiz .nox-quiz-progress {
+  width: 100%;
+  height: 4px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #EDEDED;
+  margin-bottom: 26px;
+}
+.nox-rich-quiz .nox-quiz-progress-fill { height: 100%; background: var(--nox-quiz-ink); transition: width 220ms ease; }
+.nox-rich-quiz .nox-quiz-stage { min-width: 0; width: 100%; }
+.nox-rich-quiz .nox-quiz-kicker {
+  margin-bottom: 11px;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .09em;
+  color: var(--nox-quiz-muted);
+}
+.nox-root .nox-rich-quiz .nox-quiz-question {
+  margin: 0 0 9px;
+  font-size: clamp(17px, 2.4vw, 21px);
+  font-weight: 650;
+  line-height: 1.45;
+  letter-spacing: -.025em;
+  color: var(--nox-quiz-ink);
+  overflow-wrap: anywhere;
+}
+.nox-rich-quiz .nox-quiz-description {
+  margin: 0 0 22px;
+  font-size: 13px;
+  line-height: 1.65;
+  color: var(--nox-quiz-muted);
+  overflow-wrap: anywhere;
+}
+
+/* M2 — mixed code questions reuse the M1 editor and intrinsic-height surface. */
+.nox-rich-quiz .nox-quiz-code-meta {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 6px 12px;
+  color: var(--nox-quiz-muted);
+  font-size: 11px;
+  margin: 12px 0 7px;
+}
+.nox-rich-quiz .nox-quiz-code-language { color: var(--nox-quiz-ink); font-weight: 650; }
+.nox-rich-quiz .nox-quiz-code-input { width: 100%; min-width: 0; }
+.nox-rich-quiz .nox-quiz-code-criteria { margin-top: 15px; font-size: 12px; }
+.nox-rich-quiz .nox-quiz-code-criteria strong { font-weight: 600; }
+.nox-rich-quiz .nox-quiz-code-criteria ul {
+  margin: 6px 0 0;
+  padding-left: 21px;
+  color: var(--nox-quiz-muted);
+  overflow-wrap: anywhere;
+}
+.nox-rich-quiz .nox-quiz-code-criteria li { margin: 4px 0; }
+.nox-rich-quiz .nox-quiz-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.nox-rich-quiz .nox-quiz-stat { min-width: 0; text-align: center; }
+.nox-rich-quiz .nox-quiz-score-note,
+.nox-rich-quiz .nox-quiz-code-disclaimer {
+  font-size: 12px;
+  color: var(--nox-quiz-muted);
+  line-height: 1.6;
+  margin: 8px 0;
+}
+.nox-rich-quiz .nox-quiz-submitted-code {
+  max-width: 100%;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  overflow-x: hidden;
+  overflow-y: visible;
+  border: 1px solid var(--nox-quiz-line);
+  border-radius: 10px;
+  padding: 12px;
+  background: var(--nox-quiz-surface);
+  color: var(--nox-quiz-ink);
+  font: 12px/1.6 var(--font-monospace, ui-monospace, monospace);
+}
+.nox-rich-quiz .nox-quiz-result-criteria {
+  color: var(--nox-quiz-muted);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.nox-rich-quiz .nox-quiz-options { display: flex; flex-direction: column; gap: 9px; }
+.nox-root .nox-rich-quiz button.nox-quiz-option {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-width: 0;
+  min-height: 52px;
+  padding: 10px 12px;
+  border: 1px solid var(--nox-quiz-line);
+  border-radius: 12px;
+  background: var(--nox-quiz-page);
+  color: var(--nox-quiz-ink);
+  box-shadow: none;
+  font: inherit;
+  text-align: left;
+  white-space: normal;
+  cursor: pointer;
+}
+.nox-root .nox-rich-quiz button.nox-quiz-option:hover { border-color: #BFBFBF; background: #FAFAFA; }
+.nox-root .nox-rich-quiz button.nox-quiz-option[aria-pressed="true"] {
+  border-color: var(--nox-quiz-ink);
+  background: var(--nox-quiz-surface);
+}
+.nox-rich-quiz .nox-quiz-letter {
+  display: grid;
+  flex: 0 0 27px;
+  width: 27px;
+  height: 27px;
+  place-items: center;
+  border: 1px solid var(--nox-quiz-line);
+  border-radius: 7px;
+  background: #FAFAFA;
+  font-size: 11px;
+  font-weight: 600;
+}
+.nox-rich-quiz button[aria-pressed="true"] .nox-quiz-letter { background: #121212; color: #fff; border-color: #121212; }
+.nox-rich-quiz .nox-quiz-option-text { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.nox-rich-quiz .nox-quiz-check { width: 16px; flex: 0 0 16px; text-align: center; }
+.nox-rich-quiz .nox-quiz-footer {
+  margin-top: 26px;
+  padding-top: 17px;
+  border-top: 1px solid var(--nox-quiz-line);
+}
+.nox-rich-quiz .nox-quiz-answered { font-size: 11px; color: var(--nox-quiz-muted); }
+.nox-rich-quiz .nox-quiz-actions { gap: 8px; }
+.nox-root .nox-rich-quiz button.nox-quiz-button {
+  min-height: 38px;
+  padding: 8px 14px;
+  border: 1px solid #DEDEDE;
+  border-radius: 999px;
+  background: var(--nox-quiz-page);
+  color: var(--nox-quiz-ink);
+  font: inherit;
+  font-weight: 600;
+  white-space: nowrap;
+  box-shadow: none;
+  cursor: pointer;
+}
+.nox-root .nox-rich-quiz button.nox-quiz-button--primary { background: #121212; color: #fff; border-color: #121212; }
+.nox-root .nox-rich-quiz button.nox-quiz-button:disabled { opacity: .3; cursor: not-allowed; }
+.nox-root .nox-rich-quiz button:focus-visible { outline: 2px solid var(--nox-quiz-focus); outline-offset: 2px; }
+.nox-rich-quiz .nox-quiz-score { font-size: 38px; font-weight: 700; letter-spacing: -.05em; }
+.nox-rich-quiz .nox-quiz-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 9px; margin-top: 17px; }
+.nox-rich-quiz .nox-quiz-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  padding: 12px 6px;
+  border: 1px solid var(--nox-quiz-line);
+  border-radius: 12px;
+  background: var(--nox-quiz-surface);
+  font-size: 11px;
+  color: var(--nox-quiz-muted);
+}
+.nox-rich-quiz .nox-quiz-stat strong { font-size: 19px; color: var(--nox-quiz-ink); }
+.nox-rich-quiz .nox-quiz-review { margin-top: 18px; }
+.nox-rich-quiz .nox-quiz-review summary { color: var(--nox-quiz-ink); cursor: pointer; font-size: 12px; }
+.nox-rich-quiz .nox-quiz-review-list { padding-left: 20px; }
+.nox-rich-quiz .nox-quiz-review-row { padding: 9px 0; border-bottom: 1px solid var(--nox-quiz-line); overflow-wrap: anywhere; }
+.nox-rich-quiz .nox-quiz-review-row strong { display: block; font-weight: 600; }
+.nox-rich-quiz .nox-quiz-review-row span { color: var(--nox-quiz-muted); }
+.nox-rich-quiz .nox-quiz-review-row p { margin: 3px 0; }
+@media (max-width: 490px) {
+  .nox-root .nox-visual.nox-rich-quiz { padding: 14px; }
+  .nox-rich-quiz .nox-quiz-label { display: none; }
+  .nox-rich-quiz .nox-quiz-footer { flex-wrap: wrap; }
+  .nox-rich-quiz .nox-quiz-actions { margin-left: auto; }
+  .nox-root .nox-rich-quiz button.nox-quiz-button { padding-inline: 11px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .nox-rich-quiz .nox-quiz-progress-fill { transition: none; }
+}
+
+.nox-visual-warning { margin: 5px 0; color: var(--nox-orange); font-size: 11px; }
+.nox-visual .nox-visual-warning { padding: 8px 10px; }
+.nox-root .nox-chart-svg { display: block; width: 100%; height: auto; }
+.nox-chart-grid { stroke: var(--nox-line); stroke-width: 1; }
+.nox-chart-text { fill: var(--nox-ink-2); font-size: 9px; font-family: inherit; }
+.nox-chart-bar { fill: var(--nox-accent); opacity: .9; }
+.nox-chart-line { fill: none; stroke: var(--nox-accent); stroke-width: 2; stroke-linejoin: round; }
+.nox-chart-dot { fill: var(--nox-accent); stroke: var(--nox-surface); stroke-width: 1; }
+.nox-chart-data { border-top: 1px solid var(--nox-line); padding: 5px 10px; }
+.nox-chart-data summary { color: var(--nox-ink-2); font-size: 11px; cursor: pointer; padding: 3px 0; }
+.nox-chart-data table { margin: 8px 0 4px; width: 100%; }
+.nox-chart-data th, .nox-chart-data td { font-size: 11px; }
+
+
+/* Read-only prerequisite map; objective details below are still keyboard-accessible. */
+.nox-learning-map-scroll {
+  max-width: 100%;
+  max-height: 245px;
+  overflow: auto;
+  margin: 10px 0;
+  padding: 2px;
+  border: 1px solid var(--nox-line);
+  border-radius: var(--nox-radius-control);
+  background: var(--nox-page);
+}
+.nox-learning-map-svg { display: block; max-width: none; }
+.nox-learning-map-edge { fill: none; stroke: var(--nox-line-strong); stroke-width: 1.5; }
+.nox-learning-map-node rect { fill: var(--nox-surface); stroke: var(--nox-line-strong); stroke-width: 1; }
+.nox-learning-map-node[data-status="mastered"] rect { stroke: var(--nox-green); }
+.nox-learning-map-node[data-status="remediate"] rect { stroke: var(--nox-orange); }
+.nox-learning-map-title { fill: var(--nox-ink); font-size: 10px; font-weight: 600; }
+.nox-learning-map-status { fill: var(--nox-ink-2); font-size: 9px; }
+
+
