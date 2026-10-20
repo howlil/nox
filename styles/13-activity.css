@@ -1,0 +1,217 @@
+/* 1.1.2 single-page settings: native Setting controls, NOX-owned navigation.
+   The host Setting itself must not create the extra two-column layout shown
+   by separate Obsidian settings pages. This override is scoped to NOX only. */
+.nox-settings .setting-item.nox-settings-shell,
+.setting-item.nox-settings-shell {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  padding: 0;
+  margin: 0;
+  border: 0;
+  background: transparent;
+}
+.nox-settings-shell > .setting-item-info { display: none; }
+.nox-settings-shell > .setting-item-control {
+  display: block;
+  width: 100%;
+  max-width: none;
+  min-width: 0;
+  padding: 0;
+}
+.nox-settings-surface {
+  min-width: 0;
+  width: 100%;
+  color: var(--nox-ink);
+  font-family: var(--font-interface, sans-serif);
+}
+.nox-settings-heading { margin: 0 0 20px; }
+.nox-settings-heading p {
+  margin: 0;
+  color: var(--nox-ink-2);
+  font-size: 12px;
+  line-height: 1.5;
+}
+.nox-settings-surface .nox-settings-tabs {
+  width: min(460px, 100%);
+  max-width: 100%;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 3px;
+  padding: 4px;
+  margin: 0 0 18px;
+  background: var(--nox-inset);
+  border: 1px solid var(--nox-line);
+  border-radius: var(--nox-radius-control);
+  box-sizing: border-box;
+}
+.nox-settings-surface .nox-settings-tab {
+  min-width: 0;
+  min-height: 34px;
+  padding: 7px 10px;
+  border: 1px solid transparent;
+  border-radius: var(--nox-radius-chip);
+  background: transparent;
+  color: var(--nox-ink-2);
+  font-size: 12px;
+  font-weight: 500;
+  box-shadow: none;
+  cursor: pointer;
+  transition: background var(--nox-motion-fast) var(--nox-ease-out-strong),
+              color var(--nox-motion-fast) var(--nox-ease-out-strong);
+}
+.nox-settings-surface .nox-settings-tab:hover { background: var(--nox-hover); color: var(--nox-ink); }
+.nox-settings-surface .nox-settings-tab[aria-selected="true"],
+.nox-settings-surface .nox-settings-tab[aria-selected="true"]:hover {
+  background: var(--nox-surface);
+  color: var(--nox-accent-ink);
+  border-color: var(--nox-line);
+}
+.nox-settings-surface .nox-settings-tab:focus-visible {
+  outline: 2px solid var(--nox-accent-ink);
+  outline-offset: -2px;
+}
+.nox-settings-panel { width: 100%; min-width: 0; }
+.nox-settings-panel-empty { display: none; }
+.nox-settings-native-row {
+  padding: 14px 18px;
+  margin: 0;
+  border-inline: 1px solid var(--nox-line);
+  background: var(--nox-inset);
+}
+.nox-settings-native-row .setting-item-control { min-width: 180px; }
+.nox-settings-native-row .setting-item-info { min-width: 170px; }
+.nox-settings-native-row input[type="text"],
+.nox-settings-native-row select {
+  max-width: min(100%, 260px);
+  min-height: 34px;
+  border-radius: var(--nox-radius-control);
+}
+.nox-settings-panel:focus { outline: none; }
+.nox-settings-form {
+  padding: 6px 18px;
+  border: 1px solid var(--nox-line);
+  border-radius: var(--nox-radius-window);
+  background: var(--nox-inset);
+}
+.nox-settings-form > .setting-item {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  align-items: center;
+  min-height: 76px;
+  padding: 14px 0;
+  border-bottom: 1px solid var(--nox-line-strong);
+}
+.nox-settings-form > .setting-item:last-child { border-bottom: 0; }
+.nox-settings-form > .setting-item > .setting-item-info { min-width: 170px; flex: 1 1 210px; }
+.nox-settings-form > .setting-item > .setting-item-control { max-width: 100%; min-width: 180px; }
+.nox-settings-form .setting-item-description { line-height: 1.5; }
+.nox-settings-form input[type="text"],
+.nox-settings-form select {
+  max-width: min(100%, 260px);
+  min-height: 34px;
+  border-radius: var(--nox-radius-control);
+  background: var(--nox-surface);
+  border: 1px solid var(--nox-line-strong);
+}
+.nox-settings-form .setting-item-control button {
+  min-height: 32px;
+  border-radius: var(--nox-radius-control);
+}
+.nox-settings-panel > .nox-usage { margin: 0; }
+.nox-settings-panel .nox-usage-header { flex-wrap: wrap; align-items: flex-start; }
+.nox-settings-panel .nox-usage h3 { font-size: 17px; letter-spacing: -.01em; }
+.nox-settings-panel .nox-usage-description { margin: 8px 0 18px; }
+.nox-settings-panel .nox-usage-filters {
+  grid-template-columns: repeat(auto-fit, minmax(min(145px, 100%), 1fr));
+  gap: 12px;
+  margin-bottom: 18px;
+}
+.nox-settings-panel .nox-provider-filter {
+  width: min(250px, 100%);
+  grid-template-columns: minmax(0, 1fr);
+}
+.nox-settings-panel .nox-usage-filters select { height: 34px; }
+.nox-settings-panel .nox-provider-quota-group {
+  padding: 16px 18px;
+  margin: 0 0 12px;
+  border: 1px solid var(--nox-line);
+  border-radius: var(--nox-radius-window);
+  background: var(--nox-surface);
+}
+.nox-settings-panel .nox-provider-quota-group:last-child { border-bottom: 1px solid var(--nox-line); }
+.nox-settings-panel .nox-provider-quota-label { margin-bottom: 12px; }
+.nox-settings-panel .nox-provider-quota-label strong { font-size: 14px; }
+.nox-settings-panel .nox-provider-quota-row { padding: 6px 0 10px; margin: 4px 0; }
+.nox-settings-panel .nox-provider-quota-row + .nox-provider-quota-row {
+  border-top: 1px solid var(--nox-line);
+  padding-top: 14px;
+}
+.nox-settings-panel .nox-quota-progress { height: 8px; margin-top: 9px; }
+.nox-settings-panel .nox-provider-quota-group[data-nox-quota-status="stale"] .nox-provider-quota-label { color: var(--nox-orange); }
+.nox-settings-panel .nox-usage-overview {
+  grid-template-columns: repeat(auto-fit, minmax(min(220px,100%),1fr));
+  gap: 12px;
+  margin-bottom: 14px;
+}
+.nox-settings-panel .nox-usage-primary,
+.nox-settings-panel .nox-usage-metrics { padding: 18px; border-radius: var(--nox-radius-window); }
+.nox-settings-panel .nox-usage-total { font-size: clamp(24px, 3vw, 34px); }
+.nox-settings-panel .nox-usage-table-wrap { border: 1px solid var(--nox-line); border-radius: var(--nox-radius-control); }
+.nox-settings-panel .nox-usage-table th, .nox-settings-panel .nox-usage-table td { padding: 10px 12px; }
+.nox-token-chart {
+  border: 1px solid var(--nox-line);
+  border-radius: var(--nox-radius-window);
+  padding: 16px 18px 12px;
+  margin: 12px 0;
+  min-width: 0;
+}
+.nox-token-chart .nox-usage-section-head { margin: 0 0 14px; flex-wrap: wrap; }
+.nox-token-chart-bars {
+  display: grid;
+  grid-template-columns: repeat(var(--nox-chart-count), minmax(0, 1fr));
+  align-items: end;
+  gap: clamp(3px, 1vw, 9px);
+  min-width: 0;
+  width: 100%;
+  height: 166px;
+  border-bottom: 1px solid var(--nox-line);
+}
+.nox-token-chart-column {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: stretch;
+  min-width: 0;
+  height: 100%;
+}
+.nox-token-chart-stack {
+  height: 136px;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  overflow: hidden;
+  border-radius: 3px 3px 0 0;
+}
+.nox-token-chart-output { height: var(--nox-chart-output); flex: 0 0 auto; background: var(--nox-accent-border); }
+.nox-token-chart-input { height: var(--nox-chart-input); flex: 0 0 auto; background: var(--nox-accent); }
+.nox-token-chart-date {
+  height: 26px;
+  padding-top: 6px;
+  font-size: 9px;
+  color: var(--nox-ink-3);
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+}
+.nox-token-chart-column:nth-child(2n) .nox-token-chart-date { visibility: hidden; }
+.nox-token-chart-legend { display:flex;justify-content:flex-end;gap:16px;padding-top:12px; }
+.nox-token-chart-legend span { display:inline-flex;align-items:center;gap:5px;font-size:11px;color:var(--nox-ink-2); }
+.nox-token-chart-legend span::before { content:"";width:8px;height:8px;border-radius:2px;background:var(--nox-accent); }
+.nox-token-chart-legend .nox-token-chart-legend-output::before { background:var(--nox-accent-border); }
+@media (prefers-reduced-motion: reduce) {
+  .nox-settings-surface .nox-settings-tab { transition: none; }
+}
+
+
