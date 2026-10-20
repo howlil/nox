@@ -26,7 +26,7 @@ export class OnboardingStateRepository {
         candidate.draft.minutesPerSession >= 10 && candidate.draft.minutesPerSession <= 240 &&
         Number.isInteger(candidate.draft.sessionsPerWeek) &&
         candidate.draft.sessionsPerWeek >= 1 && candidate.draft.sessionsPerWeek <= 7 ?
-        { draft: { ...candidate.draft, ...(validReceipt ? {} : { approval: undefined }) } } : {}),
+        { draft: { ...candidate.draft, ...(receipt && !validReceipt ? { approval: undefined } : {}) } } : {}),
     };
   }
   async saveDraft(draft: OnboardingDraft): Promise<void> {
