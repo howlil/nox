@@ -54,3 +54,20 @@ test("ChatView delegates feature UI state without creating another data authorit
   assert.match(actions, /onSelectVersion\(/);
   assert.doesNotMatch(practice + learning + actions, /new Vault(?:Program|Learning)Store|new PluginDataRepository/);
 });
+
+test("all learning turns flush Practice drafts before any composer clear or provider call", () => {
+  const view = readFileSync("src/chat/ChatView.ts", "utf8");
+  const start = view.indexOf("  private async runTurn(");
+  const end = view.indexOf("  private handleLearningEvent(", start);
+  assert.ok(start >= 0 && end > start);
+  const turn = view.slice(start, end);
+  const flush = turn.indexOf("await this.practiceUi.flushDraft()");
+  const clear = turn.indexOf('this.input.value = ""');
+  const running = turn.indexOf('this.setUIState("RUNNING")');
+  assert.ok(flush >= 0 && flush < clear && clear < running);
+  const newSessionStart = view.indexOf("newBtn.addEventListener");
+  const newSessionEnd = view.indexOf("const moreBtn", newSessionStart);
+  const newSession = view.slice(newSessionStart, newSessionEnd);
+  assert.ok(newSession.indexOf("await this.practiceUi.flushDraft()") <
+    newSession.indexOf("await this.learning.newSession()"));
+});
