@@ -4,6 +4,7 @@ import path from "node:path";
 
 export interface RuntimeBuildIdentity {
   revision: string;
+  sourceSha: string;
   builtAt: string;
   transport: string;
   pluginDir: string;
@@ -15,6 +16,7 @@ export async function runtimeProvenanceReport(identity: RuntimeBuildIdentity): P
   const lines = [
     "NOX runtime diagnostic",
     "loadedRevision=" + identity.revision,
+    "loadedSourceSha=" + identity.sourceSha,
     "loadedAtBuild=" + identity.builtAt,
     "loadedTransport=" + identity.transport,
     "vaultDir=" + identity.vaultDir,
@@ -31,7 +33,7 @@ export async function runtimeProvenanceReport(identity: RuntimeBuildIdentity): P
     // A changed file is not proof the running Electron module has reloaded.
     const text = installed.toString("utf8");
     lines.push("diskMatchesLoadedIdentity=" + (text.includes(identity.revision)
-      && text.includes(identity.transport) ? "yes" : "no"));
+      && text.includes(identity.sourceSha) && text.includes(identity.transport) ? "yes" : "no"));
   } catch {
     lines.push("installedMainSha256=unavailable", "diskMatchesLoadedIdentity=unknown");
   }
