@@ -1,0 +1,27 @@
+/* Adaptive onboarding: NOX neutral-first native sidebar surfaces */
+.nox-onboarding { width:100%; min-width:0; }
+.nox-onboarding-body { display:flex;flex-direction:column;gap:10px;min-width:0; }
+.nox-onboarding-eyebrow { font-size:10px;font-weight:600;letter-spacing:.08em;color:var(--nox-ink-3); }
+.nox-onboarding-grid { display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--nox-space-2); }
+.nox-onboarding-card { display:flex;flex-direction:column;align-items:start;gap:6px;min-width:0;min-height:88px;padding:10px;text-align:left;border:1px solid var(--nox-line);border-radius:var(--nox-radius-card);background:var(--nox-surface);color:var(--nox-ink); }
+.nox-onboarding-card:hover { background:var(--nox-card-hover);border-color:var(--nox-line-strong); }
+.nox-onboarding-icon { color:var(--nox-accent-ink);display:inline-flex; }
+.nox-onboarding-name { font-size:12px;font-weight:600;line-height:1.4;overflow-wrap:anywhere; }
+.nox-onboarding-detail { font-size:11px;color:var(--nox-ink-2);line-height:1.5;overflow-wrap:anywhere; }
+.nox-onboarding-help { font-size:11px;color:var(--nox-ink-2);line-height:1.5; }
+.nox-onboarding-label { font-size:11px;font-weight:600;color:var(--nox-ink);margin-top:6px;display:block; }
+.nox-onboarding-field { display:block;width:100%;min-width:0;resize:vertical;min-height:30px;padding:7px 9px;font-size:12px;line-height:1.45;color:var(--nox-ink);border:1px solid var(--nox-line);border-radius:var(--nox-radius-control);background:var(--nox-inset); }
+.nox-onboarding-chips { display:flex;gap:6px;flex-wrap:wrap; }
+.nox-onboarding-chips .nox-button { min-height:28px; }
+.nox-onboarding-chips .is-selected { background:var(--nox-accent-soft);color:var(--nox-accent-ink);border-color:var(--nox-accent-border); }
+.nox-onboarding-actions { display:flex;align-items:center;justify-content:flex-end;gap:8px;margin-top:10px; }
+.nox-onboarding-limits { display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px; }
+.nox-onboarding-summary { padding:10px;background:var(--nox-inset);border-radius:var(--nox-radius-card);font-size:12px;color:var(--nox-ink-2); }
+.nox-onboarding-objectives { border:1px solid var(--nox-line);border-radius:var(--nox-radius-card);padding:2px 10px; }
+.nox-onboarding-objective { display:flex;gap:10px;align-items:flex-start;padding:10px 0; }
+.nox-onboarding-objective + .nox-onboarding-objective { border-top:1px solid var(--nox-line); }
+.nox-onboarding-number { flex:0 0 19px;color:var(--nox-ink-3);font-size:11px;font-variant-numeric:tabular-nums; }
+.nox-onboarding-files { padding:10px;border-radius:var(--nox-radius-card);background:var(--nox-inset);font-size:10px;line-height:1.8;color:var(--nox-ink-2);overflow-wrap:anywhere; }
+.nox-onboarding-error { color:var(--nox-red);background:var(--nox-error-soft);padding:9px;border-radius:var(--nox-radius-control);font-size:11px; }
+@media(max-width:360px){.nox-onboarding-grid{grid-template-columns:1fr;}.nox-onboarding-card{min-height:65px}}
+
