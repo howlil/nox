@@ -26,6 +26,9 @@ export class NoxSettingsTab extends PluginSettingTab {
 
   constructor(app: App, private readonly nox: NoxSettingsHost & import("obsidian").Plugin) {
     super(app, nox);
+    // Declarative SettingDefinitions render native rows and NOX-owned panels
+    // as siblings. Scope their shared palette to this plugin tab, never body.
+    this.containerEl.addClass("nox-settings");
   }
 
   private selectedTab: "settings" | "usage" | "token" = "settings";
@@ -211,6 +214,18 @@ export class NoxSettingsTab extends PluginSettingTab {
     // Community guidelines prohibit redundant top-level Settings headings.
     header.createEl("p", { text: "Manage your agent runtime and review usage recorded through Nox." });
 
+    // An incomplete local plugin install can load main.js without styles.css.
+    // Make that void state explicit instead of silently showing broken controls.
+    const styleWarning = surface.createDiv({ cls: "nox-settings-style-warning" });
+    styleWarning.hidden = true;
+    styleWarning.setAttribute("role", "status");
+    requestAnimationFrame(() => {
+      if (!surface.isConnected) return;
+      if (getComputedStyle(surface).getPropertyValue("--nox-accent").trim()) return;
+      styleWarning.setText("Nox styles are missing. Restore styles.css in .obsidian/plugins/nox and reload Obsidian.");
+      styleWarning.hidden = false;
+    });
+
     const tabs = surface.createDiv({ cls: "nox-settings-tabs",
       attr: { role: "tablist", "aria-label": "Nox settings sections" } });
     const panel = surface.createDiv({ cls: "nox-settings-panel",
@@ -222,6 +237,10 @@ export class NoxSettingsTab extends PluginSettingTab {
       if (refresh && name !== this.selectedTab) {
         this.selectedTab = name;
         this.update();
+        // Obsidian replaces the native settings rows during update().
+        // Focus must return to the newly mounted tab, not its detached predecessor.
+        requestAnimationFrame(() =>
+          this.containerEl.querySelector<HTMLButtonElement>("#nox-settings-tab-" + name)?.focus());
         return;
       }
       this.releaseCurrentPanel?.();
@@ -259,7 +278,6 @@ export class NoxSettingsTab extends PluginSettingTab {
         else return;
         event.preventDefault();
         activate(names[next]);
-        buttons[next]?.focus();
       });
       buttons.push(button);
     });
