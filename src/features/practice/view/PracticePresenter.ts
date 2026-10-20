@@ -20,6 +20,7 @@ export interface PracticeUiCallbacks {
  */
 export class PracticePresenter {
   private draftTimer: number | null = null;
+  private pendingDraft: { questionId: string; answer: PracticeAnswer; sessionId: string; epoch: number } | null = null;
   private epoch = 0;
 
   constructor(private readonly actions: PracticeUiCallbacks) {}
@@ -28,6 +29,20 @@ export class PracticePresenter {
     ++this.epoch;
     if (this.draftTimer !== null) window.clearTimeout(this.draftTimer);
     this.draftTimer = null;
+    this.pendingDraft = null;
+  }
+
+  /** Commit a pending typed answer before navigation/close; never write to another session. */
+  async flushDraft(): Promise<void> {
+    if (this.draftTimer !== null) window.clearTimeout(this.draftTimer);
+    this.draftTimer = null;
+    const draft = this.pendingDraft;
+    if (!draft) return;
+    // Keep the pending draft if persistence fails, allowing the user to retry.
+    if (draft.epoch !== this.epoch || this.actions.session().id !== draft.sessionId ||
+        this.actions.isBusy()) return;
+    await this.actions.saveDraft(draft.questionId, draft.answer, draft.sessionId);
+    if (this.pendingDraft === draft) this.pendingDraft = null;
   }
 
   dispose(): void { this.reset(); }
@@ -56,11 +71,10 @@ export class PracticePresenter {
       onDraft: answer => {
         if (!active || !stillCurrent()) return;
         if (this.draftTimer !== null) window.clearTimeout(this.draftTimer);
+        this.pendingDraft = { questionId, answer, sessionId: session.id, epoch };
         this.draftTimer = window.setTimeout(() => {
-          this.draftTimer = null;
           if (!stillCurrent()) return;
-          void this.actions.saveDraft(questionId, answer, session.id)
-            .catch(() => this.actions.reportError("Could not save quiz draft."));
+          void this.flushDraft().catch(() => this.actions.reportError("Could not save quiz draft."));
         }, 450);
       },
       onClarify: () => {
@@ -74,6 +88,7 @@ export class PracticePresenter {
         if (!active || !stillCurrent()) return false;
         if (this.draftTimer !== null) window.clearTimeout(this.draftTimer);
         this.draftTimer = null;
+        this.pendingDraft = null;
         return this.actions.submit(questionId, answer, session.id);
       },
     } : undefined);
