@@ -27,7 +27,7 @@ import {
 import { ReviewFinding } from "../domain/review/types";
 import { PracticePresenter } from "../features/practice/view/PracticePresenter";
 import { renderReviewFindingCards } from "./learning-card-renderers";
-import { ChatMessage, EditProposal, type ChatReplyReference, type AgentModel } from "../types";
+import { ChatMessage, EditProposal, type ChatReplyReference } from "../types";
 import {
   parsePromptToken,
   PromptMenuKind,
@@ -56,7 +56,7 @@ import { renderResponseActions } from "../features/conversation/view/response-ac
 import { StreamTextPresenter } from "../features/conversation/view/stream-text-presenter";
 import { projectSessionClock } from "../features/conversation/view/session-clock";
 import { TranscriptPresenter } from "../features/conversation/view/transcript-presenter";
-import { modelMenuItems } from "./model-menu";
+import { ModelMenuPresenter } from "./model-menu";
 import { createNoxPopover, NoxPopoverState } from "./popover";
 import { NoxComposer, type NoxComposerContext } from "./composer";
 import { NoxRunInspector } from "./run-inspector";
@@ -128,11 +128,7 @@ export class ChatView extends ItemView {
   private input!: HTMLTextAreaElement;
   private sendBtn!: HTMLButtonElement;
   private cancelBtn!: HTMLButtonElement;
-  private modelTrigger!: HTMLButtonElement;
-  private modelMenuEl: HTMLElement | null = null;
-  private modelPopover!: NoxPopoverState;
-  private readonly modelMenuState = new NoxMenuState();
-  private models: AgentModel[] = [];
+  private modelUi: ModelMenuPresenter | null = null;
   private readonly practiceUi: PracticePresenter;
   private readonly learningUi: LearningPresenter;
   private fileInput!: HTMLInputElement;
@@ -307,6 +303,8 @@ export class ChatView extends ItemView {
     this.transcriptSelection = null;
     this.stopLoadingTimer();
     this.practiceUi.dispose();
+    this.modelUi?.dispose();
+    this.modelUi = null;
   }
 
   async refreshRuntime(recheckHealth = true): Promise<void> {
@@ -683,190 +681,19 @@ export class ChatView extends ItemView {
   }
 
   private async refreshModelList(): Promise<void> {
-    this.models = this.learning.getModels();
-    if (this.modelMenuState.isOpen) {
-      this.modelMenuState.setActive(this.getSelectedModelIndex());
-    }
-    this.syncModelTrigger();
-    this.renderModelMenu();
-  }
-
-  private getModelMenuItems(): AgentModel[] {
-    return modelMenuItems(this.models, this.learning.getSession().model);
-  }
-
-  private getSelectedModelIndex(): number {
-    const selected = this.learning.getSession().model ?? "";
-    const index = this.getModelMenuItems().findIndex(
-      (model) => model.id === selected,
-    );
-    return index >= 0 ? index : 0;
-  }
-
-  private syncModelTrigger(): void {
-    if (!this.modelTrigger) return;
-
-    const selected = this.learning.getSession().model ?? "";
-    const model = this.getModelMenuItems().find((item) => item.id === selected);
-    const label = !selected && !this.models.length && this.learning.getModelDiscoveryError()
-      ? "Models unavailable" : model?.name ?? "Runtime default";
-
-    this.composerUi?.setModelLabel(label);
-    this.modelMenuState.syncTrigger(this.modelTrigger, "nox-model-menu");
-    this.modelTrigger.setAttribute("aria-label", `Learning model: ${label}`);
-  }
-
-  private modelDiscoveryLoading = false;
-
-  private async discoverModels(): Promise<void> {
-    if (this.modelDiscoveryLoading) return;
-    this.modelDiscoveryLoading = true;
-    this.renderModelMenu();
-    try {
-      await this.learning.refreshModels();
-    } finally {
-      this.modelDiscoveryLoading = false;
-      await this.refreshModelList();
-    }
-  }
-
-  private openModelMenu(): void {
-    this.models = this.learning.getModels();
-    this.closePromptMenu();
-    this.modelMenuState.openAt(this.getSelectedModelIndex());
-    this.syncModelTrigger();
-    this.renderModelMenu();
-    if (!this.models.length && !this.learning.getModelDiscoveryError()) {
-      void this.discoverModels().catch(() => this.refreshModelList());
-    }
+    this.modelUi?.refresh();
   }
 
   private closeModelMenu(): void {
-    if (!this.modelMenuState.isOpen && !this.modelMenuEl?.hasChildNodes()) return;
-
-    this.modelMenuState.close();
-    this.syncModelTrigger();
-    this.renderModelMenu();
+    this.modelUi?.close();
   }
 
   private toggleModelMenu(): void {
-    if (this.modelMenuState.isOpen) {
-      this.closeModelMenu();
-    } else {
-      this.openModelMenu();
-    }
-  }
-
-  private renderModelMenu(): void {
-    if (!this.modelMenuEl) return;
-
-    this.modelMenuEl.empty();
-    this.modelPopover.setOpen(this.modelMenuState.isOpen);
-    this.syncModelTrigger();
-
-    if (!this.modelMenuState.isOpen) return;
-
-    const selected = this.learning.getSession().model ?? "";
-    const rows: HTMLButtonElement[] = [];
-    for (const [index, model] of this.getModelMenuItems().entries()) {
-      const row = createNoxMenuRow(this.modelMenuEl, {
-        cls: "nox-model-menu-row",
-        id: `nox-model-menu-option-${index}`,
-        name: model.name,
-        nameClass: "nox-model-menu-name",
-        selected: model.id === selected,
-        trailingClass: "nox-model-menu-check",
-        trailingIcon: model.id === selected ? "check" : undefined,
-      });
-
-      row.addEventListener("mouseenter", () => {
-        this.modelMenuState.setActive(index);
-        this.syncModelMenuRows();
-      });
-      row.addEventListener("mousedown", (event) => event.preventDefault());
-      row.addEventListener("click", () => {
-        void this.selectModel(model.id).catch(error => console.warn("[Nox] Model selection failed", error));
-      });
-      rows.push(row);
-    }
-
-    const discoveryError = this.learning.getModelDiscoveryError();
-    if (!this.models.length && this.modelDiscoveryLoading) {
-      this.modelMenuEl.createDiv({ cls: "nox-model-menu-status", text: "Discovering models…" });
-    }
-    if (!this.models.length && discoveryError && !this.modelDiscoveryLoading) {
-      this.modelMenuEl.createDiv({ cls: "nox-model-menu-error", text: discoveryError });
-      const retry = this.modelMenuEl.createEl("button", {
-        cls: "nox-model-menu-retry",
-        text: "Retry model discovery",
-        attr: { type: "button" },
-      });
-      retry.addEventListener("click", () => {
-        retry.disabled = true;
-        void this.discoverModels().catch(() => this.refreshModelList());
-      });
-    }
-    this.modelMenuState.setRows(rows);
-    this.syncModelMenuRows();
-    animateNoxPopover(this.modelMenuEl);
-  }
-
-  private syncModelMenuRows(): void {
-    const selected = this.learning.getSession().model ?? "";
-    const rows = this.modelMenuEl?.querySelectorAll<HTMLButtonElement>(
-      ".nox-model-menu-row",
-    ) ?? [];
-    rows.forEach((row, index) => {
-      row.setAttribute(
-        "aria-selected",
-        String(this.getModelMenuItems()[index]?.id === selected),
-      );
-    });
-    this.modelMenuState.syncTrigger(this.modelTrigger, "nox-model-menu");
-  }
-
-  private async selectModel(modelId: string): Promise<void> {
-    try {
-      await this.learning.setModel(modelId || undefined);
-    } catch (error) {
-      new Notice(error instanceof Error ? error.message : "Unable to save model selection.");
-    }
-    this.closeModelMenu();
-    this.modelTrigger.focus();
+    this.modelUi?.toggle();
   }
 
   private onModelTriggerKey(event: KeyboardEvent): void {
-    const items = this.getModelMenuItems();
-
-    if (event.key === "ArrowDown" || event.key === "ArrowUp") {
-      event.preventDefault();
-      if (!this.modelMenuState.isOpen) {
-        this.openModelMenu();
-        return;
-      }
-
-      const direction = event.key === "ArrowDown" ? 1 : -1;
-      this.modelMenuState.move(direction);
-      this.syncModelMenuRows();
-      return;
-    }
-
-    if ((event.key === "Enter" || event.key === " ") && this.modelMenuState.isOpen) {
-      event.preventDefault();
-      const model = items[this.modelMenuState.activeIndex];
-      if (model) void this.selectModel(model.id).catch(error => console.warn("[Nox] Model selection failed", error));
-      return;
-    }
-
-    if (event.key === "Escape" && this.modelMenuState.isOpen) {
-      event.preventDefault();
-      this.closeModelMenu();
-      return;
-    }
-
-    if (event.key === "Tab" && this.modelMenuState.isOpen) {
-      this.closeModelMenu();
-    }
+    this.modelUi?.onTriggerKey(event);
   }
 
   private buildComposer(parent: HTMLElement): void {
@@ -905,15 +732,28 @@ export class ChatView extends ItemView {
 
     this.promptMenuEl = this.composerUi.promptMenuEl;
     this.promptPopover = this.composerUi.promptPopover;
-    this.modelMenuEl = this.composerUi.modelMenuEl;
-    this.modelPopover = this.composerUi.modelPopover;
+
     this.input = this.composerUi.input;
     this.fileInput = this.composerUi.fileInput;
     this.actionMenuBtn = this.composerUi.actionMenuBtn;
-    this.modelTrigger = this.composerUi.modelTrigger;
+
     this.cancelBtn = this.composerUi.cancelBtn;
     this.sendBtn = this.composerUi.sendBtn;
-    this.syncModelTrigger();
+    this.modelUi = new ModelMenuPresenter(
+      this.composerUi.modelTrigger,
+      this.composerUi.modelMenuEl,
+      this.composerUi.modelPopover,
+      {
+        models: () => this.learning.getModels(),
+        selectedId: () => this.learning.getSession().model,
+        discoveryError: () => this.learning.getModelDiscoveryError(),
+        discover: () => this.learning.refreshModels(),
+        select: id => this.learning.setModel(id || undefined),
+        setLabel: label => this.composerUi.setModelLabel(label),
+        beforeOpen: () => this.closePromptMenu(),
+        reportError: message => { new Notice(message); },
+      },
+    );
     this.registerDomEvent(document, "pointerdown", (event) => {
       const target = event.target;
       if (
@@ -1561,7 +1401,7 @@ export class ChatView extends ItemView {
     if (event.key === "Escape") {
       if (this.promptMenu) {
         this.closePromptMenu();
-      } else if (this.modelMenuState.isOpen) {
+      } else if (this.modelUi?.isOpen) {
         this.closeModelMenu();
       } else if (this.historyPresenter?.isOpen) {
         this.closeHistoryMenu();
