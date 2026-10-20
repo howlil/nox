@@ -1,0 +1,307 @@
+/* ── Inline-context composer v1 ─────────────────────────────────────────── */
+.nox-input-line {
+  display: flex;
+  grid-column: 2;
+  grid-row: 1;
+  min-width: 0;
+  align-items: center;
+  gap: 5px;
+}
+
+.nox-context-row {
+  display: flex;
+  min-width: 0;
+  min-height: 24px;
+  margin: 0;
+  align-items: center;
+}
+
+.nox-context-label { display: none; }
+
+.nox-context-row .nox-chips {
+  display: flex;
+  min-width: 0;
+  flex-wrap: nowrap;
+  gap: 4px;
+}
+
+.nox-context-chip {
+  min-width: 0;
+  max-width: 180px;
+  min-height: 24px;
+  padding: 3px 7px;
+  border: 1px solid var(--nox-line);
+  border-radius: var(--nox-radius-chip);
+  background: var(--nox-inset);
+  color: var(--nox-ink-2);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.nox-context-chip .nox-chip-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nox-context-chip .nox-chip-icon {
+  display: inline-flex;
+  width: 14px;
+  height: 14px;
+  flex: 0 0 14px;
+  align-items: center;
+  color: var(--nox-ink-3);
+}
+
+.nox-context-chip .nox-chip-icon .svg-icon {
+  width: 13px;
+  height: 13px;
+}
+
+.nox-input-line > .nox-intent-row,
+.nox-input-line > .nox-attachments {
+  display: flex;
+  min-width: 0;
+  flex: 0 1 auto;
+  align-items: center;
+  margin: 0;
+}
+
+.nox-input-line > .nox-attachments {
+  flex-wrap: nowrap;
+  padding: 0;
+}
+
+.nox-input-line .nox-intent-chip,
+.nox-input-line .nox-attachment-chip {
+  max-width: 180px;
+  min-height: 24px;
+}
+
+.nox-input {
+  width: auto;
+  min-width: 5ch;
+  min-height: 24px;
+  max-height: 120px;
+  height: var(--nox-input-height, auto);
+  overflow-y: hidden;
+  flex: 1 1 auto;
+  padding: 2px 0;
+  line-height: 20px;
+}
+
+.nox-input.is-overflowing { overflow-y: auto; }
+
+.nox-composer-box.is-expanded .nox-composer-controls {
+  grid-template-rows: auto 32px;
+  row-gap: 6px;
+}
+.nox-composer-box.is-expanded .nox-input-line {
+  grid-column: 1 / -1;
+  grid-row: 1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 5px;
+}
+.nox-composer-box.is-expanded .nox-input-line > .nox-input {
+  flex: 1 0 100%;
+  width: 100%;
+  min-width: 0;
+}
+.nox-composer-box.is-expanded .nox-prompt-plus,
+.nox-composer-box.is-expanded .nox-composer-tools,
+.nox-composer-box.is-expanded .nox-btn-group { grid-row: 2; }
+.nox-composer-box.is-expanded .nox-context-row .nox-chips,
+.nox-composer-box.is-expanded .nox-input-line > .nox-attachments {
+  flex-wrap: wrap;
+}
+.nox-composer-box.is-expanded .nox-context-row,
+.nox-composer-box.is-expanded .nox-intent-row,
+.nox-composer-box.is-expanded .nox-attachments {
+  max-width: 100%;
+}
+
+/* ── Selection actions ──────────────────────────────────────────────────── */
+.nox-selection-actions {
+  display: flex;
+  width: min(100%, 460px);
+  min-width: 0;
+  flex-direction: column;
+  gap: 5px;
+  margin: 0 auto 6px;
+  padding: 6px;
+  border: 1px solid var(--nox-line);
+  border-radius: var(--nox-radius-card);
+  background: var(--nox-surface);
+  color: var(--nox-ink);
+  box-shadow: none;
+}
+
+.nox-selection-actions.is-visible {
+  animation: nox-selection-enter 180ms var(--nox-ease-out-strong) both;
+  transform-origin: bottom center;
+}
+
+@keyframes nox-selection-enter {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.nox-selection-actions-header,
+.nox-selection-actions-context,
+.nox-selection-actions-body,
+.nox-selection-actions-primary,
+.nox-selection-actions-more {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+}
+
+.nox-selection-actions-header {
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 22px;
+  padding: 0 2px 2px;
+}
+
+.nox-selection-actions-context {
+  min-width: 0;
+  gap: 5px;
+  color: var(--nox-ink-2);
+  font-size: 11px;
+}
+
+.nox-selection-actions-icon {
+  display: inline-flex;
+  width: 15px;
+  height: 15px;
+  flex: 0 0 15px;
+  align-items: center;
+  justify-content: center;
+  color: var(--nox-accent-ink);
+}
+
+.nox-selection-actions-icon .svg-icon {
+  width: 14px;
+  height: 14px;
+}
+
+.nox-selection-actions-tag {
+  color: var(--nox-accent-ink);
+  font-family: var(--font-monospace, monospace);
+  font-size: 10.5px;
+  font-weight: 500;
+}
+
+.nox-selection-actions-file {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nox-selection-actions-meta {
+  flex: 0 0 auto;
+  color: var(--nox-ink-3);
+  font-family: var(--font-monospace, monospace);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+}
+
+.nox-selection-actions-body {
+  gap: 2px;
+  flex-wrap: wrap;
+}
+
+.nox-selection-actions-primary,
+.nox-selection-actions-more {
+  gap: 2px;
+  flex-wrap: wrap;
+}
+
+.nox-selection-actions-more {
+  padding-left: 2px;
+  border-left: 1px solid var(--nox-line);
+}
+
+.nox-selection-actions .nox-selection-action {
+  min-height: 27px;
+  padding: 4px 8px;
+  border: 0;
+  border-radius: var(--nox-radius-control);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.nox-selection-actions .nox-selection-action:hover,
+.nox-selection-actions .nox-selection-action:focus-visible {
+  border: 0;
+  background: var(--nox-hover);
+  color: var(--nox-ink);
+}
+
+.nox-selection-actions .nox-selection-action .nox-button-icon {
+  color: var(--nox-ink-2);
+}
+
+.nox-selection-actions-more-toggle {
+  display: inline-flex;
+  width: 27px;
+  height: 27px;
+  flex: 0 0 27px;
+  align-items: center;
+  justify-content: center;
+  margin-left: auto;
+  border: 0;
+  border-radius: var(--nox-radius-control);
+  background: transparent;
+  color: var(--nox-ink-3);
+  cursor: pointer;
+}
+
+.nox-selection-actions-more-toggle:hover,
+.nox-selection-actions-more-toggle:focus-visible {
+  background: var(--nox-hover);
+  color: var(--nox-ink);
+}
+
+.nox-selection-actions-more-toggle:disabled,
+.nox-selection-actions .nox-selection-action:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.nox-selection-actions.is-busy {
+  opacity: 0.72;
+}
+
+.nox-selection-actions.is-busy .nox-selection-actions-tag {
+  color: var(--nox-ink-3);
+}
+
+@media (max-width: 420px) {
+  .nox-selection-actions-header {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .nox-selection-actions-meta {
+    padding-left: 20px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nox-selection-actions.is-visible {
+    animation: none;
+  }
+}
+
