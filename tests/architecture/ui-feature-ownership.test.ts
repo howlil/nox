@@ -61,10 +61,14 @@ test("all learning turns flush Practice drafts before any composer clear or prov
   const end = view.indexOf("  private handleLearningEvent(", start);
   assert.ok(start >= 0 && end > start);
   const turn = view.slice(start, end);
+  const admission = turn.indexOf("this.turnStarting = true");
   const flush = turn.indexOf("await this.practiceUi.flushDraft()");
+  const release = turn.indexOf("this.turnStarting = false");
+  const guard = turn.indexOf("epoch !== this.viewEpoch");
   const clear = turn.indexOf('this.input.value = ""');
   const running = turn.indexOf('this.setUIState("RUNNING")');
-  assert.ok(flush >= 0 && flush < clear && clear < running);
+  assert.ok(admission >= 0 && admission < flush && flush < release &&
+    release < guard && guard < clear && clear < running);
   const newSessionStart = view.indexOf("newBtn.addEventListener");
   const newSessionEnd = view.indexOf("const moreBtn", newSessionStart);
   const newSession = view.slice(newSessionStart, newSessionEnd);
