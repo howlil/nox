@@ -1,5 +1,28 @@
 # Changelog
 
+## [1.3.0]
+
+### Features
+
+- simplify first learning and recover approved plans
+- refresh transparent hero mascot from NOX SVG
+- add full NOX vector brand icon
+- add traced NOX mascot SVG
+
+### Fixes
+
+- document new vector logo variants
+- round brand icon edges
+- refresh website favicon and footer logo
+- refresh preview avatar to SVG
+- use canonical NOX SVG in navbar
+- assert embedded SVG branding
+- use SVG data URI for plugin runtime
+
+### Documentation
+
+- fix NOX logo asset list formatting
+
 ## [1.2.1]
 
 ### Interactive learning and coding
