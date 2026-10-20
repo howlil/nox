@@ -477,6 +477,14 @@ export class OnboardingFlow {
         this.button(actions, this.retryWorkspace ? "Retry creating workspace" : "Retry saving plan",
           () => { void this.approve(this.retryWorkspace!); }, true);
       }
+    } else if (this.stage === "recovering") {
+      this.header(panel, "Recover your approved learning plan",
+        "Nox checks the saved approval receipt before retrying workspace writes.");
+      panel.createDiv({ cls: "nox-onboarding-help",
+        text: this.applying ? "Checking the committed plan and any missing workspace notes…"
+          : "This recovery never creates a second program or overwrites your notes." });
+      if (!this.applying) this.button(panel, "Retry recovery",
+        () => { void this.recoverApproval(); }, true);
     } else if (this.stage === "ready" && this.readyProgram) {
       this.header(panel, "Your learning plan is ready", this.readyProgram.goal);
       panel.createDiv({ cls: "nox-onboarding-summary", text:
