@@ -8,6 +8,7 @@ test("plugin CI has no Cloudflare or landing jobs", () => {
   const dev = read(".github/workflows/ci.yml");
   assert.match(dev, /paths-ignore: \['landing\/\*\*'\]/);
   assert.match(dev, /run: pnpm ci:critical/);
+  assert.match(dev, /node scripts\\/ci\\/check-public-release\\.mjs/);
   assert.doesNotMatch(dev, /^  landing:/m);
   assert.doesNotMatch(dev, /npm run build/);
   assert.doesNotMatch(dev, /^  windows-dpapi:/m);
