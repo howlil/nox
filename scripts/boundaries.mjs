@@ -46,7 +46,7 @@ function isApprovedFeatureEdge(from, to) {
     return ["src/chat/history-list.ts", "src/chat/menu.ts",
       "src/chat/motion.ts", "src/chat/popover.ts",
       "src/chat/primitives.ts", "src/chat/code-answer-editor.ts",
-      "src/chat/response-spec.ts"].includes(to);
+      "src/chat/response-spec.ts", "src/chat/message-actions.ts"].includes(to);
   }
   if (fromPackage === "practice/view") {
     return ["src/chat/primitives.ts", "src/chat/code-answer-editor.ts"].includes(to);
