@@ -1,4 +1,4 @@
-import { addIcon, FileSystemAdapter, TFile, Plugin, requestUrl } from "obsidian";
+import { addIcon, FileSystemAdapter, Notice, TFile, Plugin, requestUrl } from "obsidian";
 import { shell } from "electron";
 import { AgyAdapter } from "./agent/AgyAdapter";
 import { CodexAdapter } from "./agent/CodexAdapter";
@@ -31,7 +31,6 @@ import {
 } from "./settings/NoxSettings";
 import { NoxSettingsTab } from "./settings/SettingsTab";
 import { runtimeProvenanceReport } from "./diagnostics/runtime-provenance";
-import { Notice } from "obsidian";
 
 // Values are injected into the actual production bundle by esbuild. They are
 // not read from a manifest that could be newer than the loaded JavaScript.
