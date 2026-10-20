@@ -23,12 +23,14 @@ test("diagnostic reports on-disk hash and detects a stale installed bundle", asy
   const relative = join(".obsidian", "plugins", "nox");
   try {
     mkdirSync(join(root, relative), { recursive: true });
-    const current = "release/1.3.0 " + identity.sourceSha + " NOX_RUNTIME_TRANSPORT_V3:node-https-sse";
+    const current = "release/1.3.0 " + identity.sourceSha + " reproducible-release NOX_RUNTIME_TRANSPORT_V3:node-https-sse";
     const file = join(root, relative, "main.js");
     writeFileSync(file, current);
     const args = { ...identity, vaultDir: root, pluginDir: relative };
     const report = await runtimeProvenanceReport(args);
     assert.match(report, /diskMatchesLoadedIdentity=yes/);
+    assert.match(await runtimeProvenanceReport({ ...args, builtAt: "new-hot-reload" }),
+      /diskMatchesLoadedIdentity=no/);
     assert.match(report, new RegExp("installedMainSha256=" + createHash("sha256").update(current).digest("hex")));
     writeFileSync(file, "old main.js");
     assert.match(await runtimeProvenanceReport(args), /diskMatchesLoadedIdentity=no/);
