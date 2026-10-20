@@ -32,6 +32,8 @@ export class ThinkingPresenter {
   private thinkingManualExpanded: boolean | null = null;
   private streamedThoughtText = "";
   private action: LearningActionKind = "ask";
+  /** Late streaming events cannot open a second trace after terminal/cancel. */
+  private accepting = false;
 
   constructor(
     private readonly thread: HTMLElement,
@@ -41,6 +43,7 @@ export class ThinkingPresenter {
 
   /** Invalidate the active trace and cancel its private timer; persisted DOM is unchanged. */
   reset(): void {
+    this.accepting = false;
     this.stopLoadingTimer();
     this.statusEl = null;
     this.thinkingToggleEl = null;
@@ -65,37 +68,44 @@ export class ThinkingPresenter {
   begin(action: LearningActionKind): void {
     this.reset();
     this.action = action;
+    this.accepting = true;
     this.lastAgentActivityAt = Date.now();
     this.ensureTrace();
   }
 
   ensureTrace(): void {
-    if (this.statusEl) return;
+    if (!this.accepting || this.statusEl) return;
     this.statusEl = this.buildThinkingTrace();
   }
 
   activity(): void { this.lastAgentActivityAt = Date.now(); }
 
-  stage(index: number): void { this.setThinkingStage(index); }
+  stage(index: number): void {
+    if (this.accepting) this.setThinkingStage(index);
+  }
 
   toolStarted(id: string, name: string): void {
+    if (!this.accepting) return;
     this.activity();
     this.runInspector?.toolStarted(id, name);
     this.appendThinkingTool(id, name);
   }
 
   toolCompleted(id: string, outcome: "completed" | "failed"): void {
+    if (!this.accepting) return;
     this.activity();
     this.runInspector?.toolCompleted(id, outcome);
     this.completeThinkingTool(id, outcome);
   }
 
   contextReady(context: TurnContextSnapshot): void {
+    if (!this.accepting) return;
     this.runInspector?.setContext(context);
     this.stage(1);
   }
 
   thoughtDelta(text: string): void {
+    if (!this.accepting) return;
     this.activity();
     this.appendThoughtText(text);
   }
@@ -106,6 +116,8 @@ export class ThinkingPresenter {
 
   /** Keep the completed trace DOM for the transcript; only release live state. */
   finish(doneLabel?: string): void {
+    if (!this.accepting) return;
+    this.accepting = false;
     const elapsed = this.formatElapsed(Date.now() - this.loadingStartedAt);
     this.settleThinking(doneLabel ?? "Completed in " + elapsed);
     this.reset();
