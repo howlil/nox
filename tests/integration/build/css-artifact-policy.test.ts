@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
+import { noxCssSource } from "../../support/css-source";
 import {
   assertCompiledPluginCss, assertNoxSettingsStyleContract, assertLandingDialogCss,
 } from "../../../scripts/css-artifact-policy.mjs";
@@ -27,7 +28,7 @@ test("landing dialog CSS separates @supports with actual newline characters", ()
 });
 
 test("built plugin CSS must retain every NOX settings surface", () => {
-  const source = readFileSync("styles.css", "utf8");
+  const source = noxCssSource();
   assert.doesNotThrow(() => assertNoxSettingsStyleContract(source));
   for (const missing of [
     "--nox-accent:", ".nox-settings-shell", ".nox-settings-surface",
