@@ -26,8 +26,19 @@ correctness, maintainability, and low regression risk.
 ## Community release and public documentation rules
 
 - `docs/RELEASING.md` owns the publish process; regular feature merges must
-  never create public releases. Only a reviewed release-plan PR can trigger a
-  tag and the three installable Obsidian assets.
+  never create public releases. A reviewed `release/x.y.z` candidate with real
+  native acceptance must publish the exact tag and three installable assets
+  **before** its version bump is merged into `master`.
+- **Community manifest parity is blocking:** the version in `master/manifest.json`
+  must always match a public (non-draft, non-prerelease) GitHub Release tag
+  spelled exactly `x.y.z` (never `vx.y.z`). That release must contain exactly
+  nonempty `main.js`, `manifest.json`, and `styles.css`.
+- `CI / build` runs `scripts/ci/check-public-release.mjs` for PRs targeting
+  `master` and pushes to `master`. Do not merge a release PR until this
+  check succeeds against the live public GitHub Release.
+- Never bypass the D01–D10 native Obsidian acceptance gate, impersonate evidence,
+  or merge version metadata early to force the release job. An unpublished
+  version must remain on `release/x.y.z`, not in `master`.
 - Never edit tags or published release binaries. The authoritative public ID
   is `nox`, and package/manifest/tag must use the same `x.y.z` version.
 - Public docs start at `docs/README.md`. Keep a how-to focused on the user's
