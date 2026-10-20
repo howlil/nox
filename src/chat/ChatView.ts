@@ -444,19 +444,9 @@ export class ChatView extends ItemView {
     newBtn.addEventListener("click", () => { void (async () => {
       if (this.uiState === "RUNNING") return;
       try {
-        this.practiceUi.reset();
-        this.learningUi.reset();
+        this.invalidateSessionPresentation();
         await this.learning.newSession();
-        this.clearReplyReference();
-        this.lastTurnRequest = null;
-        this.pendingFindingSource = null;
-        this.systemContextFiles = [];
-        this.extraCtx = [];
-        this.attachments = [];
-        this.renderAttachments();
-        this.clearReplyReference();
-        this.closePromptMenu();
-        this.closeModelMenu();
+        this.clearSessionBoundDraft();
         this.setAction("ask");
         await this.syncChips();
         this.showEmpty();
@@ -523,14 +513,8 @@ export class ChatView extends ItemView {
       mutate: async (ids, action) => {
         const result = await this.learning.mutateHistory(ids, action);
         if (result.activeSessionChanged) {
-          this.lastTurnRequest = null;
-          this.pendingFindingSource = null;
-          this.systemContextFiles = [];
-          this.extraCtx = [];
-          this.attachments = [];
-          this.renderAttachments();
-          this.closePromptMenu();
-          this.closeModelMenu();
+          this.invalidateSessionPresentation();
+          this.clearSessionBoundDraft();
           this.syncPracticeComposerState();
           await this.syncChips();
           await this.restoreSession();
@@ -637,6 +621,27 @@ export class ChatView extends ItemView {
     this.composerUi?.setReplyReference(null);
   }
 
+  /** Shell-only cross-feature invalidation; presenters keep their own timers and overlays. */
+  private invalidateSessionPresentation(): void {
+    this.practiceUi.reset();
+    this.learningUi.reset();
+    this.transcriptPresenter.cancel();
+  }
+
+  private clearSessionBoundDraft(): void {
+    this.clearReplyReference();
+    this.transcriptSelection?.hide();
+    this.lastTurnRequest = null;
+    this.pendingFindingSource = null;
+    this.systemContextFiles = [];
+    this.extraCtx = [];
+    this.attachments = [];
+    this.renderAttachments();
+    this.closePromptMenu();
+    this.closeModelMenu();
+  }
+
+
   private async forkMessage(messageId: string): Promise<void> {
     if (this.uiState === "RUNNING") return;
     if (this.input.value.trim()) {
@@ -660,25 +665,14 @@ export class ChatView extends ItemView {
   private async selectHistorySession(id: string): Promise<void> {
     if (this.uiState === "RUNNING") return;
 
-    this.practiceUi.reset();
-    this.learningUi.reset();
-    this.transcriptPresenter.cancel();
+    this.invalidateSessionPresentation();
     const session = await this.learning.selectSession(id);
     if (!session) return;
 
     this.closeHistoryMenu();
-    this.clearReplyReference();
-    this.transcriptSelection?.hide();
+    this.clearSessionBoundDraft();
     this.input.value = "";
     this.composerUi.syncInputLayout();
-    this.lastTurnRequest = null;
-    this.pendingFindingSource = null;
-    this.systemContextFiles = [];
-    this.extraCtx = [];
-    this.attachments = [];
-    this.renderAttachments();
-    this.closePromptMenu();
-    this.closeModelMenu();
     this.syncPracticeComposerState();
     await this.syncChips();
     await this.restoreSession();
