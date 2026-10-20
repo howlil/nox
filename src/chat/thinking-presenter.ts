@@ -319,7 +319,7 @@ export class ThinkingPresenter {
   }
 
   private appendThoughtText(text: string): void {
-    this.ensureThinkingTrace();
+    this.ensureTrace();
     this.setThinkingStage(3);
     if (!this.thinkingPanelEl) return;
 
