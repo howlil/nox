@@ -33,6 +33,7 @@ function fakeFrame(view: Window) {
     contentWindow: source,
     isConnected: true,
     style,
+    setCssStyles(styles: { height?: string }) { Object.assign(style, styles); },
   } as unknown as HTMLIFrameElement;
   return { frame, source, style };
 }

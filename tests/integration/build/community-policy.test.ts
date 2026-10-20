@@ -52,3 +52,38 @@ test("Community: allow real section headings and labels without headings", () =>
     assert.equal(out.status, 0, out.stderr);
   }
 });
+
+
+test("Community: reject all direct style assignments, computed properties and CSSOM writes", () => {
+  for (const source of [
+    'const el = host.createDiv(); el.style.height = "auto";',
+    'const el = host.createDiv(); el.style["width"] = "25%";',
+    'const el = host.createDiv(); el.style.setProperty("width", "30%");',
+    'const el = host.createDiv(); el.style.removeProperty("width");',
+    'const el = host.createDiv(); el.style.opacity += "1";',
+    'const el = host.createDiv(); ++el.style.zIndex;',
+  ]) {
+    const out = check(source);
+    assert.equal(out.status, 1, source + ": " + out.stderr);
+    assert.match(out.stderr, /no-static-styles-assignment/);
+  }
+});
+
+test("Community: allow native CSS helpers and CSS classes", () => {
+  for (const source of [
+    'element.setCssStyles({ height: "auto", width: "20%" });',
+    'element.setCssProps({ "--nox-width": "20px" });',
+    'element.addClass("nox-code-editor");',
+    'element.classList.toggle("nox-expanded", active);',
+  ]) {
+    const out = check(source);
+    assert.equal(out.status, 0, source + ": " + out.stderr);
+  }
+});
+
+test("Community: CI source scanner rejects direct CSSOM writes in source", () => {
+  const selected = spawnSync(process.execPath, [policy, "src/chat/code-answer-editor.ts"], { encoding: "utf8" });
+  assert.equal(selected.status, 0, selected.stderr);
+  const all = spawnSync(process.execPath, [policy], { encoding: "utf8" });
+  assert.equal(all.status, 0, all.stderr);
+});

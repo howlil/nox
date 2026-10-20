@@ -59,12 +59,12 @@ export function mountNoxGraphViewport(options: GraphViewportOptions): HTMLElemen
   let zoom = 1;
   const measure = (): void => {
     if (kind === "mermaid" && !root.classList.contains("is-expanded")) {
-      root.style.width = "min(100%, " + Math.ceil(naturalWidth + 16) + "px)";
+      root.setCssStyles({ width: "min(100%, " + Math.ceil(naturalWidth + 16) + "px)" });
     } else {
-      root.style.removeProperty("width");
+      root.setCssStyles({ width: "" });
     }
     const available = viewport.clientWidth || root.clientWidth || Math.min(naturalWidth, 768);
-    canvas.style.width = graphDisplayWidth(naturalWidth, available, zoom) + "px";
+    canvas.setCssStyles({ width: graphDisplayWidth(naturalWidth, available, zoom) + "px" });
     out.disabled = zoom <= MIN_ZOOM;
     zoomIn.disabled = zoom >= MAX_ZOOM;
     fit.disabled = zoom === 1;

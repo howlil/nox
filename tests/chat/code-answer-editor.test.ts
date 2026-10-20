@@ -12,6 +12,7 @@ class FakeInput {
   value = "";
   scrollHeight = 100;
   style: { height?: string } = {};
+  setCssStyles(styles: { height?: string }) { Object.assign(this.style, styles); }
   removed = false;
   attrs = new Map<string, string>();
   events = new Map<string, EventHandler[]>();

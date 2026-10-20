@@ -65,8 +65,8 @@ export function mountTokenUsageSection(container: HTMLElement, host: TokenUsageH
     const bar = primary.createDiv({ cls: "nox-usage-split",attr:{
       role:"img","aria-label":"Input "+format(totals.inputTokens)+" and output "+format(totals.outputTokens),
     } });
-    bar.createDiv({cls:"nox-usage-split-input"}).style.width=ratio+"%";
-    bar.createDiv({cls:"nox-usage-split-output"}).style.width=(split?100-ratio:0)+"%";
+    bar.createDiv({cls:"nox-usage-split-input"}).setCssStyles({ width: ratio+"%" });
+    bar.createDiv({cls:"nox-usage-split-output"}).setCssStyles({ width: (split?100-ratio:0)+"%" });
     primary.createSpan({cls:"nox-usage-subtitle",text:"Input / Output"});
     const metrics=overview.createDiv({cls:"nox-usage-metrics"});
     for(const [name,value] of [
@@ -143,8 +143,9 @@ export function mountTokenUsageSection(container: HTMLElement, host: TokenUsageH
         name.createSpan({cls:"nox-usage-model-name",text:item.model});
         const barCell=tr.createEl("td");
         const track=barCell.createDiv({cls:"nox-usage-model-track"});
-        track.createDiv({cls:"nox-usage-model-fill"}).style.width=
-          Math.min(100,item.totalTokens/max*100)+"%";
+        track.createDiv({cls:"nox-usage-model-fill"}).setCssStyles({
+          width: Math.min(100,item.totalTokens/max*100)+"%",
+        });
         tr.createEl("td",{text:format(item.requests)});
         tr.createEl("td",{text:format(item.totalTokens)});
       }

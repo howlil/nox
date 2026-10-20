@@ -83,6 +83,7 @@ class FakeElement {
   tabIndex = 0;
   type = "";
   style: { width?: string; height?: string } = {};
+  setCssStyles(styles: { width?: string; height?: string }) { Object.assign(this.style, styles); }
   wasFocused = false;
   private value = "";
   constructor(public tag: string) {}
