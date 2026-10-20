@@ -13,6 +13,7 @@
   },
   "main": "dist/main.js",
   "scripts": {
+    "architecture:graph": "node scripts/architecture-graph.mjs",
     "dev": "node scripts/dev.mjs",
     "dev:build": "node esbuild.config.mjs",
     "build": "node esbuild.config.mjs production",

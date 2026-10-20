@@ -1,4 +1,4 @@
-import type { PracticeQuestion } from "../domain/practice/types";
+import type { PracticeQuestion } from "../../../domain/practice/types";
 
 /** Preserve AI-authored words while making inline code identifiers scannable. */
 function inlineText(parent: HTMLElement, value: string): void {

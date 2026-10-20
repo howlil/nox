@@ -45,6 +45,9 @@ jobs:
       - name: Architecture boundaries
         run: pnpm check:boundaries
 
+      - name: Architecture dependency baseline
+        run: pnpm architecture:graph >> "$GITHUB_STEP_SUMMARY"
+
       - name: Typecheck
         run: pnpm typecheck
 

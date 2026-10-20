@@ -98,6 +98,14 @@ export class ObsidianContext {
     }
   }
 
+  /** Return the relevant note identity without touching editor.getValue/selection or vault reads. */
+  getActiveNotePath(): string | undefined {
+    const view = this.getRelevantMarkdownView();
+    if (view?.file) return view.file.path;
+    const file = this.app.workspace.getActiveFile();
+    return file instanceof TFile ? file.path : undefined;
+  }
+
   getSelection(): { file: string; content: string } | null {
     const view = this.getRelevantMarkdownView();
     const file = view?.file;

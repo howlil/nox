@@ -9,6 +9,11 @@ export class OnboardingStateRepository {
     const value = (await this.data.read())[KEY];
     if (!value || typeof value !== "object") return {};
     const candidate = value as Stored;
+    const receipt = candidate.draft?.approval;
+    const validReceipt = receipt && typeof receipt.programId === "string" &&
+      /^[a-f0-9-]{36}$/i.test(receipt.programId) &&
+      typeof receipt.operationId === "string" && /^[a-f0-9-]{36}$/i.test(receipt.operationId) &&
+      typeof receipt.withWorkspace === "boolean";
     return {
       dismissed: candidate.dismissed === true,
       ...(candidate.draft?.version === 1 && typeof candidate.draft.goal === "string" &&
@@ -21,7 +26,7 @@ export class OnboardingStateRepository {
         candidate.draft.minutesPerSession >= 10 && candidate.draft.minutesPerSession <= 240 &&
         Number.isInteger(candidate.draft.sessionsPerWeek) &&
         candidate.draft.sessionsPerWeek >= 1 && candidate.draft.sessionsPerWeek <= 7 ?
-        { draft: candidate.draft } : {}),
+        { draft: { ...candidate.draft, ...(receipt && !validReceipt ? { approval: undefined } : {}) } } : {}),
     };
   }
   async saveDraft(draft: OnboardingDraft): Promise<void> {

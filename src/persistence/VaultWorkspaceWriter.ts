@@ -4,6 +4,7 @@ import { planWorkspace } from "../domain/workspace/plan";
 
 /** Reentrant create-only writer. Partial failures can safely retry after restart. */
 export class VaultWorkspaceWriter {
+  private readonly inflight = new Map<string, Promise<void>>();
   constructor(private readonly app: App) {}
 
   /** Materialize only the selected objective, never an entire speculative curriculum. */
@@ -45,6 +46,17 @@ export class VaultWorkspaceWriter {
   }
 
   async ensure(program: LearningProgram): Promise<void> {
+    const current = this.inflight.get(program.id);
+    if (current) return current;
+    const work = this.materialize(program);
+    this.inflight.set(program.id, work);
+    try { await work; }
+    finally {
+      if (this.inflight.get(program.id) === work) this.inflight.delete(program.id);
+    }
+  }
+
+  private async materialize(program: LearningProgram): Promise<void> {
     const manifest = planWorkspace(program);
     for (const folder of manifest.folders) {
       const existing = this.app.vault.getAbstractFileByPath(folder);

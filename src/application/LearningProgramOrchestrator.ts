@@ -1,23 +1,32 @@
 import type { AgentRuntimePort } from "../agent/AgentRuntime";
 import type { ContextPort, LearningStatePort, ProgramStorePort } from "./ports";
 import type { LearningProgram, ProgramCollection, ProgramConstraints, SessionPauseReason } from "../domain/learning-program/types";
-import { feasibility, validateConstraints, validateCurriculum } from "../domain/learning-program/rules";
+import { feasibility } from "../domain/learning-program/rules";
 import { selectAdaptiveActivity, type AdaptiveActivityDecision } from "../domain/learner-model/activity-policy";
-import { startObjectiveFocus, transitionObjectiveFocus } from "../domain/learning-program/focus-transitions";
 import { deriveLearnerProfile, toLearnerProfileContext } from "../domain/learner-model/learner-profile";
 import { applyCurriculumRevision, detectStructuralGap, type CurriculumRevision, type StructuralGapReason } from "../domain/learning-program/curriculum-revision";
-import { proposeCurriculumRevision, type CurriculumRevisionPreview } from "./CurriculumRevisionService";
+import { proposeCurriculumRevision } from "../features/learning/program/CurriculumRevisionGenerator";
+import type { CurriculumRevisionPreview } from "../domain/learning-program/curriculum-preview";
 import { estimateRemainingWork } from "../domain/learning-program/estimate";
-import { checkpointTiming, focusSessionObjective, focusSessionMaterial, newSessionTiming, projectedTiming, recoverTiming, sessionRemainingMs, sessionTimeStatus, setTimingPause } from "../domain/learning-program/session-time";
+import { projectedTiming, recoverTiming, sessionRemainingMs, sessionTimeStatus } from "../domain/learning-program/session-time";
+import { ProgramMutationQueue } from "../features/learning/program/ProgramMutationQueue";
+import { projectProgramFocus } from "../features/learning/program/ProgramReadModel";
+import { ProgramPlanGenerator } from "../features/learning/program/ProgramPlanGenerator";
+import { beginObjectiveFocus, changeObjectiveFocus } from "../features/learning/program/ProgramFocusService";
+import {
+  startTimedSession, endTimedSession, extendTimedSession, pauseTimedSession,
+  resumeTimedSession, focusTimedObjective, focusTimedMaterial,
+  checkpointTimedSession, recoverProgramSessions,
+} from "../features/learning/program/ProgramSessionTransitions";
 
 /** Program planning and session selection. The model generates content, never transitions. */
 export class LearningProgramOrchestrator {
   private readonly preparedDrafts = new Map<string, LearningProgram>();
   private readonly pendingRevisions = new Map<string, { revision: CurriculumRevision; preview: CurriculumRevisionPreview }>();
   private planning = false;
-  private writing = false;
   private currentAbort?: AbortController;
-  private mutationTail: Promise<void> = Promise.resolve();
+  private readonly mutations = new ProgramMutationQueue();
+  private readonly planGenerator: ProgramPlanGenerator;
   // Runtime-owned timer (not bound to a DOM window): safe across Obsidian popout views.
   private checkpointTimer?: ReturnType<typeof setInterval>;
   private activeAiTurnId?: string;
@@ -25,7 +34,9 @@ export class LearningProgramOrchestrator {
     private readonly learningState: LearningStatePort, private readonly store: ProgramStorePort,
     private readonly currentModel: () => string | undefined,
     private readonly currentProvider: () => string | undefined = () => undefined,
-    private readonly now: () => number = () => Date.now()) {}
+    private readonly now: () => number = () => Date.now()) {
+    this.planGenerator = new ProgramPlanGenerator(this.runtime, this.contexts, this.currentModel, this.now);
+  }
 
   dispose(): void {
     if (this.checkpointTimer !== undefined) clearInterval(this.checkpointTimer);
@@ -50,7 +61,7 @@ export class LearningProgramOrchestrator {
   }
 
   async flushTime(): Promise<void> {
-    await this.mutationTail;
+    await this.mutations.idle();
     await this.checkpointCurrentSession();
   }
 
@@ -59,37 +70,30 @@ export class LearningProgramOrchestrator {
     if (!current?.session) { this.stopCheckpointLoop(); return; }
     const timing = current.session.timing;
     if (!timing || (timing.pauseReasons.length > 0 && !timing.pauseReasons.includes("ai-running"))) return;
-    await this.updateActive(program => {
-      if (!program.session?.timing) return program;
-      return { ...program, session: { ...program.session,
-        timing: checkpointTiming(program.session.timing, this.now()) } };
-    });
+    await this.updateActive(program => checkpointTimedSession(program, this.now()));
   }
 
   /** Never infer closed-app time from a persisted wall-clock timestamp. */
   async recoverSessions(): Promise<void> {
-    const collection = await this.store.load();
-    let changed = false;
-    const now = this.now();
-    for (const program of collection.programs) {
-      if (program.focus?.status === "active") {
-        program.focus = { ...program.focus, status: "paused", pausedAt: now };
-        changed = true;
-      }
-      if (program.session) {
-        program.session = { ...program.session, timing: recoverTiming(program.session, now) };
-        changed = true;
-      }
-    }
-    if (changed) await this.store.save(collection, collection);
+    await this.mutations.run(async () => {
+      const expected = await this.store.load();
+      const now = this.now();
+      const changed = expected.programs.some(program => program.focus?.status === "active" || Boolean(program.session));
+      if (!changed) return;
+      const next: ProgramCollection = { ...expected,
+        programs: expected.programs.map(program => recoverProgramSessions(program, now)) };
+      await this.store.save(next, expected);
+    });
     this.stopCheckpointLoop();
   }
 
-  async getSessionTime(): Promise<{
+  async getSessionTime(snapshot?: LearningProgram | null): Promise<{
     budgetMs: number; activeMs: number; remainingMs: number; aiWaitingMs: number;
     status: "active" | "waiting-ai" | "paused" | "recovered" | "exhausted";
   } | null> {
-    const program = await this.getActiveProgram();
+    // Callers holding an authoritative read snapshot can project without re-reading Vault.
+    // Mutations and turn authorization still load fresh CAS snapshots.
+    const program = snapshot === undefined ? await this.getActiveProgram() : snapshot;
     if (!program?.session) return null;
     const current = projectedTiming(program.session, this.now());
     return {
@@ -102,24 +106,11 @@ export class LearningProgramOrchestrator {
   }
 
   private async setPause(reason: SessionPauseReason, paused: boolean): Promise<void> {
-    await this.updateActive(program => {
-      if (!program.session) throw new Error("No active learning session.");
-      const now = this.now();
-      const previous = program.session.timing ?? recoverTiming(program.session, now);
-      return { ...program, session: { ...program.session,
-        timing: setTimingPause(previous, reason, paused, now) } };
-    });
+    await this.updateActive(program => pauseTimedSession(program, reason, paused, this.now()));
   }
 
   async focusObjective(objectiveId: string): Promise<void> {
-    await this.updateActive(program => {
-      if (!program.session) throw new Error("Start a session before studying an objective.");
-      if (!program.objectives.some(o => o.id === objectiveId)) throw new Error("Unknown objective.");
-      const now = this.now();
-      const timing = program.session.timing ?? recoverTiming(program.session, now);
-      return { ...program, session: { ...program.session,
-        timing: focusSessionObjective(timing, objectiveId, now) } };
-    });
+    await this.updateActive(program => focusTimedObjective(program, objectiveId, this.now()));
   }
 
   async setIdle(idle: boolean): Promise<void> {
@@ -135,40 +126,35 @@ export class LearningProgramOrchestrator {
     if (program.session.timing?.focusMaterialPath === path) return;
     await this.updateActive(current => {
       if (!current.session?.timing) return current;
-      return { ...current, session: { ...current.session,
-        timing: focusSessionMaterial(current.session.timing, path, this.now()) } };
+      return focusTimedMaterial(current, path, this.now());
     });
   }
 
   /** Preserve per-material attribution after an Obsidian note rename. */
   async renameMaterial(oldPath: string, newPath: string): Promise<void> {
-    const op = this.mutationTail.then(async () => {
-      this.writing = true;
-      try {
-        const collection = await this.store.load();
-        let dirty = false;
-        for (const program of collection.programs) {
-          if (program.session?.timing) {
-            const t = program.session.timing;
-            if (t.focusMaterialPath === oldPath) { t.focusMaterialPath = newPath; dirty = true; }
-            if (t.materialActiveMs?.[oldPath] !== undefined) {
-              t.materialActiveMs[newPath] = (t.materialActiveMs[newPath] ?? 0) + t.materialActiveMs[oldPath];
-              delete t.materialActiveMs[oldPath]; dirty = true;
-            }
-          }
-          for (const history of program.sessionHistory ?? []) {
-            if (history.materialActiveMinutes?.[oldPath] !== undefined) {
-              history.materialActiveMinutes[newPath] =
-                (history.materialActiveMinutes[newPath] ?? 0) + history.materialActiveMinutes[oldPath];
-              delete history.materialActiveMinutes[oldPath]; dirty = true;
-            }
+    return this.mutations.run(async () => {
+      const expected = await this.store.load();
+      const next = structuredClone(expected);
+      let dirty = false;
+      for (const program of next.programs) {
+        if (program.session?.timing) {
+          const timing = program.session.timing;
+          if (timing.focusMaterialPath === oldPath) { timing.focusMaterialPath = newPath; dirty = true; }
+          if (timing.materialActiveMs?.[oldPath] !== undefined) {
+            timing.materialActiveMs[newPath] = (timing.materialActiveMs[newPath] ?? 0) + timing.materialActiveMs[oldPath];
+            delete timing.materialActiveMs[oldPath]; dirty = true;
           }
         }
-        if (dirty) await this.store.save(collection, collection);
-      } finally { this.writing = false; }
+        for (const history of program.sessionHistory ?? []) {
+          if (history.materialActiveMinutes?.[oldPath] !== undefined) {
+            history.materialActiveMinutes[newPath] =
+              (history.materialActiveMinutes[newPath] ?? 0) + history.materialActiveMinutes[oldPath];
+            delete history.materialActiveMinutes[oldPath]; dirty = true;
+          }
+        }
+      }
+      if (dirty) await this.store.save(next, expected);
     });
-    this.mutationTail = op.then(() => {}, () => {});
-    return op;
   }
 
   async setAppInactive(inactive: boolean): Promise<void> {
@@ -179,14 +165,7 @@ export class LearningProgramOrchestrator {
 
   async pauseSession(): Promise<void> { await this.setPause("manual", true); }
   async resumeSession(): Promise<void> {
-    await this.updateActive(program => {
-      if (!program.session) throw new Error("No active learning session.");
-      const now = this.now();
-      let timing = program.session.timing ?? recoverTiming(program.session, now);
-      timing = setTimingPause(timing, "manual", false, now);
-      timing = setTimingPause(timing, "recovery", false, now);
-      return { ...program, session: { ...program.session, timing } };
-    });
+    await this.updateActive(program => resumeTimedSession(program, this.now()));
     this.startCheckpointLoop();
   }
 
@@ -212,38 +191,31 @@ export class LearningProgramOrchestrator {
     }
   }
 
-  isPlanning() { return this.planning || this.writing; }
+  isPlanning() { return this.planning || this.mutations.isWriting; }
   cancel() { this.currentAbort?.abort(); }
   async listPrograms(): Promise<ProgramCollection> { return this.store.load(); }
   async selectProgram(id: string): Promise<LearningProgram> {
     if (this.isPlanning() || this.activeAiTurnId) throw new Error("Finish the current learning operation before switching programs.");
-    const operation = this.mutationTail.then(async () => {
-      this.writing = true;
-      try {
-        const collection = await this.store.load();
-        const selected = collection.programs.find(p => p.id === id);
-        if (!selected) throw new Error("Unknown program ID. Run /programs to list saved plans.");
-        if (collection.programs.some(p => p.id !== id && p.focus?.status === "active")) {
-          throw new Error("Pause or end the active objective focus before switching learning programs.");
-        }
-        const previous = collection.programs.find(p => p.id === collection.activeProgramId);
-        const now = this.now();
-        if (previous?.session) {
-          previous.session = { ...previous.session, timing: recoverTiming(previous.session, now) };
-        }
-        if (selected.session) {
-          selected.session = { ...selected.session, timing: recoverTiming(selected.session, now) };
-        }
-        collection.activeProgramId = id;
-        await this.store.save(collection, collection);
-        return selected;
-      } finally { this.writing = false; }
+    const selected = await this.mutations.run(async () => {
+      const expected = await this.store.load();
+      const next = structuredClone(expected);
+      const chosen = next.programs.find(program => program.id === id);
+      if (!chosen) throw new Error("Unknown program ID. Run /programs to list saved plans.");
+      if (next.programs.some(program => program.id !== id && program.focus?.status === "active")) {
+        throw new Error("Pause or end the active objective focus before switching learning programs.");
+      }
+      const previous = next.programs.find(program => program.id === next.activeProgramId);
+      const now = this.now();
+      if (previous?.session) previous.session = { ...previous.session, timing: recoverTiming(previous.session, now) };
+      if (chosen.session) chosen.session = { ...chosen.session, timing: recoverTiming(chosen.session, now) };
+      next.activeProgramId = id;
+      await this.store.save(next, expected);
+      return chosen;
     });
-    this.mutationTail = operation.then(() => {}, () => {});
-    const selected = await operation;
     this.stopCheckpointLoop();
     return selected;
   }
+
   /** Evidence opens the revision workflow but never bypasses explicit approval. */
   async detectRevisionCandidate() {
     const program = await this.getActiveProgram();
@@ -303,7 +275,7 @@ export class LearningProgramOrchestrator {
 
   /** Revert is a new version. Never delete receipts or evidence from the past. */
   async prepareCurriculumRevert(targetOperationId: string): Promise<CurriculumRevisionPreview> {
-    if (this.isPlanning() || this.activeAiTurnId || this.writing) {
+    if (this.isPlanning() || this.activeAiTurnId || this.mutations.isWriting) {
       throw new Error("Finish the active learning operation before reverting.");
     }
     const program = await this.getActiveProgram();
@@ -347,39 +319,28 @@ export class LearningProgramOrchestrator {
     if (this.isPlanning() || this.activeAiTurnId) {
       throw new Error("Finish the running learning operation before approving a curriculum revision.");
     }
-    const task = this.mutationTail.then(async () => {
-      this.writing = true;
-      try {
-        const collection = await this.store.load();
-        const index = collection.programs.findIndex(p => p.id === collection.activeProgramId);
-        if (index < 0) throw new Error("No active program for revision.");
-        const program = collection.programs[index];
-        // Persisted receipt wins even after process restart.
-        if (program.curriculumRevisions?.some(r => r.operationId === operationId)) return program;
-        const pending = this.pendingRevisions.get(operationId);
-        if (!pending || this.now() > pending.preview.expiresAt ||
-            pending.revision.programId !== program.id) {
-          throw new Error("Revision preview expired or belongs to another program.");
-        }
-        const evidence = (await this.learningState.load()).evidence;
-        const next = applyCurriculumRevision(program, pending.revision, evidence, this.now());
-        if (JSON.stringify(next.objectives) !== JSON.stringify(pending.preview.after)) {
-          throw new Error("Curriculum revision no longer matches the approved diff.");
-        }
-        const proposedCollection: ProgramCollection = { ...collection,
-          programs: collection.programs.map((item, position) =>
-            position === index ? next : item) };
-        // Keep the loaded collection IMMUTABLE as the expected snapshot.
-        // Compare-and-swap rejects an intervening vault edit, never last-write-wins.
-        await this.store.save(proposedCollection, collection);
-        this.pendingRevisions.delete(operationId);
-        return next;
-      } finally {
-        this.writing = false;
+    return this.mutations.run(async () => {
+      const expected = await this.store.load();
+      const index = expected.programs.findIndex(program => program.id === expected.activeProgramId);
+      if (index < 0) throw new Error("No active program for revision.");
+      const program = expected.programs[index];
+      if (program.curriculumRevisions?.some(revision => revision.operationId === operationId)) return program;
+      const pending = this.pendingRevisions.get(operationId);
+      if (!pending || this.now() > pending.preview.expiresAt ||
+          pending.revision.programId !== program.id) {
+        throw new Error("Revision preview expired or belongs to another program.");
       }
+      const evidence = (await this.learningState.load()).evidence;
+      const nextProgram = applyCurriculumRevision(program, pending.revision, evidence, this.now());
+      if (JSON.stringify(nextProgram.objectives) !== JSON.stringify(pending.preview.after)) {
+        throw new Error("Curriculum revision no longer matches the approved diff.");
+      }
+      const next: ProgramCollection = { ...expected,
+        programs: expected.programs.map((item, position) => position === index ? nextProgram : item) };
+      await this.store.save(next, expected);
+      this.pendingRevisions.delete(operationId);
+      return nextProgram;
     });
-    this.mutationTail = task.then(() => {}, () => {});
-    return task;
   }
 
   cancelCurriculumRevision(operationId: string): void {
@@ -401,115 +362,74 @@ export class LearningProgramOrchestrator {
     return (await this.getActiveProgram())?.focus;
   }
 
-  async getGlobalActiveFocus(): Promise<{ program: LearningProgram; focus: NonNullable<LearningProgram["focus"]> } | null> {
-    const collection = await this.store.load();
-    const program = collection.programs.find(item => item.focus?.status === "active");
-    return program?.focus ? { program, focus: program.focus } : null;
+  async getTurnFocusSnapshot(): Promise<{
+    current: LearningProgram | null;
+    globalFocus: { program: LearningProgram; focus: NonNullable<LearningProgram["focus"]> } | null;
+  }> {
+    // One fresh collection for admission; the capability's projection is pure.
+    return projectProgramFocus(await this.store.load());
   }
 
-  async startFocus(objectiveId: string, chatSessionId: string): Promise<LearningProgram> {
+  async getGlobalActiveFocus(): Promise<{ program: LearningProgram; focus: NonNullable<LearningProgram["focus"]> } | null> {
+    return (await this.getTurnFocusSnapshot()).globalFocus;
+  }
+
+  async startFocus(objectiveId: string, chatSessionId: string,
+    expectedProgramId?: string): Promise<LearningProgram> {
     const state = await this.learningState.load();
     return this.updateActive(program => {
-      const objective = program.objectives.find(item => item.id === objectiveId);
-      if (!objective) throw new Error("Unknown learning objective.");
-      const profile = deriveLearnerProfile(program, state, this.now());
-      const statuses = new Map(profile.objectives.map(item => [item.objectiveId, item.status]));
-      const eligible = objective.prerequisiteIds.every(id => statuses.get(id) === "mastered");
-      if (!eligible) throw new Error("Prerequisites are not mastered for this objective.");
-      return startObjectiveFocus(program, objectiveId, chatSessionId, this.now(), crypto.randomUUID());
+      if (expectedProgramId && program.id !== expectedProgramId) {
+        throw new Error("The selected onboarding plan changed. Review /progress before starting.");
+      }
+      return beginObjectiveFocus(program, state, objectiveId, chatSessionId, this.now(), crypto.randomUUID());
     });
   }
 
   async pauseFocus(): Promise<LearningProgram> {
-    return this.updateActive(program => transitionObjectiveFocus(program, "pause", this.now()));
+    return this.updateActive(program => changeObjectiveFocus(program, "pause", this.now()));
   }
 
   async resumeFocus(chatSessionId: string): Promise<LearningProgram> {
-    return this.updateActive(program => {
-      if (program.focus?.chatSessionId !== chatSessionId) {
-        throw new Error("Return to the original chat to resume the pending focus challenge.");
-      }
-      return transitionObjectiveFocus(program, "resume", this.now());
-    });
+    return this.updateActive(program => changeObjectiveFocus(program, "resume", this.now(), chatSessionId));
   }
 
   async endFocus(): Promise<LearningProgram> {
-    return this.updateActive(program => transitionObjectiveFocus(program, "end", this.now()));
+    return this.updateActive(program => changeObjectiveFocus(program, "end", this.now()));
   }
 
   private updateActive(edit: (program: LearningProgram) => LearningProgram): Promise<LearningProgram> {
     if (this.planning) return Promise.reject(new Error("Curriculum generation is in progress."));
-    // Serialize the read-modify-write operation in process and compare the
-    // loaded vault bytes before commit to reject concurrent external edits.
-    const operation = this.mutationTail.then(async () => {
-      this.writing = true;
-      try {
-        const collection = await this.store.load();
-        const index = collection.programs.findIndex(p => p.id === collection.activeProgramId);
-        if (index === -1) throw new Error("No active learning program. Use /plan first.");
-        const next = edit(structuredClone(collection.programs[index]));
-        collection.programs[index] = next;
-        await this.store.save(collection, collection);
-        return next;
-      } finally { this.writing = false; }
+    return this.mutations.run(async () => {
+      const expected = await this.store.load();
+      const index = expected.programs.findIndex(program => program.id === expected.activeProgramId);
+      if (index === -1) throw new Error("No active learning program. Use /plan first.");
+      const nextProgram = edit(structuredClone(expected.programs[index]));
+      const next: ProgramCollection = { ...expected,
+        programs: expected.programs.map((item, position) => position === index ? nextProgram : item) };
+      await this.store.save(next, expected);
+      return nextProgram;
     });
-    this.mutationTail = operation.then(() => {}, () => {});
-    return operation;
   }
+
   async startSession(): Promise<LearningProgram> {
-    const result = await this.updateActive(program => {
-      if (program.session) throw new Error("A study session is already active. Use /end-session before starting another.");
-      const now = this.now();
-      return { ...program,
-        session: { startedAt: now, timeBudgetMinutes: program.constraints.minutesPerSession,
-          timing: newSessionTiming(now) } };
-    });
+    const result = await this.updateActive(program => startTimedSession(program, this.now()));
     this.startCheckpointLoop();
     const context = await this.contexts.resolve().catch(() => null);
     if (context?.activeNote?.path) await this.focusMaterial(context.activeNote.path);
     return result;
   }
+
   async extendSession(minutes: number): Promise<LearningProgram> {
-    return this.updateActive(program => {
-      if (!program.session) throw new Error("Start a session before extending its timebox.");
-      if (!Number.isInteger(minutes) || minutes < 5 ||
-          program.session.timeBudgetMinutes + minutes > 240) {
-        throw new Error("Extension must be at least 5 minutes; total timebox must not exceed 240.");
-      }
-      program.session.timeBudgetMinutes += minutes;
-      return program;
-    });
+    return this.updateActive(program => extendTimedSession(program, minutes));
   }
+
   async endSession(): Promise<LearningProgram> {
-    const result = await this.updateActive(program => {
-      if (!program.session) throw new Error("No active session to end.");
-      const endedAt = this.now();
-      const startedAt = program.session.startedAt;
-      const minutesSpent = Math.max(0, (endedAt - startedAt) / 60_000);
-      const finalTiming = projectedTiming(program.session, endedAt);
-      return { ...program, session: undefined, sessionHistory: [
-        ...(program.sessionHistory ?? []), {
-          startedAt, endedAt, minutesSpent,
-          ...(finalTiming ? {
-            activeMinutes: finalTiming.activeMs / 60_000,
-            aiWaitingMinutes: finalTiming.aiWaitingMs / 60_000,
-            ...(finalTiming.dailyActiveMs ? { dailyActiveMs: finalTiming.dailyActiveMs } : {}),
-            ...(finalTiming.materialActiveMs ? {
-              materialActiveMinutes: Object.fromEntries(Object.entries(finalTiming.materialActiveMs)
-                .map(([path, ms]) => [path, ms / 60_000])),
-            } : {}),
-            ...(finalTiming.objectiveActiveMs ? {
-              objectiveActiveMinutes: Object.fromEntries(Object.entries(finalTiming.objectiveActiveMs)
-                .map(([id, ms]) => [id, ms / 60_000])),
-            } : {}),
-          } : {}),
-        },
-      ] };
-    });
+    const result = await this.updateActive(program => endTimedSession(program, this.now()));
     this.activeAiTurnId = undefined;
     this.stopCheckpointLoop();
     return result;
   }
+
   async markTaught(objectiveId: string, afterEvidenceAt: number): Promise<void> {
     await this.updateActive(program => {
       if (!program.objectives.some(item => item.id === objectiveId)) {
@@ -612,105 +532,44 @@ export class LearningProgramOrchestrator {
     const abort = this.currentAbort = new AbortController();
     const timeout = setTimeout(() => abort.abort(), 300_000);
     try {
-      const context = await this.contexts.resolve();
-      const source = context.selection ?? (context.activeNote ? {
-        file: context.activeNote.path, content: context.activeNote.content,
-      } : undefined);
-      const constraints: ProgramConstraints = structuredClone(requested);
-      if (constraints.sourceBound) {
-        if (!source) throw new Error("Open or select a source note before using sources=active.");
-        if (constraints.sourcePaths.length > 0 && !constraints.sourcePaths.includes(source.file)) {
-          throw new Error("Source note changed during onboarding. Reopen the approved note and retry.");
-        }
-        constraints.sourcePaths = [source.file];
-      }
-      validateConstraints(constraints);
-      if (constraints.sourceBound && !this.runtime.supportsSourceIsolation?.()) {
-        throw new Error("A source-limited curriculum requires an isolated provider with no vault filesystem tools.");
-      }
-      const instruction = [
-        "You create domain-agnostic learning programs by backward design.",
-        "Convert the given goal into testable competencies, not a generic list of topics.",
-        "Emit EXACTLY one fenced \`\`\`learning-program JSON block, no other output.",
-        "Schema: {\"kind\":\"curriculum\",\"objectives\":[{\"id\":\"stable_slug\",\"title\":\"short\",\"outcome\":\"observable testable outcome\",\"prerequisiteIds\":[],\"estimatedMinutes\":45,\"rubric\":[\"observable success criterion\"],\"sourceRefs\":[],\"priority\":\"core\"}]}",
-        "Prioritize 3–12 achievable objectives, in a directed acyclic prerequisite graph.",
-        "Use priority core/supporting/optional. Rubrics must be testable.",
-        "Do not invent user constraints or claim a skill is already mastered.",
-        constraints.sourceBound
-          ? "SOURCE-BOUND. Every objective must cite only the allowed exact source path: " + constraints.sourcePaths.join(", ") +
-            ". Do not include external concepts unsupported by the provided material."
-          : "The program is not source-bound; sourceRefs may be empty.",
-        `Excluded topics: ${constraints.excludedTopics.join(", ") || "(none)"}`,
-        `Goal: ${goal}`,
-        `Constraint data: ${JSON.stringify(constraints)}`,
-        source ? `Current source (${source.file}):\n${source.content.slice(0, 16000)}` : "",
-      ].join("\n\n");
-      let output = "", completed = false;
-      const messages = this.runtime.send({ prompt: instruction, context: [] },
-        { model: this.currentModel() }, abort.signal);
-      for await (const event of messages) {
-        if (abort.signal.aborted) throw new Error("Curriculum generation timed out.");
-        if (event.type === "failed") throw new Error(event.failure.message);
-        if (event.type === "cancelled") throw new Error("Curriculum generation cancelled.");
-        if (event.type === "text") {
-          output += event.content;
-          if (output.length > 250_000) throw new Error("Curriculum response exceeded safety limit.");
-        }
-        if (event.type === "completed") { completed = true; break; }
-      }
-      if (abort.signal.aborted) throw new Error("Curriculum generation cancelled or timed out.");
-      if (!completed) throw new Error("The agent did not complete the curriculum.");
-      const blocks = [...output.matchAll(/```learning-program\s*\n([\s\S]*?)\n```/g)];
-      if (blocks.length !== 1 || output.trim() !== blocks[0][0].trim()) {
-        throw new Error("Expected exactly one structured curriculum, without extra output.");
-      }
-      let value: unknown;
-      try { value = JSON.parse(blocks[0][1]); }
-      catch { throw new Error("Curriculum is not valid JSON."); }
-      const draft = validateCurriculum(value, constraints);
-      const program: LearningProgram = {
-        version: 1, id: crypto.randomUUID(), goal: goal.trim(), constraints,
-        objectives: draft.objectives, createdAt: this.now(), planVersion: 1,
-      };
-      if (abort.signal.aborted) throw new Error("Curriculum generation cancelled before preview.");
+      const program = await this.planGenerator.generate(goal, requested, abort.signal);
       this.preparedDrafts.clear();
       this.preparedDrafts.set(program.id, structuredClone(program));
       return structuredClone(program);
-    } finally { clearTimeout(timeout); this.planning = false; this.currentAbort = undefined; }
+    } finally {
+      clearTimeout(timeout);
+      this.planning = false;
+      this.currentAbort = undefined;
+    }
   }
 
   /** Commit a specific validated preview; retries with one operationId never duplicate programs. */
   async commitPrepared(draftId: string, operationId: string, workspaceApproved = false): Promise<LearningProgram> {
     if (!operationId.trim()) throw new Error("Operation ID is required.");
     if (this.isPlanning()) throw new Error("Finish preparing the curriculum before approval.");
-    const op = this.mutationTail.then(async () => {
-      this.writing = true;
-      try {
-        const collection = await this.store.load();
-        if (collection.programs.some(p => p.focus?.status === "active")) {
-          throw new Error("Pause or end objective focus before changing learning plans.");
-        }
-        const previous = collection.programs.find(p => p.creationOperationId === operationId);
-        if (previous) return previous;
-        const proposed = this.preparedDrafts.get(draftId);
-        if (!proposed) throw new Error("The preview expired. Generate a fresh learning blueprint.");
-        if (this.now() - proposed.createdAt > 15 * 60_000) {
-          this.preparedDrafts.delete(draftId);
-          throw new Error("The preview expired. Generate a fresh learning blueprint.");
-        }
-        const program: LearningProgram = {
-          ...structuredClone(proposed), creationOperationId: operationId,
-          ...(workspaceApproved ? { workspaceApproved: true } : {}),
-        };
-        collection.programs.push(program);
-        collection.activeProgramId = program.id;
-        await this.store.save(collection, collection);
+    return this.mutations.run(async () => {
+      const expected = await this.store.load();
+      if (expected.programs.some(program => program.focus?.status === "active")) {
+        throw new Error("Pause or end objective focus before changing learning plans.");
+      }
+      const previous = expected.programs.find(program => program.creationOperationId === operationId);
+      if (previous) return previous;
+      const proposed = this.preparedDrafts.get(draftId);
+      if (!proposed) throw new Error("The preview expired. Generate a fresh learning blueprint.");
+      if (this.now() - proposed.createdAt > 15 * 60_000) {
         this.preparedDrafts.delete(draftId);
-        return program;
-      } finally { this.writing = false; }
+        throw new Error("The preview expired. Generate a fresh learning blueprint.");
+      }
+      const program: LearningProgram = {
+        ...structuredClone(proposed), creationOperationId: operationId,
+        ...(workspaceApproved ? { workspaceApproved: true } : {}),
+      };
+      const next: ProgramCollection = { ...expected,
+        programs: [...expected.programs, program], activeProgramId: program.id };
+      await this.store.save(next, expected);
+      this.preparedDrafts.delete(draftId);
+      return program;
     });
-    this.mutationTail = op.then(() => {}, () => {});
-    return op;
   }
 
   /** Preserve the existing explicit /plan command behavior. */

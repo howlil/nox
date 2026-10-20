@@ -22,6 +22,7 @@ function rig(payload: unknown = draft(), success = true) {
   let currentTime = Date.now();
   let stored: ProgramCollection = { version: 1, programs: [] };
   let writes = 0;
+  let reads = 0;
   const context = { activeNote: { path: "notes/spanish.md", content: "Hola means hello." }, explicit: [] };
   const runtime = {
     supportsSourceIsolation: () => true,
@@ -36,13 +37,19 @@ function rig(payload: unknown = draft(), success = true) {
     runtime as never,
     { resolve: async () => context } as never,
     { load: async () => ({ evidence: [] }) } as never,
-    { load: async () => structuredClone(stored),
-      save: async (next: ProgramCollection) => { stored = structuredClone(next); writes++; } } as never,
+    { load: async () => { reads++; return structuredClone(stored); },
+      save: async (next: ProgramCollection, expected: ProgramCollection) => {
+        assert.notStrictEqual(next, expected, "Never mutate the expected loaded CAS snapshot");
+        assert.deepEqual(expected, stored, "Expected CAS bytes must match the authoritative previous state");
+        stored = structuredClone(next);
+        writes++;
+      } } as never,
     () => undefined,
     () => "chatgpt",
     () => currentTime,
   );
   return { orchestrator, stored: () => structuredClone(stored), writes: () => writes,
+    reads: () => reads,
     advance: (ms: number) => { currentTime += ms; } };
 }
 test("plan creation persists validated objectives, updates active identity and feasibility", async () => {
@@ -186,4 +193,82 @@ test("objective focus lifecycle persists without a timed session and resumes onl
   await orchestrator.endFocus();
   assert.equal(stored().programs[0].focus, undefined);
   orchestrator.dispose();
+});
+
+test("concurrent session, focus and rename mutations never lose updates", async () => {
+  const { orchestrator, stored } = rig();
+  await orchestrator.createProgram("Learn Spanish", base);
+  await orchestrator.startSession();
+  await Promise.all([
+    orchestrator.focusObjective("basic"),
+    orchestrator.extendSession(15),
+    orchestrator.pauseSession(),
+    orchestrator.renameMaterial("notes/spanish.md", "notes/moved.md"),
+  ]);
+  const persisted = stored().programs[0];
+  assert.equal(persisted.session?.timeBudgetMinutes, 60);
+  assert.equal(persisted.session?.timing?.focusObjectiveId, "basic");
+  assert.equal(persisted.session?.timing?.focusMaterialPath, "notes/moved.md");
+  assert.deepEqual(persisted.session?.timing?.pauseReasons, ["manual"]);
+  await orchestrator.endSession();
+  orchestrator.dispose();
+});
+
+test("queued mutation failure does not block the next successful transition", async () => {
+  const { orchestrator } = rig();
+  await orchestrator.createProgram("Learn Spanish", base);
+  await orchestrator.startSession();
+  const [invalid, valid] = await Promise.allSettled([
+    orchestrator.extendSession(300),
+    orchestrator.focusObjective("basic"),
+  ]);
+  assert.equal(invalid.status, "rejected");
+  assert.equal(valid.status, "fulfilled");
+  assert.equal((await orchestrator.getActiveProgram())?.session?.timing?.focusObjectiveId, "basic");
+  await orchestrator.endSession();
+  orchestrator.dispose();
+});
+
+test("recovery and other queued mutations preserve immutable loaded snapshots", async () => {
+  const { orchestrator, stored } = rig();
+  await orchestrator.createProgram("Learn Spanish", base);
+  await orchestrator.startFocus("basic", "chat-a");
+  await orchestrator.startSession();
+  await orchestrator.recoverSessions();
+  assert.equal(stored().programs[0].focus?.status, "paused");
+  assert.deepEqual(stored().programs[0].session?.timing?.pauseReasons, ["recovery"]);
+  orchestrator.dispose();
+});
+
+test("W1 one authoritative preflight read yields active + global focus without duplicated vault loads", async () => {
+  const h = rig();
+  await h.orchestrator.createProgram("Spanish", base);
+  const before = h.reads();
+  const snapshot = await h.orchestrator.getTurnFocusSnapshot();
+  assert.equal(h.reads() - before, 1);
+  assert.equal(snapshot.current?.id, h.stored().activeProgramId);
+  assert.equal(snapshot.globalFocus, null);
+  await h.orchestrator.startSession();
+  const withSession = (await h.orchestrator.getTurnFocusSnapshot()).current;
+  const beforeProjection = h.reads();
+  const time = await h.orchestrator.getSessionTime(withSession);
+  assert.ok(time?.budgetMs);
+  assert.equal(h.reads(), beforeProjection, "projecting a known collection must not reload vault");
+  h.orchestrator.dispose();
+});
+
+test("M3 expected onboarding program is checked before any focus CAS write", async () => {
+  const h = rig();
+  const created = await h.orchestrator.createProgram("Spanish from scratch", base);
+  const writesBefore = h.writes();
+  await assert.rejects(
+    h.orchestrator.startFocus("basic", "session-1", "wrong-program"),
+    /selected onboarding plan changed/,
+  );
+  assert.equal(h.writes(), writesBefore);
+  assert.equal((await h.orchestrator.getActiveProgram())?.focus, undefined);
+  const focused = await h.orchestrator.startFocus("basic", "session-1", created.id);
+  assert.equal(focused.focus?.objectiveId, "basic");
+  assert.equal(h.writes(), writesBefore + 1);
+  h.orchestrator.dispose();
 });

@@ -1,8 +1,8 @@
-import type { PracticeAnswer, PracticeQuestion } from "../domain/practice/types";
-import { validatePracticeAnswer } from "../domain/practice/question-schema";
+import type { PracticeAnswer, PracticeQuestion } from "../../../domain/practice/types";
+import { validatePracticeAnswer } from "../../../domain/practice/question-schema";
 import { renderPracticeInstructions } from "./practice-instructions";
-import { createNoxButton, createNoxSurface } from "./primitives";
-import { mountCodeAnswerEditor, type CodeAnswerEditorHandle } from "./code-answer-editor";
+import { createNoxButton, createNoxSurface } from "../../../chat/primitives";
+import { mountCodeAnswerEditor, type CodeAnswerEditorHandle } from "../../../chat/code-answer-editor";
 
 export interface QuizCardActions {
   questionId: string;
@@ -25,7 +25,7 @@ export function renderQuizCard(parent: HTMLElement, question: PracticeQuestion,
   actions: QuizCardActions): void {
   const card = createNoxSurface(parent, "nox-quiz-card");
   const header = card.createDiv({ cls: "nox-quiz-heading" });
-  header.createDiv({ cls: "nox-practice-label", text: "Practice · " + question.concept });
+  header.createDiv({ cls: "nox-practice-label", text: "Practice · saved evaluation · " + question.concept });
   header.createSpan({ cls: "nox-quiz-kind", text: question.input?.type === "code"
     ? "Code challenge" : question.input?.type === "multiple-choice"
       ? "Multiple choice" : "Written answer" });

@@ -1,7 +1,7 @@
 /** User onboarding intent is not learning progress. */
 export type OnboardingStage =
-  | "welcome" | "discovery" | "suggestions" | "notes" | "form"
-  | "generating" | "preview" | "applying" | "ready";
+  | "welcome" | "quick-goal" | "discovery" | "suggestions" | "notes" | "form"
+  | "generating" | "preview" | "applying" | "recovering" | "ready";
 export interface OnboardingDraft {
   version: 1;
   stage: OnboardingStage;
@@ -14,4 +14,6 @@ export interface OnboardingDraft {
   sourceBound: boolean;
   sourcePath?: string;
   deadline?: string;
+  /** Durable approval receipt, persisted before the first program-store mutation. */
+  approval?: { programId: string; operationId: string; withWorkspace: boolean };
 }

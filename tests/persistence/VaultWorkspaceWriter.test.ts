@@ -80,3 +80,27 @@ test("objective notes materialize on demand without overwriting learner notes", 
   await writer.ensureObjective(program, "greetings");
   assert.match(vault.files.get(lesson)!, /User notes/);
 });
+
+test("M4 concurrent startup and onboarding workspace recovery share a single flight", async () => {
+  const vault = new FakeVault();
+  const writer = new VaultWorkspaceWriter({ vault } as never);
+  await Promise.all([writer.ensure(program), writer.ensure(program), writer.ensure(program)]);
+  assert.equal(vault.files.size, 2);
+  assert.equal(vault.creates, 2, "concurrent recovery must not race on path creation");
+  await writer.ensure(program);
+  assert.equal(vault.creates, 2);
+});
+
+test("M4 recovery reports ownership conflict without altering existing learner content", async () => {
+  const vault = new FakeVault();
+  const writer = new VaultWorkspaceWriter({ vault } as never);
+  await writer.ensure(program);
+  const note = planWorkspace(program).files[0].path;
+  vault.files.set(note, "Important unowned notes");
+  await assert.rejects(writer.ensure(program), /collision/);
+  assert.equal(vault.files.get(note), "Important unowned notes");
+  // A failed flight must be released so an authorized retry is possible.
+  vault.files.delete(note);
+  await writer.ensure(program);
+  assert.equal(vault.files.size, 2);
+});

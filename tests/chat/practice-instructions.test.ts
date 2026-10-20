@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { renderPracticeInstructions, legacyInstructionParagraphs } from "../../src/chat/practice-instructions";
-import { renderQuizCard } from "../../src/chat/quiz-card";
+import { renderPracticeInstructions, legacyInstructionParagraphs } from "../../src/features/practice/view/practice-instructions";
+import { renderQuizCard } from "../../src/features/practice/view/quiz-card";
 import type { PracticeQuestion } from "../../src/domain/practice/types";
 import { isPracticeQuestion } from "../../src/domain/practice/question-schema";
 

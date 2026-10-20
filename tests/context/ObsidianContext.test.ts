@@ -152,3 +152,23 @@ test("bounded newest-file selection matches stable full-sort semantics", () => {
   assert.deepEqual(selectRecentMarkdownFiles(files.slice(0, 2), 600),
     files.slice(0, 2).sort((a, b) => b.stat.mtime - a.stat.mtime));
 });
+
+test("M1 active note identity does not read the editor buffer or vault", () => {
+  const file = new TFile("privacy-test.md");
+  const view = new MarkdownView(file, {
+    getValue: () => { throw Error("editor text read"); },
+    getSelection: () => { throw Error("selection text read"); },
+  } as never);
+  let reads = 0;
+  const context = new ObsidianContext({
+    workspace: {
+      on: () => ({}),
+      getActiveViewOfType: () => view,
+      getLeavesOfType: () => [{ view }],
+      getActiveFile: () => file,
+    },
+    vault: { cachedRead: async () => { reads++; throw Error("vault text read"); } },
+  } as never, new Plugin());
+  assert.equal(context.getActiveNotePath(), "privacy-test.md");
+  assert.equal(reads, 0);
+});

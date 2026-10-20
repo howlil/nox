@@ -12,7 +12,7 @@ import {
 import { ReviewFinding } from "../domain/review/types";
 import type { LearningObjective, ActivityKind } from "../domain/learning-program/types";
 import type { CriterionKnowledge } from "../domain/learner-model/learner-profile";
-import type { CurriculumRevisionPreview } from "./CurriculumRevisionService";
+import type { CurriculumRevisionPreview } from "../domain/learning-program/curriculum-preview";
 
 /** Read-only graph derived from authoritative learner evidence. */
 export interface NoxProgramOverview {
@@ -47,6 +47,10 @@ export interface LearningRequest {
   replyTo?: import("../types").ChatReplyReference;
   action: LearningActionKind;
   explicitContext: ExplicitContextRef[];
+  /** Single explicitly chosen onboarding note; never include ambient editor context. */
+  contextMode?: "explicit-only";
+  /** Expected program for onboarding focus; checked inside the program CAS mutation. */
+  focusProgramId?: string;
   /** Origin of a Review finding; follow-ups must not silently retarget edits. */
   sourcePath?: string;
   /** A retry is another attempt at the same logical user turn. */

@@ -1,7 +1,10 @@
-import type { PracticeQuestion, PracticeEvaluation, PracticeOrigin, PracticeAnswer } from "../domain/practice/types";
-import type { ReviewFinding } from "../domain/review/types";
+import type { PracticeAnswer } from "../domain/practice/types";
 import type { LearningScopeState } from "../domain/practice/learning-scope";
-import type { ChatMessage } from "../types";
+import type { ChatMessage } from "./message-types";
+import type { TranscriptPart } from "./transcript-part-types";
+export type { TranscriptPart } from "./transcript-part-types";
+/** Public type-only compatibility exports; runtime policies stay in session. */
+export type { ChatMessage, ChatReplyReference, ResponseVersion, EditProposal, AgentTurnMetrics } from "./message-types";
 
 export interface SessionForkOrigin {
   parentSessionId: string;
@@ -29,14 +32,8 @@ export interface ChatSession {
 }
 
 /** Durable structured assistant content. Legacy text/proposal fields remain readable. */
-export type TranscriptPart =
-  | { type: "practice-question"; question: PracticeQuestion; questionId?: string; origin?: PracticeOrigin; scope?: "backend" | "program" }
-  | { type: "practice-evaluation"; evaluation: PracticeEvaluation; questionId?: string;
-      operationId?: string; nextQuestionId?: string; sourcePath?: string; scope?: "backend" | "program" }
-  | { type: "review-findings"; findings: ReviewFinding[]; sourcePath?: string; reviewId?: string };
-
 export function findCommittedReview(
-  session: import("../types").ChatSession,
+  session: ChatSession,
   reviewId: string,
 ): Extract<TranscriptPart, { type: "review-findings" }> | undefined {
   for (const message of session.messages) {
@@ -49,7 +46,7 @@ export function findCommittedReview(
 
 /** An outcome committed to the transcript is authoritative for its question. */
 export function findCommittedPracticeOutcome(
-  session: import("../types").ChatSession,
+  session: ChatSession,
   questionId: string,
 ): Extract<TranscriptPart, { type: "practice-evaluation" }> | undefined {
   for (const message of session.messages) {

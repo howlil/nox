@@ -1,6 +1,4 @@
 import type { LearningActionKind } from "../application/learning-types";
-import { parseProgramCommand } from "../domain/learning-program/commands";
-import { parseScopeCommand } from "../domain/practice/learning-scope";
 
 export type TerminalOutcome = "completed" | "stopped" | "failed";
 
@@ -38,15 +36,5 @@ export function shouldResetAction(
   );
 }
 
-/** Local learning operations must remain usable when a model is offline. */
-export function isLocallyExecutableCommand(input: string): boolean {
-  const prompt = input.trim();
-  if (prompt.toLowerCase() === "/hint" || parseScopeCommand(prompt)) return true;
-  try {
-    const command = parseProgramCommand(prompt);
-    return Boolean(command && command.kind !== "plan" &&
-      command.kind !== "next" && command.kind !== "free-practice");
-  } catch {
-    return false;
-  }
-}
+/** Backwards-compatible pure selector for existing view helper consumers. */
+export { isLocallyExecutableCommand } from "../application/local-command";

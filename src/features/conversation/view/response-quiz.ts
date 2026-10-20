@@ -1,5 +1,5 @@
 /** Read-only, model-generated quiz content. Not part of the native Practice engine. */
-import { MAX_VISUAL_SOURCE_CHARS } from "./response-spec";
+import { MAX_VISUAL_SOURCE_CHARS } from "../../../chat/response-spec";
 
 /** Legacy MCQs omitted type; preserve that shape on decode and transcript recovery. */
 export interface NoxQuizChoice {

@@ -24,11 +24,8 @@ import {
   PracticeQuestion,
 } from "../domain/practice/types";
 import { ReviewFinding } from "../domain/review/types";
-import {
-  renderPracticeQuestionCard,
-  renderPracticeEvaluationCard,
-  renderReviewFindingCards,
-} from "./learning-card-renderers";
+import { renderPracticeQuestionCard, renderPracticeEvaluationCard } from "../features/practice/view/PracticeCards";
+import { renderReviewFindingCards } from "./learning-card-renderers";
 import { ChatMessage, EditProposal, type ChatReplyReference, type AgentModel } from "../types";
 import {
   parsePromptToken,
@@ -37,12 +34,10 @@ import {
 } from "./prompt-token";
 import { NOX_CAPABILITIES } from "./capabilities";
 import { buildActionMenu, getPrimaryAction, type ActionMenuContext, type ActionMenuEntry } from "./action-menu";
-import { isActiveLearningScope, isProgramLearningScope, parseScopeCommand } from "../domain/practice/learning-scope";
 import { animateNoxEnter, animateNoxPopover } from "./motion";
 import { resolveNoxMarkdownLink } from "./markdown-links";
 import {
   shouldResetAction,
-  isLocallyExecutableCommand,
   TerminalOutcome,
 } from "./chat-state";
 import {
@@ -55,7 +50,10 @@ import {
   setNoxIcon,
 } from "./primitives";
 import { NoxMenuState } from "./menu";
-import { NoxHistoryList } from "./history-list";
+import { HistoryPresenter } from "../features/conversation/view/history-presenter";
+import { StreamTextPresenter } from "../features/conversation/view/stream-text-presenter";
+import { projectSessionClock, type SessionClockSnapshot } from "../features/conversation/view/session-clock";
+import { TranscriptPresenter } from "../features/conversation/view/transcript-presenter";
 import { modelMenuItems } from "./model-menu";
 import { createNoxPopover, NoxPopoverState } from "./popover";
 import { NoxComposer, type NoxComposerContext } from "./composer";
@@ -117,13 +115,12 @@ export class ChatView extends ItemView {
   private selectionActions!: NoxSelectionActions;
   private transcriptSelection: TranscriptSelectionController | null = null;
   private pendingReplyTo: ChatReplyReference | null = null;
-  private transcriptRenderEpoch = 0;
+  private readonly transcriptPresenter = new TranscriptPresenter(() =>
+    new Promise<void>(resolve => window.requestAnimationFrame(() => resolve())));
   private headerEl!: HTMLElement;
   private historyBtn!: HTMLButtonElement;
   private historyMenuEl!: HTMLElement;
-  private historyPopover!: NoxPopoverState;
-  private historyList!: NoxHistoryList;
-  private readonly historyMenuState = new NoxMenuState();
+  private historyPresenter!: HistoryPresenter;
 
   private input!: HTMLTextAreaElement;
   private sendBtn!: HTMLButtonElement;
@@ -163,6 +160,8 @@ export class ChatView extends ItemView {
   private sessionClockButtonEl: HTMLButtonElement | null = null;
   private sessionClockTimer: number | null = null;
   private refreshingSessionClock = false;
+  private sessionClockSnapshot: SessionClockSnapshot | null = null;
+  private sessionClockSyncedAt = 0;
   private thinkingToggleEl: HTMLButtonElement | null = null;
   private thinkingLabelEl: HTMLElement | null = null;
   private thinkingChevronEl: HTMLElement | null = null;
@@ -174,8 +173,10 @@ export class ChatView extends ItemView {
   private thinkingViewportEl: HTMLElement | null = null;
   private thinkingStage = -1;
   private thinkingStageAt = 0;
-  private streamFrame: number | null = null;
-  private streamingTextNode: Text | null = null;
+  private readonly streamText = new StreamTextPresenter({
+    request: callback => window.requestAnimationFrame(callback),
+    cancel: id => window.cancelAnimationFrame(id),
+  });
   private runInspector: NoxRunInspector | null = null;
   private learningGraphEl: HTMLElement | null = null;
   private focusStripEl: HTMLButtonElement | null = null;
@@ -183,8 +184,6 @@ export class ChatView extends ItemView {
   private learningActivityEl: HTMLElement | null = null;
   private thinkingManualExpanded: boolean | null = null;
   private streamedThoughtText = "";
-  private streamedResponseText = "";
-  private streamingPendingText = "";
 
   private uiState: UIState = "EMPTY";
   private selectedAction: LearningActionKind = "ask";
@@ -240,7 +239,7 @@ export class ChatView extends ItemView {
     this.transcriptSelection = new TranscriptSelectionController(root, this.thread, reference => {
       if (this.uiState === "RUNNING" ||
           reference.sourceSessionId !== this.learning.getSession().id) return;
-      if (isActiveLearningScope(this.learning.getSession().learningScope)) {
+      if (this.learning.isActiveLearningScope(this.learning.getSession().learningScope)) {
         new Notice("Pause the assessment before asking about a chat quote.");
         return;
       }
@@ -255,18 +254,23 @@ export class ChatView extends ItemView {
     await this.ensureRuntimeReady();
     void this.refreshFocusStrip();
     void this.refreshSessionClock();
-    this.sessionClockTimer = window.setInterval(() => { void this.refreshSessionClock(); }, 2000);
+    // Smooth local display ticks; one authoritative Vault read at most every 30s.
+    this.sessionClockTimer = window.setInterval(() => { this.tickSessionClock(); }, 2000);
   }
 
   async onClose(): Promise<void> {
     this.learning.cancel();
     this.focusStripEpoch++;
-    this.transcriptRenderEpoch++;
+    this.transcriptPresenter.cancel();
+    this.streamText.dispose();
+    this.historyPresenter?.close();
     this.transcriptSelection?.destroy();
     this.transcriptSelection = null;
     this.stopLoadingTimer();
     if (this.sessionClockTimer !== null) window.clearInterval(this.sessionClockTimer);
     this.sessionClockTimer = null;
+    this.sessionClockSnapshot = null;
+    this.sessionClockSyncedAt = 0;
     if (this.quizDraftTimer !== null) window.clearTimeout(this.quizDraftTimer);
   }
 
@@ -312,6 +316,7 @@ export class ChatView extends ItemView {
     await this.syncChips();
     this.syncPracticeComposerState();
     await this.restoreSession();
+    void this.showPendingOnboardingRecovery();
     void this.refreshFocusStrip();
 
     if (!this.workspaceEventsRegistered) {
@@ -389,7 +394,7 @@ export class ChatView extends ItemView {
     this.historyBtn.setAttribute("aria-expanded", "false");
     this.historyBtn.addEventListener("click", () => this.toggleHistoryMenu());
     this.historyBtn.addEventListener("keydown", (event) => {
-      if (event.key === "Escape" && this.historyMenuState.isOpen) {
+      if (event.key === "Escape" && this.historyPresenter?.isOpen) {
         event.preventDefault();
         this.closeHistoryMenu();
       }
@@ -476,8 +481,7 @@ export class ChatView extends ItemView {
       role: "dialog",
       label: "Chat history",
     });
-    this.historyPopover = new NoxPopoverState(this.historyMenuEl);
-    this.historyList = new NoxHistoryList(this.historyMenuEl, {
+    this.historyPresenter = new HistoryPresenter(this.historyBtn, this.historyMenuEl, {
       open: id => this.selectHistorySession(id),
       mutate: async (ids, action) => {
         const result = await this.learning.mutateHistory(ids, action);
@@ -500,7 +504,7 @@ export class ChatView extends ItemView {
         );
       },
       confirmDelete: count => this.confirmHistoryDeletion(count),
-    });
+    }, () => ({ sessions: this.learning.listSessions(true), activeId: this.learning.getSession().id }));
     this.historyMenuEl.addEventListener("keydown", event => {
       if (event.key === "Escape") {
         event.preventDefault();
@@ -508,7 +512,17 @@ export class ChatView extends ItemView {
         this.historyBtn.focus();
       }
     });
-    this.syncHistoryTrigger();
+    this.historyPresenter.render();
+  }
+
+  private tickSessionClock(): void {
+    if (!this.sessionClockEl?.isConnected || this.refreshingSessionClock) return;
+    const now = Date.now();
+    if (!this.sessionClockSyncedAt || now - this.sessionClockSyncedAt >= 30_000) {
+      void this.refreshSessionClock();
+      return;
+    }
+    this.renderSessionClock(projectSessionClock(this.sessionClockSnapshot, this.sessionClockSyncedAt, now));
   }
 
   private async refreshSessionClock(): Promise<void> {
@@ -517,28 +531,35 @@ export class ChatView extends ItemView {
     try {
       const timing = await this.learning.getSessionTime();
       if (!this.sessionClockEl?.isConnected) return;
-      this.sessionClockEl.toggleClass("nox-hidden", !timing);
-      if (!timing || !this.sessionClockTextEl || !this.sessionClockButtonEl) return;
-      const minutes = Math.ceil(timing.remainingMs / 60_000);
-      const labels: Record<typeof timing.status, string> = {
-        active: "Learning", "waiting-ai": "AI running · time paused",
-        paused: "Paused", recovered: "Session recovered · paused",
-        exhausted: "Timebox complete",
-      };
-      this.sessionClockTextEl.textContent = `${labels[timing.status]} · ${minutes}m left`;
-      this.sessionClockEl.title =
-        `Active: ${Math.round(timing.activeMs / 1000)}s · AI waiting: ${Math.round(timing.aiWaitingMs / 1000)}s`;
-      const pause = timing.status === "active" || timing.status === "waiting-ai";
-      this.sessionClockButtonEl.dataset.action = pause ? "pause" : "resume";
-      this.sessionClockButtonEl.textContent = pause ? "Pause" : "Resume";
-      this.sessionClockButtonEl.title = pause ? "Pause learning budget" : "Resume learning budget";
-      this.sessionClockButtonEl.setAttribute("aria-label", this.sessionClockButtonEl.title);
-      this.sessionClockButtonEl.toggleClass("nox-hidden", timing.status === "exhausted");
+      this.sessionClockSnapshot = timing;
+      this.sessionClockSyncedAt = Date.now();
+      this.renderSessionClock(timing);
     } catch {
-      // A transient vault read must not block the chat interface.
+      // Keep the last known display; the next tick retries an authoritative read.
     } finally {
       this.refreshingSessionClock = false;
     }
+  }
+
+  private renderSessionClock(timing: SessionClockSnapshot | null): void {
+    if (!this.sessionClockEl?.isConnected) return;
+    this.sessionClockEl.toggleClass("nox-hidden", !timing);
+    if (!timing || !this.sessionClockTextEl || !this.sessionClockButtonEl) return;
+    const minutes = Math.ceil(timing.remainingMs / 60_000);
+    const labels: Record<typeof timing.status, string> = {
+      active: "Learning", "waiting-ai": "AI running · time paused",
+      paused: "Paused", recovered: "Session recovered · paused",
+      exhausted: "Timebox complete",
+    };
+    this.sessionClockTextEl.textContent = `${labels[timing.status]} · ${minutes}m left`;
+    this.sessionClockEl.title =
+      `Active: ${Math.round(timing.activeMs / 1000)}s · AI waiting: ${Math.round(timing.aiWaitingMs / 1000)}s`;
+    const pause = timing.status === "active" || timing.status === "waiting-ai";
+    this.sessionClockButtonEl.dataset.action = pause ? "pause" : "resume";
+    this.sessionClockButtonEl.textContent = pause ? "Pause" : "Resume";
+    this.sessionClockButtonEl.title = pause ? "Pause learning budget" : "Resume learning budget";
+    this.sessionClockButtonEl.setAttribute("aria-label", this.sessionClockButtonEl.title);
+    this.sessionClockButtonEl.toggleClass("nox-hidden", timing.status === "exhausted");
   }
 
   private async toggleLearningActivity(scope: "active" | "all" = "active"): Promise<void> {
@@ -606,7 +627,7 @@ export class ChatView extends ItemView {
 
   private submitLearningPanelCommand(command: string): void {
     if (this.uiState === "RUNNING" || this.pendingReplyTo) return;
-    if (!isLocallyExecutableCommand(command) && command !== "/next") return;
+    if (!this.learning.canExecuteOfflineCommand(command) && command !== "/next") return;
     this.learningGraphEl?.remove();
     this.learningGraphEl = null;
     this.setAction("ask");
@@ -640,36 +661,18 @@ export class ChatView extends ItemView {
   }
 
   private toggleHistoryMenu(): void {
-    if (this.historyMenuState.isOpen) {
-      this.closeHistoryMenu();
-      return;
-    }
-
-    this.closePromptMenu();
-    this.closeModelMenu();
-    this.historyMenuState.openAt(0);
-    this.renderHistoryMenu();
+    this.historyPresenter.toggle(() => {
+      this.closePromptMenu();
+      this.closeModelMenu();
+    });
   }
 
   private closeHistoryMenu(): void {
-    this.historyList?.resetSwipe();
-    this.historyMenuState.close();
-    this.historyPopover?.close();
-    this.syncHistoryTrigger();
-  }
-
-  private syncHistoryTrigger(): void {
-    if (!this.historyBtn) return;
-    this.historyMenuState.syncTrigger(this.historyBtn, "nox-history-menu");
+    this.historyPresenter?.close();
   }
 
   private renderHistoryMenu(): void {
-    if (!this.historyMenuEl) return;
-    this.historyPopover.setOpen(this.historyMenuState.isOpen);
-    this.syncHistoryTrigger();
-    if (!this.historyMenuState.isOpen) return;
-    this.historyList.render(this.learning.listSessions(true), this.learning.getSession().id);
-    animateNoxPopover(this.historyMenuEl);
+    this.historyPresenter?.render();
   }
 
   private confirmHistoryDeletion(count: number): Promise<boolean> {
@@ -1058,7 +1061,7 @@ export class ChatView extends ItemView {
       hasActiveSession: programState.sessionActive,
       savedProgramCount: programState.programs.length,
       hasPracticeQuestion: this.learning.hasActivePracticeQuestion(),
-      legacyMode: isActiveLearningScope(scope) ? "locked"
+      legacyMode: this.learning.isActiveLearningScope(scope) ? "locked"
         : scope?.resumeMode ? "paused" : "free",
     };
   }
@@ -1373,7 +1376,7 @@ export class ChatView extends ItemView {
   }
 
   private setAction(action: LearningActionKind): void {
-    if (isActiveLearningScope(this.learning.getSession().learningScope)) action = "practice";
+    if (this.learning.isActiveLearningScope(this.learning.getSession().learningScope)) action = "practice";
     const changed = action !== this.selectedAction;
     this.selectedAction = action;
     if (changed && this.pendingFindingSource) {
@@ -1412,7 +1415,7 @@ export class ChatView extends ItemView {
   private async refreshScopeGoal(): Promise<void> {
     const session = this.learning.getSession();
     const scope = session.learningScope;
-    if (!isProgramLearningScope(scope)) {
+    if (!this.learning.isProgramLearningScope(scope)) {
       this.scopeGoal = null;
       this.renderIntent();
       return;
@@ -1420,7 +1423,7 @@ export class ChatView extends ItemView {
     try {
       const state = await this.learning.getProgramMenuState();
       const current = this.learning.getSession();
-      if (current.id !== session.id || !isProgramLearningScope(current.learningScope) ||
+      if (current.id !== session.id || !this.learning.isProgramLearningScope(current.learningScope) ||
           current.learningScope.programId !== scope.programId) return;
       const goal = state.programs.find(item => item.id === scope.programId)?.goal;
       this.scopeGoal = goal ? { sessionId: session.id, programId: scope.programId, goal } : null;
@@ -1435,8 +1438,8 @@ export class ChatView extends ItemView {
   private renderIntent(): void {
     const session = this.learning.getSession();
     const scope = session.learningScope;
-    const program = isProgramLearningScope(scope);
-    const locked = isActiveLearningScope(scope);
+    const program = this.learning.isProgramLearningScope(scope);
+    const locked = this.learning.isActiveLearningScope(scope);
     const title = program && this.scopeGoal?.sessionId === session.id &&
       this.scopeGoal.programId === scope.programId ? this.scopeGoal.goal : "Learning program";
     const label = program
@@ -1497,7 +1500,7 @@ export class ChatView extends ItemView {
     };
 
     if (this.input) {
-      this.input.placeholder = isActiveLearningScope(this.learning.getSession().learningScope)
+      this.input.placeholder = this.learning.isActiveLearningScope(this.learning.getSession().learningScope)
         ? "Answer or clarify the current question · /pause to leave"
         : placeholders[this.selectedAction];
     }
@@ -1589,7 +1592,7 @@ export class ChatView extends ItemView {
     );
 
     // An exact mode command is submitted with Enter, not replaced by a menu row.
-    if (parseScopeCommand(this.input.value)) {
+    if (this.learning.isScopeCommand(this.input.value)) {
       this.closePromptMenu();
       return;
     }
@@ -1645,7 +1648,7 @@ export class ChatView extends ItemView {
         this.closePromptMenu();
       } else if (this.modelMenuState.isOpen) {
         this.closeModelMenu();
-      } else if (this.historyMenuState.isOpen) {
+      } else if (this.historyPresenter?.isOpen) {
         this.closeHistoryMenu();
       } else if (this.uiState === "RUNNING") {
         this.cancelBtn.click();
@@ -1706,11 +1709,7 @@ export class ChatView extends ItemView {
     this.statusEl = null;
     this.streamedThoughtText = "";
     this.thinkingThoughtEl = null;
-    this.streamedResponseText = "";
-    this.streamingPendingText = "";
-    this.streamingTextNode = null;
-    if (this.streamFrame !== null) window.cancelAnimationFrame(this.streamFrame);
-    this.streamFrame = null;
+    this.streamText.reset();
     this.thinkingStage = -1;
     this.thinkingRows.clear();
     this.thinkingToolRows.clear();
@@ -1920,7 +1919,7 @@ export class ChatView extends ItemView {
     this.thinkingViewportEl = null;
     this.thinkingStage = -1;
     this.thinkingManualExpanded = null;
-    this.streamingTextNode = null;
+    this.streamText.detach();
     this.runInspector = null;
   }
 
@@ -2096,12 +2095,46 @@ export class ChatView extends ItemView {
 
   private canSend(): boolean {
     const hasInput = this.input.value.trim().length > 0 || this.attachments.length > 0;
-    return hasInput && (this.runtimeReady || isLocallyExecutableCommand(this.input.value));
+    return hasInput && (this.runtimeReady || this.learning.canExecuteOfflineCommand(this.input.value));
+  }
+
+  /** Enter the first actual learning activity via the existing focus and next commands. */
+  private async beginFirstOnboardingObjective(programId: string, objectiveId: string): Promise<void> {
+    if (this.uiState === "RUNNING" || this.pendingReplyTo || this.input.value.trim()) {
+      throw new Error("Send or clear the composer before starting the objective.");
+    }
+    const menu = await this.learning.getProgramMenuState();
+    const overview = await this.learning.getProgramOverview();
+    if (menu.activeProgramId !== programId || !overview ||
+        overview.focus || overview.next.objectiveId !== objectiveId) {
+      throw new Error("The learning plan changed. Review your current objective in /progress.");
+    }
+    const makeCommand = (prompt: string): LearningRequest => ({
+      turnId: crypto.randomUUID(), prompt, action: "ask", explicitContext: [],
+    });
+    const focus = { ...makeCommand("/focus " + objectiveId), focusProgramId: programId };
+    this.setAction("ask");
+    this.lastTurnRequest = focus;
+    await this.runTurn(focus, true);
+    // A failed /focus does not make an inference request. Confirm durable authority
+    // before issuing /next, which can call a provider and produce learning evidence.
+    const after = await this.learning.getProgramOverview();
+    const current = await this.learning.getProgramMenuState();
+    if (current.activeProgramId !== programId ||
+        after?.focus?.status !== "active" || after.focus.objectiveId !== objectiveId) {
+      throw new Error("Objective focus was not started. Check the last response before retrying.");
+    }
+    if (!(await this.ensureRuntimeReady())) {
+      throw new Error("Focus started, but the AI provider is unavailable. Reconnect and use /next.");
+    }
+    const next = makeCommand("/next");
+    this.lastTurnRequest = next;
+    await this.runTurn(next, true);
   }
 
   private showEmpty(): void {
-    this.transcriptRenderEpoch++;
-    this.restoringSession = false;
+    this.transcriptPresenter.cancel();
+    this.streamText.reset();
     this.transcriptSelection?.hide();
     this.stopLoadingTimer();
     this.thread.empty();
@@ -2115,22 +2148,64 @@ export class ChatView extends ItemView {
     // First-run welcome uses the same sidebar, header and composer.
     // A damaged program index must NOT be treated as an empty vault.
     void this.learning.getOnboardingContext().then(state => {
-      if (!slate.isConnected || state.hasProgram || state.dismissed ||
-          this.learning.getSession().messages.length > 0) return;
+      const pendingApproval = Boolean(state.draft?.approval);
+      if (!slate.isConnected || state.dismissed ||
+          (state.hasProgram && !pendingApproval) ||
+          (this.learning.getSession().messages.length > 0 && !pendingApproval)) return;
       new OnboardingFlow(slate, this.learning, {
         onSkip: () => {
-          void this.learning.dismissOnboarding().then(() => this.showEmpty())
-            .catch(error => this.appendInlineStatus(this.thread, "failed",
-              error instanceof Error ? error.message : "Could not save onboarding choice."));
+          void this.learning.dismissOnboarding().then(() => {
+            this.showEmpty();
+            this.focusComposer();
+          }).catch(error => this.appendInlineStatus(this.thread, "failed",
+            error instanceof Error ? error.message : "Could not save onboarding choice."));
         },
-        onCreated: () => {
-          this.showEmpty();
+        onQuickPlan: async command => {
+          if (this.uiState === "RUNNING" || this.input.value.trim()) {
+            throw new Error("Send or clear the current composer draft first.");
+          }
+          if (!(await this.ensureRuntimeReady())) throw new Error("Connect your AI provider, then retry.");
+          await this.learning.dismissOnboarding();
+          this.setAction("ask");
+          this.input.value = command;
+          this.onInput();
+          await this.doSend();
         },
-        onStart: () => {
-          void this.learning.getProgramOverview().then(overview => {
-            this.input.value = overview?.next.objectiveId ? "/focus " + overview.next.objectiveId : "/progress";
-            return this.doSend();
-          }).catch(error => new Notice(error instanceof Error ? error.message : "Cannot start objective focus."));
+        onNoteAction: async (path, kind) => {
+          if (this.uiState === "RUNNING" || this.input.value.trim()) {
+            throw new Error("Send or clear the current composer draft first.");
+          }
+          if (!(await this.ensureRuntimeReady())) throw new Error("Connect your AI provider, then retry.");
+          await this.learning.dismissOnboarding();
+          const request: LearningRequest = {
+            turnId: crypto.randomUUID(),
+            prompt: kind === "practice" ? "/free-practice"
+              : "Explain the main concepts from this note with a concrete example.",
+            action: kind === "practice" ? "ask" : "explain",
+            explicitContext: [{ kind: "vault-note", path }],
+            contextMode: "explicit-only",
+            ...(kind === "practice" ? { sourcePath: path } : {}),
+          };
+          this.setAction(request.action);
+          this.lastTurnRequest = request;
+          await this.runTurn(request, true);
+        },
+        onCreated: async () => {
+          await this.learning.dismissOnboarding();
+          if (this.learning.getSession().messages.length) await this.restoreSession();
+          else this.showEmpty();
+          this.focusComposer();
+        },
+        onStart: async (programId, objectiveId) => {
+          try {
+            await this.learning.dismissOnboarding();
+            await this.beginFirstOnboardingObjective(programId, objectiveId);
+          } catch (error) {
+            if (!slate.isConnected) {
+              new Notice(error instanceof Error ? error.message : "Could not start the first objective.");
+            }
+            throw error;
+          }
         },
       }, state.draft);
     }).catch(error => {
@@ -2188,7 +2263,7 @@ export class ChatView extends ItemView {
       cls: "nox-capability-grid",
     });
 
-    const legacyLocked = isActiveLearningScope(this.learning.getSession().learningScope);
+    const legacyLocked = this.learning.isActiveLearningScope(this.learning.getSession().learningScope);
     for (const capability of NOX_CAPABILITIES.filter(item =>
       !legacyLocked || item.action === "practice")) {
       const card = grid.createEl("button", {
@@ -2327,45 +2402,45 @@ export class ChatView extends ItemView {
     }
   }
 
-  private async restoreSession(): Promise<void> {
-    const epoch = ++this.transcriptRenderEpoch;
-    const messages = this.learning.getSession().messages;
-    if (messages.length === 0) {
-      this.showEmpty();
-      return;
-    }
-
-    this.thread.empty();
-    this.restoringSession = true;
+  /** An interrupted approved setup remains discoverable even with old chat history. */
+  private async showPendingOnboardingRecovery(): Promise<void> {
+    const sessionId = this.learning.getSession().id;
     try {
-      for (const [messageIndex, message] of messages.entries()) {
-        if (epoch !== this.transcriptRenderEpoch) return;
-        // Keep fork/switch cancellation valid across cooperative yields.
-        if (messageIndex > 0 && messageIndex % 8 === 0) {
-          await new Promise<void>(resolve => window.requestAnimationFrame(() => resolve()));
-          if (epoch !== this.transcriptRenderEpoch) return;
-        }
-        if (message.role === "user") {
-          this.appendUserBubble(message.content, message.id, message.replyTo);
-          continue;
-        }
-        if (message.thought || message.elapsedMs !== undefined) {
-          this.appendRestoredThinkingTrace(message);
-        }
-        if (message.content.trim()) {
-          await this.appendRestoredAssistant(message.content, message.sourcePath, messageIndex);
-        }
-        if (message.proposal) {
-          this.appendRestoredProposal(message);
-        }
-        this.appendRestoredStructuredParts(message);
-      }
-    } finally {
-      if (epoch === this.transcriptRenderEpoch) this.restoringSession = false;
+      const state = await this.learning.getOnboardingContext();
+      if (sessionId !== this.learning.getSession().id || state.dismissed ||
+          !state.draft?.approval || !this.thread.isConnected ||
+          this.uiState === "RUNNING" || this.thread.querySelector(".nox-empty-slate") ||
+          this.thread.querySelector(".nox-onboarding-recovery-notice")) return;
+      const notice = createNoxStatus(this.thread, {
+        cls: "nox-onboarding-recovery-notice",
+        kind: "warning",
+        text: "An approved learning setup needs recovery before continuing.",
+        action: { label: "Resume recovery", onClick: () => {
+          if (this.uiState !== "RUNNING") this.showEmpty();
+        } },
+      });
+      this.thread.prepend(notice);
+    } catch (error) {
+      console.warn("[Nox] Could not check onboarding recovery", error);
     }
-    if (epoch !== this.transcriptRenderEpoch) return;
-    this.setUIState(this.runtimeReady ? "ANSWER" : "ERROR");
-    this.scrollThread("auto");
+  }
+
+  private async restoreSession(): Promise<void> {
+    const messages = this.learning.getSession().messages;
+    await this.transcriptPresenter.restore(messages, {
+      clear: () => this.thread.empty(),
+      empty: () => this.showEmpty(),
+      user: message => this.appendUserBubble(message.content, message.id, message.replyTo),
+      thinking: message => { this.appendRestoredThinkingTrace(message); },
+      assistant: (message, index) =>
+        this.appendRestoredAssistant(message.content, message.sourcePath, index),
+      proposal: message => this.appendRestoredProposal(message),
+      structured: message => this.appendRestoredStructuredParts(message),
+      complete: () => {
+        this.setUIState(this.runtimeReady ? "ANSWER" : "ERROR");
+        this.scrollThread("auto");
+      },
+    });
   }
 
   private async appendRestoredAssistant(
@@ -2629,38 +2704,18 @@ export class ChatView extends ItemView {
 
   private appendToAgentBubble(text: string): void {
     this.ensureAgentBubble(true);
-    if (!this.agentContentEl) return;
-    this.streamedResponseText += text;
-    this.streamingPendingText += text;
-    // Coalesce transport deltas into one text node, at most once per frame.
-    // Word-by-word spans previously created excessive DOM and animations.
-    if (this.streamFrame === null) {
-      this.streamFrame = window.requestAnimationFrame(() => {
-        this.streamFrame = null;
-        this.flushStreamingText();
-      });
-    }
+    if (this.agentContentEl) this.streamText.append(this.agentContentEl, text);
   }
 
   private flushStreamingText(): void {
-    if (this.streamFrame !== null) {
-      window.cancelAnimationFrame(this.streamFrame);
-      this.streamFrame = null;
-    }
-    if (!this.agentContentEl || !this.streamingPendingText) return;
-    if (!this.streamingTextNode) {
-      this.streamingTextNode = this.agentContentEl.ownerDocument.createTextNode("");
-      this.agentContentEl.appendChild(this.streamingTextNode);
-    }
-    this.streamingTextNode.appendData(this.streamingPendingText);
-    this.streamingPendingText = "";
+    this.streamText.flush();
   }
 
   private renderMarkdownResponse(): void {
-    if (!this.agentContentEl || !this.streamedResponseText.trim()) return;
+    if (!this.agentContentEl || !this.streamText.text.trim()) return;
 
     const content = this.agentContentEl;
-    const markdown = this.streamedResponseText;
+    const markdown = this.streamText.text;
     const sourcePath =
       this.currentContext?.selection?.file ??
       this.currentContext?.activeNote?.path ??
@@ -2707,10 +2762,10 @@ export class ChatView extends ItemView {
   }
 
   private appendStreamActions(): void {
-    if (!this.agentCursorEl || !this.streamedResponseText.trim()) return;
+    if (!this.agentCursorEl || !this.streamText.text.trim()) return;
     const messages = this.learning.getSession().messages;
     if (messages.length) {
-      this.appendResponseActions(this.agentCursorEl, this.streamedResponseText, messages.length - 1);
+      this.appendResponseActions(this.agentCursorEl, this.streamText.text, messages.length - 1);
     }
   }
 
@@ -3163,7 +3218,7 @@ export class ChatView extends ItemView {
   }
 
   private scrollThread(behavior: ScrollBehavior = "smooth"): void {
-    if (this.restoringSession) return;
+    if (this.transcriptPresenter.isRestoring) return;
     this.thread.scrollTo({
       top: this.thread.scrollHeight,
       behavior,

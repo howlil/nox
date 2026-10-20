@@ -1,31 +1,16 @@
-# Troubleshooting Nox
+# Troubleshooting
 
-## Plugin cannot enable
+| Problem | Check |
+| --- | --- |
+| **Plugin won't enable** | Use Obsidian desktop 1.13.0+. Install matching `main.js`, `manifest.json`, `styles.css` in `.obsidian/plugins/nox/` (or your custom config directory), **not** the source ZIP. |
+| **Old Nox data missing** | The former development ID was `nox-obsidian`. Back up both folders, close Obsidian, migrate `data.json` into `nox` **before** enabling it. Never enable both IDs. |
+| **Sidebar missing / stale** | Open Nox from the command palette. Check **Settings → Nox → Loaded plugin build** and reload Obsidian after deploying. |
+| **AGY/Codex unavailable** | Authenticate the CLI in a terminal, verify its executable path, and restart Obsidian after PATH changes. |
+| **ChatGPT sign-in fails** | Check **Last ChatGPT sign-in error** in Nox settings. Retry with a fresh sign-in; OAuth codes are single-use. Verify proxy/TLS and Windows DPAPI permissions. |
+| **Streaming stops** | Try a short prompt; check runtime diagnostics and proxy/TLS. Nox does not automatically replay failed inference. |
+| **Learning data cannot load** | Back up vault/plugin data first. Do not delete malformed JSON to bypass a read error. |
+| **Workspace recovery fails** | Use **Resume recovery** and inspect conflicts with existing notes. Nox does not overwrite unowned files. |
 
-On desktop, verify that `.obsidian/plugins/nox/` (or your custom configuration directory) contains `main.js`, `manifest.json`, and `styles.css` from a matching GitHub Release. The GitHub source ZIP is not installable. Mobile is unsupported.
+When asking for help, share your OS, Obsidian version, Nox build revision, provider, reproduction steps, and redacted error—not tokens, private notes, or OAuth callback URLs.
 
-**Old development ID:** Nox previously used `nox-obsidian`. Back up the original plugin data, close Obsidian, copy the old `data.json` into the new `nox` plugin folder **before enabling** the new ID. Preserve the old directory as backup; do not enable both.
-
-## Sidebar is missing or stale
-
-Use the command palette to open the Nox sidebar. Inspect **Settings → Nox → Loaded plugin build**. A manifest version alone cannot prove which JavaScript bundle is loaded. Development deployments must target the same vault and be followed by a full reload.
-
-## AGY/Codex not available
-
-Run and authenticate the CLI outside Obsidian. Configure its absolute executable path if PATH resolution fails. Restart Obsidian after updating environment variables. A model appearing in a list does not establish account eligibility.
-
-## ChatGPT sign-in fails
-
-In Nox settings review the **Last ChatGPT sign-in error** and use **Copy diagnostic**. Never share OAuth authorization codes, callback URLs, credential files, or access tokens. Windows DPAPI, network proxy and TLS settings can affect authentication. Retry authorization codes with a **fresh sign-in**; each code is single-use.
-
-## Streaming stops
-
-Check the loaded runtime revision and transport marker, then test a short prompt. Nox uses desktop Node HTTPS SSE; network proxy or TLS mismatches can stop streaming. Failed inference requests are **not retried automatically** to prevent duplicate processing.
-
-## Program state or JSON cannot load
-
-Back up the affected vault files and plugin data before any manual repair. Do not delete malformed program files simply to clear an error. Capture steps to reproduce and redacted diagnostics.
-
-## Ask for help
-
-Open [Nox GitHub Issues](https://github.com/howlil/nox/issues) with OS, Obsidian version, Nox build revision, runtime, steps, expected and actual results. Report vulnerabilities **privately** using the [security policy](../SECURITY.md).
+[Open an issue](https://github.com/howlil/nox/issues) · [Report a vulnerability privately](../SECURITY.md) · [Providers & privacy](PROVIDERS.md)

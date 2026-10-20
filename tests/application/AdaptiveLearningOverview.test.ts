@@ -3,7 +3,7 @@ import test from "node:test";
 import { LearningController } from "../../src/application/LearningController";
 import type { LearningProgram } from "../../src/domain/learning-program/types";
 import type { LearningState } from "../../src/domain/learning-state/types";
-import type { CurriculumRevisionPreview } from "../../src/application/CurriculumRevisionService";
+import type { CurriculumRevisionPreview } from "../../src/domain/learning-program/curriculum-preview";
 
 const NOW = Date.now();
 const program = (): LearningProgram => ({

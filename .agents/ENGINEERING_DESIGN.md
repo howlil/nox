@@ -8,6 +8,202 @@ Last updated: 2026-10-13
 
 ---
 
+## M5 feature-private physical package checkpoint — 2026-10-20
+
+**State:** Scoped M0–M5 code migration is implemented in draft PR #121.
+GitHub CI verifies static/automated safety; Obsidian desktop acceptance remains
+outstanding. The full aspirational feature-first layout is NOT fully migrated.
+
+Physical ownership after moving eleven tested M1–M3 private collaborators:
+- `src/features/conversation/turn/`: `StructuredTurnBuffer`,
+  `TurnProviderEnvelope`, `TranscriptEvidenceReconciler`, protocol-invalid error.
+- `src/features/conversation/view/`: history, streaming-text and transcript
+  presenters. These may render but never commit durable session state.
+- `src/features/learning/program/`: the original single
+  `ProgramMutationQueue`, `ProgramFocusService`, `ProgramSessionTransitions`,
+  and provider `ProgramPlanGenerator`.
+
+Root public entry points remain `src/chat/ChatView.ts`,
+`src/application/RunLearningTurn.ts`, and
+`src/application/LearningProgramOrchestrator.ts`. Do not add duplicate shims
+or second owners. The physical migration and removal of old paths occurred
+atomically in Git commit `f70bdc5`.
+
+`scripts/boundaries.mjs` enforces the exact private-feature package set,
+facade-only imports, and no cross-feature direct access to private code,
+persistence or host/OS interfaces. `scripts/architecture-graph.mjs` now measures
+each feature package separately for future impact analysis. All tests referencing
+private collaborators use their new canonical paths.
+
+Protection policy remains unchanged: SessionController + PluginDataRepository
+own committed conversation snapshots; RunLearningTurn owns successful terminal
+commit order; VaultProgramStore/VaultLearningStore retain CAS and schema
+compatibility; LearningProgramOrchestrator retains the single program mutation
+lane, focus authority and timer; Obsidian editor undo and provider transports
+stay in their current adapters.
+
+**Before merge/release:** verify final CI, review new dependency graph and
+validate native Obsidian desktop behavior (history interaction, transcript and
+streaming, practice/evaluation/recovery, proposal apply/reject and Undo). Do not
+equate successful typecheck/unit/integration tests with real desktop validation.
+See `docs/ARCHITECTURE_BOUNDARY_REDESIGN.md` for the implementation graph and
+the deliberate limits of this staged architecture migration.
+
+---
+
+## M4 data and context dependency checkpoint — 2026-10-19
+
+M4 prevents pure token accounting and context request orchestration from
+depending on concrete Obsidian persistence/host adapters:
+
+- `src/domain/usage/usage-accounting.ts` is pure cumulative-to-delta
+  aggregation, UTC bucket rollup, input validation and untrusted persisted
+  snapshot decoding. `src/domain/usage/usage-types.ts` defines the domain value
+  shape; root `src/types.ts` retains the structurally compatible wire contract
+  because root-to-domain coupling would break architecture direction.
+- `TokenUsageRepository` only uses the existing `PluginDataRepository.update`
+  serialized writer with the same `nox-token-usage-v1` key. The accounting
+  projection cannot read/save plugin data or create an additional writer.
+  Duplicate and nonfresh AGY historical reports do not inflate token totals;
+  terminal counters and already-observed checkpoint history remain canonical.
+- `ContextResolver` now depends on host-neutral `ContextSourcePort`, not
+  `ObsidianContext`. Only the composition root creates concrete Obsidian
+  adapters. Source authorization, search filtering, live editor precedence
+  and freshness remain in existing contextual flows.
+- A targeted architecture guard forbids `ContextResolver` importing
+  `ObsidianContext` directly. Tests demonstrate structural injection,
+  scoped research forwarding, malformed bucket rejection, idempotent
+  usage totals and persistence failure behavior.
+
+M4 does not modify vault program/evidence CAS, proposal status receipt,
+undo mechanics, provider runtimes, rendering, or storage schema. See
+`docs/ARCHITECTURE_BOUNDARY_REDESIGN.md` for graphs and failure coverage.
+M5 physical package migration is still pending. CI and native Obsidian desktop
+acceptance remain independent checks; do not merge/release on docs alone.
+
+---
+
+## M3 program responsibility and CAS checkpoint — 2026-10-19
+
+M3 isolates plan generation, focus authorization and timed-session transitions
+without adding any second mutable source of truth. The public program
+orchestrator remains the lifecycle and preview receipt facade; VaultProgramStore
+remains the only authoritative `programs.json` persistence adapter.
+
+- `ProgramMutationQueue` holds **one** per-orchestrator FIFO write lane shared
+  across selection, planning approvals, revision approvals, focus, session,
+  material rename, and restart recovery. Rejected work cannot poison the tail.
+- Every queued RMW reads `expected = ProgramStorePort.load()` and saves
+  `store.save(next, expected)` with a **distinct** proposed collection;
+  never modify `expected` before the CAS check. Preservation of the loaded
+  WeakMap snapshot is a correctness contract, not just a naming convention.
+- `ProgramPlanGenerator` produces validated proposal data from provider and
+  authorized note context, never durable updates. Cancellation and preview
+  lifetime are orchestrator-owned.
+- `ProgramFocusService` checks prerequisites against evidence-based learner
+  profile and delegates transitions to existing pure domain focus functions.
+- `ProgramSessionTransitions` reuses domain timing transitions and never
+  infers time during unobserved app downtime. Active learning excludes AI wait.
+- Existing curriculum revision proposer remains the only proposal generator;
+  approval receipts stay idempotent and CAS-protected in orchestrator.
+- Resource lifecycle (AbortController, timeout and 30-second checkpoint timer)
+  stays with `LearningProgramOrchestrator`; the queue has no own timer or I/O.
+
+M3 automated acceptance requires every program mutation path to use the shared
+lane and immutable expected snapshot, concurrent transition tests, restart
+recovery and legacy schema regressions. Native Obsidian desktop tests are still
+required before merge/release. M4–M5 are not implemented. Full execution graph
+and failures: `docs/ARCHITECTURE_BOUNDARY_REDESIGN.md`.
+
+---
+
+## M2 conversation turn responsibility checkpoint — 2026-10-19
+
+The existing `RunLearningTurn` remains the **single** coordinator for the
+active-turn lock, cancellation/timeout, source/focus authority, normalized
+stream consumption, terminal gating and ordered commits. M2 extracts three
+collaborators with distinct responsibility, not a new writer or generic
+workflow framework:
+
+- `TurnProviderEnvelope`: produces the final authorized provider-bound
+  visible/system/history envelope, cursor rotation, retry/regenerate history,
+  and timing/usage estimate before invoking the runtime. Restricted modes,
+  selected sources and programs must not inherit hidden prior provider state.
+- `StructuredTurnBuffer`: per-turn untrusted candidates and text/thought
+  deltas. `assertTerminalEligible` checks required output only **after** a
+  provider completes; it cannot mutate persistent transcript/evidence.
+- `TranscriptEvidenceReconciler`: idempotent evidence projection from
+  previously committed transcript outcomes. Uses the original
+  `LearningStatePort` with bounded CAS retries and fresh snapshots on conflict.
+
+The order remains terminal validity → focus authority → transcript commit →
+evidence projection → UI completion. If projection fails after a durable
+transcript commit, repeat only idempotent reconciliation: do not invoke the
+provider again or create a second verdict. Cancellation and deadline behavior
+are still owned by `RunLearningTurn` and may not be moved behind a detached
+worker. All provider transports and data schemas remain unchanged.
+
+Focused regressions cover wrong-action/duplicate payload, terminal missing
+candidates, edit-file authority, retry and regenerated history, selected-source
+cursor isolation, duplicate evidence, CAS conflict, and non-CAS failure.
+The older recovery and vault persistence integration tests remain mandatory.
+See `docs/ARCHITECTURE_BOUNDARY_REDESIGN.md` for the runtime path and
+M3–M5 sequencing. Desktop Obsidian acceptance is not implied by green CI.
+
+---
+
+## M1 presentation isolation checkpoint — 2026-10-19
+
+The M1 changes on the architecture refactor draft branch isolate **UI-only**
+lifecycles behind dedicated presenters; there is no new service for transcript
+persistence and no new domain store. M1 status is **implemented, verification
+pending** until current PR CI and Obsidian desktop acceptance are available.
+
+- `ChatView` is still the registered Obsidian `ItemView` and maps normalized
+  `LearningEvent` variants into presentation calls.
+- `HistoryPresenter` owns menu/ARIA/swipe presentation state and delegates all
+  session mutations through `LearningController` to `SessionController`.
+- `TranscriptPresenter` reads authoritative committed messages, sequences
+  restoration, and uses epoch cancellation to discard stale session renders.
+- `StreamTextPresenter` owns DOM text coalescing, RAF scheduling and cancellation,
+  not durable assistant output. The terminal turn coordinator remains unchanged.
+- `LearningController` owns the presentation-facing offline command and
+  learning scope queries; `ChatView` cannot import domain command parser files.
+- The architecture boundary checker encodes the last constraint, and focused
+  presenter tests check frame coalescing and restore cancellation.
+
+M2–M5 remain unimplemented. Do not interpret green static boundary checks as
+proof of native Obsidian visual or provider behavior. See
+`docs/ARCHITECTURE_BOUNDARY_REDESIGN.md` for the current-to-target map.
+
+---
+
+## M0 architecture measurement and authority lock — 2026-10-19
+
+This checkpoint implements **instrumentation and regression mapping only**, not the proposed
+feature-first package migration. See `docs/ARCHITECTURE_BOUNDARY_REDESIGN.md` for
+the affected responsibility graph, public capability contracts, state-owner table,
+critical runtime flows, and milestone sequencing.
+
+- Use `pnpm architecture:graph` for deterministic TypeScript AST dependency
+  metrics (module owners, type/runtime edges, fan-in/out, cycles and unresolved
+  imports). Use `--format=json` to review complete file-to-file edges.
+- CI emits the graph to the workflow job summary. The existing
+  `pnpm check:boundaries` remains the import enforcement mechanism; structural
+  metrics **do not prove** behavioral isolation, consistency or trust boundaries.
+- SessionController + PluginDataRepository retain one authoritative serialized
+  session/plugin-data transaction path. VaultProgramStore and VaultLearningStore
+  retain CAS/concurrency semantics. Practice remains transcript-derived.
+- RunLearningTurn remains the one inference terminal-outcome coordinator; view
+  decomposition and package moves are **M1–M5**, not part of M0.
+- No source-of-truth, persistence schema, provider API, user-visible behavior,
+  or runtime import direction changed in M0.
+- A green unit/CI report is not Obsidian desktop acceptance or live provider
+  validation. Do not call the full redesign implemented until relevant
+  behavior-preserving migrations have landed.
+
+---
+
 ## Context + research incremental extension — 2026-10-14
 
 Optional `/research` uses `ContextResolver` and `ObsidianContext` to query
@@ -2186,3 +2382,19 @@ Settings reads a snapshot through the plugin host boundary. See
 - Regression proofs: provider input capture, authority unit test, timer failure
   injection and offline command classification. Desktop acceptance remains a
   separate mandatory release gate.
+
+## R1–R4 ownership follow-up — 2026-10-20
+
+The bounded feature migration on draft PR #121 now includes four follow-ups to M5.
+Private program curriculum generation lives in `features/learning/program`; public preview
+shape is `domain/learning-program/curriculum-preview.ts`; the program orchestrator retains
+the only CAS write, request cancellation and approval lifecycle. Pure onboarding projection
+lives in `features/learning/onboarding` while the Obsidian adapter owns the request epoch,
+DOM, callbacks and draft save port. Practice UI is exclusively
+`features/practice/view`, whereas untracked legacy Quick Quiz is in
+`features/conversation/view`. Separate approval, evidence and source-bound semantics
+must remain intact. The architecture checker enforces explicitly enumerated UI bridge
+imports and denies private cross-feature access to persistence or unrelated domain policy.
+Consult `docs/FEATURE_OWNERSHIP_R1_R4.md` for code graph, failures and acceptance.
+The existing native Obsidian desktop gate is still outstanding; passing unit/integration
+CI alone does not authorize merge or release.

@@ -55,7 +55,9 @@ export interface SessionPort {
   updateProposalState(proposalId: string, state: "applied" | "rejected" | "stale", sessionId?: string): Promise<void>;
 }
 export interface ContextPort {
-  resolve(explicit?: ExplicitContextRef[]): Promise<LearningContext>;
+  /** Host metadata only; must never resolve/read note or editor content. */
+  getActiveNotePath?(): string | undefined;
+  resolve(explicit?: ExplicitContextRef[], options?: { includeAmbient?: boolean }): Promise<LearningContext>;
   searchNotes(query: string, limit?: number): Array<{ path: string; name: string }>;
   toAgentContext(context: LearningContext): AgentContext[];
   searchKnowledge?(query: string, options?: { allowedPaths?: string[]; scope?: ResearchScope; limit?: number }): Promise<ResearchResult>;

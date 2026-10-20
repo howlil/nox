@@ -1,5 +1,5 @@
-import { setNoxIcon } from "./primitives";
-import { mountCodeAnswerEditor, type CodeAnswerEditorHandle } from "./code-answer-editor";
+import { setNoxIcon } from "../../../chat/primitives";
+import { mountCodeAnswerEditor, type CodeAnswerEditorHandle } from "../../../chat/code-answer-editor";
 import { scoreNoxQuiz, type NoxQuizSpec, type NoxQuizQuestion } from "./response-quiz";
 
 function el<K extends keyof HTMLElementTagNameMap>(
@@ -32,7 +32,7 @@ export function renderNoxQuiz(spec: NoxQuizSpec, doc: Document = document): HTML
   setNoxIcon(logo, "asterisk");
   logo.setAttribute("aria-hidden", "true");
   brand.append(logo, el(doc, "strong", "", "NOX / Learning"));
-  header.append(brand, el(doc, "span", "nox-quiz-label", "Interactive quiz"));
+  header.append(brand, el(doc, "span", "nox-quiz-label", "Quick Quiz · not tracked"));
 
   const meta = el(doc, "div", "nox-quiz-meta");
   const topic = el(doc, "span", "", spec.title);
@@ -168,6 +168,8 @@ export function renderNoxQuiz(spec: NoxQuizSpec, doc: Document = document): HTML
     const heading = el(doc, "h3", "nox-quiz-question", "Quiz results");
     heading.tabIndex = -1;
     box.append(el(doc, "div", "nox-quiz-kicker", "Quiz finished"), heading);
+    box.append(el(doc, "p", "nox-quiz-score-note",
+      "Quick Quiz is local to this preview. Answers and scores do not update verified learning progress."));
     const mcqCount = spec.questions.filter(q => q.type !== "code").length;
     if (mcqCount > 0) {
       box.append(el(doc, "div", "nox-quiz-score", String(result.correct) + " / " + mcqCount));

@@ -227,6 +227,7 @@ function createHarness(
   };
 
   const contexts = {
+    getActiveNotePath: () => options.contextOverride?.activeNote.path ?? "note.md",
     resolve: async (refs: ExplicitContextRef[] = []) => {
       options.onResolve?.(refs);
       return options.contextOverride ?? ({
@@ -1473,4 +1474,64 @@ test("M7 repeated CAS contention preserves the transcript and recovers on retry"
   assert.ok(replay.some(x => x.type === "practice-evaluation"));
   assert.equal(modelCalls, 2);
   assert.equal(h.getEvidence().filter(e => e.type === "practice").length, 1);
+});
+
+test("W2 end-focus commits one local transition and offers explicit replan without contacting provider", async () => {
+  const focus = { id: "focus-1", programId: "plan-1", objectiveId: "basic", curriculumRevision: 1,
+    chatSessionId: "session-1", status: "active" as const, startedAt: 100 };
+  let ended = 0;
+  let prepared = 0;
+  const program = { id: "plan-1", focus };
+  const h = createHarness(async function* () {
+    throw new Error("End focus must not invoke inference");
+  }, { programTimer: {
+    isPlanning: () => false, beginAiWait: async () => false, dispose: () => {},
+    getTurnFocusSnapshot: async () => ({
+      current: ended ? { id: "plan-1" } : program,
+      globalFocus: ended ? null : { program, focus },
+    }),
+    endFocus: async () => { ended++; return { id: "plan-1" }; },
+    detectRevisionCandidate: async () => ({ reason: "objective-gap", evidenceIds: [] }),
+    prepareCurriculumRevision: async () => { prepared++; throw new Error("Unrequested AI generation"); },
+  } as never });
+  const events = await collectEvents(h.controller.run({
+    prompt: "/end-focus", action: "ask", explicitContext: [],
+  }));
+  assert.equal(events.at(-1)?.type, "completed");
+  assert.equal(ended, 1);
+  assert.equal(prepared, 0);
+  assert.equal(h.prompts.length, 0);
+  assert.ok(events.some(x => x.type === "response-delta" && x.text.includes("/replan")));
+  h.controller.dispose();
+});
+
+test("W2 end-focus stays committed when advisory gap detection fails", async () => {
+  let ended = 0;
+  const h = createHarness(async function* () { throw new Error("No provider allowed"); },
+  { programTimer: {
+    isPlanning: () => false, beginAiWait: async () => false, dispose: () => {},
+    getGlobalActiveFocus: async () => null, getActiveProgram: async () => null,
+    endFocus: async () => { ended++; return { focus: undefined }; },
+    detectRevisionCandidate: async () => { throw new Error("Evidence store temporarily unavailable"); },
+  } as never });
+  const events = await collectEvents(h.controller.run({
+    prompt: "/end-focus", action: "ask", explicitContext: [],
+  }));
+  assert.equal(events.at(-1)?.type, "completed");
+  assert.equal(ended, 1);
+  assert.ok(events.some(x => x.type === "response-delta" && x.text.includes("gap check unavailable")));
+  assert.equal(h.prompts.length, 0);
+  h.controller.dispose();
+});
+
+test("M1 onboarding screen reads only note path even when an unselected note is open", async () => {
+  let contentsResolved = 0;
+  const h = createHarness(async function* () { yield { type: "completed" }; }, {
+    onResolve: () => { contentsResolved++; throw Error("onboarding read unapproved contents"); },
+  });
+  const info = await h.controller.getOnboardingContext();
+  assert.equal(info.activeNote, "note.md");
+  assert.equal(info.hasProgram, false);
+  assert.equal(contentsResolved, 0);
+  h.controller.dispose();
 });
