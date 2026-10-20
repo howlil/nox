@@ -316,6 +316,7 @@ export class ChatView extends ItemView {
     await this.syncChips();
     this.syncPracticeComposerState();
     await this.restoreSession();
+    void this.showPendingOnboardingRecovery();
     void this.refreshFocusStrip();
 
     if (!this.workspaceEventsRegistered) {
@@ -2191,7 +2192,8 @@ export class ChatView extends ItemView {
         },
         onCreated: async () => {
           await this.learning.dismissOnboarding();
-          this.showEmpty();
+          if (this.learning.getSession().messages.length) await this.restoreSession();
+          else this.showEmpty();
           this.focusComposer();
         },
         onStart: async (programId, objectiveId) => {
@@ -2397,6 +2399,28 @@ export class ChatView extends ItemView {
         cls: "nox-empty-context-meta",
         text: "Selection",
       });
+    }
+  }
+
+  /** An interrupted approved setup remains discoverable even with old chat history. */
+  private async showPendingOnboardingRecovery(): Promise<void> {
+    const sessionId = this.learning.getSession().id;
+    try {
+      const state = await this.learning.getOnboardingContext();
+      if (sessionId !== this.learning.getSession().id || state.dismissed ||
+          !state.draft?.approval || !this.thread.isConnected ||
+          this.uiState === "RUNNING" || this.thread.querySelector(".nox-onboarding-recovery-notice")) return;
+      const notice = createNoxStatus(this.thread, {
+        cls: "nox-onboarding-recovery-notice",
+        kind: "warning",
+        text: "An approved learning setup needs recovery before continuing.",
+        action: { label: "Resume recovery", onClick: () => {
+          if (this.uiState !== "RUNNING") this.showEmpty();
+        } },
+      });
+      this.thread.prepend(notice);
+    } catch (error) {
+      console.warn("[Nox] Could not check onboarding recovery", error);
     }
   }
 
