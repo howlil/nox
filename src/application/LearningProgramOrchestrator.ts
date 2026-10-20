@@ -374,10 +374,15 @@ export class LearningProgramOrchestrator {
     return (await this.getTurnFocusSnapshot()).globalFocus;
   }
 
-  async startFocus(objectiveId: string, chatSessionId: string): Promise<LearningProgram> {
+  async startFocus(objectiveId: string, chatSessionId: string,
+    expectedProgramId?: string): Promise<LearningProgram> {
     const state = await this.learningState.load();
-    return this.updateActive(program => beginObjectiveFocus(
-      program, state, objectiveId, chatSessionId, this.now(), crypto.randomUUID()));
+    return this.updateActive(program => {
+      if (expectedProgramId && program.id !== expectedProgramId) {
+        throw new Error("The selected onboarding plan changed. Review /progress before starting.");
+      }
+      return beginObjectiveFocus(program, state, objectiveId, chatSessionId, this.now(), crypto.randomUUID());
+    });
   }
 
   async pauseFocus(): Promise<LearningProgram> {
