@@ -3,7 +3,7 @@ import { basename, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const REQUIRED_ASSETS = ["main.js", "manifest.json", "styles.css"];
-const VERSION_PATTERN = /^(0|[1-9]\d*)\\.(0|[1-9]\d*)\\.(0|[1-9]\d*)$/;
+const VERSION_PATTERN = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/;
 
 /** Obsidian Community Directory reads master/manifest.json, not staged PRs. */
 export function assertPublishedManifestParity(manifest, release) {
