@@ -185,6 +185,28 @@ export class LearningController {
     return program;
   }
 
+  /** Reconcile one persisted approval receipt against the authoritative program store. */
+  async recoverOnboardingApproval(
+    approval: NonNullable<import("../domain/onboarding/types").OnboardingDraft["approval"]>,
+  ) {
+    if (!this.programs) throw new Error("Learning programs are unavailable.");
+    const collection = await this.programs.listPrograms();
+    const program = collection.programs.find(item =>
+      item.id === approval.programId && item.creationOperationId === approval.operationId);
+    if (!program) return null; // No commit: the in-memory preview cannot survive restart.
+    if (Boolean(program.workspaceApproved) !== approval.withWorkspace) {
+      throw new Error("Saved approval intent does not match the committed learning program.");
+    }
+    if (collection.activeProgramId !== program.id) {
+      throw new Error("Another learning program is now active. Use /programs to select the saved plan.");
+    }
+    if (approval.withWorkspace) {
+      if (!this.workspaceWriter) throw new Error("Workspace writer is unavailable.");
+      await this.workspaceWriter.ensure(program); // Reentrant, create-only: never overwrite notes.
+    }
+    return program;
+  }
+
   async recoverLearningWorkspaces(): Promise<void> {
     if (!this.programs || !this.workspaceWriter) return;
     const programs = await this.programs.listPrograms();
