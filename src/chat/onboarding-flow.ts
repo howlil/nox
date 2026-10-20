@@ -9,7 +9,7 @@ import { animateNoxEnter } from "./motion";
 
 interface Callbacks {
   onSkip(): void;
-  onCreated(): void;
+  onCreated(): Promise<void>;
   onStart(programId: string, objectiveId: string): Promise<void>;
   onQuickPlan(command: string): Promise<void>;
   onNoteAction(path: string, kind: "explain" | "practice"): Promise<void>;
@@ -35,6 +35,7 @@ export class OnboardingFlow {
     this.draft = restoreOnboardingDraft(initial);
     this.stage = this.draft.stage;
     this.render();
+    if (this.stage === "recovering") void this.recoverApproval();
   }
 
   private persist(): void {
@@ -213,7 +214,20 @@ export class OnboardingFlow {
     // subsequent retry silently switch to plan-only with the same operation ID.
     if (this.retryWorkspace !== null && this.retryWorkspace !== withWorkspace) return;
     this.retryWorkspace = withWorkspace;
+    const approval = { programId: this.preview.id, operationId: this.operationId, withWorkspace };
     this.applying = true;
+    try {
+      // The receipt must reach persistent storage before the first CAS/program write.
+      await this.learning.saveOnboardingDraft({ ...this.draft, stage: "applying", approval });
+    } catch (error) {
+      this.error = "Could not save the approval receipt. No program was created. " +
+        (error instanceof Error ? error.message : String(error));
+      this.applying = false;
+      this.stage = "preview";
+      this.render();
+      return;
+    }
+    this.draft = { ...this.draft, approval };
     this.stage = "applying"; this.render();
     let committed: LearningProgram;
     try {
@@ -226,28 +240,78 @@ export class OnboardingFlow {
       this.applying = false;
       return;
     }
-    // The commit is final. Auxiliary onboarding state and read-model failures
-    // cannot send the user back to a stale approval screen.
+    // A committed plan must never return to a stale preview, even when
+    // optional onboarding data or read-model writes subsequently fail.
     this.readyProgram = committed;
     this.readyObjective = null;
     this.stage = "ready";
     this.error = "";
-    this.render();
     try {
-      await this.learning.dismissOnboarding();
+      this.draft = { ...this.draft, stage: "ready" };
+      await this.learning.saveOnboardingDraft(this.draft);
     } catch {
-      this.error = "Plan saved, but onboarding preferences could not be updated.";
+      // The earlier receipt is already durable: restart can still reconcile it.
+      this.error = "Plan saved. Onboarding state could not be updated; recovery is available after restart.";
     }
+    await this.projectFirstActivity(committed);
+    this.applying = false;
+    if (this.parent.isConnected) {
+      this.render();
+      this.parent.querySelector<HTMLElement>(".nox-empty-title")?.focus();
+    }
+  }
+
+  private async projectFirstActivity(committed: LearningProgram): Promise<void> {
+    this.readyObjective = null;
     try {
       const overview = await this.learning.getProgramOverview();
       const active = await this.learning.getProgramMenuState();
       this.readyObjective = active.activeProgramId === committed.id && !overview?.active &&
         !overview?.focus ? firstOnboardingObjective(committed, overview?.next ?? null) : null;
     } catch {
-      this.error = "Your plan was saved, but the first activity could not be loaded. Continue in chat and use /progress.";
+      this.error = "Your plan was saved, but the next activity is unavailable. Use /progress in chat.";
+    }
+  }
+
+  /** Crash recovery is a read-first reconciliation, never blind replay of approval. */
+  private async recoverApproval(): Promise<void> {
+    if (this.applying) return;
+    const approval = this.draft.approval;
+    if (!approval) {
+      this.go("form");
+      return;
+    }
+    const epoch = ++this.requestEpoch;
+    this.applying = true;
+    this.error = "";
+    this.stage = "recovering";
+    this.render();
+    try {
+      const committed = await this.learning.recoverOnboardingApproval(approval);
+      if (epoch !== this.requestEpoch) return;
+      if (!committed) {
+        // The preview lived only in memory. Never fabricate an approval on restart.
+        this.draft = { ...this.draft, approval: undefined };
+        this.preview = null;
+        this.operationId = undefined;
+        this.retryWorkspace = null;
+        this.stage = "form";
+        await this.learning.saveOnboardingDraft({ ...this.draft, stage: "form" });
+        this.error = "The previous approval was interrupted before commit. Generate a new blueprint.";
+        return;
+      }
+      this.readyProgram = committed;
+      this.stage = "ready";
+      await this.learning.saveOnboardingDraft({ ...this.draft, stage: "ready" });
+      if (epoch !== this.requestEpoch) return;
+      await this.projectFirstActivity(committed);
+    } catch (error) {
+      if (epoch !== this.requestEpoch) return;
+      this.error = error instanceof Error ? error.message : String(error);
+      this.stage = "recovering";
     } finally {
       this.applying = false;
-      if (this.parent.isConnected) {
+      if (epoch === this.requestEpoch && this.parent.isConnected) {
         this.render();
         this.parent.querySelector<HTMLElement>(".nox-empty-title")?.focus();
       }
