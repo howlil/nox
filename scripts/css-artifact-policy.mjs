@@ -15,3 +15,22 @@ export function assertLandingDialogCss(css) {
     throw new Error("Landing dialog CSS contains literal newline escape before @supports.");
   }
 }
+
+/** A valid CSS file can still be a partial or stale release artifact.
+ * Settings is a native Obsidian tab, so missing its CSS silently breaks the UI.
+ */
+export function assertNoxSettingsStyleContract(css) {
+  for (const selector of [
+    "--nox-accent:",
+    ".nox-settings-shell",
+    ".nox-settings-surface",
+    ".nox-settings-tabs",
+    ".nox-settings-native-row",
+    ".nox-usage-overview",
+    ".nox-token-chart-bars",
+  ]) {
+    if (!css.includes(selector)) {
+      throw new Error("Production CSS is missing Nox settings style: " + selector);
+    }
+  }
+}
