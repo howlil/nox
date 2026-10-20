@@ -51,6 +51,7 @@ import { ModelMenuPresenter } from "./model-menu";
 import { createNoxPopover } from "./popover";
 import { PromptMenuPresenter, type PromptMenuItem } from "./prompt-menu-presenter";
 import { NoxComposer, type NoxComposerContext } from "./composer";
+import { ComposerAttachmentDraft } from "./composer-draft";
 import { ThinkingPresenter } from "./thinking-presenter";
 import { ProposalPresenter } from "./proposal-presenter";
 import { renderEmptyPrimary, renderEmptyContext } from "./empty-slate-renderer";
@@ -110,10 +111,7 @@ export class ChatView extends ItemView {
   private promptUi: PromptMenuPresenter | null = null;
   private commandProgramSnapshot: Awaited<ReturnType<LearningController["getProgramMenuState"]>> | null = null;
   private scopeGoal: { sessionId: string; programId: string; goal: string } | null = null;
-  private attachments: Array<{
-    name: string;
-    ref: ExplicitContextRef;
-  }> = [];
+  private readonly attachmentDraft = new ComposerAttachmentDraft();
 
   private agentCursorEl: HTMLElement | null = null;
   private agentContentEl: HTMLElement | null = null;
@@ -147,7 +145,6 @@ export class ChatView extends ItemView {
   private turnContextSource: string | null = null;
   private pendingFindingSource: string | null = null;
 
-  private extraCtx: ExplicitContextRef[] = [];
   private currentContext: LearningContext | null = null;
 
   constructor(
@@ -623,8 +620,8 @@ export class ChatView extends ItemView {
     this.lastTurnRequest = null;
     this.pendingFindingSource = null;
     this.systemContextFiles = [];
-    this.extraCtx = [];
-    this.attachments = [];
+    
+    this.attachmentDraft.clear();
     this.renderAttachments();
     this.closePromptMenu();
     this.closeModelMenu();
@@ -765,14 +762,12 @@ export class ChatView extends ItemView {
 
   private renderAttachments(): void {
     this.composerUi.setAttachments(
-      this.attachments.map((attachment) => ({
+      this.attachmentDraft.items().map((attachment) => ({
         key: attachment.name,
         text: attachment.name,
         onRemove: () => {
-          const index = this.attachments.indexOf(attachment);
-          if (index < 0) return;
-          this.attachments.splice(index, 1);
-          this.extraCtx = this.attachments.map((item) => item.ref);
+          if (!this.attachmentDraft.remove(attachment)) return;
+          
           this.renderAttachments();
           void this.syncChips();
         },
@@ -787,17 +782,14 @@ export class ChatView extends ItemView {
 
     for (const file of Array.from(files)) {
       const content = await file.text();
-      this.attachments.push({
+      this.attachmentDraft.add(file.name, {
+        kind: "attachment",
         name: file.name,
-        ref: {
-          kind: "attachment",
-          name: file.name,
-          content,
-        },
+        content,
       });
     }
 
-    this.extraCtx = this.attachments.map((item) => item.ref);
+    
     this.renderAttachments();
     this.fileInput.value = "";
     await this.syncChips();
@@ -891,7 +883,7 @@ export class ChatView extends ItemView {
       const excluded = new Set([
         this.currentContext?.activeNote?.path,
         this.currentContext?.selection?.file,
-        ...this.extraCtx
+        ...this.attachmentDraft.contexts()
           .filter(
             (item): item is Extract<
               ExplicitContextRef,
@@ -956,11 +948,7 @@ export class ChatView extends ItemView {
     const prefix = token ? this.input.value.slice(0, token.start) : this.input.value;
 
     if (action.type === "vault-note") {
-      const exists = this.extraCtx.some(
-        (item) =>
-          item.kind === "vault-note" &&
-          item.path === action.path,
-      );
+      const exists = this.attachmentDraft.hasNote(action.path);
 
       if (!exists) {
         const ref: ExplicitContextRef = {
@@ -968,11 +956,8 @@ export class ChatView extends ItemView {
           path: action.path,
         };
 
-        this.attachments.push({
-          name: action.path.split("/").pop() ?? action.path,
-          ref,
-        });
-        this.extraCtx = this.attachments.map((item) => item.ref);
+        this.attachmentDraft.add(action.path.split("/").pop() ?? action.path, ref);
+        
         this.renderAttachments();
         await this.syncChips();
       }
@@ -1129,7 +1114,7 @@ export class ChatView extends ItemView {
     const requestId = ++this.contextSyncRequest;
     let context: LearningContext;
     try {
-      context = await this.learning.resolveContext(this.extraCtx);
+      context = await this.learning.resolveContext(this.attachmentDraft.contexts());
     } catch {
       // Deleted supporting notes receive an actionable error at turn start.
       return;
@@ -1253,7 +1238,7 @@ export class ChatView extends ItemView {
       turnId: crypto.randomUUID(),
       prompt,
       action: this.selectedAction,
-      explicitContext: [...this.extraCtx],
+      explicitContext: [...this.attachmentDraft.contexts()],
       ...(this.pendingReplyTo ? { replyTo: structuredClone(this.pendingReplyTo) } : {}),
       sourcePath: (this.selectedAction === "edit" || this.selectedAction === "practice")
         ? this.pendingFindingSource ?? undefined
@@ -1297,8 +1282,8 @@ export class ChatView extends ItemView {
 
     this.input.value = "";
     this.composerUi.syncInputLayout();
-    this.attachments = [];
-    this.extraCtx = [];
+    this.attachmentDraft.clear();
+    
     this.renderAttachments();
     this.sendBtn.disabled = true;
 
@@ -1508,7 +1493,7 @@ export class ChatView extends ItemView {
   }
 
   private canSend(): boolean {
-    const hasInput = this.input.value.trim().length > 0 || this.attachments.length > 0;
+    const hasInput = this.input.value.trim().length > 0 || this.attachmentDraft.length > 0;
     return hasInput && (this.runtimeReady || this.learning.canExecuteOfflineCommand(this.input.value));
   }
 
