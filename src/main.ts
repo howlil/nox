@@ -30,6 +30,8 @@ import {
   NoxSettings,
 } from "./settings/NoxSettings";
 import { NoxSettingsTab } from "./settings/SettingsTab";
+import { runtimeProvenanceReport } from "./diagnostics/runtime-provenance";
+import { Notice } from "obsidian";
 
 // Values are injected into the actual production bundle by esbuild. They are
 // not read from a manifest that could be newer than the loaded JavaScript.
@@ -177,6 +179,20 @@ export default class NoxPlugin extends Plugin {
       id: "open-sidebar",
       name: "Open sidebar",
       callback: () => this.activateView(),
+    });
+
+    this.addCommand({
+      id: "copy-runtime-diagnostics",
+      name: "Copy runtime diagnostics",
+      callback: async () => {
+        try {
+          const report = await runtimeProvenanceReport(this.getBuildDiagnostics());
+          await navigator.clipboard.writeText(report);
+          new Notice("NOX runtime diagnostic copied. Redact local paths before sharing.");
+        } catch {
+          new Notice("Unable to copy runtime diagnostics. Check clipboard permissions.");
+        }
+      },
     });
 
     this.addCommand({
