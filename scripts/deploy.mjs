@@ -42,7 +42,7 @@ try {
     console.log("SHA256(" + filename + "):", hash);
   }
   console.log("IMPORTANT: Fully reload Nox in this SAME Obsidian vault.");
-  console.log("Then open Nox Settings → Loaded plugin build to confirm revision/transport.");
+  console.log("Then run Nox: Copy runtime diagnostics from the command palette; compare installed hashes and loaded source SHA.");
   console.log("If the open vault path differs from above, deploy to the correct vault.");
 } catch (error) {
   console.error(
