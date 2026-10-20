@@ -67,9 +67,9 @@ function fallbackEditor(parent: HTMLElement, options: CodeAnswerEditorOptions): 
   const warning = parent.createDiv({ cls: "nox-code-answer-limit", attr: { "aria-live": "polite" } });
   let lastValid = options.source;
   const fit = (): void => {
-    if (!editor.style || !Number.isFinite(editor.scrollHeight)) return;
-    editor.style.height = "auto";
-    editor.style.height = Math.max(92, editor.scrollHeight) + "px";
+    if (!Number.isFinite(editor.scrollHeight)) return;
+    editor.setCssStyles({ height: "auto" });
+    editor.setCssStyles({ height: Math.max(92, editor.scrollHeight) + "px" });
   };
   editor.addEventListener("input", () => {
     if (editor.disabled) return;

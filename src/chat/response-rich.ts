@@ -213,7 +213,7 @@ export function renderNoxHorizontalChart(spec: NoxChartSpec, doc: Document = doc
     name.textContent = label;
     const track = el(doc, "div", "nox-rich-bar-track");
     const fill = el(doc, "span", "nox-rich-bar-fill");
-    fill.style.width = String(Math.max(0, Math.min(100, spec.values[index] / max * 100))) + "%";
+    fill.setCssStyles({ width: String(Math.max(0, Math.min(100, spec.values[index] / max * 100))) + "%" });
     track.append(fill);
     const value = el(doc, "span", "nox-rich-bar-value");
     value.textContent = spec.values[index].toLocaleString("en-US");

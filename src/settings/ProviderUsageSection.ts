@@ -91,7 +91,7 @@ export function mountProviderUsageSection(container:HTMLElement,host:ProviderUsa
             "aria-valuenow":String(Math.floor(value)),
           }});
           const fill=progress.createDiv({cls:"nox-quota-progress-fill"});
-          fill.style.width=value+"%";
+          fill.setCssStyles({ width: value+"%" });
           fill.toggleClass("is-low",value<=15);
           fill.toggleClass("is-warning",value>15&&value<=35);
         }

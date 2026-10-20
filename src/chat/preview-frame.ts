@@ -34,7 +34,7 @@ function handlePreviewResize(event: MessageEvent): void {
     if (!entry.frame.isConnected) return;
     entry.lastUpdate = performance.now();
     entry.height = next;
-    entry.frame.style.height = next + "px";
+    entry.frame.setCssStyles({ height: next + "px" });
   };
   if (entry.pendingTimer !== null) {
     entry.pendingHeight = height;
