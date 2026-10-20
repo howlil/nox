@@ -16,7 +16,7 @@ const ALLOWED_OWNERS = {
   settings: ["settings"],
 };
 const ROOT_FILES = new Set(["src/main.ts", "src/types.ts"]);
-const FEATURE_PACKAGES = new Set(["conversation/turn", "conversation/view", "learning/program", "learning/onboarding", "practice/view"]);
+const FEATURE_PACKAGES = new Set(["conversation/turn", "conversation/view", "learning/program", "learning/onboarding", "learning/view", "practice/view"]);
 const IMPORTS = /\b(?:from\s*|import\s*\(\s*|require\s*\(\s*|import\s*)(["'])([^"']+)\1/g;
 
 function isApprovedFeatureEdge(from, to) {
@@ -26,7 +26,7 @@ function isApprovedFeatureEdge(from, to) {
   if (to.startsWith("src/features/") && !from.startsWith("src/features/")) {
     if (from === "src/application/RunLearningTurn.ts") return toPackage === "conversation/turn";
     if (from === "src/application/LearningProgramOrchestrator.ts") return toPackage === "learning/program";
-    if (from === "src/chat/ChatView.ts") return toPackage === "conversation/view" || toPackage === "practice/view";
+    if (from === "src/chat/ChatView.ts") return toPackage === "conversation/view" || toPackage === "practice/view" || toPackage === "learning/view";
     if (from === "src/chat/response-visuals.ts") return toPackage === "conversation/view";
     if (from === "src/chat/onboarding-flow.ts") return toPackage === "learning/onboarding";
     return false;
@@ -38,6 +38,7 @@ function isApprovedFeatureEdge(from, to) {
       return ["src/domain/onboarding/types.ts", "src/domain/learning-program/types.ts"].includes(to);
     }
     if (fromPackage === "practice/view") return to.startsWith("src/domain/practice/");
+    if (fromPackage === "learning/view") return to === "src/domain/activity/aggregation.ts";
     return fromPackage !== "conversation/view";
   }
   if (to === "src/types.ts") return true;
@@ -49,6 +50,9 @@ function isApprovedFeatureEdge(from, to) {
   }
   if (fromPackage === "practice/view") {
     return ["src/chat/primitives.ts", "src/chat/code-answer-editor.ts"].includes(to);
+  }
+  if (fromPackage === "learning/view") {
+    return ["src/chat/primitives.ts", "src/application/learning-types.ts"].includes(to);
   }
   if (fromPackage === "conversation/turn") {
     return ["src/application/learning-types.ts", "src/application/ports.ts",
