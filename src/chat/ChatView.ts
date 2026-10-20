@@ -28,14 +28,10 @@ import { ReviewFinding } from "../domain/review/types";
 import { PracticePresenter } from "../features/practice/view/PracticePresenter";
 import { renderReviewFindingCards } from "./learning-card-renderers";
 import { ChatMessage, EditProposal, type ChatReplyReference } from "../types";
-import {
-  parsePromptToken,
-  PromptMenuKind,
-  stripPromptToken,
-} from "./prompt-token";
+import { parsePromptToken, stripPromptToken } from "./prompt-token";
 import { NOX_CAPABILITIES } from "./capabilities";
 import { buildActionMenu, getPrimaryAction, type ActionMenuContext, type ActionMenuEntry } from "./action-menu";
-import { animateNoxEnter, animateNoxPopover } from "./motion";
+import { animateNoxEnter } from "./motion";
 import { resolveNoxMarkdownLink } from "./markdown-links";
 import {
   shouldResetAction,
@@ -45,19 +41,18 @@ import {
   createNoxButton,
   createNoxIconButton,
   createNoxMessageMeta,
-  createNoxMenuRow,
   createNoxSurface,
   createNoxStatus,
   setNoxIcon,
 } from "./primitives";
-import { NoxMenuState } from "./menu";
 import { HistoryPresenter } from "../features/conversation/view/history-presenter";
 import { renderResponseActions } from "../features/conversation/view/response-actions-presenter";
 import { StreamTextPresenter } from "../features/conversation/view/stream-text-presenter";
 import { projectSessionClock } from "../features/conversation/view/session-clock";
 import { TranscriptPresenter } from "../features/conversation/view/transcript-presenter";
 import { ModelMenuPresenter } from "./model-menu";
-import { createNoxPopover, NoxPopoverState } from "./popover";
+import { createNoxPopover } from "./popover";
+import { PromptMenuPresenter, type PromptMenuItem } from "./prompt-menu-presenter";
 import { NoxComposer, type NoxComposerContext } from "./composer";
 import { NoxRunInspector } from "./run-inspector";
 import { appendMessageActions } from "./message-actions";
@@ -91,26 +86,6 @@ const ACTIONS: Array<{
   })),
 ];
 
-type PromptMenuAction =
-  | { type: "attach" }
-  | { type: "info" }
-  | { type: "vault-note"; path: string }
-  | { type: "scope"; command: string }
-  | { type: "learning"; kind: Exclude<LearningActionKind, "ask"> }
-  | { type: "programs" }
-  | { type: "menu-back" }
-  | { type: "switch-program"; id: string };
-
-interface PromptMenuItem {
-  key: string;
-  name: string;
-  description: string;
-  icon: IconName;
-  command?: string;
-  disabled?: boolean;
-  action: PromptMenuAction;
-}
-
 export class ChatView extends ItemView {
   private thread!: HTMLElement;
   private composer!: HTMLElement;
@@ -133,16 +108,9 @@ export class ChatView extends ItemView {
   private readonly learningUi: LearningPresenter;
   private fileInput!: HTMLInputElement;
   private actionMenuBtn!: HTMLButtonElement;
-  private commandHintBtn: HTMLButtonElement | null = null;
-  private promptMenuEl: HTMLElement | null = null;
-  private promptPopover!: NoxPopoverState;
-  private promptMenu: PromptMenuKind | null = null;
-  private commandPage: "actions" | "programs" = "actions";
-  private lastCommandQuery = "";
+  private promptUi: PromptMenuPresenter | null = null;
   private commandProgramSnapshot: Awaited<ReturnType<LearningController["getProgramMenuState"]>> | null = null;
   private scopeGoal: { sessionId: string; programId: string; goal: string } | null = null;
-  private readonly promptMenuState = new NoxMenuState();
-  private promptMenuRequest = 0;
   private attachments: Array<{
     name: string;
     ref: ExplicitContextRef;
@@ -316,6 +284,8 @@ export class ChatView extends ItemView {
     this.practiceUi.dispose();
     this.modelUi?.dispose();
     this.modelUi = null;
+    this.promptUi?.dispose();
+    this.promptUi = null;
   }
 
   async refreshRuntime(recheckHealth = true): Promise<void> {
@@ -734,14 +704,7 @@ export class ChatView extends ItemView {
       },
       onOpenCommandMenu: () => {
         this.closeModelMenu();
-        if (this.promptMenu === "command") {
-          this.closePromptMenu();
-        } else {
-          this.promptMenu = "command";
-          this.commandPage = "actions";
-          this.promptMenuState.openAt(0);
-          void this.renderPromptMenu();
-        }
+        this.promptUi?.toggleCommand();
         this.composerUi.focus();
       },
       onToggleModelMenu: () => this.toggleModelMenu(),
@@ -753,9 +716,6 @@ export class ChatView extends ItemView {
       onSend: () => void this.doSend(),
       onRemoveReply: () => this.clearReplyReference(),
     });
-
-    this.promptMenuEl = this.composerUi.promptMenuEl;
-    this.promptPopover = this.composerUi.promptPopover;
 
     this.input = this.composerUi.input;
     this.fileInput = this.composerUi.fileInput;
@@ -775,6 +735,18 @@ export class ChatView extends ItemView {
         select: id => this.learning.setModel(id || undefined),
         setLabel: label => this.composerUi.setModelLabel(label),
         beforeOpen: () => this.closePromptMenu(),
+        reportError: message => { new Notice(message); },
+      },
+    );
+    this.promptUi = new PromptMenuPresenter(
+      this.composerUi.input,
+      this.composerUi.promptMenuEl,
+      this.composerUi.promptPopover,
+      this.composerUi.actionMenuBtn,
+      {
+        items: (kind, page) => this.getPromptMenuItems(kind, page),
+        select: item => this.pickPromptMenuItem(item),
+        invalidate: () => { this.commandProgramSnapshot = null; },
         reportError: message => { new Notice(message); },
       },
     );
@@ -845,8 +817,8 @@ export class ChatView extends ItemView {
     };
   }
 
-  private async getPromptMenuItems(): Promise<PromptMenuItem[]> {
-    if (this.promptMenu === "command") {
+  private async getPromptMenuItems(kind: "command" | "source", page: "actions" | "programs"): Promise<PromptMenuItem[]> {
+    if (kind === "command") {
       let programState: Awaited<ReturnType<LearningController["getProgramMenuState"]>>;
       try {
         programState = this.commandProgramSnapshot ??
@@ -857,7 +829,7 @@ export class ChatView extends ItemView {
         programState = { sessionActive: false, programs: [] };
       }
 
-      if (this.commandPage === "programs") {
+      if (page === "programs") {
         return [
           { key: "back", name: "Back to actions", description: "Return to the main menu",
             icon: "arrow-left", action: { type: "menu-back" } },
@@ -949,116 +921,6 @@ export class ChatView extends ItemView {
     return items;
   }
 
-  private async renderPromptMenu(): Promise<void> {
-    if (!this.promptMenuEl) return;
-
-    const requestId = ++this.promptMenuRequest;
-    this.promptMenuEl.empty();
-    this.promptPopover.setOpen(this.promptMenuState.isOpen);
-    this.syncPromptMenuControls();
-    if (!this.promptMenu) {
-      this.promptMenuState.close();
-      this.promptPopover.close();
-      this.input.removeAttribute("aria-expanded");
-      this.input.removeAttribute("aria-activedescendant");
-      return;
-    }
-
-    this.input.setAttribute("aria-expanded", "true");
-
-    const token = parsePromptToken(this.input.value);
-    const query = token?.kind === this.promptMenu ? token.query : "";
-    const rows = await this.getPromptMenuItems();
-    if (requestId !== this.promptMenuRequest || !this.promptMenu) return;
-    if (this.promptMenu === "command") {
-      const key = this.commandPage + ":" + query;
-      if (key !== this.lastCommandQuery) {
-        this.promptMenuState.setActive(0);
-        this.lastCommandQuery = key;
-      }
-      const head = this.promptMenuEl.createDiv({ cls: "nox-prompt-menu-heading" });
-      head.createSpan({ text: this.commandPage === "programs" ? "Learning programs" : "Actions" });
-      if (this.commandPage === "actions") head.createSpan({
-        cls: "nox-prompt-menu-heading-hint", text: query ? "Search results" : "Quick actions",
-      });
-    }
-    if (rows.length === 0) {
-      this.promptMenuEl.createDiv({
-        cls: "nox-prompt-menu-empty",
-        text: "No matching actions. Try another keyword.",
-      });
-    }
-
-    let interactiveIndex = 0;
-    const rowsForState: HTMLButtonElement[] = [];
-    for (const item of rows) {
-      const menuIndex = item.disabled ? -1 : interactiveIndex++;
-      const button = createNoxMenuRow(this.promptMenuEl, {
-        cls: "nox-prompt-menu-row",
-        ...(item.disabled ? {} : { id: `nox-prompt-menu-option-${menuIndex}` }),
-        icon: item.icon,
-        iconClass: "nox-prompt-menu-icon",
-        name: item.name,
-        nameClass: "nox-prompt-menu-name",
-        description: item.description,
-        descriptionClass: "nox-prompt-menu-description",
-        command: item.command,
-        commandClass: "nox-prompt-menu-command",
-        stacked: this.promptMenu === "command",
-        disabled: item.disabled,
-      });
-
-      if (!item.disabled) {
-        button.addEventListener("mouseenter", () => {
-          this.promptMenuState.setActive(menuIndex);
-          this.syncPromptMenuRows();
-        });
-        button.addEventListener("click", () => void this.pickPromptMenuItem(item));
-        rowsForState.push(button);
-      }
-    }
-
-    this.promptMenuEl.createDiv({
-      cls: "nox-prompt-menu-hint",
-      text: this.promptMenu === "source"
-        ? query ? "Select a note or attach a text file" : "Type @name to search vault notes"
-        : this.commandPage === "programs"
-          ? "Select a plan or return to actions"
-          : query
-            ? "↑ ↓ navigate · Enter select · Esc close"
-            : "Type / plus a keyword for more actions",
-    });
-    this.promptMenuState.setRows(rowsForState);
-    this.syncPromptMenuRows();
-    animateNoxPopover(this.promptMenuEl);
-  }
-
-  private syncPromptMenuControls(): void {
-    const commandOpen = this.promptMenu === "command";
-
-    this.actionMenuBtn?.setAttribute("aria-expanded", String(commandOpen));
-    this.commandHintBtn?.setAttribute("aria-expanded", String(commandOpen));
-    this.commandHintBtn?.setAttribute("aria-controls", "nox-prompt-menu");
-  }
-
-  private syncPromptMenuRows(): void {
-    this.promptMenuState.syncRows();
-    const rows = this.promptMenuEl?.querySelectorAll<HTMLButtonElement>(
-      ".nox-prompt-menu-row:not(:disabled)",
-    ) ?? [];
-    rows.forEach((row, index) => {
-      const active = index === this.promptMenuState.activeIndex;
-      row.setAttribute("aria-selected", String(active));
-    });
-
-    const activeRow = rows[this.promptMenuState.activeIndex];
-    if (activeRow) {
-      this.input.setAttribute("aria-activedescendant", activeRow.id);
-    } else {
-      this.input.removeAttribute("aria-activedescendant");
-    }
-  }
-
   private async pickPromptMenuItem(item: PromptMenuItem): Promise<void> {
     const action = item.action;
     if (action.type === "attach") {
@@ -1069,18 +931,6 @@ export class ChatView extends ItemView {
       return;
     }
     if (action.type === "info") return;
-    if (action.type === "programs") {
-      this.commandPage = "programs";
-      this.promptMenuState.openAt(0);
-      await this.renderPromptMenu();
-      return;
-    }
-    if (action.type === "menu-back") {
-      this.commandPage = "actions";
-      this.promptMenuState.openAt(0);
-      await this.renderPromptMenu();
-      return;
-    }
     if (action.type === "switch-program") {
       if (this.uiState === "RUNNING") return;
       this.setAction("ask");
@@ -1139,19 +989,7 @@ export class ChatView extends ItemView {
   }
 
   private closePromptMenu(): void {
-    this.promptMenuRequest += 1;
-    this.promptMenu = null;
-    this.commandPage = "actions";
-    this.lastCommandQuery = "";
-    this.commandProgramSnapshot = null;
-    this.promptMenuState.close();
-    this.promptPopover.close();
-    this.syncPromptMenuControls();
-    void this.renderPromptMenu();
-  }
-
-  private getPromptMenuStartIndex(_menu: PromptMenuKind): number {
-    return 0;
+    this.promptUi?.close();
   }
 
   private setAction(action: LearningActionKind): void {
@@ -1162,13 +1000,10 @@ export class ChatView extends ItemView {
       this.pendingFindingSource = null;
       this.syncContextChips();
     }
-    if (this.promptMenu === "command") {
-      this.promptMenuState.setActive(this.getPromptMenuStartIndex("command"));
-    }
+    this.promptUi?.resetSelection();
     this.updatePlaceholder();
     this.renderIntent();
     this.syncCapabilityCards();
-    this.syncPromptMenuRows();
   }
 
   private runSelectionAction(action: NoxSelectionAction): void {
@@ -1376,46 +1211,11 @@ export class ChatView extends ItemView {
       return;
     }
 
-    const token = parsePromptToken(this.input.value);
-    if (token?.kind === "command" && token.query) this.commandPage = "actions";
-    if (token && this.promptMenu !== token.kind) {
-      this.promptMenu = token.kind;
-      this.promptMenuState.openAt(this.getPromptMenuStartIndex(token.kind));
-    } else if (!token) {
-      this.closePromptMenu();
-    }
-
-    this.renderPromptMenu();
-
+    this.promptUi?.onInput();
   }
 
   private onKey(event: KeyboardEvent): void {
-    // Unknown slash queries are searches, not messages to dispatch to an agent.
-    if (this.promptMenu === "command" && this.promptMenuState.rowCount === 0 &&
-        parsePromptToken(this.input.value)?.kind === "command" &&
-        (event.key === "Enter" && !event.shiftKey || event.key === "Tab")) {
-      event.preventDefault();
-      return;
-    }
-    if (this.promptMenu && this.promptMenuState.rowCount > 0) {
-      if (event.key === "ArrowDown" || event.key === "ArrowUp") {
-        event.preventDefault();
-        const direction = event.key === "ArrowDown" ? 1 : -1;
-        this.promptMenuState.move(direction);
-        this.syncPromptMenuRows();
-        return;
-      }
-
-      if ((event.key === "Enter" && !event.shiftKey) || event.key === "Tab") {
-        event.preventDefault();
-        const rows = this.promptMenuEl?.querySelectorAll<HTMLButtonElement>(
-          ".nox-prompt-menu-row:not(:disabled)",
-        ) ?? [];
-        const row = rows[this.promptMenuState.activeIndex];
-        if (row) row.click();
-        return;
-      }
-    }
+    if (this.promptUi?.onKey(event)) return;
 
     if (event.key === "Enter" && !event.shiftKey) {
       event.preventDefault();
@@ -1423,7 +1223,7 @@ export class ChatView extends ItemView {
     }
 
     if (event.key === "Escape") {
-      if (this.promptMenu) {
+      if (this.promptUi?.isOpen) {
         this.closePromptMenu();
       } else if (this.modelUi?.isOpen) {
         this.closeModelMenu();
@@ -2044,12 +1844,10 @@ export class ChatView extends ItemView {
         "aria-expanded": "false",
       },
     });
-    this.commandHintBtn = commandHint;
+    this.promptUi?.setCommandHint(commandHint);
     commandHint.addEventListener("click", () => {
-      this.promptMenu = "command";
-      this.commandPage = "actions";
-      this.promptMenuState.openAt(0);
-      void this.renderPromptMenu();
+      this.closeModelMenu();
+      this.promptUi?.openCommand();
       this.focusComposer();
     });
 
