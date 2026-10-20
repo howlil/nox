@@ -6,13 +6,14 @@ import { join } from "node:path";
 import { createHash } from "node:crypto";
 import { runtimeProvenanceReport } from "../../src/settings/runtime-provenance";
 
-const identity = { revision: "release/1.3.0", builtAt: "reproducible-release",
+const identity = { revision: "release/1.3.0", sourceSha: "a".repeat(40), builtAt: "reproducible-release",
   transport: "NOX_RUNTIME_TRANSPORT_V3:node-https-sse",
   vaultDir: "(non-file-system vault)", pluginDir: "(unknown plugin directory)" };
 
 test("diagnostic works when no native vault directory exists", async () => {
   const report = await runtimeProvenanceReport(identity);
   assert.match(report, /loadedTransport=NOX_RUNTIME_TRANSPORT_V3/);
+  assert.match(report, /loadedSourceSha=/);
   assert.match(report, /diskMatchesLoadedIdentity=unknown/);
   assert.doesNotMatch(report, /bearer|credential|token=/i);
 });
@@ -22,7 +23,7 @@ test("diagnostic reports on-disk hash and detects a stale installed bundle", asy
   const relative = join(".obsidian", "plugins", "nox");
   try {
     mkdirSync(join(root, relative), { recursive: true });
-    const current = "release/1.3.0 NOX_RUNTIME_TRANSPORT_V3:node-https-sse";
+    const current = "release/1.3.0 " + identity.sourceSha + " NOX_RUNTIME_TRANSPORT_V3:node-https-sse";
     const file = join(root, relative, "main.js");
     writeFileSync(file, current);
     const args = { ...identity, vaultDir: root, pluginDir: relative };
