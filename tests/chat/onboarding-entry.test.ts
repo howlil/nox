@@ -164,16 +164,20 @@ const m3Program = {
 };
 function setupM3(overrides: {
   failWorkspace?: boolean; failDismiss?: boolean; failReadModel?: boolean;
+  failReceipt?: boolean; expiredPreview?: boolean;
 } = {}) {
   const root = new FakeElement();
   const calls: string[] = [];
   const operations: string[] = [];
   const learning = {
-    saveOnboardingDraft: async () => {},
+    saveOnboardingDraft: async (draft: { approval?: unknown }) => {
+      if (overrides.failReceipt && draft.approval) throw Error("Cannot save onboarding receipt");
+    },
     checkRuntime: async () => ({ status: "ready" }),
     previewLearningProgram: async () => { calls.push("preview"); return m3Program; },
     approveLearningProgram: async (_id: string, op: string) => {
       calls.push("approve-only"); operations.push(op);
+      if (overrides.expiredPreview) throw Error("The preview expired. Generate a fresh learning blueprint.");
       return m3Program;
     },
     approveLearningWorkspace: async (_id: string, op: string) => {
@@ -362,4 +366,28 @@ test("M4 interrupted approval before CAS commit never silently recreates a progr
   assert.ok(root.findAll().some(el => el.cls === "nox-onboarding-error" &&
     el.text.includes("interrupted before commit")));
   assert.equal(root.buttons("Generate blueprint").length, 1);
+});
+
+test("M4 failed approval receipt write never reaches program CAS mutation", async () => {
+  const x = setupM3({ failReceipt: true });
+  await x.toPreview();
+  x.root.buttons("Use plan only")[0].click();
+  await flush();
+  assert.equal(x.calls.includes("approve-only"), false);
+  assert.equal(x.operations.length, 0);
+  assert.equal(x.root.buttons("Retry saving plan").length, 1);
+  assert.ok(x.root.findAll().some(el => el.cls === "nox-onboarding-error" &&
+    el.text.includes("approval receipt")));
+});
+
+test("M4 expired preview resets approval intent and requires explicit re-generation", async () => {
+  const x = setupM3({ expiredPreview: true });
+  await x.toPreview();
+  x.root.buttons("Use plan only")[0].click();
+  await flush();
+  assert.equal(x.root.buttons("Retry saving plan").length, 0);
+  assert.equal(x.root.buttons("Generate blueprint").length, 1);
+  assert.equal(x.operations.length, 1);
+  assert.ok(x.root.findAll().some(el => el.cls === "nox-onboarding-error" &&
+    el.text.includes("preview expired")));
 });
