@@ -3,11 +3,20 @@ import type { ActivitySummary } from "../../../domain/activity/aggregation";
 import { setNoxIcon } from "../../../chat/primitives";
 
 export type ActivityScope = "active" | "all";
+export interface ClockReading {
+  budgetMs: number;
+  activeMs: number;
+  remainingMs: number;
+  aiWaitingMs: number;
+  status: "active" | "waiting-ai" | "paused" | "recovered" | "exhausted";
+}
 
 export interface LearningUiPort {
   thread(): HTMLElement;
   overview(): Promise<NoxProgramOverview | null>;
   activity(scope: ActivityScope): Promise<ActivitySummary>;
+  readClock(): Promise<ClockReading | null>;
+  projectClock(snapshot: ClockReading | null, syncedAt: number, now: number): ClockReading | null;
   mountMap(
     overview: NoxProgramOverview | null, onClose: () => void,
     onNext: () => void, onCommand: (command: string) => void,
@@ -27,6 +36,14 @@ export class LearningPresenter {
   private mapRequest = 0;
   private activityRequest = 0;
   private focusRequest = 0;
+  private clockRoot: HTMLElement | null = null;
+  private clockLabel: HTMLElement | null = null;
+  private clockButton: HTMLButtonElement | null = null;
+  private clockTimer: number | null = null;
+  private clockSnapshot: ClockReading | null = null;
+  private clockSyncedAt = 0;
+  private clockReadPending = false;
+  private clockEpoch = 0;
 
   constructor(private readonly port: LearningUiPort) {}
 
@@ -49,9 +66,80 @@ export class LearningPresenter {
     ++this.focusRequest;
     this.closeMap();
     this.closeActivity();
+    this.invalidateClock();
   }
 
-  dispose(): void { this.reset(); }
+  dispose(): void {
+    this.reset();
+    if (this.clockTimer !== null) window.clearInterval(this.clockTimer);
+    this.clockTimer = null;
+    this.clockRoot = null;
+    this.clockLabel = null;
+    this.clockButton = null;
+  }
+
+  startClock(root: HTMLElement, label: HTMLElement, button: HTMLButtonElement): void {
+    if (this.clockTimer !== null) window.clearInterval(this.clockTimer);
+    this.clockRoot = root;
+    this.clockLabel = label;
+    this.clockButton = button;
+    this.clockTimer = window.setInterval(() => this.tickClock(), 2000);
+  }
+
+  private invalidateClock(): void {
+    ++this.clockEpoch;
+    this.clockSnapshot = null;
+    this.clockSyncedAt = 0;
+  }
+
+  private tickClock(): void {
+    if (!this.clockRoot?.isConnected || this.clockReadPending) return;
+    const now = Date.now();
+    if (!this.clockSyncedAt || now - this.clockSyncedAt >= 30_000) {
+      void this.refreshClock();
+      return;
+    }
+    this.renderClock(this.port.projectClock(this.clockSnapshot, this.clockSyncedAt, now));
+  }
+
+  async refreshClock(): Promise<void> {
+    if (this.clockReadPending || !this.clockRoot) return;
+    this.clockReadPending = true;
+    const epoch = this.clockEpoch;
+    try {
+      const timing = await this.port.readClock();
+      if (epoch !== this.clockEpoch || !this.clockRoot?.isConnected) return;
+      this.clockSnapshot = timing;
+      this.clockSyncedAt = Date.now();
+      this.renderClock(timing);
+    } catch {
+      // Keep the last known display; refresh on the next interval.
+    } finally {
+      this.clockReadPending = false;
+    }
+  }
+
+  private renderClock(timing: ClockReading | null): void {
+    if (!this.clockRoot?.isConnected) return;
+    this.clockRoot.toggleClass("nox-hidden", !timing);
+    if (!timing || !this.clockLabel || !this.clockButton) return;
+    const minutes = Math.ceil(timing.remainingMs / 60_000);
+    const labels: Record<ClockReading["status"], string> = {
+      active: "Learning", "waiting-ai": "AI running · time paused",
+      paused: "Paused", recovered: "Session recovered · paused",
+      exhausted: "Timebox complete",
+    };
+    this.clockLabel.textContent = labels[timing.status] + " · " + minutes + "m left";
+    this.clockRoot.title =
+      "Active: " + Math.round(timing.activeMs / 1000) + "s · AI waiting: " +
+      Math.round(timing.aiWaitingMs / 1000) + "s";
+    const pause = timing.status === "active" || timing.status === "waiting-ai";
+    this.clockButton.dataset.action = pause ? "pause" : "resume";
+    this.clockButton.textContent = pause ? "Pause" : "Resume";
+    this.clockButton.title = pause ? "Pause learning budget" : "Resume learning budget";
+    this.clockButton.setAttribute("aria-label", this.clockButton.title);
+    this.clockButton.toggleClass("nox-hidden", timing.status === "exhausted");
+  }
 
   async toggleMap(): Promise<void> {
     if (this.hasMap) { this.closeMap(); return; }
