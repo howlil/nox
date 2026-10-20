@@ -4,6 +4,7 @@ import test from "node:test";
 
 const css = readFileSync("styles.css", "utf8");
 const view = readFileSync("src/chat/ChatView.ts", "utf8");
+const thinking = readFileSync("src/chat/thinking-presenter.ts", "utf8");
 
 function rule(selector: string): string {
   const start = css.indexOf(selector + " {");
@@ -34,7 +35,7 @@ test("thinking shares assistant reading-column width, never the compact trace wi
 });
 
 test("working and restored activity use the same direct thread child", () => {
-  assert.match(view, /this\.thread\.createDiv\(\{\s*cls:\s*"nox-thinking nox-thinking--working"/);
-  assert.match(view, /this\.thread\.createDiv\(\{\s*cls:\s*"nox-thinking nox-thinking--restored"/);
+  assert.match(thinking, /this\.thread\.createDiv\(\{\s*cls:\s*"nox-thinking nox-thinking--working"/);
+  assert.match(thinking, /this\.thread\.createDiv\(\{\s*cls:\s*"nox-thinking nox-thinking--restored"/);
   assert.match(view, /this\.thread\.createDiv\(\{\s*cls:\s*"nox-bubble nox-bubble--agent/);
 });
