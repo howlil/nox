@@ -110,6 +110,12 @@ test("thinking tracks only observed phases, tool completion and terminal statuse
     const trace=root.querySelector<FakeElement>(".nox-thinking");
     assert.equal(trace?.hasClass("nox-thinking--settled"),true);
     assert.equal(root.querySelector<FakeElement>(".nox-thinking-panel")?.hasClass("is-expanded"),false);
+    const traceCount=root.querySelectorAll(".nox-thinking").length;
+    ui.thoughtDelta("late thought after terminal");
+    ui.stage(4);
+    ui.toolStarted("late","Should not render");
+    assert.equal(root.querySelectorAll(".nox-thinking").length,traceCount);
+    assert.equal(root.querySelectorAll(".nox-thinking-tool").length,2);
     ui.dispose();
   });
 });
@@ -124,7 +130,8 @@ test("reset and disposal prevent duplicate timers; restored trace starts collaps
     assert.equal(win.active(),1);
     ui.reset();
     assert.equal(win.active(),0);
-
+    ui.thoughtDelta("orphan thought after cancel");
+    assert.equal(root.querySelectorAll(".nox-thinking").length,2);
     const msg={
       role:"assistant",action:"practice",content:"response",elapsedMs:2200,
       thought:"Optional model trace",sourcePath:"learn.md",
