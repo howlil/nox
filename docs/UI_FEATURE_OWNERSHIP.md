@@ -84,8 +84,22 @@ Proof: pnpm check:boundaries, typecheck, lint, unit/integration, build, artifact
 | M1 | `PracticePresenter` owns question/evaluation projection and one stale-safe draft debounce; ChatView exposes narrow request callbacks | Desktop quiz/CodeMirror smoke |
 | M2 | Existing History/Transcript presenters retained; response toolbar moved to `response-actions-presenter.ts` with typed session-scoped callbacks | Desktop navigation, fork and regenerated-response smoke |
 | M3 | `LearningPresenter` owns Learning Map, Activity, Focus Strip, session clock/cache/polling; original `OnboardingFlow` remains the sole onboarding owner | Desktop focus and onboarding recovery smoke |
-| M4 | ChatView now composes Practice/Learning/Model presenters and centralizes session-transition invalidation; Model Picker now owns discovery/popover/keyboard/focus. **Thin-shell objective remains partial** because prompt-menu and thinking orchestration remain in ChatView | Separate tests/host smoke for prompt and thinking before further extraction |
-| M5 | Strict package allow-list extended for exactly required learning/conversation UI edges; architecture, model-menu Escape/disposal, practice draft flushing, and stale-response regression tests added | CI on final HEAD, Obsidian desktop acceptance |
+| M4 | ChatView composes Practice/Learning/Model/**Prompt** presenters; `PromptMenuPresenter` owns `@`/`/` popover, search display, program-page navigation, keyboard focus, aria and stale async results. **Thin-shell objective remains partial** because Thinking presentation still lives in ChatView | Thinking UI extraction and host smoke remain |
+| M5 | Explicit architecture allow-list; model-menu, prompt-menu keyboard/async, practice-draft flushing, and stale-response regression tests added | CI on final HEAD, Obsidian desktop acceptance |
+
+### M4 follow-up: Prompt Menu owner (2026-10-21)
+
+**Surface:** Composer action/search overlay shared by typed `/command` and `@note`.
+
+- **C:** available Learning actions, live vault-note search, attached sources, program selector, command hints.
+- **V:** closed, source search, command search, disabled current-source row, empty matches, nested learning-programs page, failed program-index read (fallback actions).
+- **N:** composer input/token, current note/selection, explicit context references, application action-menu/program read models. The presenter never reads the vault or session repositories directly.
+- **Moves:** source token → select/attach; slash token → action/scope/programs/back; ArrowUp/ArrowDown → select; Enter/Tab → accept; Escape/outside click → dismiss.
+- **Ownership:** `PromptMenuPresenter` holds menu kind/page, active row, query-reset, visible DOM/aria, async request counter and disposal. `ChatView.getPromptMenuItems()` remains the application-facing read-model adapter, and `pickPromptMenuItem()` remains the authorized command-routing callback.
+- **Stale responses:** newer typed query, close or session change invalidate the old DOM projection. Old program-index results must not revive a cached command menu after it closes.
+- **Trust:** unknown slash queries must never fall through as unsolicited provider prompts; exact recognized scope commands continue to use the existing parser and application authorization.
+
+**Verification:** `tests/chat/prompt-menu-presenter.test.ts` covers keyboard selection/Escape, stale reads, menu disposal, programs/back, and invalid slash command admission. No persistence schema or design-token changes.
 
 ### M4 follow-up: Model Picker and draft navigation (2026-10-21)
 
