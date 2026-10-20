@@ -29,7 +29,7 @@ import { renderReviewFindingCards } from "./learning-card-renderers";
 import { ChatMessage, type ChatReplyReference } from "../types";
 import { parsePromptToken, stripPromptToken } from "./prompt-token";
 import { NOX_CAPABILITIES } from "./capabilities";
-import { buildActionMenu, getPrimaryAction, type ActionMenuContext, type ActionMenuEntry } from "./action-menu";
+import { buildActionMenu, getPrimaryAction, type ActionMenuContext } from "./action-menu";
 import { animateNoxEnter } from "./motion";
 import { resolveNoxMarkdownLink } from "./markdown-links";
 import {
@@ -55,6 +55,7 @@ import { PromptMenuPresenter, type PromptMenuItem } from "./prompt-menu-presente
 import { NoxComposer, type NoxComposerContext } from "./composer";
 import { ThinkingPresenter } from "./thinking-presenter";
 import { ProposalPresenter } from "./proposal-presenter";
+import { renderEmptyPrimary, renderEmptyContext } from "./empty-slate-renderer";
 import { appendMessageActions } from "./message-actions";
 import { TranscriptSelectionController } from "./transcript-selection";
 import { renderLearningGraph } from "./learning-graph";
@@ -1627,7 +1628,7 @@ export class ChatView extends ItemView {
       console.warn("[Nox] Onboarding detection failed", error);
     });
 
-    this.renderEmptyContext(slate);
+    renderEmptyContext(slate, this.currentContext);
 
     const intro = slate.createDiv({
       cls: "nox-empty-intro",
@@ -1642,7 +1643,23 @@ export class ChatView extends ItemView {
         "Continue a learning plan, or explore your current note.",
     });
 
-    this.renderEmptyPrimary(slate);
+    renderEmptyPrimary(slate, {
+      getPrimaryAction: async () => getPrimaryAction(this.toActionMenuContext(
+        await this.learning.getProgramMenuState())),
+      canStart: () => this.uiState !== "RUNNING" && this.runtimeReady,
+      getDraft: () => this.input.value.trim(),
+      onBlocked: () => {
+        new Notice("Finish or clear your message before starting another learning action.");
+        this.focusComposer();
+      },
+      onStart: (action, draft) => {
+        this.setAction("ask");
+        this.input.value = draft ? "/plan " + draft : action.command ?? "";
+        this.onInput();
+        this.focusComposer();
+        if (!draft && action.command && action.command.trim() !== "/plan") void this.doSend();
+      },
+    });
 
     const section = slate.createDiv({
       cls: "nox-capability-section",
@@ -1726,93 +1743,6 @@ export class ChatView extends ItemView {
 
     this.setUIState(this.runtimeReady ? "EMPTY" : "ERROR");
     animateNoxEnter(slate, 5);
-  }
-
-  private renderEmptyPrimary(slate: HTMLElement): void {
-    const button = slate.createEl("button", {
-      cls: "nox-learning-start",
-      attr: { type: "button", "aria-label": "Create a learning plan" },
-    });
-    const icon = button.createSpan({ cls: "nox-learning-start-icon" });
-    const body = button.createDiv({ cls: "nox-learning-start-body" });
-    const title = body.createSpan({ cls: "nox-learning-start-title" });
-    const description = body.createSpan({ cls: "nox-learning-start-description" });
-    const arrow = button.createSpan({ cls: "nox-learning-start-arrow" });
-    setNoxIcon(arrow, "arrow-right");
-
-    let action: ActionMenuEntry = getPrimaryAction({
-      hasActiveSession: false, savedProgramCount: 0,
-      hasPracticeQuestion: false, legacyMode: "free",
-    });
-    const update = (item: ActionMenuEntry) => {
-      action = item;
-      setNoxIcon(icon, item.icon);
-      title.setText(item.name);
-      description.setText(item.description);
-      button.setAttribute("aria-label", item.name + ": " + item.description);
-    };
-    update(action);
-    button.addEventListener("click", () => {
-      if (this.uiState === "RUNNING" || !this.runtimeReady) return;
-      const draft = this.input.value.trim();
-      if (draft && (action.command?.trim() !== "/plan" || draft.startsWith("/"))) {
-        new Notice("Finish or clear your message before starting another learning action.");
-        this.focusComposer();
-        return;
-      }
-      this.setAction("ask");
-      this.input.value = draft ? `/plan ${draft}` : action.command ?? "";
-      this.onInput();
-      this.focusComposer();
-      // Session commands are complete; /plan remains editable until the goal is ready.
-      if (!draft && action.command && action.command.trim() !== "/plan") {
-        void this.doSend();
-      }
-    });
-    void this.learning.getProgramMenuState().then(state => {
-      if (!slate.isConnected || !slate.contains(button)) return;
-      update(getPrimaryAction(this.toActionMenuContext(state)));
-    }).catch(() => {
-      // Keep the non-destructive Create plan action available if the index cannot load.
-    });
-  }
-
-  private renderEmptyContext(parent: HTMLElement): void {
-    const context = this.currentContext;
-    if (!context?.selection && !context?.activeNote) return;
-
-    const wrap = createNoxSurface(parent, "nox-empty-context");
-    const left = wrap.createDiv({
-      cls: "nox-empty-context-main",
-    });
-    const icon = left.createSpan({
-      cls: "nox-empty-context-icon",
-    });
-    setNoxIcon(icon, "file-text");
-
-    const copy = left.createDiv({
-      cls: "nox-empty-context-copy",
-    });
-    copy.createSpan({
-      cls: "nox-empty-context-label",
-      text: "Current context",
-    });
-
-    const file =
-      context.selection?.file ??
-      context.activeNote?.path ??
-      "";
-    copy.createSpan({
-      cls: "nox-empty-context-file",
-      text: file.split("/").pop() ?? file,
-    });
-
-    if (context.selection) {
-      wrap.createSpan({
-        cls: "nox-empty-context-meta",
-        text: "Selection",
-      });
-    }
   }
 
   /** An interrupted approved setup remains discoverable even with old chat history. */
