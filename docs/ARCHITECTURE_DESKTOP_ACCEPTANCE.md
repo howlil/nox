@@ -1,7 +1,7 @@
 # NOX M0–M5 — Desktop acceptance contract
 
-Status: **Automated CI can verify the core contracts; real Obsidian desktop acceptance is NOT yet recorded.**
-Scope: PR #121 staged responsibility migration. This is a technical acceptance protocol, not a public product release plan. No Cloudflare CI, release signing, or artificial GitHub gate is introduced.
+Status: **Automated CI verifies core contracts; native desktop acceptance is NOT yet recorded. Publication is blocked until recorded and validated.**
+Scope: PR #121 staged responsibility migration. This is a technical acceptance protocol, not a public product release plan. Cloudflare CI and release signing remain unchanged; publication now requires source-bound manual desktop evidence.
 
 ## §1 Shapes and ownership
 
@@ -82,10 +82,10 @@ These cases require actual Obsidian desktop with the PR plugin installed in a **
 | D09 | Run source-bound program against ChatGPT; attempt CLI source isolation | Authorized source only in provider envelope; unsupported CLI source-bound use rejected | Sanitized request trace + UI failure |
 | D10 | Change runtime provider with existing transcript and pending practice | Cursor/model appropriately rotated, local messages and practice history retained | Before/after session snapshot |
 
-**Native execution rules:** Capture plugin version, commit SHA, OS, Obsidian version and installed provider mode. Redact chat content, OAuth tokens, credentials and personal vault paths from evidence. Save results in a review comment or an acceptance record; do not use source code comments as fake evidence.
+**Native execution rules:** Capture plugin version, commit SHA, OS, Obsidian version and installed provider mode. Redact chat content, OAuth tokens, credentials and personal vault paths from evidence. Save each evidence item on GitHub and commit `docs/desktop-acceptance.json` for the tested release candidate using the schema in `docs/RUNTIME_PROVENANCE_RELIABILITY.md`. The GitHub evidence URLs must be independently inspectable; never use mock output as native evidence.
 
 **Pass gate:** all applicable D01–D10 pass, with no data loss, provider privacy regression, unauthorized edit, duplicate evidence, or broken Undo. If one fails, attach repro and fix the responsible owner; re-run relevant automated tests and that desktop scenario. If execution is unavailable, status remains **NOT RUN** rather than `PASS`.
 
 ## §6 Current conclusion
 
-The staged refactor has independent automated proofs. **Native acceptance is an unresolved release prerequisite.** Keep PR #121 as Draft until desktop evidence is recorded and reviewed. Do not automatically merge, tag, publish, or modify Cloudflare workflows.
+The staged refactor has independent automated proofs. **Native acceptance is an unresolved release prerequisite.** Do not claim M5 complete before D01–D10 are executed in Obsidian. The publication gate fails closed if the evidence record is absent, stale, incomplete or mismatched. No Cloudflare workflow changes are needed.
