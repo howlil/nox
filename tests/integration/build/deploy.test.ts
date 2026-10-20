@@ -9,7 +9,7 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { deployPlugin } from "../../../scripts/deploy-core.mjs";
+import { deployPlugin, verifyDeployedPlugin } from "../../../scripts/deploy-core.mjs";
 
 function tempRoot() {
   return mkdtempSync(join(tmpdir(), "nox-deploy-test-"));
@@ -180,4 +180,35 @@ test("production deploy removes only the managed development hot-reload marker",
   writeFileSync(marker, "user-owned");
   deployPlugin({ targetVault: vault, distDir: dist, logger: silent });
   assert.equal(readFileSync(marker, "utf8"), "user-owned");
+});
+
+test("verification detects changed installed manifest, CSS and main bytes", () => {
+  const root = tempRoot();
+  const dist = join(root, "dist"), vault = join(root, "vault");
+  mkdirSync(dist, { recursive: true });
+  mkdirSync(join(vault, ".obsidian"), { recursive: true });
+  writeFileSync(join(dist, "main.js"), "release/1.3.0");
+  addRequiredBuildAssets(dist);
+  const target = deployPlugin({ targetVault: vault, distDir: dist, logger: silent });
+  const expected = verifyDeployedPlugin({ distDir: dist, pluginDir: target });
+  assert.match(expected["main.js"], /^[0-9a-f]{64}$/);
+  for (const name of ["manifest.json", "styles.css", "main.js"]) {
+    const original = readFileSync(join(target, name));
+    writeFileSync(join(target, name), "corrupted");
+    assert.throws(() => verifyDeployedPlugin({ distDir: dist, pluginDir: target }),
+      new RegExp("Installed artifact mismatch: " + name.replace(".", "\\.")));
+    writeFileSync(join(target, name), original);
+  }
+});
+
+test("production deploy leaves unrelated build output out of the plugin folder", () => {
+  const root = tempRoot();
+  const dist = join(root, "dist"), vault = join(root, "vault");
+  mkdirSync(dist, { recursive: true });
+  mkdirSync(join(vault, ".obsidian"), { recursive: true });
+  writeFileSync(join(dist, "main.js"), "bundle");
+  addRequiredBuildAssets(dist);
+  writeFileSync(join(dist, "local-only-debug.txt"), "never deploy");
+  const dest = deployPlugin({ targetVault: vault, distDir: dist, logger: silent });
+  assert.equal(existsSync(join(dest, "local-only-debug.txt")), false);
 });

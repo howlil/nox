@@ -18,6 +18,16 @@ function currentRevision() {
   }
 }
 
+function currentSourceSha() {
+  try {
+    return execFileSync("git", ["rev-parse", "HEAD"], {
+      encoding: "utf8", stdio: ["ignore", "pipe", "ignore"],
+    }).trim();
+  } catch {
+    return "unknown";
+  }
+}
+
 export function tailwindCliPath() {
   return path.resolve("node_modules", "@tailwindcss", "cli", "dist", "index.mjs");
 }
@@ -41,6 +51,8 @@ export function createNoxBuildOptions({ production = false, onStart, onBuild } =
     banner: { js: "/*! Includes elkjs 0.11.0 (EPL-2.0 OR GPL-3.0-or-later); source: https://github.com/kieler/elkjs ; license: https://github.com/kieler/elkjs/blob/v0.11.0/LICENSE.md */" },
     define: {
       __NOX_BUILD_REVISION__: JSON.stringify(revision),
+      // Full source SHA distinguishes immutable builds within one release version.
+      __NOX_SOURCE_SHA__: JSON.stringify(currentSourceSha()),
       // Obsidian Community installs exactly three files. Inlining avoids
       // a runtime file dependency and keeps source import boundaries intact.
       __NOX_LOGO_DATA_URI__: JSON.stringify(

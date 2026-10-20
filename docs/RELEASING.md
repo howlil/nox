@@ -7,15 +7,16 @@ The authoritative release version is `manifest.json` in `x.y.z` format. See [CI 
 ```text
 Obsidian plugin fix/feature PR → plugin CI → merge master
     → Prepare release PR → release/x.y.z candidate
-    → release-certified (strict Community scan, reproducible build, Windows DPAPI)
-    → merge candidate → revalidate exact master SHA
+    → release-certified (Community scan, reproducible build, Windows OAuth/Node HTTPS)
+    → native Obsidian D01–D10 evidence recorded for tested source
+    → merge candidate → revalidate exact master SHA + native acceptance
     → attest main.js, manifest.json, styles.css
     → create/refresh unpublished draft
     → download, byte-compare and verify remote artifact attestations
     → publish GitHub Release automatically
 ```
 
-A release blocks on failed automated checks. The pipeline intentionally does not claim or require manual desktop acceptance. Obsidian Community Directory performs an independent review; passing local Actions does not guarantee upstream acceptance.
+A release blocks on failed automated checks **and** missing native Obsidian D01–D10 acceptance. The normal publication and recovery workflows run `scripts/verify-desktop-acceptance.mjs` against `docs/desktop-acceptance.json`. This record is supplied only after a real disposable-vault desktop test, includes ten evidence links, and must refer to an ancestor of the source being published with no intervening runtime/release-critical code changes. Absence or stale evidence means the release remains unpublished. Unit tests cannot produce this record. Obsidian Community Directory performs an independent review; Actions do not guarantee upstream acceptance.
 
 ## Ownership and scope
 
@@ -25,13 +26,13 @@ NOX GitHub Actions are plugin-only. `landing/` builds and deployment, including 
 
 `Prepare release PR` runs after successful plugin CI on `master` and derives a SemVer version from conventional commits: `feat` for minor; `fix`, `perf`, `refactor`, `build` for patch; breaking changes for major. The release PR updates `manifest.json`, `package.json`, `versions.json`, `CHANGELOG.md` and `.release-plan.json`.
 
-The candidate must pass strict Obsidian Community scanning, Windows native-provider tests, policy checks and deterministic production build. Do not merge a failing release candidate.
+The candidate must pass Obsidian Community scanning, Windows native-provider and Node HTTPS/SSE tests, policy checks and deterministic production build. Do not merge a failing release candidate.
 
 ## Release and recovery
 
 The `.github/workflows/release.yml` workflow runs from `master`, rebuilds the exact source, checks all proof stages and publishes only remote assets that match the local build and source-digest attestation. If a version already has an unpublished draft, a later plugin fix merged into `master` refreshes that draft's asset bytes and source SHA before publishing. Published assets must not be mutated.
 
-For an interrupted publication after a verified draft, `publish-release.yml` provides a recovery-only manual route using an explicit full source SHA, version and attestation checks; this is **not** a manual-test gate.
+For an interrupted publication after a verified draft, `publish-release.yml` provides a recovery-only manual route using an explicit full source SHA, version and attestation checks; recovery still requires the same recorded desktop acceptance; it cannot bypass native testing.
 
 Check real Obsidian Community review status after publication. If upstream reports a blocking failure, fix the root cause and issue a new patch release. The Directory may show warnings on source code or legacy CSS that do not indicate a failure in compiled assets; categorize these rather than suppressing them without evidence.
 

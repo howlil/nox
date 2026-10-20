@@ -1,5 +1,30 @@
 import fs from "fs";
 import path from "path";
+import { createHash } from "node:crypto";
+
+const REQUIRED_FILES = ["manifest.json", "styles.css", "main.js"];
+
+function sha256(filename) {
+  return createHash("sha256").update(fs.readFileSync(filename)).digest("hex");
+}
+
+/** Verify bytes after installation, not only that the source build succeeded. */
+export function verifyDeployedPlugin({ distDir, pluginDir }) {
+  const digests = {};
+  for (const filename of REQUIRED_FILES) {
+    const src = path.join(distDir, filename);
+    const installed = path.join(pluginDir, filename);
+    if (!fs.existsSync(src) || !fs.existsSync(installed)) {
+      throw new Error("Missing deployment artifact: " + filename);
+    }
+    const expected = sha256(src), actual = sha256(installed);
+    if (actual !== expected) {
+      throw new Error("Installed artifact mismatch: " + filename + ". Reload is unsafe.");
+    }
+    digests[filename] = actual;
+  }
+  return digests;
+}
 
 export function deployPlugin({
   targetVault,
@@ -38,13 +63,22 @@ export function deployPlugin({
 
   fs.mkdirSync(pluginDest, { recursive: true });
 
-  const files = fs.readdirSync(distDir);
-  for (const file of files) {
+  // Install only plugin artifacts. Commit main.js last so reload never sees a
+  // new bundle with stale CSS/manifest; temp + rename prevents partial file reads.
+  for (const file of ["manifest.json", "styles.css", "nox.png", "main.js"]) {
     const src = path.join(distDir, file);
+    if (file === "nox.png" && !fs.existsSync(src)) continue;
     const dest = path.join(pluginDest, file);
-    fs.copyFileSync(src, dest);
+    const temp = dest + ".nox-deploy-tmp";
+    try {
+      fs.copyFileSync(src, temp);
+      fs.renameSync(temp, dest);
+    } finally {
+      if (fs.existsSync(temp)) fs.rmSync(temp);
+    }
     logger.log(`  ✓ Copied ${file}`);
   }
+  verifyDeployedPlugin({ distDir, pluginDir: pluginDest });
 
   // A production deploy must not inherit the marker created by pnpm dev.
   // Leave user-owned markers untouched; only remove the orchestrator marker.

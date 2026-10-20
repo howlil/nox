@@ -8,6 +8,7 @@ on:
     branches: [master]
     paths:
       - '.release-plan.json'
+      - 'docs/desktop-acceptance.json'
       - '.github/workflows/release.yml'
       - '.github/workflows/ci.yml'
       - '.github/workflows/ci-release.yml'
@@ -65,6 +66,17 @@ jobs:
           fi
           echo "prepared=true" >> "$GITHUB_OUTPUT"
           echo "version=$version" >> "$GITHUB_OUTPUT"
+
+  desktop-acceptance:
+    if: needs.detect.outputs.prepared == 'true'
+    needs: detect
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Verify native Obsidian acceptance evidence for this source
+        run: node scripts/verify-desktop-acceptance.mjs
 
   linux:
     if: needs.detect.outputs.prepared == 'true'
@@ -144,11 +156,12 @@ jobs:
           pnpm exec esbuild tests/agent/ChatGptProvider.test.ts --bundle --platform=node --format=esm --target=node22 --outfile=chatgpt-provider-test.mjs
           pnpm exec esbuild tests/agent/ObsidianOAuthTransport.test.ts --bundle --platform=node --format=esm --target=node22 --outfile=obsidian-oauth-test.mjs
           pnpm exec esbuild tests/agent/ObsidianInferenceTransport.test.ts --bundle --platform=node --format=esm --target=node22 --outfile=obsidian-inference-test.mjs
-          node --test chatgpt-provider-test.mjs obsidian-oauth-test.mjs obsidian-inference-test.mjs
+          pnpm exec esbuild tests/agent/NodeInferenceTransport.test.ts --bundle --platform=node --format=esm --target=node22 --outfile=node-inference-test.mjs
+          node --test chatgpt-provider-test.mjs obsidian-oauth-test.mjs obsidian-inference-test.mjs node-inference-test.mjs
 
   release:
     if: needs.detect.outputs.prepared == 'true'
-    needs: [detect, linux, windows, community]
+    needs: [detect, linux, windows, community, desktop-acceptance]
     runs-on: ubuntu-latest
     permissions:
       contents: write

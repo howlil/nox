@@ -1,4 +1,4 @@
-import { addIcon, FileSystemAdapter, TFile, Plugin, requestUrl } from "obsidian";
+import { addIcon, FileSystemAdapter, Notice, TFile, Plugin, requestUrl } from "obsidian";
 import { shell } from "electron";
 import { AgyAdapter } from "./agent/AgyAdapter";
 import { CodexAdapter } from "./agent/CodexAdapter";
@@ -30,11 +30,13 @@ import {
   NoxSettings,
 } from "./settings/NoxSettings";
 import { NoxSettingsTab } from "./settings/SettingsTab";
+import { runtimeProvenanceReport } from "./settings/runtime-provenance";
 
 // Values are injected into the actual production bundle by esbuild. They are
 // not read from a manifest that could be newer than the loaded JavaScript.
 declare const __NOX_LOGO_DATA_URI__: string;
 declare const __NOX_BUILD_REVISION__: string;
+declare const __NOX_SOURCE_SHA__: string;
 declare const __NOX_BUILD_TIMESTAMP__: string;
 declare const __NOX_BUILD_TRANSPORT__: string;
 
@@ -180,6 +182,20 @@ export default class NoxPlugin extends Plugin {
     });
 
     this.addCommand({
+      id: "copy-runtime-diagnostics",
+      name: "Copy runtime diagnostics",
+      callback: async () => {
+        try {
+          const report = await runtimeProvenanceReport(this.getBuildDiagnostics());
+          await navigator.clipboard.writeText(report);
+          new Notice("NOX runtime diagnostic copied. Redact local paths before sharing.");
+        } catch {
+          new Notice("Unable to copy runtime diagnostics. Check clipboard permissions.");
+        }
+      },
+    });
+
+    this.addCommand({
       id: "guided-learning-setup",
       name: "Open guided learning setup",
       callback: async () => {
@@ -282,9 +298,10 @@ export default class NoxPlugin extends Plugin {
     return this.runtime?.getUsageTrackingError();
   }
 
-  getBuildDiagnostics(): { revision: string; builtAt: string; transport: string; pluginDir: string; vaultDir: string } {
+  getBuildDiagnostics(): { revision: string; sourceSha: string; builtAt: string; transport: string; pluginDir: string; vaultDir: string } {
     return {
       revision: __NOX_BUILD_REVISION__,
+      sourceSha: __NOX_SOURCE_SHA__,
       builtAt: __NOX_BUILD_TIMESTAMP__,
       transport: __NOX_BUILD_TRANSPORT__,
       pluginDir: this.manifest.dir ?? "(unknown plugin directory)",
