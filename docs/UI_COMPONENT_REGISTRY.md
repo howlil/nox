@@ -139,3 +139,73 @@ Ordering invariants: pending Practice draft saves precede navigation/turn admiss
 3. Check **Minor**: focus/ARIA, empty/loading/error variants, orphan listeners and inconsistent CSS source.
 4. Add targeted regression tests and run branch CI before starting next milestone.
 5. Record actual CI and unresolved native gate honestly, not as fabricated PASS.
+
+## Implementation record — PR #132, M0–M5
+
+| Milestone | Code changes | Targeted proof | Code review result / residual |
+|---|---|---|---|
+| M0 | This registry defines all known main sidebar/settings surfaces, C/V/N and state ownership. | Source checked against `src/chat`, feature view modules, SettingsTab and canonical persistence owners. | No new product workflow or repository. |
+| M1 | Existing PR #129 presenters reused; no new parallel History/Practice/Thinking implementation. | Architectural owners remain unique in source. | **External gate:** PR #129 Draft; native Obsidian D01–D10 remains NOT RUN. |
+| M2 | `ProposalPresenter` extracts proposal diff/status/actions/restoration; `empty-slate-renderer` extracts primary action and current-note projection; `OnboardingLearningPort` narrows flow dependency. | `proposal-presenter.test.ts`, `ui-atomicity.test.ts`. | Fixed stale async updates to detached proposal and empty slate. Approval remains authoritative in existing OnboardingFlow/LearningController. |
+| M3 | `ComposerAttachmentDraft` owns explicit context references; removed mirrored `attachments` / `extraCtx` state. Input file batches stage all files before commit; stale session reads are dropped. | `composer-draft.test.ts`, architecture guard, CI. | Fixed context alias mutation, late file reads and partial attachments after file read failure. No global state store. |
+| M4 | `styles.css` is an import-only entry for 14 ordered source CSS files, still built as one `dist/styles.css`. CSS parser now checks `styles/*.css`; design tests concatenate imported source in original cascade order. | `ui-css-source-order.test.ts`, branding/keyboard/code editor CSS tests, production build/artifacts. | Source split was lossless at extraction; host computed styles still require native desktop proof. |
+| M5 | Added actual interaction tests for Proposal async completion/disposal, Composer state projection, CSS contracts and UI owner boundary. Parent PR #129 tests still cover model/quiz/thinking. | `pnpm verify`, GitHub Actions, Community policy and build checks. | **Host D01–D10 NOT RUN**. This branch must not be shipped on CI alone. |
+
+## CSS ownership map
+
+The numbered source order is deliberate: maintaining the historical cascade is safer than regrouping selectors and silently changing specificity precedence. Use the appropriate owner file and preserve ordering until native visual regression tests exist.
+
+| Source CSS | Primary concern |
+|---|---|
+| `styles/01-foundation.css` | Shared tokens/base/sidebar, early retained rules |
+| `styles/02-composer.css` | Inline context composer |
+| `styles/03-history.css` | History baseline |
+| `styles/04-practice.css` | Native quiz and coding editor |
+| `styles/05-settings-usage.css` | Usage analytics and provider quotas |
+| `styles/06-practice-feedback.css` | Hint/evaluation |
+| `styles/07-visuals.css` | Diagrams, graph viewport, response cards, isolated previews |
+| `styles/08-thinking.css` | Agent observed activity |
+| `styles/09-settings-shell.css` | Settings shell and hosted dialogs |
+| `styles/10-history-interaction.css` | Swipe/focus/interaction and later overrides |
+| `styles/11-onboarding.css` | Onboarding cards/forms |
+| `styles/12-activity.css` | Learning activity |
+| `styles/13-settings-navigation.css` | Settings segmented navigation and later overrides |
+| `styles/14-learning.css` | Evidence-backed learning UI |
+
+**CSS caution:** this is an order-preserving *authoring split*, not a declaration that selector responsibility is perfectly atomic yet. Rules from historical CSS may still overlap; do not reorder modules or change broad selectors without computed-style native proof.
+
+## State ownership and resource lifetime verification
+
+```text
+Composer attachment read (async)
+  -> captured session ID + leaf epoch
+  -> stage all file text before local commit
+  -> failure: no partial mutation, report error, allow user retry
+  -> success: ComposerAttachmentDraft.add
+  -> contexts(): cloned explicit source refs
+  -> LearningController receives snapshot at send
+  -> draft owner clears only when turn is admitted
+
+Proposal apply/reject
+  -> ProposalPresenter local disable/pending
+  -> injected port -> LearningController -> committed mutation
+  -> if old UI detached: ignore post-await DOM/status
+  -> if still connected: show authoritative outcome
+  -> status-sync uncertain: retry status only, NOT apply again
+
+Empty state action / onboarding
+  -> stateless renderer + authorized shell callback
+  -> OnboardingFlow remains sole stage/request-epoch/operation-ID owner
+  -> OnboardingLearningPort narrows accessible application operations
+  -> no new program/vault data store
+
+CSS
+  -> source imports preserving original order
+  -> Tailwind entry styles.css
+  -> one dist/styles.css
+  -> plugin release only includes required Obsidian bundle assets
+```
+
+## Merge / release rule
+
+**Do not merge or publish merely because typecheck/build is green.** Parent PR #129 is Draft and requires real D01–D10 Obsidian Desktop acceptance on the actual source SHA. This stacked PR is intended to target `refactor/ui-feature-ownership` after automated verification; GitHub CI can temporarily target `master` to check the combined proposal but never treats that as native proof.
