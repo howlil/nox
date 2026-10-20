@@ -91,6 +91,44 @@ Only the active tab requests its own data. Switching tabs removes the inactive
 component and its render callbacks, without resetting provider quota cache or
 token usage ledger.
 
+## Settings surface graph and CSS boundary — 2026-10-21
+
+**Job:** Configure a runtime or inspect usage without leaving Obsidian Settings.
+
+```text
+Settings entry [host-managed]
+  -> NoxSettingsTab [shared .nox-settings palette scope]
+    -> Settings tab [native, searchable one-record fields]
+       -> select provider -> conditional runtime controls -> save
+    -> Usage tab [live, read-only provider quota]
+       -> refresh -> current | stale | unavailable
+    -> Token tab [many recorded days/models, read-only]
+       -> filter -> summary + timeline + model rows
+       -> refresh -> updated | partial | error | empty
+```
+
+- **C (content):** one segmented tablist owns navigation; the active panel
+  owns Usage/Token, while Obsidian owns the searchable Settings rows. No
+  duplicate persistent editor or form.
+- **V (voids):** missing CSS shows a specific restore/reload message; empty
+  usage remains informative; async data may be loading, partial or errored.
+  Errors never fabricate counters or quota.
+- **N (needs):** the tab root must have `.nox-settings`, and the installed
+  release must contain matching `main.js`, `manifest.json`, and
+  `styles.css`. Host theme, snippets, panel width, and provider status may
+  vary without changing the surface graph.
+- **Interaction:** click and arrow-key moves preserve selected tab; after
+  Obsidian recreates the native settings DOM, focus returns to the replacement
+  tab. Inactive Usage/Token sections release async callbacks.
+- **Proof:** build artifact validation rejects missing settings selectors;
+  regression checks guard tab root scope, missing-styles state, and keyboard
+  focus. Desktop verification still needs default/theme/snippet and narrow
+  viewport checks.
+
+A broken-looking panel is not evidence of a community restriction. First
+inspect the local `.obsidian/plugins/nox/styles.css`; disabling custom
+themes/snippets can then isolate external CSS overrides.
+
 ## Removal of Manual Balances
 
 The **Manual Balances** feature, its form and persistence adapter are removed.
