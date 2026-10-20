@@ -399,7 +399,7 @@ export class OnboardingFlow {
         body.createDiv({ cls: "nox-onboarding-detail", text: objective.outcome });
       });
       const path = planWorkspace(p);
-      panel.createDiv({ cls: "nox-onboarding-label", text: "Files to create (after approval)" });
+      panel.createDiv({ cls: "nox-onboarding-label", text: "Optional workspace files (Create workspace only)" });
       const files = panel.createDiv({ cls: "nox-onboarding-files" });
       for (const file of path.files) files.createDiv({ text: file.path });
       panel.createDiv({ cls: "nox-onboarding-help", text:
