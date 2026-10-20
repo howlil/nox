@@ -10,14 +10,14 @@ GitHub Actions handles **only NOX as an Obsidian desktop plugin**: typecheck, li
 
 1. A plugin change merged into `master` passes plugin CI. `Prepare release PR` selects the next SemVer bump using conventional commits.
 2. The version PR synchronizes manifest, package, changelog, `versions.json` and the release plan, then must pass `release-certified`.
-3. Release certification includes policy checks, Linux reproducible artifacts, Windows provider/DPAPI regression tests, and the upstream Obsidian scanner with `strict: "true"`. A finding that fails strict mode blocks publication.
+3. Release certification includes policy checks, Linux reproducible artifacts, Windows provider/DPAPI and Node HTTPS/SSE regression tests, and the upstream Obsidian scanner with `strict: "true"`. A finding that fails strict mode blocks publication.
 4. After the release PR merges, `.github/workflows/release.yml` rechecks the exact merged source SHA, then builds, attests and validates the three assets (`main.js`, `manifest.json`, `styles.css`).
 5. A pending draft can be refreshed by merging another reviewed plugin fix. The workflow updates its target to the **new** source SHA and replaces only the unpublished assets. It re-downloads them, byte-compares them against the candidate build, and verifies GitHub attestation against that SHA before automatically publishing.
 6. Public releases are immutable. Later fixes require a new SemVer version. If any check fails, release stays unpublished until repaired.
 
-**Manual desktop testing and manual publication are not requirements in this GitHub pipeline.** This does not claim real native Obsidian tests occurred. GitHub CI cannot guarantee all Community Directory behavior or real provider compatibility. The Community Directory performs its own separate review of published assets and source.
+**Manual desktop D01–D10 acceptance is required before automatic or recovery publication.** The source-bound evidence lives in `docs/desktop-acceptance.json` and is validated by `scripts/verify-desktop-acceptance.mjs`; there is intentionally no synthetic PASS record in the repository. A CI pass alone is not native Obsidian acceptance. GitHub CI cannot guarantee all Community Directory behavior or real provider compatibility. The Community Directory performs its own separate review of published assets and source.
 
-The fallback `publish-release.yml` workflow is a recovery-only manual dispatch that checks SHA, version and attestations. It has no desktop-testing checkbox.
+The fallback `publish-release.yml` workflow is a recovery-only manual dispatch that checks SHA, version and attestations. It invokes the same source-bound desktop acceptance check; manual dispatch cannot bypass that evidence.
 
 ## Community-review controls
 
