@@ -185,6 +185,10 @@ export class ChatView extends ItemView {
   private systemContextFiles: string[] = [];
   private lastTurnRequest: LearningRequest | null = null;
   private turnTerminal = false;
+  /** Guards the async gap while pending Practice edits are flushed before a new turn. */
+  private turnStarting = false;
+  /** Invalidates in-flight admission after session change or view close/reopen. */
+  private viewEpoch = 0;
   private restoringSession = false;
   private workspaceEventsRegistered = false;
   private runtimeReady = false;
@@ -261,6 +265,7 @@ export class ChatView extends ItemView {
   }
 
   async onOpen(): Promise<void> {
+    ++this.viewEpoch;
     const root = this.contentEl;
     root.empty();
     root.addClass("nox-root");
@@ -294,6 +299,7 @@ export class ChatView extends ItemView {
   }
 
   async onClose(): Promise<void> {
+    ++this.viewEpoch;
     try {
       await this.practiceUi.flushDraft();
     } catch {
@@ -447,7 +453,7 @@ export class ChatView extends ItemView {
       title: "New learning session",
     });
     newBtn.addEventListener("click", () => { void (async () => {
-      if (this.uiState === "RUNNING") return;
+      if (this.uiState === "RUNNING" || this.turnStarting) return;
       try {
         await this.practiceUi.flushDraft();
         await this.learning.newSession();
@@ -630,6 +636,7 @@ export class ChatView extends ItemView {
 
   /** Shell-only cross-feature invalidation; presenters keep their own timers and overlays. */
   private invalidateSessionPresentation(): void {
+    ++this.viewEpoch;
     this.practiceUi.reset();
     this.learningUi.reset();
     this.transcriptPresenter.cancel();
@@ -1424,7 +1431,7 @@ export class ChatView extends ItemView {
 
   private async doSend(): Promise<void> {
     const prompt = this.input.value.trim() || "Review the attached context.";
-    if (!this.canSend() || this.uiState === "RUNNING") return;
+    if (!this.canSend() || this.uiState === "RUNNING" || this.turnStarting) return;
     if (this.pendingReplyTo && prompt.startsWith("/")) {
       new Notice("Remove the quoted response before running a command.");
       return;
@@ -1447,7 +1454,7 @@ export class ChatView extends ItemView {
   }
 
   private async retryLastTurn(): Promise<void> {
-    if (!this.lastTurnRequest || this.uiState === "RUNNING") return;
+    if (!this.lastTurnRequest || this.uiState === "RUNNING" || this.turnStarting) return;
 
     this.thread
       .querySelectorAll(".nox-inline-status--failed")
@@ -1460,14 +1467,20 @@ export class ChatView extends ItemView {
     request: LearningRequest,
     appendUserMessage: boolean,
   ): Promise<void> {
-    // This applies to /hint, normal sends, retry and regenerate alike.
-    // Never clear the composer or start a turn before any typed Practice draft is durable.
+    // Admission must be synchronous: awaiting a draft flush cannot permit two sends.
+    if (this.turnStarting || this.uiState === "RUNNING") return;
+    this.turnStarting = true;
+    const epoch = this.viewEpoch;
     try {
+      // /hint, normal sends, retry and regenerate preserve the answer before inference.
       await this.practiceUi.flushDraft();
     } catch {
-      new Notice("Could not save the quiz draft. Retry before sending.");
+      if (epoch === this.viewEpoch) new Notice("Could not save the quiz draft. Retry before sending.");
       return;
+    } finally {
+      this.turnStarting = false;
     }
+    if (epoch !== this.viewEpoch || this.uiState === "RUNNING") return;
     this.closePromptMenu();
     this.clearReplyReference();
 
