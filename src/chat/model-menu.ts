@@ -32,6 +32,7 @@ export class ModelMenuPresenter {
   private readonly state = new NoxMenuState();
   private models: AgentModel[] = [];
   private discoveryLoading = false;
+  private selecting = false;
   private disposed = false;
   private generation = 0;
 
@@ -172,11 +173,19 @@ export class ModelMenuPresenter {
   }
 
   private async select(id: string): Promise<void> {
-    if (this.disposed) return;
+    if (this.disposed || this.selecting) return;
+    this.selecting = true;
     try {
       await this.port.select(id);
     } catch (error) {
-      this.port.reportError(error instanceof Error ? error.message : "Unable to save model selection.");
+      if (!this.disposed) {
+        // Do not close the selection UI or imply success when persistence fails.
+        this.port.reportError(error instanceof Error ? error.message : "Unable to save model selection.");
+        this.refresh();
+      }
+      return;
+    } finally {
+      this.selecting = false;
     }
     if (this.disposed) return;
     this.close();
