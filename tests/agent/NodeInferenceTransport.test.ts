@@ -53,8 +53,8 @@ test("model discovery retains the buffered Obsidian transport", async () => {
 });
 
 test("Node HTTPS emits incremental SSE bytes and a complete terminal event", async () => {
-  const payload = 'data: {"type":"response.output_text.delta","delta":"Hello"}\\n\\n'
-    + 'data: {"type":"response.completed","response":{}}\\n\\n';
+  const payload = 'data: {"type":"response.output_text.delta","delta":"Hello"}\n\n'
+    + 'data: {"type":"response.completed","response":{}}\n\n';
   const transport = createNodeInferenceFetch(async () => { throw new Error("Unexpected buffered call"); },
     fakeHttps((_req, respond) => {
       const stream = new PassThrough();
@@ -107,7 +107,7 @@ test("Node HTTPS incomplete connection is an error, not a successful SSE complet
       const stream = new PassThrough();
       respond(stream);
       queueMicrotask(() => {
-        stream.write('data: {"type":"response.output_text.delta","delta":"partial"}\\n\\n');
+        stream.write('data: {"type":"response.output_text.delta","delta":"partial"}\n\n');
         stream.destroy();
       });
     }));
