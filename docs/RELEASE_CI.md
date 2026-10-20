@@ -9,11 +9,11 @@ GitHub Actions handles **only NOX as an Obsidian desktop plugin**: typecheck, li
 ## Automated release pipeline
 
 1. A plugin change merged into `master` passes plugin CI. `Prepare release PR` selects the next SemVer bump using conventional commits.
-2. The version PR synchronizes manifest, package, changelog, `versions.json` and the release plan, then must pass `release-certified`.
+2. The version PR synchronizes manifest, package, changelog, `versions.json` and release plan **on a release branch**, then must pass `release-certified`. `master` stays at the last published version.
 3. Release certification includes policy checks, Linux reproducible artifacts, Windows provider/DPAPI and Node HTTPS/SSE regression tests, and the upstream Obsidian scanner with `strict: "true"`. A finding that fails strict mode blocks publication.
-4. After the release PR merges, `.github/workflows/release.yml` rechecks the exact merged source SHA, then builds, attests and validates the three assets (`main.js`, `manifest.json`, `styles.css`).
-5. A pending draft can be refreshed by merging another reviewed plugin fix. The workflow updates its target to the **new** source SHA and replaces only the unpublished assets. It re-downloads them, byte-compares them against the candidate build, and verifies GitHub attestation against that SHA before automatically publishing.
-6. Public releases are immutable. Later fixes require a new SemVer version. If any check fails, release stays unpublished until repaired.
+4. After D01–D10 native approval is recorded on `release/x.y.z`, dispatch `.github/workflows/release.yml` on **that release branch before merge**. It rechecks the exact release branch HEAD SHA, then builds, attests and validates the three assets (`main.js`, `manifest.json`, `styles.css`).
+5. Only after the matching public GitHub Release exists may the version-bump PR merge to `master`; CI checks the public tag, non-draft state and exact asset allowlist. If code changes on the release branch, repeat native acceptance on the updated source; drafts may be refreshed before publication, not after.
+6. Public releases are immutable. Later fixes require a new SemVer version. If any check fails, release stays unpublished and the version must remain off `master`.
 
 **Manual desktop D01–D10 acceptance is required before automatic or recovery publication.** The source-bound evidence lives in `docs/desktop-acceptance.json` and is validated by `scripts/verify-desktop-acceptance.mjs`; there is intentionally no synthetic PASS record in the repository. A CI pass alone is not native Obsidian acceptance. GitHub CI cannot guarantee all Community Directory behavior or real provider compatibility. The Community Directory performs its own separate review of published assets and source.
 
@@ -25,8 +25,8 @@ The fallback `publish-release.yml` workflow is a recovery-only manual dispatch t
 
 ## Branch protection
 
-Require plugin CI `build` and PR title checks; release PRs additionally require `release-certified`. Do not require retired `landing` jobs or Cloudflare checks as NOX release conditions. Updating GitHub branch-protection settings, if they currently reference removed jobs, is a repository-admin action.
+Require plugin CI `build` (including the live public-release parity check) and PR title checks; release PRs additionally require `release-certified`. A missing native acceptance cannot be bypassed by merging the release PR. Do not require retired `landing` jobs or Cloudflare checks as NOX release conditions. Updating GitHub branch-protection settings, if they currently reference removed jobs, is a repository-admin action.
 
 ## Recovery
 
-Failed check → inspect logs → fix source in a reviewed PR → retry candidate or refresh unpublished draft from new master SHA. Never overwrite a published release or bypass an attestation. A published GitHub release does not guarantee immediate Community Directory approval.
+Failed check → inspect logs → fix source on the release branch → retry candidate or refresh unpublished draft from the new release-branch SHA. Never overwrite a published release or bypass an attestation. A published GitHub release does not guarantee immediate Community Directory approval.
