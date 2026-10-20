@@ -8,7 +8,8 @@ The authoritative release version is `manifest.json` in `x.y.z` format. See [CI 
 Obsidian plugin fix/feature PR → plugin CI → merge master
     → Prepare release PR → release/x.y.z candidate
     → release-certified (Community scan, reproducible build, Windows OAuth/Node HTTPS)
-    → native Obsidian D01–D10 evidence recorded for tested source\n    → merge candidate → revalidate exact master SHA + native acceptance
+    → native Obsidian D01–D10 evidence recorded for tested source
+    → merge candidate → revalidate exact master SHA + native acceptance
     → attest main.js, manifest.json, styles.css
     → create/refresh unpublished draft
     → download, byte-compare and verify remote artifact attestations
