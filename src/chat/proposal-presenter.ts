@@ -85,6 +85,7 @@ export class ProposalPresenter {
       applyBtn.disabled = true;
       try {
         await this.port.reject(edit.id);
+        if (!wrap.isConnected) return;
         actions.remove();
         createNoxStatus(wrap, {
           cls: "nox-result-badge nox-badge--rejected",
@@ -93,6 +94,7 @@ export class ProposalPresenter {
         });
         this.port.setState("ANSWER");
       } catch {
+        if (!wrap.isConnected) return;
         rejectBtn.disabled = false;
         applyBtn.disabled = false;
         this.port.reportError(wrap, "Could not save rejection. Retry.");
@@ -106,6 +108,7 @@ export class ProposalPresenter {
 
       try {
         const result = await this.port.apply(edit.id);
+        if (!wrap.isConnected) return;
         wrap.querySelector(".nox-proposal-retry-status")?.remove();
         if (result.ok) {
           actions.remove();
@@ -143,6 +146,7 @@ export class ProposalPresenter {
           this.port.setState("ANSWER");
         }
       } catch {
+        if (!wrap.isConnected) return;
         applyBtn.disabled = false;
         rejectBtn.disabled = false;
         applyBtn.textContent = "Retry Apply";
@@ -173,6 +177,7 @@ export class ProposalPresenter {
       retryBtn.textContent = "Saving status…";
       try {
         const result = await this.port.retryStatus(proposalId);
+        if (!wrap.isConnected) return;
         if (result.ok && result.statusSync !== "failed") {
           recovery.remove();
           createNoxStatus(wrap, {
@@ -190,6 +195,7 @@ export class ProposalPresenter {
           text: result.message ?? "Status was not saved. Do not apply the edit again.",
         });
       } catch {
+        if (!wrap.isConnected) return;
         status.remove();
         status = createNoxStatus(recovery, {
           cls: "nox-proposal-retry-status",
