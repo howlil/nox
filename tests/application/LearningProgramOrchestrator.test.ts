@@ -256,3 +256,19 @@ test("W1 one authoritative preflight read yields active + global focus without d
   assert.equal(h.reads(), beforeProjection, "projecting a known collection must not reload vault");
   h.orchestrator.dispose();
 });
+
+test("M3 expected onboarding program is checked before any focus CAS write", async () => {
+  const h = rig();
+  const created = await h.orchestrator.createProgram("Spanish from scratch", base);
+  const writesBefore = h.writes();
+  await assert.rejects(
+    h.orchestrator.startFocus("basic", "session-1", "wrong-program"),
+    /selected onboarding plan changed/,
+  );
+  assert.equal(h.writes(), writesBefore);
+  assert.equal((await h.orchestrator.getActiveProgram())?.focus, undefined);
+  const focused = await h.orchestrator.startFocus("basic", "session-1", created.id);
+  assert.equal(focused.focus?.objectiveId, "basic");
+  assert.equal(h.writes(), writesBefore + 1);
+  h.orchestrator.dispose();
+});
