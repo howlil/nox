@@ -8,6 +8,7 @@ on:
     branches: [master]
     paths:
       - '.release-plan.json'
+      - 'docs/desktop-acceptance.json'
       - '.github/workflows/release.yml'
       - '.github/workflows/ci.yml'
       - '.github/workflows/ci-release.yml'
