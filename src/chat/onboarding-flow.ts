@@ -1,5 +1,9 @@
 import type { LearningProgram } from "../domain/learning-program/types";
 import type { LearningController } from "../application/LearningController";
+
+/** Only the operations needed by the stateful onboarding view, never the whole controller API. */
+export type OnboardingLearningPort = Pick<LearningController,
+  "saveOnboardingDraft" | "getOnboardingContext" | "checkRuntime" | "previewLearningProgram" | "approveLearningWorkspace" | "approveLearningProgram" | "getProgramOverview" | "getProgramMenuState" | "recoverOnboardingApproval" | "cancel" >;
 import type { OnboardingDraft } from "../domain/onboarding/types";
 import { restoreOnboardingDraft, withOnboardingStage, withOnboardingSource, onboardingConstraints, quickPlanCommand, firstOnboardingObjective } from "../features/learning/onboarding/OnboardingWorkflow";
 import { planWorkspace } from "../domain/workspace/plan";
@@ -30,7 +34,7 @@ export class OnboardingFlow {
   private requestEpoch = 0;
   private cancelTo: OnboardingDraft["stage"] = "form";
 
-  constructor(private readonly parent: HTMLElement, private readonly learning: LearningController,
+  constructor(private readonly parent: HTMLElement, private readonly learning: OnboardingLearningPort,
     private readonly callbacks: Callbacks, initial?: OnboardingDraft) {
     this.draft = restoreOnboardingDraft(initial);
     this.stage = this.draft.stage;
