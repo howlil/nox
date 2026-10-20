@@ -1,6 +1,5 @@
 import { type LearningContext } from "../context/context-types";
-import type { ActionMenuEntry } from "./action-menu";
-import { getPrimaryAction } from "./action-menu";
+import { getPrimaryAction, type ActionMenuEntry } from "./action-menu";
 import { createNoxSurface, setNoxIcon } from "./primitives";
 
 export interface EmptyPrimaryPort {
