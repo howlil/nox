@@ -53,7 +53,7 @@ import {
 import { NoxMenuState } from "./menu";
 import { HistoryPresenter } from "../features/conversation/view/history-presenter";
 import { StreamTextPresenter } from "../features/conversation/view/stream-text-presenter";
-import { projectSessionClock, type SessionClockSnapshot } from "../features/conversation/view/session-clock";
+import { projectSessionClock } from "../features/conversation/view/session-clock";
 import { TranscriptPresenter } from "../features/conversation/view/transcript-presenter";
 import { modelMenuItems } from "./model-menu";
 import { createNoxPopover, NoxPopoverState } from "./popover";
@@ -161,10 +161,6 @@ export class ChatView extends ItemView {
   private sessionClockEl: HTMLElement | null = null;
   private sessionClockTextEl: HTMLElement | null = null;
   private sessionClockButtonEl: HTMLButtonElement | null = null;
-  private sessionClockTimer: number | null = null;
-  private refreshingSessionClock = false;
-  private sessionClockSnapshot: SessionClockSnapshot | null = null;
-  private sessionClockSyncedAt = 0;
   private thinkingToggleEl: HTMLButtonElement | null = null;
   private thinkingLabelEl: HTMLElement | null = null;
   private thinkingChevronEl: HTMLElement | null = null;
@@ -236,6 +232,8 @@ export class ChatView extends ItemView {
         const state = await this.learning.getProgramMenuState();
         return this.learning.getActivitySummary(scope === "active" ? state.activeProgramId : undefined);
       },
+      readClock: () => this.learning.getSessionTime(),
+      projectClock: projectSessionClock,
       mountMap: (overview, onClose, onNext, onCommand) =>
         renderLearningGraph(this.thread, overview, onClose, onNext, onCommand),
       mountActivity: (summary, scope, onClose, onScopeChange) =>
@@ -294,9 +292,8 @@ export class ChatView extends ItemView {
     await this.restoreRuntimeState();
     await this.ensureRuntimeReady();
     void this.refreshFocusStrip();
+    this.learningUi.startClock(this.sessionClockEl!, this.sessionClockTextEl!, this.sessionClockButtonEl!);
     void this.refreshSessionClock();
-    // Smooth local display ticks; one authoritative Vault read at most every 30s.
-    this.sessionClockTimer = window.setInterval(() => { this.tickSessionClock(); }, 2000);
   }
 
   async onClose(): Promise<void> {
@@ -308,10 +305,6 @@ export class ChatView extends ItemView {
     this.transcriptSelection?.destroy();
     this.transcriptSelection = null;
     this.stopLoadingTimer();
-    if (this.sessionClockTimer !== null) window.clearInterval(this.sessionClockTimer);
-    this.sessionClockTimer = null;
-    this.sessionClockSnapshot = null;
-    this.sessionClockSyncedAt = 0;
     this.practiceUi.dispose();
   }
 
@@ -558,51 +551,8 @@ export class ChatView extends ItemView {
     this.historyPresenter.render();
   }
 
-  private tickSessionClock(): void {
-    if (!this.sessionClockEl?.isConnected || this.refreshingSessionClock) return;
-    const now = Date.now();
-    if (!this.sessionClockSyncedAt || now - this.sessionClockSyncedAt >= 30_000) {
-      void this.refreshSessionClock();
-      return;
-    }
-    this.renderSessionClock(projectSessionClock(this.sessionClockSnapshot, this.sessionClockSyncedAt, now));
-  }
-
   private async refreshSessionClock(): Promise<void> {
-    if (this.refreshingSessionClock || !this.sessionClockEl) return;
-    this.refreshingSessionClock = true;
-    try {
-      const timing = await this.learning.getSessionTime();
-      if (!this.sessionClockEl?.isConnected) return;
-      this.sessionClockSnapshot = timing;
-      this.sessionClockSyncedAt = Date.now();
-      this.renderSessionClock(timing);
-    } catch {
-      // Keep the last known display; the next tick retries an authoritative read.
-    } finally {
-      this.refreshingSessionClock = false;
-    }
-  }
-
-  private renderSessionClock(timing: SessionClockSnapshot | null): void {
-    if (!this.sessionClockEl?.isConnected) return;
-    this.sessionClockEl.toggleClass("nox-hidden", !timing);
-    if (!timing || !this.sessionClockTextEl || !this.sessionClockButtonEl) return;
-    const minutes = Math.ceil(timing.remainingMs / 60_000);
-    const labels: Record<typeof timing.status, string> = {
-      active: "Learning", "waiting-ai": "AI running · time paused",
-      paused: "Paused", recovered: "Session recovered · paused",
-      exhausted: "Timebox complete",
-    };
-    this.sessionClockTextEl.textContent = `${labels[timing.status]} · ${minutes}m left`;
-    this.sessionClockEl.title =
-      `Active: ${Math.round(timing.activeMs / 1000)}s · AI waiting: ${Math.round(timing.aiWaitingMs / 1000)}s`;
-    const pause = timing.status === "active" || timing.status === "waiting-ai";
-    this.sessionClockButtonEl.dataset.action = pause ? "pause" : "resume";
-    this.sessionClockButtonEl.textContent = pause ? "Pause" : "Resume";
-    this.sessionClockButtonEl.title = pause ? "Pause learning budget" : "Resume learning budget";
-    this.sessionClockButtonEl.setAttribute("aria-label", this.sessionClockButtonEl.title);
-    this.sessionClockButtonEl.toggleClass("nox-hidden", timing.status === "exhausted");
+    await this.learningUi.refreshClock();
   }
 
   private async toggleLearningActivity(scope: "active" | "all" = "active"): Promise<void> {
