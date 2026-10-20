@@ -145,3 +145,126 @@ test("M2 changed note and unavailable provider fail without a first-value dispat
   assert.ok(x.root.findAll().some(el => el.cls === "nox-onboarding-error" &&
     el.text.includes("provider")));
 });
+
+const programId = "00000000-0000-4000-8000-000000000001";
+const firstObjective = {
+  id: "intro", title: "First working system", outcome: "Explain the interface contract",
+  prerequisiteIds: [], estimatedMinutes: 30, rubric: ["Can describe inputs and outputs"],
+  sourceRefs: [], priority: "core" as const,
+};
+const laterObjective = {
+  ...firstObjective, id: "advanced", title: "Advanced", prerequisiteIds: ["intro"],
+};
+const m3Program = {
+  version: 1 as const, id: programId, goal: "Build a reliable service",
+  createdAt: Date.now(), planVersion: 1,
+  objectives: [laterObjective, firstObjective],
+  constraints: { sourceBound: false, sourcePaths: [], excludedTopics: [],
+    minutesPerSession: 45, sessionsPerWeek: 3 },
+};
+function setupM3(overrides: {
+  failWorkspace?: boolean; failDismiss?: boolean; failReadModel?: boolean;
+} = {}) {
+  const root = new FakeElement();
+  const calls: string[] = [];
+  const operations: string[] = [];
+  const learning = {
+    saveOnboardingDraft: async () => {},
+    checkRuntime: async () => ({ status: "ready" }),
+    previewLearningProgram: async () => { calls.push("preview"); return m3Program; },
+    approveLearningProgram: async (_id: string, op: string) => {
+      calls.push("approve-only"); operations.push(op);
+      return m3Program;
+    },
+    approveLearningWorkspace: async (_id: string, op: string) => {
+      calls.push("approve-workspace"); operations.push(op);
+      if (overrides.failWorkspace && operations.length === 1) throw Error("Workspace write failed");
+      return { ...m3Program, workspaceApproved: true };
+    },
+    dismissOnboarding: async () => {
+      calls.push("dismiss");
+      if (overrides.failDismiss) throw Error("Cannot save dismissal");
+    },
+    getProgramOverview: async () => {
+      calls.push("overview");
+      if (overrides.failReadModel) throw Error("Overview unavailable");
+      return {
+        active: false,
+        next: { kind: "diagnostic", objectiveId: "intro" },
+        objectives: [],
+      };
+    },
+    getProgramMenuState: async () => ({ activeProgramId: programId }),
+  } as unknown as LearningController;
+  const callbacks = {
+    onSkip: () => {},
+    onCreated: () => { calls.push("later"); },
+    onStart: async (id: string, objective: string) => { calls.push("start:" + id + ":" + objective); },
+    onQuickPlan: async () => {},
+    onNoteAction: async () => {},
+  };
+  new OnboardingFlow(dom(root), learning, callbacks);
+  const toPreview = async () => {
+    root.buttons("Start with a goal")[0].click();
+    root.buttons("Prefer guided setup?")[0].click();
+    root.querySelector<FakeElement>(".nox-onboarding-field")!.input(m3Program.goal);
+    root.buttons("Generate blueprint")[0].click();
+    await flush();
+    assert.equal(root.buttons("Use plan only").length, 1);
+  };
+  return { root, calls, operations, toPreview };
+}
+
+test("M3 guided setup can approve a plan without workspace and offers first adaptive objective", async () => {
+  const x = setupM3();
+  await x.toPreview();
+  assert.equal(x.calls.filter(value => value === "preview").length, 1);
+  x.root.buttons("Use plan only")[0].click();
+  await flush();
+  assert.equal(x.root.buttons("Start first objective").length, 1);
+  assert.equal(x.root.buttons("Maybe later").length, 1);
+  assert.equal(x.root.findAll().find(el => el.cls === "nox-onboarding-name" &&
+    el.text === firstObjective.title)?.text, firstObjective.title);
+  assert.deepEqual(x.calls.slice(1), ["approve-only", "dismiss", "overview"]);
+  x.root.buttons("Start first objective")[0].click();
+  await flush();
+  assert.equal(x.calls.at(-1), "start:" + programId + ":intro");
+  assert.equal(x.calls.includes("later"), false);
+});
+
+test("M3 workspace choice uses the original writer only and allows a later exit", async () => {
+  const x = setupM3();
+  await x.toPreview();
+  x.root.buttons("Create workspace")[0].click();
+  await flush();
+  assert.equal(x.calls.includes("approve-workspace"), true);
+  assert.equal(x.calls.includes("approve-only"), false);
+  x.root.buttons("Maybe later")[0].click();
+  assert.equal(x.calls.at(-1), "later");
+});
+
+test("M3 workspace failure retries same operation and cannot switch to plan-only", async () => {
+  const x = setupM3({ failWorkspace: true });
+  await x.toPreview();
+  x.root.buttons("Create workspace")[0].click();
+  await flush();
+  assert.equal(x.root.buttons("Use plan only").length, 0);
+  assert.equal(x.root.buttons("Retry creating workspace").length, 1);
+  x.root.buttons("Retry creating workspace")[0].click();
+  await flush();
+  assert.equal(x.root.buttons("Start first objective").length, 1);
+  assert.equal(x.operations.length, 2);
+  assert.equal(x.operations[0], x.operations[1], "retry must reuse operation identity");
+});
+
+test("M3 post-commit storage/read model failure never returns to approval and never repeats commit", async () => {
+  const x = setupM3({ failDismiss: true, failReadModel: true });
+  await x.toPreview();
+  x.root.buttons("Use plan only")[0].click();
+  await flush();
+  assert.equal(x.root.buttons("Use plan only").length, 0);
+  assert.equal(x.root.buttons("Maybe later").length, 1);
+  assert.equal(x.root.buttons("Start first objective").length, 0);
+  assert.equal(x.calls.filter(item => item === "approve-only").length, 1);
+  assert.equal(x.root.findAll().some(el => el.cls === "nox-onboarding-error"), true);
+});
