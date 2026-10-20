@@ -145,3 +145,53 @@ test("async discovery resolving after disposal cannot reopen or touch detached m
     assert.equal(presenter.isOpen,false);
   });
 });
+
+
+test("failed model selection leaves the popover open and prevents concurrent writes", async () => {
+  await withReducedMotion(async () => {
+    const {trigger,menu}=fakeDom();
+    let attempt=0;
+    let resolvePending!: () => void;
+    let chosen: string|undefined;
+    const errors:string[]=[];
+    const block=new Promise<void>(resolve=>{resolvePending=resolve;});
+    const presenter=new ModelMenuPresenter(
+      trigger as unknown as HTMLButtonElement,menu as unknown as HTMLElement,
+      new NoxPopoverState(menu as unknown as HTMLElement),{
+        models:()=>[{id:"model-a",name:"Model A"}],
+        selectedId:()=>chosen,
+        discoveryError:()=>undefined,
+        discover:async()=>{},
+        select:async id=>{
+          attempt++;
+          if(attempt===1) {
+            await block;
+            throw new Error("Save failed");
+          }
+          chosen=id;
+        },
+        setLabel:()=>{},
+        beforeOpen:()=>{},
+        reportError:error=>errors.push(error),
+      });
+    presenter.open();
+    const row=menu.querySelectorAll(".nox-model-menu-row")[1];
+    assert.ok(row);
+    row.click();
+    row.click();
+    assert.equal(attempt,1,"only one model write may be in flight");
+    resolvePending();
+    await block;
+    await Promise.resolve();
+    await Promise.resolve();
+    assert.equal(presenter.isOpen,true,"failed save must not close the model menu");
+    assert.deepEqual(errors,["Save failed"]);
+    menu.querySelectorAll(".nox-model-menu-row")[1]?.click();
+    await Promise.resolve();
+    await Promise.resolve();
+    assert.equal(attempt,2);
+    assert.equal(chosen,"model-a");
+    assert.equal(presenter.isOpen,false);
+    presenter.dispose();
+  });
+});
