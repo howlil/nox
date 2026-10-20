@@ -7,7 +7,7 @@ Start here. Nox supports **Obsidian desktop 1.13.0+**; AI features require your 
 - [Get started](GETTING_STARTED.md) — install, connect AI, complete your first activity.
 - [Providers & privacy](PROVIDERS.md) — sign-in, data sharing, provider permissions.
 - [Troubleshooting](TROUBLESHOOTING.md) — installation, login, streaming, recovery.
-- [Learning commands](LEARNING_ORCHESTRATOR.md) — \`/plan\`, \`/focus\`, \`/next\`, evidence.
+- [Learning commands](LEARNING_ORCHESTRATOR.md) — `/plan`, `/focus`, `/next`, evidence.
 - [Onboarding](ONBOARDING.md) — Note / Goal / Chat and approval behavior.
 
 ## Building Nox

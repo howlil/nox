@@ -23,7 +23,7 @@ Nox is an open-source AI learning companion for [Obsidian](https://obsidian.md) 
 Requires **Obsidian desktop 1.13.0+** and an external AI provider. Mobile is not supported.
 
 - **Community Plugins:** If Nox is available in **Settings → Community plugins → Browse**, install and enable it there.
-- **GitHub Release:** Otherwise, download \`main.js\`, \`manifest.json\`, and \`styles.css\` from a matching [release](https://github.com/howlil/nox/releases) into \`.obsidian/plugins/nox/\` in your vault, then enable Nox. Do not use GitHub's source ZIP.
+- **GitHub Release:** Otherwise, download `main.js`, `manifest.json`, and `styles.css` from a matching [release](https://github.com/howlil/nox/releases) into `.obsidian/plugins/nox/` in your vault, then enable Nox. Do not use GitHub's source ZIP.
 
 ## Start learning
 
@@ -33,12 +33,12 @@ Requires **Obsidian desktop 1.13.0+** and an external AI provider. Mobile is not
 
 To create a goal-based program from chat:
 
-\`\`\`text
+```text
 /plan Learn networking fundamentals | minutes=30 | sessions=3
 /progress
-\`\`\`
+```
 
-Use \`/focus <objective-id>\` and \`/next\` to begin the recommended activity. [First-session guide →](docs/GETTING_STARTED.md)
+Use `/focus <objective-id>` and `/next` to begin the recommended activity. [First-session guide →](docs/GETTING_STARTED.md)
 
 ## Privacy
 
@@ -48,6 +48,6 @@ Read [provider permissions, credentials, and research scopes](docs/PROVIDERS.md)
 
 ## Contribute
 
-Requires Node.js 22 and pnpm 10. Run \`pnpm install --frozen-lockfile\` and \`pnpm verify\`, then see [Contributing](CONTRIBUTING.md). Changes are released through the [maintainer workflow](docs/RELEASING.md).
+Requires Node.js 22 and pnpm 10. Run `pnpm install --frozen-lockfile` and `pnpm verify`, then see [Contributing](CONTRIBUTING.md). Changes are released through the [maintainer workflow](docs/RELEASING.md).
 
 [MIT license](LICENSE) · [Changelog](CHANGELOG.md) · [Security](SECURITY.md)

@@ -5,7 +5,7 @@ Nox runs in **Obsidian desktop 1.13.0+**. Use a separate test vault when install
 ## 1. Install
 
 - **Community Plugins:** If listed, open **Settings → Community plugins → Browse**, search **Nox**, then install and enable it.
-- **Manual:** Download \`main.js\`, \`manifest.json\`, and \`styles.css\` from the same [GitHub release](https://github.com/howlil/nox/releases). Put them in \`<vault>/.obsidian/plugins/nox/\`, then enable Nox. Do not install the GitHub source ZIP.
+- **Manual:** Download `main.js`, `manifest.json`, and `styles.css` from the same [GitHub release](https://github.com/howlil/nox/releases). Put them in `<vault>/.obsidian/plugins/nox/`, then enable Nox. Do not install the GitHub source ZIP.
 
 ## 2. Connect AI
 
@@ -25,13 +25,13 @@ You can also select text and ask Nox to explain it. Note-first Practice is separ
 
 ## 4. Continue a learning plan
 
-\`\`\`text
+```text
 /plan Learn networking fundamentals | minutes=30 | sessions=3
 /progress
 /focus <objective-id>
 /next
-\`\`\`
+```
 
-Use an objective ID shown by \`/progress\`. After a guided plan is approved, **Start first objective** selects the adaptive next activity; **Maybe later** returns to chat. Focus is self-paced—no timer is required.
+Use an objective ID shown by `/progress`. After a guided plan is approved, **Start first objective** selects the adaptive next activity; **Maybe later** returns to chat. Focus is self-paced—no timer is required.
 
 **Need help?** See [Troubleshooting](TROUBLESHOOTING.md) or [Learning commands](LEARNING_ORCHESTRATOR.md). Real Obsidian/provider behavior requires desktop testing; CI does not prove account eligibility.
