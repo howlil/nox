@@ -66,8 +66,10 @@ export class TranscriptSelectionController {
     const top = captured.bounds.top - 38;
     this.pending = captured.reference;
     this.toolbar.toggleClass("nox-hidden", false);
-    this.toolbar.style.left = `${x - root.left}px`;
-    this.toolbar.style.top = `${Math.max(thread.top + 4, top) - root.top}px`;
+    this.toolbar.setCssStyles({
+      left: `${x - root.left}px`,
+      top: `${Math.max(thread.top + 4, top) - root.top}px`,
+    });
   }
 
   hide(): void {
