@@ -542,7 +542,7 @@ export class LearningController {
           const selected = await this.programs.selectProgram(command.id);
           response = `Active program changed to: ${selected.goal}`;
         } else if (command.kind === "focus") {
-          const program = await this.programs.startFocus(command.objectiveId, this.sessions.getSession().id);
+          const program = await this.programs.startFocus(command.objectiveId, this.sessions.getSession().id, request.focusProgramId);
           this.turns.syncFocusSessionId(program.focus?.id, program.focus?.status);
           response = "Focused on **" + program.objectives.find(o => o.id === command.objectiveId)?.title +
             "** without a timer. Use /next, /pause-focus, or /end-focus.";
