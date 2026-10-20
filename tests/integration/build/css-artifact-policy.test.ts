@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import {
-  assertCompiledPluginCss, assertLandingDialogCss,
+  assertCompiledPluginCss, assertNoxSettingsStyleContract, assertLandingDialogCss,
 } from "../../../scripts/css-artifact-policy.mjs";
 
 test("compiled Obsidian styles contain no Tailwind input-only syntax", () => {
@@ -24,4 +24,18 @@ test("landing dialog CSS separates @supports with actual newline characters", ()
     () => assertLandingDialogCss(String.raw`}.a{}\n@supports (height: 100dvh) {}`),
     /literal newline escape/,
   );
+});
+
+test("built plugin CSS must retain every NOX settings surface", () => {
+  const source = readFileSync("styles.css", "utf8");
+  assert.doesNotThrow(() => assertNoxSettingsStyleContract(source));
+  for (const missing of [
+    "--nox-accent:", ".nox-settings-shell", ".nox-settings-surface",
+    ".nox-settings-tabs", ".nox-settings-native-row",
+    ".nox-usage-overview", ".nox-token-chart-bars",
+  ]) {
+    const broken = source.replace(missing, "removed-nox-style");
+    assert.throws(() => assertNoxSettingsStyleContract(broken), /missing Nox settings style/);
+  }
+  assert.throws(() => assertNoxSettingsStyleContract(""), /missing Nox settings style/);
 });
