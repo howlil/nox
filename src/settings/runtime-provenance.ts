@@ -33,7 +33,8 @@ export async function runtimeProvenanceReport(identity: RuntimeBuildIdentity): P
     // A changed file is not proof the running Electron module has reloaded.
     const text = installed.toString("utf8");
     lines.push("diskMatchesLoadedIdentity=" + (text.includes(identity.revision)
-      && text.includes(identity.sourceSha) && text.includes(identity.transport) ? "yes" : "no"));
+      && text.includes(identity.sourceSha) && text.includes(identity.builtAt)
+      && text.includes(identity.transport) ? "yes" : "no"));
   } catch {
     lines.push("installedMainSha256=unavailable", "diskMatchesLoadedIdentity=unknown");
   }
