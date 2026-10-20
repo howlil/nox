@@ -821,9 +821,13 @@ export class ChatView extends ItemView {
     if (kind === "command") {
       let programState: Awaited<ReturnType<LearningController["getProgramMenuState"]>>;
       try {
+        const sessionId = this.learning.getSession().id;
         programState = this.commandProgramSnapshot ??
           await this.learning.getProgramMenuState();
-        this.commandProgramSnapshot = programState;
+        // A closed menu or switched session cannot reinstate a stale program cache.
+        if (this.promptUi?.isOpen && this.learning.getSession().id === sessionId) {
+          this.commandProgramSnapshot = programState;
+        }
       } catch {
         // The ordinary note actions remain usable when the vault program index is unavailable.
         programState = { sessionActive: false, programs: [] };
