@@ -14,6 +14,9 @@ test("explicit contexts are derived from one attachment owner", () => {
   assert.deepEqual(draft.contexts().map(x => x.kind), ["attachment", "vault-note", "vault-note"]);
   const snapshot = draft.contexts();
   snapshot.pop();
+  const note = snapshot.find(ref => ref.kind === "vault-note");
+  if (note?.kind === "vault-note") note.path = "changed.md";
+  assert.equal(draft.hasNote("vault/note.md"), true);
   assert.equal(draft.length, 3, "a returned projection cannot mutate internal attachment state");
 
   assert.equal(draft.remove(b), true);
