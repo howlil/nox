@@ -14,7 +14,7 @@ export class ComposerAttachmentDraft {
 
   get length(): number { return this.itemsValue.length; }
   items(): readonly ComposerAttachment[] { return this.itemsValue; }
-  contexts(): ExplicitContextRef[] { return this.itemsValue.map(item => item.ref); }
+  contexts(): ExplicitContextRef[] { return this.itemsValue.map(item => ({ ...item.ref })); }
   hasNote(path: string): boolean {
     return this.itemsValue.some(item => item.ref.kind === "vault-note" && item.ref.path === path);
   }
