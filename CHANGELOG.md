@@ -2,26 +2,29 @@
 
 ## [1.3.0]
 
-### Features
+### Learning and onboarding
 
-- simplify first learning and recover approved plans
-- refresh transparent hero mascot from NOX SVG
-- add full NOX vector brand icon
-- add traced NOX mascot SVG
+- Replace setup-first onboarding with three paths: **Learn from a note**, **Start with a goal**, and **Just chat**.
+- Explain or practise the selected note directly; create quick plans or guided curricula with optional workspace files.
+- After approving a guided curriculum, offer the adaptive first objective and start it through the existing focus and learning workflow.
+- Recover interrupted approvals and partially created workspaces after restart without duplicating programs or overwriting unowned notes.
 
-### Fixes
+### Engineering and reliability
 
-- document new vector logo variants
-- round brand icon edges
-- refresh website favicon and footer logo
-- refresh preview avatar to SVG
-- use canonical NOX SVG in navbar
-- assert embedded SVG branding
-- use SVG data URI for plugin runtime
+- Clarify conversation, learning, and persistence boundaries, with regression tests for program ownership, privacy, and recovery.
+- Preserve selected note context and prevent ambient note leakage in note-first turns; validate provider readiness before inference.
+- Prevent concurrent workspace recovery writes and verify program identity during focus transitions.
 
-### Documentation
+### Experience and documentation
 
-- fix NOX logo asset list formatting
+- Refresh NOX SVG branding and plugin artwork.
+- Shorten the README and public guides; add a concise onboarding reference and clearer privacy/troubleshooting documentation.
+
+### Compatibility and verification
+
+- Desktop only; requires Obsidian 1.13.0 or later and an external AI provider for AI-backed features.
+- Existing learning data remains supported. File creation remains approval-based.
+- Automated tests and release checks do not replace live Obsidian Desktop acceptance, which remains pending.
 
 ## [1.2.1]
 
