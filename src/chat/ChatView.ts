@@ -396,6 +396,9 @@ export class ChatView extends ItemView {
 
   /** Explicit command-palette entry to revisit guided discovery after skipping. */
   async beginGuidedOnboarding(): Promise<void> {
+    if (this.turnStarting || this.uiState === "RUNNING") {
+      throw new Error("Finish the active turn before restarting onboarding.");
+    }
     await this.practiceUi.flushDraft();
     await this.learning.newSession();
     this.invalidateSessionPresentation();
@@ -523,6 +526,9 @@ export class ChatView extends ItemView {
     this.historyPresenter = new HistoryPresenter(this.historyBtn, this.historyMenuEl, {
       open: id => this.selectHistorySession(id),
       mutate: async (ids, action) => {
+        if (this.turnStarting || this.uiState === "RUNNING") {
+          throw new Error("Finish the active turn before modifying history.");
+        }
         await this.practiceUi.flushDraft();
         const result = await this.learning.mutateHistory(ids, action);
         if (result.activeSessionChanged) {
@@ -657,7 +663,7 @@ export class ChatView extends ItemView {
 
 
   private async forkMessage(messageId: string): Promise<void> {
-    if (this.uiState === "RUNNING") return;
+    if (this.uiState === "RUNNING" || this.turnStarting) return;
     if (this.input.value.trim()) {
       new Notice("Clear or send the composer draft before forking.");
       return;
@@ -678,7 +684,7 @@ export class ChatView extends ItemView {
   }
 
   private async selectHistorySession(id: string): Promise<void> {
-    if (this.uiState === "RUNNING") return;
+    if (this.uiState === "RUNNING" || this.turnStarting) return;
 
     await this.practiceUi.flushDraft();
     const session = await this.learning.selectSession(id);
