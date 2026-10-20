@@ -1,0 +1,105 @@
+/* M6: compact evidence-backed learning UI; Obsidian tokens, no modal or extra page. */
+.nox-focus-strip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-width: 0;
+  padding: 7px 12px;
+  border: 0;
+  border-top: 1px solid var(--nox-line);
+  border-radius: 0;
+  background: var(--nox-surface);
+  color: var(--nox-ink);
+  text-align: left;
+  cursor: pointer;
+  font-size: 12px;
+}
+.nox-focus-strip.nox-hidden { display: none; }
+.nox-focus-strip-icon, .nox-focus-strip-chevron { flex: 0 0 auto; color: var(--nox-accent); }
+.nox-focus-strip-label {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.nox-focus-strip-chevron { color: var(--nox-ink-3); }
+.nox-focus-strip:focus-visible,
+.nox-adaptive-actions .nox-button:focus-visible,
+.nox-adaptive-criteria > summary:focus-visible {
+  outline: 2px solid var(--nox-accent);
+  outline-offset: -2px;
+}
+.nox-adaptive-panel { display: grid; gap: 8px; margin-top: 10px; }
+.nox-adaptive-focus, .nox-adaptive-revision {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid var(--nox-line);
+  border-radius: var(--nox-radius-control);
+  background: var(--nox-surface);
+}
+.nox-adaptive-focus-head { display: flex; align-items: center; gap: 9px; min-width: 0; }
+.nox-adaptive-focus-head > div:last-child { min-width: 0; }
+.nox-adaptive-icon { display: flex; flex-shrink: 0; color: var(--nox-accent); }
+.nox-adaptive-eyebrow {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--nox-ink-3);
+}
+.nox-adaptive-title { font-size: 13px; font-weight: 600; color: var(--nox-ink); overflow-wrap: anywhere; }
+.nox-adaptive-criteria, .nox-adaptive-why, .nox-adaptive-evidence {
+  min-width: 0;
+  font-size: 11px;
+  color: var(--nox-ink-2);
+}
+.nox-adaptive-criteria > summary, .nox-adaptive-why > summary, .nox-adaptive-evidence > summary {
+  cursor: pointer;
+  padding: 4px 2px;
+}
+.nox-adaptive-criterion-list, .nox-adaptive-revision-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 5px;
+}
+.nox-adaptive-criterion {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 3px 8px;
+  padding: 6px 8px;
+  border-radius: var(--nox-radius-control);
+  background: var(--nox-inset);
+  overflow-wrap: anywhere;
+}
+.nox-adaptive-criterion-title { min-width: 0; color: var(--nox-ink); }
+.nox-adaptive-criterion-status { font-size: 10px; color: var(--nox-ink-3); }
+.nox-adaptive-criterion[data-status="verified"] .nox-adaptive-criterion-status { color: var(--nox-green); }
+.nox-adaptive-criterion[data-status="needs-repair"] .nox-adaptive-criterion-status { color: var(--nox-orange); }
+.nox-adaptive-evidence { grid-column: 1 / -1; overflow-wrap: anywhere; }
+.nox-adaptive-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.nox-adaptive-actions .nox-button { font-size: 11px; min-height: 30px; }
+.nox-adaptive-action-subtle { color: var(--nox-ink-3); }
+.nox-adaptive-revision { background: var(--nox-inset); }
+.nox-adaptive-revision-list { font-size: 11px; color: var(--nox-ink); overflow-wrap: anywhere; }
+.nox-adaptive-revision-list li { padding: 3px 0; }
+.nox-adaptive-why { padding: 0 4px; }
+.nox-adaptive-why > div { padding: 3px 2px; overflow-wrap: anywhere; }
+.nox-adaptive-node-rubric { min-width: 0; }
+.nox-adaptive-node-rubric > summary { cursor: pointer; }
+.nox-adaptive-node-criterion {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 3px 0;
+  overflow-wrap: anywhere;
+}
+.nox-adaptive-node-criterion span:first-child { min-width: 0; }
+.nox-adaptive-node-criterion span:last-child { white-space: nowrap; color: var(--nox-ink-3); }
+@media (prefers-reduced-motion: reduce) {
+  .nox-focus-strip, .nox-adaptive-panel { animation: none; transition: none; }
+}
