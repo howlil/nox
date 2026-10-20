@@ -67,7 +67,7 @@ function setup() {
   const callbacks = {
     onSkip: () => { sent.push("chat"); },
     onCreated: () => { sent.push("created"); },
-    onStart: () => { sent.push("start"); },
+    onStart: async () => { sent.push("start"); },
     onQuickPlan: async (command: string) => { sent.push(command); },
     onNoteAction: async (path: string, kind: "explain" | "practice") => {
       sent.push(kind + ":" + path);
