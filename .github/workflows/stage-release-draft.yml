@@ -1,0 +1,97 @@
+name: Stage NOX Release Draft
+
+# Build an installable DRAFT from release/x.y.z without bypassing the native
+# Obsidian Desktop D01-D10 acceptance required for PUBLIC publication.
+on:
+  push:
+    branches:
+      - "release/*"
+    paths:
+      - ".github/workflows/stage-release-draft.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: nox-draft-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  draft:
+    if: startsWith(github.ref, 'refs/heads/release/')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - name: Install and verify plugin
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm verify
+      - name: Stage matching version as unpublished draft
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="$(node -p 'require("./manifest.json").version')"
+          package_version="$(node -p 'require("./package.json").version')"
+          plan_version="$(node -p 'require("./.release-plan.json").version')"
+          [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || exit 1
+          test "$version" = "$package_version"
+          test "$version" = "$plan_version"
+          test "$GITHUB_REF_NAME" = "release/$version" || {
+            echo "::error::Draft source must be release/$version."
+            exit 1
+          }
+          test "$(node -p 'require("./dist/manifest.json").version')" = "$version"
+          for file in main.js manifest.json styles.css; do
+            test -s "dist/$file"
+          done
+
+          releases="$(gh api "repos/$GITHUB_REPOSITORY/releases?per_page=100")"
+          public_count="$(jq -r --arg v "$version" '[.[] | select(.tag_name == $v and .draft == false)] | length' <<< "$releases")"
+          test "$public_count" = 0 || {
+            echo "::notice::NOX $version is already public; existing release is immutable."
+            exit 0
+          }
+          draft_id="$(jq -r --arg v "$version" '[.[] | select(.draft == true and .tag_name == $v)][0].id // empty' <<< "$releases")"
+          if [ -n "$draft_id" ]; then
+            echo "::notice::Draft $version already exists (release ID $draft_id); publication workflow will refresh and attest assets after native acceptance."
+            exit 0
+          fi
+          node --input-type=module <<'NODE'
+          import { readFileSync, writeFileSync } from "node:fs";
+          const version = JSON.parse(readFileSync("manifest.json", "utf8")).version;
+          const changelog = readFileSync("CHANGELOG.md", "utf8");
+          const start = changelog.indexOf("## [" + version + "]");
+          if (start < 0) throw new Error("Version changelog missing");
+          const end = changelog.indexOf("\n## [", start + 4);
+          const notes = changelog.slice(start, end < 0 ? undefined : end).trim();
+          writeFileSync("release-notes.md", notes + "\n\nDRAFT ONLY — native Obsidian Desktop D01–D10 acceptance has not been verified. Do not publish without genuine evidence and the normal attestation workflow.\n");
+          NODE
+          gh release create "$version" dist/main.js dist/manifest.json dist/styles.css \
+            --title "Nox $version" --notes-file release-notes.md \
+            --target "$GITHUB_SHA" --draft
+
+          draft="$(gh api "repos/$GITHUB_REPOSITORY/releases?per_page=100" | jq -c --arg v "$version" '[.[] | select(.tag_name == $v and .draft == true)][0]')"
+          jq -e --arg v "$version" --arg sha "$GITHUB_SHA" \
+            '.tag_name == $v and .draft == true and .target_commitish == $sha' <<< "$draft" >/dev/null
+          names="$(jq -r '.assets[].name' <<< "$draft" | LC_ALL=C sort)"
+          expected="$(printf '%s\n' main.js manifest.json styles.css | LC_ALL=C sort)"
+          test "$names" = "$expected"
+          for file in main.js manifest.json styles.css; do
+            local_sha="sha256:$(sha256sum "dist/$file" | cut -d' ' -f1)"
+            remote_sha="$(jq -r --arg name "$file" '.assets[] | select(.name == $name) | .digest' <<< "$draft")"
+            test "$local_sha" = "$remote_sha" || {
+              echo "::error::Draft uploaded digest mismatch for $file"
+              exit 1
+            }
+          done
+          echo "::notice::Staged verified DRAFT $version. It is NOT a public Community Directory release."
