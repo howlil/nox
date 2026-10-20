@@ -13,7 +13,6 @@ import {
   LearningActionKind,
   LearningEvent,
   LearningRequest,
-  ProposedEdit,
 } from "../application/learning-types";
 import {
   ExplicitContextRef,
@@ -27,10 +26,10 @@ import {
 import { ReviewFinding } from "../domain/review/types";
 import { PracticePresenter } from "../features/practice/view/PracticePresenter";
 import { renderReviewFindingCards } from "./learning-card-renderers";
-import { ChatMessage, EditProposal, type ChatReplyReference } from "../types";
+import { ChatMessage, type ChatReplyReference } from "../types";
 import { parsePromptToken, stripPromptToken } from "./prompt-token";
 import { NOX_CAPABILITIES } from "./capabilities";
-import { buildActionMenu, getPrimaryAction, type ActionMenuContext, type ActionMenuEntry } from "./action-menu";
+import { buildActionMenu, getPrimaryAction, type ActionMenuContext } from "./action-menu";
 import { animateNoxEnter } from "./motion";
 import { resolveNoxMarkdownLink } from "./markdown-links";
 import {
@@ -38,10 +37,8 @@ import {
   TerminalOutcome,
 } from "./chat-state";
 import {
-  createNoxButton,
   createNoxIconButton,
   createNoxMessageMeta,
-  createNoxSurface,
   createNoxStatus,
   setNoxIcon,
 } from "./primitives";
@@ -54,7 +51,10 @@ import { ModelMenuPresenter } from "./model-menu";
 import { createNoxPopover } from "./popover";
 import { PromptMenuPresenter, type PromptMenuItem } from "./prompt-menu-presenter";
 import { NoxComposer, type NoxComposerContext } from "./composer";
+import { ComposerAttachmentDraft } from "./composer-draft";
 import { ThinkingPresenter } from "./thinking-presenter";
+import { ProposalPresenter } from "./proposal-presenter";
+import { renderEmptyPrimary, renderEmptyContext } from "./empty-slate-renderer";
 import { appendMessageActions } from "./message-actions";
 import { TranscriptSelectionController } from "./transcript-selection";
 import { renderLearningGraph } from "./learning-graph";
@@ -111,14 +111,12 @@ export class ChatView extends ItemView {
   private promptUi: PromptMenuPresenter | null = null;
   private commandProgramSnapshot: Awaited<ReturnType<LearningController["getProgramMenuState"]>> | null = null;
   private scopeGoal: { sessionId: string; programId: string; goal: string } | null = null;
-  private attachments: Array<{
-    name: string;
-    ref: ExplicitContextRef;
-  }> = [];
+  private readonly attachmentDraft = new ComposerAttachmentDraft();
 
   private agentCursorEl: HTMLElement | null = null;
   private agentContentEl: HTMLElement | null = null;
   private thinkingUi: ThinkingPresenter | null = null;
+  private proposalUi: ProposalPresenter | null = null;
   private sessionClockEl: HTMLElement | null = null;
   private sessionClockTextEl: HTMLElement | null = null;
   private sessionClockButtonEl: HTMLButtonElement | null = null;
@@ -147,7 +145,6 @@ export class ChatView extends ItemView {
   private turnContextSource: string | null = null;
   private pendingFindingSource: string | null = null;
 
-  private extraCtx: ExplicitContextRef[] = [];
   private currentContext: LearningContext | null = null;
 
   constructor(
@@ -222,6 +219,14 @@ export class ChatView extends ItemView {
 
     this.buildHeader(root);
     this.thread = root.createDiv({ cls: "nox-thread" });
+    this.proposalUi = new ProposalPresenter(this.thread, {
+      reject: id => this.learning.rejectProposal(id),
+      apply: id => this.learning.applyProposal(id),
+      retryStatus: id => this.learning.retryAppliedStatus(id),
+      setState: state => this.setUIState(state),
+      reportError: (parent, message) => this.appendInlineStatus(parent, "failed", message),
+      scroll: () => this.scrollThread(),
+    });
     this.thinkingUi?.dispose();
     this.thinkingUi = new ThinkingPresenter(
       this.thread,
@@ -270,6 +275,7 @@ export class ChatView extends ItemView {
     this.transcriptSelection = null;
     this.thinkingUi?.dispose();
     this.thinkingUi = null;
+    this.proposalUi = null;
     this.practiceUi.dispose();
     this.modelUi?.dispose();
     this.modelUi = null;
@@ -614,8 +620,8 @@ export class ChatView extends ItemView {
     this.lastTurnRequest = null;
     this.pendingFindingSource = null;
     this.systemContextFiles = [];
-    this.extraCtx = [];
-    this.attachments = [];
+    
+    this.attachmentDraft.clear();
     this.renderAttachments();
     this.closePromptMenu();
     this.closeModelMenu();
@@ -756,14 +762,12 @@ export class ChatView extends ItemView {
 
   private renderAttachments(): void {
     this.composerUi.setAttachments(
-      this.attachments.map((attachment) => ({
+      this.attachmentDraft.items().map((attachment) => ({
         key: attachment.name,
         text: attachment.name,
         onRemove: () => {
-          const index = this.attachments.indexOf(attachment);
-          if (index < 0) return;
-          this.attachments.splice(index, 1);
-          this.extraCtx = this.attachments.map((item) => item.ref);
+          if (!this.attachmentDraft.remove(attachment)) return;
+          
           this.renderAttachments();
           void this.syncChips();
         },
@@ -775,22 +779,35 @@ export class ChatView extends ItemView {
     if (!files || files.length === 0) return;
 
     this.closePromptMenu();
+    const epoch = this.viewEpoch;
+    const sessionId = this.learning.getSession().id;
+    const input = this.fileInput;
+    const pending: Array<{ name: string; content: string }> = [];
 
-    for (const file of Array.from(files)) {
-      const content = await file.text();
-      this.attachments.push({
-        name: file.name,
-        ref: {
-          kind: "attachment",
-          name: file.name,
-          content,
-        },
-      });
+    try {
+      for (const file of Array.from(files)) {
+        const content = await file.text();
+        if (epoch !== this.viewEpoch || this.learning.getSession().id !== sessionId) return;
+        pending.push({ name: file.name, content });
+      }
+    } catch (error) {
+      if (epoch === this.viewEpoch) {
+        new Notice(error instanceof Error ? error.message : "Could not read attached file.");
+      }
+      return;
+    } finally {
+      // Clear the original picker; never touch the newly mounted Composer on close.
+      input.value = "";
     }
 
-    this.extraCtx = this.attachments.map((item) => item.ref);
+    for (const file of pending) {
+      this.attachmentDraft.add(file.name, {
+        kind: "attachment",
+        name: file.name,
+        content: file.content,
+      });
+    }
     this.renderAttachments();
-    this.fileInput.value = "";
     await this.syncChips();
     this.composerUi.focus();
   }
@@ -882,7 +899,7 @@ export class ChatView extends ItemView {
       const excluded = new Set([
         this.currentContext?.activeNote?.path,
         this.currentContext?.selection?.file,
-        ...this.extraCtx
+        ...this.attachmentDraft.contexts()
           .filter(
             (item): item is Extract<
               ExplicitContextRef,
@@ -947,11 +964,7 @@ export class ChatView extends ItemView {
     const prefix = token ? this.input.value.slice(0, token.start) : this.input.value;
 
     if (action.type === "vault-note") {
-      const exists = this.extraCtx.some(
-        (item) =>
-          item.kind === "vault-note" &&
-          item.path === action.path,
-      );
+      const exists = this.attachmentDraft.hasNote(action.path);
 
       if (!exists) {
         const ref: ExplicitContextRef = {
@@ -959,11 +972,8 @@ export class ChatView extends ItemView {
           path: action.path,
         };
 
-        this.attachments.push({
-          name: action.path.split("/").pop() ?? action.path,
-          ref,
-        });
-        this.extraCtx = this.attachments.map((item) => item.ref);
+        this.attachmentDraft.add(action.path.split("/").pop() ?? action.path, ref);
+        
         this.renderAttachments();
         await this.syncChips();
       }
@@ -1120,7 +1130,7 @@ export class ChatView extends ItemView {
     const requestId = ++this.contextSyncRequest;
     let context: LearningContext;
     try {
-      context = await this.learning.resolveContext(this.extraCtx);
+      context = await this.learning.resolveContext(this.attachmentDraft.contexts());
     } catch {
       // Deleted supporting notes receive an actionable error at turn start.
       return;
@@ -1244,7 +1254,7 @@ export class ChatView extends ItemView {
       turnId: crypto.randomUUID(),
       prompt,
       action: this.selectedAction,
-      explicitContext: [...this.extraCtx],
+      explicitContext: [...this.attachmentDraft.contexts()],
       ...(this.pendingReplyTo ? { replyTo: structuredClone(this.pendingReplyTo) } : {}),
       sourcePath: (this.selectedAction === "edit" || this.selectedAction === "practice")
         ? this.pendingFindingSource ?? undefined
@@ -1288,8 +1298,8 @@ export class ChatView extends ItemView {
 
     this.input.value = "";
     this.composerUi.syncInputLayout();
-    this.attachments = [];
-    this.extraCtx = [];
+    this.attachmentDraft.clear();
+    
     this.renderAttachments();
     this.sendBtn.disabled = true;
 
@@ -1413,7 +1423,7 @@ export class ChatView extends ItemView {
 
     if (event.type === "mutation-proposed") {
       // The request remains running even after a proposal is streamed.
-      this.appendProposalBubble(event.edit);
+      this.proposalUi?.append(event.edit);
       return;
     }
 
@@ -1499,7 +1509,7 @@ export class ChatView extends ItemView {
   }
 
   private canSend(): boolean {
-    const hasInput = this.input.value.trim().length > 0 || this.attachments.length > 0;
+    const hasInput = this.input.value.trim().length > 0 || this.attachmentDraft.length > 0;
     return hasInput && (this.runtimeReady || this.learning.canExecuteOfflineCommand(this.input.value));
   }
 
@@ -1617,7 +1627,7 @@ export class ChatView extends ItemView {
       console.warn("[Nox] Onboarding detection failed", error);
     });
 
-    this.renderEmptyContext(slate);
+    renderEmptyContext(slate, this.currentContext);
 
     const intro = slate.createDiv({
       cls: "nox-empty-intro",
@@ -1632,7 +1642,23 @@ export class ChatView extends ItemView {
         "Continue a learning plan, or explore your current note.",
     });
 
-    this.renderEmptyPrimary(slate);
+    renderEmptyPrimary(slate, {
+      getPrimaryAction: async () => getPrimaryAction(this.toActionMenuContext(
+        await this.learning.getProgramMenuState())),
+      canStart: () => this.uiState !== "RUNNING" && this.runtimeReady,
+      getDraft: () => this.input.value.trim(),
+      onBlocked: () => {
+        new Notice("Finish or clear your message before starting another learning action.");
+        this.focusComposer();
+      },
+      onStart: (action, draft) => {
+        this.setAction("ask");
+        this.input.value = draft ? "/plan " + draft : action.command ?? "";
+        this.onInput();
+        this.focusComposer();
+        if (!draft && action.command && action.command.trim() !== "/plan") void this.doSend();
+      },
+    });
 
     const section = slate.createDiv({
       cls: "nox-capability-section",
@@ -1718,93 +1744,6 @@ export class ChatView extends ItemView {
     animateNoxEnter(slate, 5);
   }
 
-  private renderEmptyPrimary(slate: HTMLElement): void {
-    const button = slate.createEl("button", {
-      cls: "nox-learning-start",
-      attr: { type: "button", "aria-label": "Create a learning plan" },
-    });
-    const icon = button.createSpan({ cls: "nox-learning-start-icon" });
-    const body = button.createDiv({ cls: "nox-learning-start-body" });
-    const title = body.createSpan({ cls: "nox-learning-start-title" });
-    const description = body.createSpan({ cls: "nox-learning-start-description" });
-    const arrow = button.createSpan({ cls: "nox-learning-start-arrow" });
-    setNoxIcon(arrow, "arrow-right");
-
-    let action: ActionMenuEntry = getPrimaryAction({
-      hasActiveSession: false, savedProgramCount: 0,
-      hasPracticeQuestion: false, legacyMode: "free",
-    });
-    const update = (item: ActionMenuEntry) => {
-      action = item;
-      setNoxIcon(icon, item.icon);
-      title.setText(item.name);
-      description.setText(item.description);
-      button.setAttribute("aria-label", item.name + ": " + item.description);
-    };
-    update(action);
-    button.addEventListener("click", () => {
-      if (this.uiState === "RUNNING" || !this.runtimeReady) return;
-      const draft = this.input.value.trim();
-      if (draft && (action.command?.trim() !== "/plan" || draft.startsWith("/"))) {
-        new Notice("Finish or clear your message before starting another learning action.");
-        this.focusComposer();
-        return;
-      }
-      this.setAction("ask");
-      this.input.value = draft ? `/plan ${draft}` : action.command ?? "";
-      this.onInput();
-      this.focusComposer();
-      // Session commands are complete; /plan remains editable until the goal is ready.
-      if (!draft && action.command && action.command.trim() !== "/plan") {
-        void this.doSend();
-      }
-    });
-    void this.learning.getProgramMenuState().then(state => {
-      if (!slate.isConnected || !slate.contains(button)) return;
-      update(getPrimaryAction(this.toActionMenuContext(state)));
-    }).catch(() => {
-      // Keep the non-destructive Create plan action available if the index cannot load.
-    });
-  }
-
-  private renderEmptyContext(parent: HTMLElement): void {
-    const context = this.currentContext;
-    if (!context?.selection && !context?.activeNote) return;
-
-    const wrap = createNoxSurface(parent, "nox-empty-context");
-    const left = wrap.createDiv({
-      cls: "nox-empty-context-main",
-    });
-    const icon = left.createSpan({
-      cls: "nox-empty-context-icon",
-    });
-    setNoxIcon(icon, "file-text");
-
-    const copy = left.createDiv({
-      cls: "nox-empty-context-copy",
-    });
-    copy.createSpan({
-      cls: "nox-empty-context-label",
-      text: "Current context",
-    });
-
-    const file =
-      context.selection?.file ??
-      context.activeNote?.path ??
-      "";
-    copy.createSpan({
-      cls: "nox-empty-context-file",
-      text: file.split("/").pop() ?? file,
-    });
-
-    if (context.selection) {
-      wrap.createSpan({
-        cls: "nox-empty-context-meta",
-        text: "Selection",
-      });
-    }
-  }
-
   /** An interrupted approved setup remains discoverable even with old chat history. */
   private async showPendingOnboardingRecovery(): Promise<void> {
     const sessionId = this.learning.getSession().id;
@@ -1837,7 +1776,7 @@ export class ChatView extends ItemView {
       thinking: message => { this.thinkingUi?.appendRestoredThinkingTrace(message); },
       assistant: (message, index) =>
         this.appendRestoredAssistant(message.content, message.sourcePath, index),
-      proposal: message => this.appendRestoredProposal(message),
+      proposal: message => { this.proposalUi?.restore(message); },
       structured: message => this.appendRestoredStructuredParts(message),
       complete: () => {
         this.setUIState(this.runtimeReady ? "ANSWER" : "ERROR");
@@ -1890,40 +1829,6 @@ export class ChatView extends ItemView {
         this.appendReviewFindings(part.findings, part.sourcePath ?? message.sourcePath ?? null, bubble);
       }
     }
-  }
-
-  private appendRestoredProposal(message: ChatMessage): void {
-    const proposal = message.proposal;
-    if (!proposal) return;
-    const wrap = this.renderProposal(proposal);
-    const state = message.proposalState ?? "stale";
-
-    if (state === "pending" && message.proposalId) {
-      this.appendProposalActions(wrap, {
-        id: message.proposalId,
-        proposal,
-      });
-      return;
-    }
-
-    const labels: Record<"applied" | "rejected" | "stale", string> = {
-      applied: `✓ Applied to ${proposal.file}`,
-      rejected: "✕ Rejected",
-      stale: "⚠ Expired after restart",
-    };
-    const settledState = state === "applied" || state === "rejected"
-      ? state
-      : "stale";
-    const resultKind = settledState === "applied"
-      ? "success"
-      : settledState === "rejected"
-        ? "neutral"
-        : "warning";
-    createNoxStatus(wrap, {
-      cls: `nox-result-badge nox-badge--${settledState}`,
-      kind: resultKind,
-      text: labels[settledState],
-    });
   }
 
   private appendUserBubble(
@@ -2200,174 +2105,6 @@ export class ChatView extends ItemView {
         ? `Learning state updated · ${open} open ${open === 1 ? "gap" : "gaps"}`
         : "Learning state updated",
     });
-  }
-
-  private appendProposalBubble(edit: ProposedEdit): void {
-    const wrap = this.renderProposal(edit.proposal);
-    this.appendProposalActions(wrap, edit);
-    this.scrollThread();
-  }
-
-  private appendProposalActions(
-    wrap: HTMLElement,
-    edit: ProposedEdit,
-  ): void {
-    const proposal = edit.proposal;
-    const actions = wrap.createDiv({
-      cls: "nox-proposal-actions",
-    });
-
-    const rejectBtn = createNoxButton(actions, {
-      cls: "nox-btn-reject",
-      variant: "secondary",
-      text: "Reject",
-    });
-
-    const applyBtn = createNoxButton(actions, {
-      cls: "nox-btn-apply",
-      variant: "primary",
-      text: "Apply ✓",
-    });
-
-    rejectBtn.addEventListener("click", () => { void (async () => {
-      rejectBtn.disabled = true;
-      applyBtn.disabled = true;
-      try {
-        await this.learning.rejectProposal(edit.id);
-        actions.remove();
-        createNoxStatus(wrap, {
-          cls: "nox-result-badge nox-badge--rejected",
-          kind: "neutral",
-          text: "✕ Rejected",
-        });
-        this.setUIState("ANSWER");
-      } catch {
-        rejectBtn.disabled = false;
-        applyBtn.disabled = false;
-        this.appendInlineStatus(wrap, "failed", "Could not save rejection. Retry.");
-      }
-    })().catch(error => console.warn("[Nox] UI action failed", error)); });
-
-    applyBtn.addEventListener("click", () => { void (async () => {
-      applyBtn.disabled = true;
-      rejectBtn.disabled = true;
-      applyBtn.textContent = "Applying…";
-
-      try {
-        const result = await this.learning.applyProposal(edit.id);
-        wrap.querySelector(".nox-proposal-retry-status")?.remove();
-        if (result.ok) {
-          actions.remove();
-          if (result.statusSync === "failed") {
-            this.appendAppliedStatusRecovery(wrap, edit.id, proposal.file, result.message);
-            this.setUIState("ANSWER");
-          } else {
-            createNoxStatus(wrap, {
-              cls: "nox-result-badge nox-badge--applied",
-              kind: "success",
-              text: "✓ Applied to " + proposal.file,
-            });
-            this.setUIState("APPLIED");
-          }
-        } else if (result.reason === "status-unsaved") {
-          actions.remove();
-          this.appendAppliedStatusRecovery(wrap, edit.id, proposal.file, result.message);
-        } else if (result.reason === "no-editor" || result.reason === "error") {
-          // Source remains valid: keep Apply available after the user fixes the blocker.
-          applyBtn.disabled = false;
-          rejectBtn.disabled = false;
-          applyBtn.textContent = "Retry Apply";
-          createNoxStatus(wrap, {
-            cls: "nox-proposal-retry-status",
-            kind: "warning",
-            text: result.message,
-          });
-        } else {
-          actions.remove();
-          createNoxStatus(wrap, {
-            cls: "nox-result-badge nox-badge--stale",
-            kind: "warning",
-            text: result.message,
-          });
-          this.setUIState("ANSWER");
-        }
-      } catch {
-        applyBtn.disabled = false;
-        rejectBtn.disabled = false;
-        applyBtn.textContent = "Retry Apply";
-        this.appendInlineStatus(wrap, "failed", "Could not save the result. Check the note before retrying.");
-      }
-    })().catch(error => console.warn("[Nox] UI action failed", error)); });
-  }
-
-  private appendAppliedStatusRecovery(
-    wrap: HTMLElement,
-    proposalId: string,
-    file: string,
-    message?: string,
-  ): void {
-    const recovery = wrap.createDiv({ cls: "nox-proposal-status-recovery" });
-    let status = createNoxStatus(recovery, {
-      cls: "nox-proposal-retry-status",
-      kind: "warning",
-      text: message ?? "Edit applied, but status could not be saved.",
-    });
-    const retryBtn = createNoxButton(recovery, {
-      cls: "nox-btn-sync-status",
-      variant: "secondary",
-      text: "Retry status sync",
-    });
-    retryBtn.addEventListener("click", () => { void (async () => {
-      retryBtn.disabled = true;
-      retryBtn.textContent = "Saving status…";
-      try {
-        const result = await this.learning.retryAppliedStatus(proposalId);
-        if (result.ok && result.statusSync !== "failed") {
-          recovery.remove();
-          createNoxStatus(wrap, {
-            cls: "nox-result-badge nox-badge--applied",
-            kind: "success",
-            text: "✓ Applied to " + file,
-          });
-          this.setUIState("APPLIED");
-          return;
-        }
-        status.remove();
-        status = createNoxStatus(recovery, {
-          cls: "nox-proposal-retry-status",
-          kind: "warning",
-          text: result.message ?? "Status was not saved. Do not apply the edit again.",
-        });
-      } catch {
-        status.remove();
-        status = createNoxStatus(recovery, {
-          cls: "nox-proposal-retry-status",
-          kind: "warning",
-          text: "Status sync failed. The note was already edited; do not apply again.",
-        });
-      }
-      retryBtn.disabled = false;
-      retryBtn.textContent = "Retry status sync";
-    })().catch(error => console.warn("[Nox] UI action failed", error)); });
-  }
-
-  private renderProposal(proposal: EditProposal): HTMLElement {
-    const wrap = createNoxSurface(this.thread, "nox-proposal", "approval");
-    wrap.createDiv({
-      cls: "nox-proposal-badge",
-      text: "📄 " + proposal.file,
-    });
-    if (proposal.reason) {
-      wrap.createDiv({ cls: "nox-proposal-reason", text: proposal.reason });
-    }
-    const diff = wrap.createDiv({ cls: "nox-proposal-diff" });
-    proposal.original.split("\n").forEach((line) => {
-      diff.createDiv({ cls: "nox-diff-removed", text: "- " + line });
-    });
-    proposal.replacement.split("\n").forEach((line) => {
-      diff.createDiv({ cls: "nox-diff-added", text: "+ " + line });
-    });
-    return wrap;
   }
 
   private appendInlineStatus(
