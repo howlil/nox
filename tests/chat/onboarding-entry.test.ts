@@ -391,3 +391,33 @@ test("M4 expired preview resets approval intent and requires explicit re-generat
   assert.ok(x.root.findAll().some(el => el.cls === "nox-onboarding-error" &&
     el.text.includes("preview expired")));
 });
+
+test("M4 generation never reaches provider before its draft is durably saved", async () => {
+  const root = new FakeElement();
+  let resolveDraft: (() => void) | undefined;
+  const saving = new Promise<void>(resolve => { resolveDraft = resolve; });
+  const order: string[] = [];
+  const learning = {
+    saveOnboardingDraft: async (draft: { stage: string }) => {
+      order.push("save:" + draft.stage);
+      if (draft.stage === "generating") await saving;
+    },
+    checkRuntime: async () => { order.push("check"); return { status: "ready" }; },
+    previewLearningProgram: async () => { order.push("generate"); return m3Program; },
+  } as unknown as LearningController;
+  new OnboardingFlow(dom(root), learning, {
+    onSkip: () => {},
+    onCreated: async () => {},
+    onStart: async () => {},
+    onQuickPlan: async () => {},
+    onNoteAction: async () => {},
+  }, { version: 1, stage: "form", goal: m3Program.goal, interests: [],
+    purpose: "career", level: "beginner", minutesPerSession: 45,
+    sessionsPerWeek: 3, sourceBound: false });
+  root.buttons("Generate blueprint")[0].click();
+  await flush();
+  assert.deepEqual(order, ["save:generating"]);
+  resolveDraft?.();
+  await flush();
+  assert.deepEqual(order.slice(0, 3), ["save:generating", "check", "generate"]);
+});
