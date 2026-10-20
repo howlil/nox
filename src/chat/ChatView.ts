@@ -779,9 +779,12 @@ export class ChatView extends ItemView {
     if (!files || files.length === 0) return;
 
     this.closePromptMenu();
+    const epoch = this.viewEpoch;
+    const sessionId = this.learning.getSession().id;
 
     for (const file of Array.from(files)) {
       const content = await file.text();
+      if (epoch !== this.viewEpoch || this.learning.getSession().id !== sessionId) return;
       this.attachmentDraft.add(file.name, {
         kind: "attachment",
         name: file.name,
