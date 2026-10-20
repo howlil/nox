@@ -45,7 +45,9 @@ export function renderEmptyPrimary(slate: HTMLElement, port: EmptyPrimaryPort): 
       }
       port.onStart(action, draft);
     });
-    void port.getPrimaryAction().then(update).catch(() => {
+    void port.getPrimaryAction().then(item => {
+      if (slate.isConnected && slate.contains(button)) update(item);
+    }).catch(() => {
       // Preserve the safe Create plan action when the program index is unavailable.
     });
   }
