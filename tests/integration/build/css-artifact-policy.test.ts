@@ -34,7 +34,7 @@ test("built plugin CSS must retain every NOX settings surface", () => {
     ".nox-settings-tabs", ".nox-settings-native-row",
     ".nox-usage-overview", ".nox-token-chart-bars",
   ]) {
-    const broken = source.replace(missing, "removed-nox-style");
+    const broken = source.split(missing).join("removed-nox-style");
     assert.throws(() => assertNoxSettingsStyleContract(broken), /missing Nox settings style/);
   }
   assert.throws(() => assertNoxSettingsStyleContract(""), /missing Nox settings style/);
