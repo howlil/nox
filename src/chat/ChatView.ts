@@ -24,7 +24,8 @@ import {
   PracticeQuestion,
 } from "../domain/practice/types";
 import { ReviewFinding } from "../domain/review/types";
-import { renderPracticeQuestionCard, renderPracticeEvaluationCard } from "../features/practice/view/PracticeCards";
+import { PracticePresenter } from "../features/practice/view/PracticePresenter";
+import type { PracticeAnswer } from "../domain/practice/types";
 import { renderReviewFindingCards } from "./learning-card-renderers";
 import { ChatMessage, EditProposal, type ChatReplyReference, type AgentModel } from "../types";
 import {
@@ -130,7 +131,7 @@ export class ChatView extends ItemView {
   private modelPopover!: NoxPopoverState;
   private readonly modelMenuState = new NoxMenuState();
   private models: AgentModel[] = [];
-  private quizDraftTimer: number | null = null;
+  private readonly practiceUi: PracticePresenter;
   private fileInput!: HTMLInputElement;
   private actionMenuBtn!: HTMLButtonElement;
   private commandHintBtn: HTMLButtonElement | null = null;
@@ -210,6 +211,25 @@ export class ChatView extends ItemView {
     private readonly getLogoUrl: () => string,
   ) {
     super(leaf);
+    this.practiceUi = new PracticePresenter({
+      session: () => this.learning.getSession(),
+      hasActiveQuestion: () => this.learning.hasActivePracticeQuestion(),
+      isBusy: () => this.uiState === "RUNNING",
+      saveDraft: async (questionId, answer, sessionId) => {
+        if (this.learning.getSession().id !== sessionId) return;
+        await this.learning.savePracticeDraft(questionId, answer);
+      },
+      requestHint: (question, sessionId) => this.requestPracticeHint(question, sessionId),
+      submit: (questionId, answer, sessionId) => this.submitPracticeAnswer(questionId, answer, sessionId),
+      clarify: () => {
+        this.setAction("ask");
+        this.input.value = "/clarify ";
+        this.onInput();
+        this.input.focus();
+      },
+      prepareContinue: (evaluation, sessionId) => this.prepareNextPracticeActivity(evaluation, sessionId),
+      reportError: message => { new Notice(message); },
+    });
   }
 
   getViewType() {
@@ -271,7 +291,7 @@ export class ChatView extends ItemView {
     this.sessionClockTimer = null;
     this.sessionClockSnapshot = null;
     this.sessionClockSyncedAt = 0;
-    if (this.quizDraftTimer !== null) window.clearTimeout(this.quizDraftTimer);
+    this.practiceUi.dispose();
   }
 
   async refreshRuntime(recheckHealth = true): Promise<void> {
@@ -409,6 +429,7 @@ export class ChatView extends ItemView {
     newBtn.addEventListener("click", () => { void (async () => {
       if (this.uiState === "RUNNING") return;
       try {
+        this.practiceUi.reset();
         await this.learning.newSession();
         this.clearReplyReference();
         this.lastTurnRequest = null;
@@ -742,6 +763,7 @@ export class ChatView extends ItemView {
   private async selectHistorySession(id: string): Promise<void> {
     if (this.uiState === "RUNNING") return;
 
+    this.practiceUi.reset();
     const session = await this.learning.selectSession(id);
     if (!session) return;
 
@@ -2133,6 +2155,7 @@ export class ChatView extends ItemView {
   }
 
   private showEmpty(): void {
+    this.practiceUi.reset();
     this.transcriptPresenter.cancel();
     this.streamText.reset();
     this.transcriptSelection?.hide();
@@ -2860,71 +2883,7 @@ export class ChatView extends ItemView {
     questionId?: string,
   ): void {
     if (!parent) return;
-    const session = this.learning.getSession();
-    const current = [...session.messages].reverse().flatMap(m =>
-      (m.parts ?? []).filter(p => p.type === "practice-question"));
-    const active = Boolean(questionId && current[0]?.questionId === questionId &&
-      this.learning.hasActivePracticeQuestion() &&
-      !session.messages.some(m => m.parts?.some(p =>
-        p.type === "practice-evaluation" && p.questionId === questionId)));
-    const questionIndex = questionId ? session.messages.findIndex(m => m.parts?.some(p =>
-      p.type === "practice-question" && p.questionId === questionId)) : -1;
-    const hintUsed = questionIndex >= 0 && session.messages.slice(questionIndex + 1)
-      .some(m => m.role === "user" && m.content.trim().toLowerCase() === "/hint");
-    renderPracticeQuestionCard(parent, question, questionId ? {
-      questionId, active, hintUsed, draft: session.practiceDrafts?.[questionId],
-      onDraft: answer => {
-        if (!active) return;
-        if (this.quizDraftTimer !== null) window.clearTimeout(this.quizDraftTimer);
-        this.quizDraftTimer = window.setTimeout(() => {
-          this.quizDraftTimer = null;
-          void this.learning.savePracticeDraft(questionId, answer)
-            .catch(() => new Notice("Could not save quiz draft."));
-        }, 450);
-      },
-      onClarify: () => {
-        if (this.uiState === "RUNNING") return;
-        this.setAction("ask");
-        this.input.value = "/clarify ";
-        this.onInput();
-        this.input.focus();
-      },
-      onHint: async () => {
-        if (this.uiState === "RUNNING" || !this.learning.hasActivePracticeQuestion()) return false;
-        const before = this.learning.getSession().messages.length;
-        const request: LearningRequest = {
-          prompt: "/hint", action: "practice", explicitContext: [],
-          turnId: crypto.randomUUID(),
-        };
-        this.lastTurnRequest = request;
-        await this.runTurn(request, true);
-        // Do not reveal the hint when the transcript operation failed.
-        const after = this.learning.getSession();
-        return after.id === session.id && after.messages.slice(before).some(
-          m => m.role === "assistant" && m.content === "Hint: " + question.hint);
-      },
-      onSubmit: async answer => {
-        if (!active || this.uiState === "RUNNING") return false;
-        if (this.quizDraftTimer !== null) window.clearTimeout(this.quizDraftTimer);
-        this.quizDraftTimer = null;
-        // Persist before provider call: retry/cancel must not lose the answer.
-        await this.learning.savePracticeDraft(questionId, answer);
-        const summary = answer.type === "multiple-choice"
-          ? "Selected option: " + answer.optionId
-          : answer.type === "code"
-            ? "Code answer (" + answer.language + "):\n" + answer.source
-            : answer.text;
-        const request: LearningRequest = {
-          turnId: crypto.randomUUID(), action: "practice",
-          prompt: summary, explicitContext: [],
-          practiceSubmission: { questionId, answer },
-        };
-        this.lastTurnRequest = request;
-        await this.runTurn(request, true);
-        return this.learning.getSession().messages.some(m => m.parts?.some(p =>
-          p.type === "practice-evaluation" && p.questionId === questionId));
-      },
-    } : undefined);
+    this.practiceUi.renderQuestion(parent, question, questionId);
     this.scrollThread();
   }
 
@@ -2934,32 +2893,61 @@ export class ChatView extends ItemView {
     questionId?: string,
   ): void {
     if (!parent) return;
-    // Only a committed evaluation can resolve a correct-answer disclosure.
-    const session = this.learning.getSession();
-    const questionPart = questionId ? session.messages.flatMap(m => m.parts ?? [])
-      .find(p => p.type === "practice-question" && p.questionId === questionId) : undefined;
-    const question = questionPart?.type === "practice-question" ? questionPart.question : undefined;
-    const input = question?.input;
-    const choice = input?.type === "multiple-choice"
-      ? input.options.find(o => o.id === input.correctOptionId) : undefined;
-    renderPracticeEvaluationCard(parent, evaluation, {
-      correctAnswer: choice?.text,
-      onContinue: this.learning.hasActivePracticeQuestion() ? undefined : () => {
-        if (this.uiState === "RUNNING") return;
-        const sessionId = session.id;
-        void this.learning.getProgramMenuState().then(state => {
-          if (this.learning.getSession().id !== sessionId) return;
-          this.setAction(state.activeProgramId ? "ask" : "practice");
-          this.input.value = state.activeProgramId
-            ? (state.focusStatus === "paused" ? "/resume-focus" :
-                state.sessionActive ? "/next" : "/progress")
-            : "Give me another practice question about " + evaluation.concept + ".";
-          this.onInput();
-          this.focusComposer();
-        }).catch(() => new Notice("Unable to prepare the next learning activity."));
-      },
-    });
+    this.practiceUi.renderEvaluation(parent, evaluation, questionId);
     this.scrollThread();
+  }
+
+  private async requestPracticeHint(question: PracticeQuestion, sessionId: string): Promise<boolean> {
+    if (this.uiState === "RUNNING" || !this.learning.hasActivePracticeQuestion() ||
+        this.learning.getSession().id !== sessionId) return false;
+    const before = this.learning.getSession().messages.length;
+    const request: LearningRequest = {
+      prompt: "/hint", action: "practice", explicitContext: [],
+      turnId: crypto.randomUUID(),
+    };
+    this.lastTurnRequest = request;
+    await this.runTurn(request, true);
+    // Only a durable transcript hint can unlock the disclosure.
+    const after = this.learning.getSession();
+    return after.id === sessionId && after.messages.slice(before).some(
+      message => message.role === "assistant" && message.content === "Hint: " + question.hint);
+  }
+
+  private async submitPracticeAnswer(
+    questionId: string, answer: PracticeAnswer, sessionId: string,
+  ): Promise<boolean> {
+    if (this.uiState === "RUNNING" || this.learning.getSession().id !== sessionId) return false;
+    // Persist before inference so cancellation and retry cannot discard the answer.
+    await this.learning.savePracticeDraft(questionId, answer);
+    const summary = answer.type === "multiple-choice"
+      ? "Selected option: " + answer.optionId
+      : answer.type === "code"
+        ? "Code answer (" + answer.language + "):\n" + answer.source
+        : answer.text;
+    const request: LearningRequest = {
+      turnId: crypto.randomUUID(), action: "practice",
+      prompt: summary, explicitContext: [],
+      practiceSubmission: { questionId, answer },
+    };
+    this.lastTurnRequest = request;
+    await this.runTurn(request, true);
+    return this.learning.getSession().id === sessionId &&
+      this.learning.getSession().messages.some(message => message.parts?.some(part =>
+        part.type === "practice-evaluation" && part.questionId === questionId));
+  }
+
+  private prepareNextPracticeActivity(evaluation: PracticeEvaluation, sessionId: string): void {
+    if (this.uiState === "RUNNING" || this.learning.getSession().id !== sessionId) return;
+    void this.learning.getProgramMenuState().then(state => {
+      if (this.learning.getSession().id !== sessionId) return;
+      this.setAction(state.activeProgramId ? "ask" : "practice");
+      this.input.value = state.activeProgramId
+        ? (state.focusStatus === "paused" ? "/resume-focus" :
+            state.sessionActive ? "/next" : "/progress")
+        : "Give me another practice question about " + evaluation.concept + ".";
+      this.onInput();
+      this.focusComposer();
+    }).catch(() => new Notice("Unable to prepare the next learning activity."));
   }
 
   private appendReviewFindings(
