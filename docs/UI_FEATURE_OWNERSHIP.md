@@ -84,9 +84,35 @@ Proof: pnpm check:boundaries, typecheck, lint, unit/integration, build, artifact
 | M1 | `PracticePresenter` owns question/evaluation projection and one stale-safe draft debounce; ChatView exposes narrow request callbacks | Desktop quiz/CodeMirror smoke |
 | M2 | Existing History/Transcript presenters retained; response toolbar moved to `response-actions-presenter.ts` with typed session-scoped callbacks | Desktop navigation, fork and regenerated-response smoke |
 | M3 | `LearningPresenter` owns Learning Map, Activity, Focus Strip, session clock/cache/polling; original `OnboardingFlow` remains the sole onboarding owner | Desktop focus and onboarding recovery smoke |
-| M4 | ChatView now composes Practice/Learning presenters and centralizes session-transition invalidation; **thin-shell objective is partial** because composer/model/thinking orchestration remains in ChatView | Separate follow-up extraction only when contracts are testable |
-| M5 | Strict package allow-list extended for exactly required learning/conversation UI edges; architecture and async stale-response regression tests added | CI on final HEAD, Obsidian desktop acceptance |
+| M4 | ChatView now composes Practice/Learning/Model presenters and centralizes session-transition invalidation; Model Picker now owns discovery/popover/keyboard/focus. **Thin-shell objective remains partial** because prompt-menu and thinking orchestration remain in ChatView | Separate tests/host smoke for prompt and thinking before further extraction |
+| M5 | Strict package allow-list extended for exactly required learning/conversation UI edges; architecture, model-menu Escape/disposal, practice draft flushing, and stale-response regression tests added | CI on final HEAD, Obsidian desktop acceptance |
 
+### M4 follow-up: Model Picker and draft navigation (2026-10-21)
+
+Surface<C,V,N> for the model picker:
+- **C:** runtime default, discovered models, manual selection, selection checkmark and explicit retry.
+- **V:** closed, open, discovering, discovery failure, no catalog, manually selected ID.
+- **N:** NoxComposer menu anchor, read-only model catalog, current session model and the LearningController runtime command.
+- **Moves:** trigger → open → choose model / retry; Escape/Tab/outside click → close; successful selection → close and focus trigger.
+- **Ownership:** `ModelMenuPresenter` owns the popover, rows, keyboard index, pending discovery UI, and listener lifetime; application `LearningController.setModel()` remains sole write path. `ChatView` wires callback ports only.
+- **Async:** discovery completion after view disposal must not render into detached DOM. The model picker is recreated when the Obsidian leaf reopens.
+- **Failure:** model persistence failures are reported, the menu closes and the currently committed model remains authoritative.
+
+A new navigation invariant surfaced during review: Practice answer debouncing must not silently discard unsaved text when creating, switching, forking, archiving, or closing a session.
+
+```text
+user types answer
+  → PracticePresenter.pendingDraft
+  → navigation or close intent
+  → flushDraft via LearningController.savePracticeDraft
+  → durable SessionController write
+  → session transition
+  → presenter reset / old async work invalidated
+```
+
+A failure to save the draft prevents navigation/other mutation and leaves the draft pending for retry; closing a view attempts the flush and reports a persistence error if it cannot save.
+
+**Proof:** `tests/chat/model-menu.test.ts` covers keyboard Escape, focus restoration and late discovery after disposal; `tests/chat/practice-presenter.test.ts` covers flushing pending essay edits once, retrying failed writes, and not writing to a new session. Existing architecture and integration suites continue to be run in CI.
 The shared code-answer editor remains under `src/chat` because both tracked Practice and untracked Rich Quick Quiz use it. No file migrations and no changes to `src/main.ts` or persisted schemas are part of this patch. It is intentionally not a blanket rewrite of 3,000 lines of ChatView without host acceptance.
 
 ## Non-goals / compatibility contracts
