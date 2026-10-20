@@ -1,9 +1,10 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, rmSync, writeFileSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
 import test from "node:test";
+import { findDirectStyleViolations } from "../../../scripts/ci/obsidian-critical-policy.mjs";
 
 const policy = "scripts/ci/obsidian-critical-policy.mjs";
 function check(source: string) {
@@ -51,4 +52,37 @@ test("Community: allow real section headings and labels without headings", () =>
     const out = check(source);
     assert.equal(out.status, 0, out.stderr);
   }
+});
+
+
+test("Community: reject all direct style assignments, computed properties and CSSOM writes", () => {
+  for (const source of [
+    'const el = host.createDiv(); el.style.height = "auto";',
+    'const el = host.createDiv(); el.style["width"] = "25%";',
+    'const el = host.createDiv(); el.style.setProperty("width", "30%");',
+    'const el = host.createDiv(); el.style.removeProperty("width");',
+    'const el = host.createDiv(); el.style.opacity += "1";',
+    'const el = host.createDiv(); ++el.style.zIndex;',
+  ]) {
+    const out = check(source);
+    assert.equal(out.status, 1, source + ": " + out.stderr);
+    assert.match(out.stderr, /no-static-styles-assignment/);
+  }
+});
+
+test("Community: allow native CSS helpers and CSS classes", () => {
+  for (const source of [
+    'element.setCssStyles({ height: "auto", width: "20%" });',
+    'element.setCssProps({ "--nox-width": "20px" });',
+    'element.addClass("nox-code-editor");',
+    'element.classList.toggle("nox-expanded", active);',
+  ]) {
+    const out = check(source);
+    assert.equal(out.status, 0, source + ": " + out.stderr);
+  }
+});
+
+test("Community: CI source scanner covers code-answer-editor.ts and every TS source", () => {
+  const editor = readFileSync("src/chat/code-answer-editor.ts", "utf8");
+  assert.deepEqual(findDirectStyleViolations(editor,"src/chat/code-answer-editor.ts"), []);
 });
