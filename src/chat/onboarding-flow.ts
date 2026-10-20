@@ -193,6 +193,9 @@ export class OnboardingFlow {
     this.stage = "generating";
     this.render();
     try {
+      // Persist user input before asynchronous model work; recovery never replays inference.
+      await this.learning.saveOnboardingDraft({ ...this.draft, stage: "generating" });
+      if (epoch !== this.requestEpoch) return;
       const constraints = onboardingConstraints(this.draft);
       await this.requireProviderReady();
       if (epoch !== this.requestEpoch) return;
@@ -235,8 +238,27 @@ export class OnboardingFlow {
         ? await this.learning.approveLearningWorkspace(this.preview.id, this.operationId)
         : await this.learning.approveLearningProgram(this.preview.id, this.operationId);
     } catch (error) {
-      this.error = error instanceof Error ? error.message : String(error);
-      this.stage = "preview"; this.render();
+      const message = error instanceof Error ? error.message : String(error);
+      // The orchestrator checks operation receipts before preview expiry.
+      // An expired preview therefore cannot have committed this operation.
+      if (/preview expired/i.test(message)) {
+        this.draft = { ...this.draft, approval: undefined };
+        this.preview = null;
+        this.operationId = undefined;
+        this.retryWorkspace = null;
+        this.stage = "form";
+        try { await this.learning.saveOnboardingDraft({ ...this.draft, stage: "form" }); }
+        catch {
+          // The previous receipt remains durable; next launch will reconcile it.
+          this.error = "Unable to clear the expired approval receipt. Check vault storage and retry.";
+          this.render(); this.applying = false; return;
+        }
+        this.error = "The preview expired. Generate a fresh learning blueprint.";
+      } else {
+        this.error = message;
+        this.stage = "preview";
+      }
+      this.render();
       this.applying = false;
       return;
     }
