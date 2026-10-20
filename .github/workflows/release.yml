@@ -1,8 +1,9 @@
 name: Verify and publish Obsidian release
 
 # Obsidian plugin release only; Cloudflare owns the landing deployment.
-# A pending draft is rebuilt and republished from the exact latest master SHA
-# after Linux, Windows and strict Community verification.
+# Publish staged release/x.y.z commits using workflow_dispatch AFTER native
+# acceptance and CI, BEFORE merging the release manifest into master.
+# Existing master-triggered recovery remains for already prepared releases.
 on:
   push:
     branches: [master]
@@ -50,6 +51,18 @@ jobs:
           echo "prepared=false" >> "$GITHUB_OUTPUT"
           node scripts/check-release.mjs
           version="$(node -p 'JSON.parse(require("fs").readFileSync(".release-plan.json")).version')"
+          # Publish staged release candidates BEFORE merging their version bump
+          # into master. Only explicit dispatches of release/x.y.z may do so.
+          if [ "$GITHUB_REF_NAME" != "master" ]; then
+            test "$GITHUB_REF_NAME" = "release/$version" || {
+              echo "::error::Only release/$version or master may publish NOX $version."
+              exit 1
+            }
+            test "$GITHUB_EVENT_NAME" = "workflow_dispatch" || {
+              echo "::error::Candidate publication requires explicit dispatch."
+              exit 1
+            }
+          fi
           echo "Release verification: release registry lookup"
           releases="$(gh api "repos/$GITHUB_REPOSITORY/releases?per_page=100")"
           published="$(jq -r --arg v "$version" '[.[] | select(.tag_name == $v and .draft == false)] | length' <<< "$releases")"
@@ -204,9 +217,16 @@ jobs:
           echo "Release verification: source identity"
           test "$(node -p 'require("./package.json").version')" = "$version"
           test "$(node -p 'require("./dist/manifest.json").version')" = "$version"
-          # Never publish artifacts from an older master build if a newer merge occurred.
-          current="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/master" --jq '.object.sha')"
-          test "$current" = "$GITHUB_SHA" || { echo "::error::Master moved; require a fresh build."; exit 1; }
+          # Enforce exact staged branch HEAD rather than an older candidate or
+          # a different master commit. This also supports publish-before-merge.
+          ref="$GITHUB_REF_NAME"
+          case "$ref" in
+            master) ;;
+            "release/$version") test "$GITHUB_EVENT_NAME" = "workflow_dispatch" ;;
+            *) echo "::error::Invalid release source ref: $ref"; exit 1 ;;
+          esac
+          current="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/$ref" --jq '.object.sha')"
+          test "$current" = "$GITHUB_SHA" || { echo "::error::Source ref moved; require a fresh build."; exit 1; }
 
           # Draft releases are not addressable through the public /releases/tags API.
           # Find and update them by authenticated REST release ID instead.
