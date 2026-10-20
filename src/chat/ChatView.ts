@@ -1480,7 +1480,7 @@ export class ChatView extends ItemView {
     } finally {
       this.turnStarting = false;
     }
-    if (epoch !== this.viewEpoch || this.uiState === "RUNNING") return;
+    if (epoch !== this.viewEpoch) return;
     this.closePromptMenu();
     this.clearReplyReference();
 
