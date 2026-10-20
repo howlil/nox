@@ -214,4 +214,38 @@
   .nox-settings-surface .nox-settings-tab { transition: none; }
 }
 
+/* Settings design-graph boundary: the native Obsidian rows and the
+   NOX-owned usage panels inherit one scoped palette from the tab root. */
+.nox-settings {
+  min-width: 0;
+}
+.nox-settings .nox-settings-surface {
+  box-sizing: border-box;
+  max-width: 100%;
+}
+.nox-settings .nox-settings-surface *,
+.nox-settings .nox-settings-native-row * {
+  box-sizing: border-box;
+}
+.nox-settings .nox-settings-native-row .setting-item-name {
+  font-size: 13px;
+  line-height: 1.45;
+}
+.nox-settings .nox-settings-native-row .setting-item-description {
+  font-size: 12px;
+  line-height: 1.5;
+}
+.nox-settings .nox-settings-style-warning {
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--nox-line-strong);
+  border-radius: var(--nox-radius-control);
+  background: var(--nox-inset);
+  color: var(--nox-ink);
+  font-size: 12px;
+  line-height: 1.5;
+}
+.nox-settings .nox-settings-style-warning[hidden] {
+  display: none;
+}
 
