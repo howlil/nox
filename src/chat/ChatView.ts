@@ -2147,8 +2147,10 @@ export class ChatView extends ItemView {
     // First-run welcome uses the same sidebar, header and composer.
     // A damaged program index must NOT be treated as an empty vault.
     void this.learning.getOnboardingContext().then(state => {
-      if (!slate.isConnected || state.hasProgram || state.dismissed ||
-          this.learning.getSession().messages.length > 0) return;
+      const pendingApproval = Boolean(state.draft?.approval);
+      if (!slate.isConnected || state.dismissed ||
+          (state.hasProgram && !pendingApproval) ||
+          (this.learning.getSession().messages.length > 0 && !pendingApproval)) return;
       new OnboardingFlow(slate, this.learning, {
         onSkip: () => {
           void this.learning.dismissOnboarding().then(() => {
@@ -2187,11 +2189,14 @@ export class ChatView extends ItemView {
           this.lastTurnRequest = request;
           await this.runTurn(request, true);
         },
-        onCreated: () => {
+        onCreated: async () => {
+          await this.learning.dismissOnboarding();
           this.showEmpty();
+          this.focusComposer();
         },
         onStart: async (programId, objectiveId) => {
           try {
+            await this.learning.dismissOnboarding();
             await this.beginFirstOnboardingObjective(programId, objectiveId);
           } catch (error) {
             if (!slate.isConnected) {
