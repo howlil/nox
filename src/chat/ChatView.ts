@@ -62,6 +62,7 @@ import { NoxRunInspector } from "./run-inspector";
 import { appendMessageActions } from "./message-actions";
 import { TranscriptSelectionController } from "./transcript-selection";
 import { renderLearningGraph } from "./learning-graph";
+import { LearningPresenter } from "../features/learning/view/LearningPresenter";
 import { enhanceNoxResponseVisuals } from "./response-visuals";
 import {
   NoxSelectionActions,
@@ -132,6 +133,7 @@ export class ChatView extends ItemView {
   private readonly modelMenuState = new NoxMenuState();
   private models: AgentModel[] = [];
   private readonly practiceUi: PracticePresenter;
+  private readonly learningUi: LearningPresenter;
   private fileInput!: HTMLInputElement;
   private actionMenuBtn!: HTMLButtonElement;
   private commandHintBtn: HTMLButtonElement | null = null;
@@ -179,10 +181,7 @@ export class ChatView extends ItemView {
     cancel: id => window.cancelAnimationFrame(id),
   });
   private runInspector: NoxRunInspector | null = null;
-  private learningGraphEl: HTMLElement | null = null;
   private focusStripEl: HTMLButtonElement | null = null;
-  private focusStripEpoch = 0;
-  private learningActivityEl: HTMLElement | null = null;
   private thinkingManualExpanded: boolean | null = null;
   private streamedThoughtText = "";
 
@@ -228,6 +227,28 @@ export class ChatView extends ItemView {
         this.input.focus();
       },
       prepareContinue: (evaluation, sessionId) => this.prepareNextPracticeActivity(evaluation, sessionId),
+      reportError: message => { new Notice(message); },
+    });
+    this.learningUi = new LearningPresenter({
+      thread: () => this.thread,
+      overview: () => this.learning.getProgramOverview(),
+      activity: async scope => {
+        const state = await this.learning.getProgramMenuState();
+        return this.learning.getActivitySummary(scope === "active" ? state.activeProgramId : undefined);
+      },
+      mountMap: (overview, onClose, onNext, onCommand) =>
+        renderLearningGraph(this.thread, overview, onClose, onNext, onCommand),
+      mountActivity: (summary, scope, onClose, onScopeChange) =>
+        renderLearningActivity(this.thread, summary, { scope, onClose, onScopeChange }),
+      onNext: overview => {
+        if (this.uiState === "RUNNING") return;
+        this.input.value = overview?.focus?.status === "paused" ? "/resume-focus" :
+          overview?.active ? "/next" : overview?.next.objectiveId
+            ? "/focus " + overview.next.objectiveId : overview ? "/progress" : "/plan ";
+        this.onInput();
+        if (overview) void this.doSend(); else this.focusComposer();
+      },
+      onCommand: command => this.submitLearningPanelCommand(command),
       reportError: message => { new Notice(message); },
     });
   }
@@ -280,7 +301,7 @@ export class ChatView extends ItemView {
 
   async onClose(): Promise<void> {
     this.learning.cancel();
-    this.focusStripEpoch++;
+    this.learningUi.dispose();
     this.transcriptPresenter.cancel();
     this.streamText.dispose();
     this.historyPresenter?.close();
@@ -430,6 +451,7 @@ export class ChatView extends ItemView {
       if (this.uiState === "RUNNING") return;
       try {
         this.practiceUi.reset();
+        this.learningUi.reset();
         await this.learning.newSession();
         this.clearReplyReference();
         this.lastTurnRequest = null;
@@ -472,7 +494,7 @@ export class ChatView extends ItemView {
       attr: { type: "button", "aria-label": "Open active learning focus" },
     });
     this.focusStripEl.addEventListener("click", () => {
-      if (!this.learningGraphEl?.isConnected) void this.toggleLearningMap();
+      if (!this.learningUi.hasMap) void this.toggleLearningMap();
     });
     this.sessionClockEl = this.headerEl.createDiv({ cls: "nox-session-clock nox-hidden" });
     this.sessionClockEl.setAttribute("role", "group");
@@ -584,73 +606,17 @@ export class ChatView extends ItemView {
   }
 
   private async toggleLearningActivity(scope: "active" | "all" = "active"): Promise<void> {
-    if (this.learningActivityEl?.isConnected && scope === "active") {
-      this.learningActivityEl.remove();
-      this.learningActivityEl = null;
-      return;
-    }
-    try {
-      const state = await this.learning.getProgramMenuState();
-      const id = scope === "active" ? state.activeProgramId : undefined;
-      const summary = await this.learning.getActivitySummary(id);
-      this.learningActivityEl?.remove();
-      this.learningActivityEl = renderLearningActivity(this.thread, summary, {
-        scope,
-        onClose: () => { this.learningActivityEl?.remove(); this.learningActivityEl = null; },
-        onScopeChange: next => {
-          // Do not treat scope switching as a toggle-close operation.
-          this.learningActivityEl?.remove();
-          this.learningActivityEl = null;
-          void this.toggleLearningActivity(next);
-        },
-      });
-      this.thread.prepend(this.learningActivityEl);
-      this.learningActivityEl.scrollIntoView({ block: "start", behavior: "smooth" });
-    } catch (error) {
-      new Notice(error instanceof Error ? error.message : "Learning activity unavailable.");
-    }
+    await this.learningUi.toggleActivity(scope);
   }
 
-  /** Focus strip is a read-only preview. Durable program data remains authoritative. */
   private async refreshFocusStrip(): Promise<void> {
-    const epoch = ++this.focusStripEpoch;
-    const strip = this.focusStripEl;
-    if (!strip?.isConnected) return;
-    try {
-      const overview = await this.learning.getProgramOverview();
-      if (epoch !== this.focusStripEpoch || !strip.isConnected) return;
-      const focus = overview?.focus;
-      const objective = overview?.objectives.find(item =>
-        item.objective.id === focus?.objectiveId);
-      const preview = overview?.revisionPreview;
-      if (!focus && !preview) {
-        strip.addClass("nox-hidden");
-        strip.empty();
-        return;
-      }
-      strip.removeClass("nox-hidden");
-      strip.empty();
-      const icon = strip.createSpan({ cls: "nox-focus-strip-icon" });
-      setNoxIcon(icon, focus?.status === "paused" ? "pause-circle"
-        : focus ? "target" : "git-branch");
-      const label = focus
-        ? (focus.status === "paused" ? "Paused · " : "Focus · ") +
-          (objective?.objective.title ?? focus.objectiveId)
-        : "Curriculum revision awaiting approval";
-      strip.createSpan({ cls: "nox-focus-strip-label", text: label });
-      const chevron = strip.createSpan({ cls: "nox-focus-strip-chevron" });
-      setNoxIcon(chevron, "chevron-right");
-    } catch {
-      // A damaged program store cannot prevent ordinary chat interactions.
-      if (epoch === this.focusStripEpoch) strip.addClass("nox-hidden");
-    }
+    await this.learningUi.refreshFocusStrip(this.focusStripEl);
   }
 
   private submitLearningPanelCommand(command: string): void {
     if (this.uiState === "RUNNING" || this.pendingReplyTo) return;
     if (!this.learning.canExecuteOfflineCommand(command) && command !== "/next") return;
-    this.learningGraphEl?.remove();
-    this.learningGraphEl = null;
+    this.learningUi.closeMap();
     this.setAction("ask");
     this.input.value = command;
     this.onInput();
@@ -658,27 +624,7 @@ export class ChatView extends ItemView {
   }
 
   private async toggleLearningMap(): Promise<void> {
-    if (this.learningGraphEl?.isConnected) {
-      this.learningGraphEl.remove(); this.learningGraphEl = null; return;
-    }
-    try {
-      const overview = await this.learning.getProgramOverview();
-      this.learningGraphEl = renderLearningGraph(this.thread, overview,
-        () => { this.learningGraphEl?.remove(); this.learningGraphEl = null; },
-        () => {
-          if (this.uiState === "RUNNING") return;
-          this.learningGraphEl?.remove(); this.learningGraphEl = null;
-          this.input.value = overview?.focus?.status === "paused" ? "/resume-focus" :
-            overview?.active ? "/next" : overview?.next.objectiveId
-              ? "/focus " + overview.next.objectiveId : overview ? "/progress" : "/plan ";
-          this.onInput();
-          if (overview) void this.doSend(); else this.focusComposer();
-        },
-        command => this.submitLearningPanelCommand(command));
-      this.thread.scrollTo({ top: 0, behavior: "smooth" });
-    } catch (error) {
-      new Notice(error instanceof Error ? error.message : "Learning map unavailable.");
-    }
+    await this.learningUi.toggleMap();
   }
 
   private toggleHistoryMenu(): void {
@@ -764,6 +710,8 @@ export class ChatView extends ItemView {
     if (this.uiState === "RUNNING") return;
 
     this.practiceUi.reset();
+    this.learningUi.reset();
+    this.transcriptPresenter.cancel();
     const session = await this.learning.selectSession(id);
     if (!session) return;
 
