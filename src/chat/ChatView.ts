@@ -981,6 +981,8 @@ export class ChatView extends ItemView {
       return;
     }
 
+    // Page navigation is presenter-owned, never dispatched to the application.
+    if (action.type === "programs" || action.type === "menu-back") return;
     this.setAction(action.kind);
     this.input.value = prefix;
     this.closePromptMenu();
