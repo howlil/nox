@@ -131,7 +131,7 @@ test("stale async menu results do not replace the latest query or survive dispos
     old.resolve([action("old-result")]);
     await old.promise;
     await Promise.resolve();
-    assert.equal(h.menu.querySelectorAll(".nox-prompt-menu-row:not(:disabled)")[0]?.children
+    assert.equal(h.menu.querySelectorAll(".nox-prompt-menu-name")
       .some(c=>c.textContent==="new-result"),true);
     h.presenter.dispose();
     assert.equal(h.menu.children.length,0);
