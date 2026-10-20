@@ -335,7 +335,7 @@ export class ThinkingPresenter {
     // Model-supplied thought text is optional; never auto-reveal private trace text.
   }
 
-  private appendRestoredThinkingTrace(message: ChatMessage): HTMLElement {
+  appendRestoredThinkingTrace(message: ChatMessage): HTMLElement {
     const trace = this.thread.createDiv({ cls: "nox-thinking nox-thinking--restored" });
     trace.setAttribute("role", "status");
 
