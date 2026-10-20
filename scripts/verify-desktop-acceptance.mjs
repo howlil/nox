@@ -1,7 +1,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { resolve } from "node:path";
+import { basename, resolve } from "node:path";
 
 const expectedCases = Array.from({ length: 10 }, (_, i) => "D" + String(i + 1).padStart(2, "0"));
 const commitId = /^[a-f0-9]{40}$/;
@@ -71,7 +71,8 @@ export function verifyDesktopAcceptanceFile(filename = "docs/desktop-acceptance.
   });
 }
 
-if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+if (process.argv[1] && basename(process.argv[1]) === "verify-desktop-acceptance.mjs" &&
+    resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   try {
     const result = verifyDesktopAcceptanceFile();
     console.log("Native Obsidian acceptance verified:", result.version, result.caseCount + " cases.");
