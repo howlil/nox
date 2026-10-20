@@ -2409,7 +2409,8 @@ export class ChatView extends ItemView {
       const state = await this.learning.getOnboardingContext();
       if (sessionId !== this.learning.getSession().id || state.dismissed ||
           !state.draft?.approval || !this.thread.isConnected ||
-          this.uiState === "RUNNING" || this.thread.querySelector(".nox-onboarding-recovery-notice")) return;
+          this.uiState === "RUNNING" || this.thread.querySelector(".nox-empty-slate") ||
+          this.thread.querySelector(".nox-onboarding-recovery-notice")) return;
       const notice = createNoxStatus(this.thread, {
         cls: "nox-onboarding-recovery-notice",
         kind: "warning",
