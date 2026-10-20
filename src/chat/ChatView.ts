@@ -1357,13 +1357,11 @@ export class ChatView extends ItemView {
       }
       this.systemContextFiles = event.context.system.map((item) => item.file);
       this.syncContextChips();
-      this.thinkingUi?.stage(1);
       return;
     }
 
     if (event.type === "thought-delta") {
       const shouldFollow = this.isNearThreadBottom();
-      this.thinkingUi?.stage(3);
       this.thinkingUi?.thoughtDelta(event.text);
       if (shouldFollow) this.scrollThread("auto");
       return;
