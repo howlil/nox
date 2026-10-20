@@ -5,7 +5,7 @@ import { createNoxIconButton } from "../../../chat/primitives";
 export interface ResponseActionCallbacks {
   isBusy(): boolean;
   canRegenerate(): boolean;
-  onFork(id: string): void;
+  onFork(id: string): Promise<void>;
   onSelectVersion(messageIndex: number, versionIndex: number, sessionId: string): void;
   onRegenerate(messageIndex: number, user: ChatMessage, assistant: ChatMessage): void;
   onQuickCheck(response: string): void;
