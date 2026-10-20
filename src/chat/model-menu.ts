@@ -19,7 +19,7 @@ export function modelMenuItems(models: AgentModel[], selected?: string): AgentMo
 export interface ModelMenuPort {
   models(): AgentModel[];
   selectedId(): string | undefined;
-  discoveryError(): string | null;
+  discoveryError(): string | null | undefined;
   discover(): Promise<void>;
   select(id: string): Promise<void>;
   setLabel(label: string): void;
