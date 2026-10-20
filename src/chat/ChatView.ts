@@ -2111,7 +2111,7 @@ export class ChatView extends ItemView {
     const makeCommand = (prompt: string): LearningRequest => ({
       turnId: crypto.randomUUID(), prompt, action: "ask", explicitContext: [],
     });
-    const focus = makeCommand("/focus " + objectiveId);
+    const focus = { ...makeCommand("/focus " + objectiveId), focusProgramId: programId };
     this.setAction("ask");
     this.lastTurnRequest = focus;
     await this.runTurn(focus, true);
