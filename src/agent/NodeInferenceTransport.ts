@@ -6,7 +6,10 @@ import type { IncomingMessage } from "http";
  * No renderer fetch, no credentials in URL, and no automatic POST replay.
  * Network/proxy incompatibility is surfaced, not silently retried.
  */
-export function createNodeInferenceFetch(bufferedCatalogFetch: typeof fetch): typeof fetch {
+export function createNodeInferenceFetch(
+  bufferedCatalogFetch: typeof fetch,
+  requestImpl: typeof httpsRequest = httpsRequest,
+): typeof fetch {
   return async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
     const raw = typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
     const url = new URL(raw);
@@ -31,7 +34,7 @@ export function createNodeInferenceFetch(bufferedCatalogFetch: typeof fetch): ty
         resolved = true;
         reject(error);
       };
-      const req = httpsRequest(url, {
+      const req = requestImpl(url, {
         method, headers,
         // Socket inactivity limit; the turn-level AbortController owns the 300s deadline.
         // Deep reasoning may legitimately produce no bytes for over 65 seconds.
@@ -47,8 +50,10 @@ export function createNodeInferenceFetch(bufferedCatalogFetch: typeof fetch): ty
         const body = new ReadableStream<Uint8Array>({
           start(controller) {
             response.on("data", (chunk: Buffer) => {
+              if (ended) return;
               bytes += chunk.length;
               if (bytes > 16 * 1024 * 1024) {
+                ended = true;
                 const error = new Error("Streaming response exceeded 16 MiB.");
                 controller.error(error);
                 response.destroy(error);
