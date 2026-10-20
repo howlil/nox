@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { readFileSync } from "node:fs";
+import { noxCssSource } from "../support/css-source";
 
-const css = readFileSync("styles.css", "utf8");
+const css = noxCssSource();
 
 test("M3 desktop code answer CSS retains intrinsic height and no nested vertical scroll", () => {
   assert.match(css, /\.nox-root \.nox-code-answer-host \.cm-editor \{[^}]*height: auto;[^}]*max-height: none;/);
