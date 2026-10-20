@@ -20,12 +20,12 @@ import {
   LearningContext,
 } from "../context/context-types";
 import {
+  PracticeAnswer,
   PracticeEvaluation,
   PracticeQuestion,
 } from "../domain/practice/types";
 import { ReviewFinding } from "../domain/review/types";
 import { PracticePresenter } from "../features/practice/view/PracticePresenter";
-import type { PracticeAnswer } from "../domain/practice/types";
 import { renderReviewFindingCards } from "./learning-card-renderers";
 import { ChatMessage, EditProposal, type ChatReplyReference, type AgentModel } from "../types";
 import {
