@@ -2191,7 +2191,14 @@ export class ChatView extends ItemView {
           this.showEmpty();
         },
         onStart: async (programId, objectiveId) => {
-          await this.beginFirstOnboardingObjective(programId, objectiveId);
+          try {
+            await this.beginFirstOnboardingObjective(programId, objectiveId);
+          } catch (error) {
+            if (!slate.isConnected) {
+              new Notice(error instanceof Error ? error.message : "Could not start the first objective.");
+            }
+            throw error;
+          }
         },
       }, state.draft);
     }).catch(error => {
