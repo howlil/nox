@@ -1312,15 +1312,23 @@ export class ChatView extends ItemView {
         ...request,
         retry: !appendUserMessage && !request.regenerate,
       })) {
+        // The Obsidian leaf may have closed while a provider was awaiting I/O.
+        // Do not write streamed content into detached or subsequently remounted UI.
+        if (epoch !== this.viewEpoch) {
+          this.learning.cancel();
+          return;
+        }
         if (event.type === "completed") regenerated = true;
         this.handleLearningEvent(event);
       }
       // Drop the provisional streaming bubble only after the new version is
       // durable. A failure leaves the original response intact.
-      if (request.regenerate && regenerated && this.learning.getSession().id === sessionId) {
+      if (epoch === this.viewEpoch && request.regenerate && regenerated &&
+          this.learning.getSession().id === sessionId) {
         await this.restoreSession();
       }
     } catch (error) {
+      if (epoch !== this.viewEpoch) return;
       const message = error instanceof Error ? error.message : String(error);
       console.warn("[Nox] Unexpected turn failure", message);
       this.terminateTurn(
