@@ -9,8 +9,9 @@ export function restoreOnboardingDraft(initial?: OnboardingDraft): OnboardingDra
     sessionsPerWeek: 3, sourceBound: false,
   };
   if (!initial || initial.version !== 1) return empty;
-  const stage: OnboardingStage = ["generating", "preview", "applying", "ready"].includes(initial.stage)
-    ? "form" : ["discovery", "suggestions"].includes(initial.stage) ? "welcome" : initial.stage;
+  const stage: OnboardingStage = initial.approval ? "recovering"
+    : ["generating", "preview", "applying", "recovering", "ready"].includes(initial.stage)
+      ? "form" : ["discovery", "suggestions"].includes(initial.stage) ? "welcome" : initial.stage;
   return { ...initial, interests: [...initial.interests], stage };
 }
 
