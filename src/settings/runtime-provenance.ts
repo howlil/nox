@@ -1,6 +1,6 @@
-import { createHash } from "node:crypto";
-import { readFile } from "node:fs/promises";
-import path from "node:path";
+import { createHash } from "crypto";
+import { readFile } from "fs/promises";
+import path from "path";
 
 export interface RuntimeBuildIdentity {
   revision: string;
