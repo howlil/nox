@@ -781,20 +781,33 @@ export class ChatView extends ItemView {
     this.closePromptMenu();
     const epoch = this.viewEpoch;
     const sessionId = this.learning.getSession().id;
+    const input = this.fileInput;
+    const pending: Array<{ name: string; content: string }> = [];
 
-    for (const file of Array.from(files)) {
-      const content = await file.text();
-      if (epoch !== this.viewEpoch || this.learning.getSession().id !== sessionId) return;
+    try {
+      for (const file of Array.from(files)) {
+        const content = await file.text();
+        if (epoch !== this.viewEpoch || this.learning.getSession().id !== sessionId) return;
+        pending.push({ name: file.name, content });
+      }
+    } catch (error) {
+      if (epoch === this.viewEpoch) {
+        new Notice(error instanceof Error ? error.message : "Could not read attached file.");
+      }
+      return;
+    } finally {
+      // Clear the original picker; never touch the newly mounted Composer on close.
+      input.value = "";
+    }
+
+    for (const file of pending) {
       this.attachmentDraft.add(file.name, {
         kind: "attachment",
         name: file.name,
-        content,
+        content: file.content,
       });
     }
-
-    
     this.renderAttachments();
-    this.fileInput.value = "";
     await this.syncChips();
     this.composerUi.focus();
   }
