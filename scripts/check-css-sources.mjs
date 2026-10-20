@@ -11,7 +11,7 @@ function cssFiles(directory) {
   });
 }
 
-const files = ["styles.css", ...cssFiles("landing/src")];
+const files = ["styles.css", ...cssFiles("styles"), ...cssFiles("landing/src")];
 for (const path of files) {
   const css = readFileSync(path, "utf8");
   if (path.endsWith("dialog.module.css")) assertLandingDialogCss(css);
