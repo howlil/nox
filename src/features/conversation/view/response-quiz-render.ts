@@ -73,7 +73,7 @@ export function renderNoxQuiz(spec: NoxQuizSpec, doc: Document = document): HTML
     counter.textContent = completed ? "Completed" :
       String(current + 1).padStart(2, "0") + " / " + String(total).padStart(2, "0");
     progress.setAttribute("aria-valuenow", String(completed ? total : current + 1));
-    fill.style.width = ((completed ? total : current + 1) / total * 100) + "%";
+    fill.setCssStyles({ width: ((completed ? total : current + 1) / total * 100) + "%" });
   };
 
   function showChoices(q: Extract<NoxQuizQuestion, { options: unknown }>): HTMLElement {
