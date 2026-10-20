@@ -113,6 +113,8 @@ user types answer
 A failure to save the draft prevents navigation/other mutation and leaves the draft pending for retry; closing a view attempts the flush and reports a persistence error if it cannot save.
 
 **Proof:** `tests/chat/model-menu.test.ts` covers keyboard Escape, focus restoration and late discovery after disposal; `tests/chat/practice-presenter.test.ts` covers flushing pending essay edits once, retrying failed writes, and not writing to a new session. Existing architecture and integration suites continue to be run in CI.
+
+Turn admission also invokes `PracticePresenter.flushDraft()` before clearing Composer or emitting a new learning turn. A synchronous `turnStarting` latch precedes that await (preventing rapid double-send); a `viewEpoch` invalidates pending starts after session navigation or Obsidian view close. This applies to hints as well as ordinary composer sends. `tests/architecture/ui-feature-ownership.test.ts` locks the ordering against regressions.
 The shared code-answer editor remains under `src/chat` because both tracked Practice and untracked Rich Quick Quiz use it. No file migrations and no changes to `src/main.ts` or persisted schemas are part of this patch. It is intentionally not a blanket rewrite of 3,000 lines of ChatView without host acceptance.
 
 ## Non-goals / compatibility contracts
