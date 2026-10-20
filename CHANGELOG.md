@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.3.1]
+
+### Fixes
+
+- Add an Obsidian command to copy loaded runtime diagnostics, including the exact source SHA, transport and installed bundle SHA-256; make stale hot-reload bundles easier to identify.
+- Verify all required plugin assets after deployment and write main.js last with temporary-file replacement.
+- Cover Node HTTPS inference streaming, cancellation, timeout, premature connection close and oversized responses in Windows release tests.
+- Require source-bound D01–D10 native Obsidian Desktop acceptance for normal and recovery publication; prevent release if evidence is missing or stale.
+
+### Compatibility and verification
+
+- Desktop only, requiring Obsidian 1.13.0 or later. No migration of learning data or credentials.
+- CI, Windows regression tests and release certification passed for the underlying reliability-fix commit. **Native Obsidian Desktop acceptance is not yet recorded; publication remains blocked until verified.**
+
 ## [1.3.0]
 
 ### Learning and onboarding
