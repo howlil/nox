@@ -103,7 +103,7 @@ export function renderLearningGraph(
     "aria-label": "Mastered learning objectives", "aria-valuemin": "0",
     "aria-valuemax": String(overview.objectives.length), "aria-valuenow": String(mastered) } });
   const fill = track.createDiv();
-  fill.style.width = (overview.objectives.length ? (mastered / overview.objectives.length) * 100 : 0) + "%";
+  fill.setCssStyles({ width: (overview.objectives.length ? (mastered / overview.objectives.length) * 100 : 0) + "%" });
   renderAdaptiveLearningPanel(root, panel, onCommand);
   const layout = layoutLearningMap(overview.objectives.map(item => ({
     id: item.objective.id, title: item.objective.title, status: item.status,
