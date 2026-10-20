@@ -76,6 +76,19 @@ Proof: async cancellation, focus restoration, Escape/popover behavior, new sessi
 Implement: package allow-list only for concrete new owner edges, tests for allowed/forbidden imports and regression paths. Collect CI artifacts; desktop smoke of Default theme, one community theme, narrow pane, keyboard/reduced motion.
 Proof: pnpm check:boundaries, typecheck, lint, unit/integration, build, artifact checks; manual desktop remains separate from CI.
 
+## Implementation record (2026-10-21)
+
+| Milestone | Applied implementation | Outstanding acceptance |
+|---|---|---|
+| M0 | Surface C/V/N matrix, A/E/R flow, persistence and scope contract in this document | Review traceability as code evolves |
+| M1 | `PracticePresenter` owns question/evaluation projection and one stale-safe draft debounce; ChatView exposes narrow request callbacks | Desktop quiz/CodeMirror smoke |
+| M2 | Existing History/Transcript presenters retained; response toolbar moved to `response-actions-presenter.ts` with typed session-scoped callbacks | Desktop navigation, fork and regenerated-response smoke |
+| M3 | `LearningPresenter` owns Learning Map, Activity, Focus Strip, session clock/cache/polling; original `OnboardingFlow` remains the sole onboarding owner | Desktop focus and onboarding recovery smoke |
+| M4 | ChatView now composes Practice/Learning presenters and centralizes session-transition invalidation; **thin-shell objective is partial** because composer/model/thinking orchestration remains in ChatView | Separate follow-up extraction only when contracts are testable |
+| M5 | Strict package allow-list extended for exactly required learning/conversation UI edges; architecture and async stale-response regression tests added | CI on final HEAD, Obsidian desktop acceptance |
+
+The shared code-answer editor remains under `src/chat` because both tracked Practice and untracked Rich Quick Quiz use it. No file migrations and no changes to `src/main.ts` or persisted schemas are part of this patch. It is intentionally not a blanket rewrite of 3,000 lines of ChatView without host acceptance.
+
 ## Non-goals / compatibility contracts
 
 - No change to `nox-sessions`, `nox-settings`, `nox-token-usage-v1`, `nox-onboarding`, `00-learning-os/programs.json`, or `00-learning-os/progress.json`.
