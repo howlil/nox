@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { onboardingConstraints, quickPlanCommand, restoreOnboardingDraft, withOnboardingSource, withOnboardingStage } from "../../src/features/learning/onboarding/OnboardingWorkflow";
+import { firstOnboardingObjective, onboardingConstraints, quickPlanCommand, restoreOnboardingDraft, withOnboardingSource, withOnboardingStage } from "../../src/features/learning/onboarding/OnboardingWorkflow";
 
 test("R2 recovery discards ephemeral provider stages but retains user form details", () => {
   const base = restoreOnboardingDraft();
@@ -45,4 +45,22 @@ test("M2 quick goal uses the existing no-workspace /plan command without stale n
   assert.equal(quickPlanCommand("  Design REST APIs  "), "/plan Design REST APIs");
   assert.throws(() => quickPlanCommand("  "), /specific goal/);
   assert.throws(() => quickPlanCommand("abc"), /specific goal/);
+});
+
+test("M3 first objective uses adaptive decision instead of first curriculum position", () => {
+  const goals = [
+    { id: "later", title: "Advanced concept", outcome: "Prove A", prerequisiteIds: ["first"],
+      rubric: ["A"], sourceRefs: [], priority: "core" as const, estimatedMinutes: 30 },
+    { id: "first", title: "First concept", outcome: "Prove B", prerequisiteIds: [],
+      rubric: ["B"], sourceRefs: [], priority: "core" as const, estimatedMinutes: 30 },
+  ];
+  const program = { id: "plan-1", version: 1 as const, planVersion: 1,
+    goal: "Learn typed systems", constraints: onboardingConstraints(restoreOnboardingDraft()),
+    createdAt: 1, objectives: goals };
+  assert.equal(firstOnboardingObjective(program, { kind: "diagnostic", objectiveId: "first" })?.title, "First concept");
+  assert.equal(firstOnboardingObjective(program, { kind: "wait" }), null);
+  assert.equal(firstOnboardingObjective(program, { kind: "teach", objectiveId: "missing" }), null);
+  assert.equal(firstOnboardingObjective({ ...program,
+    objectives: [{ ...goals[1], deprecated: true }] },
+  { kind: "diagnostic", objectiveId: "first" }), null);
 });
