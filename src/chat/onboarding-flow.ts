@@ -318,6 +318,19 @@ export class OnboardingFlow {
     }
   }
 
+  private async leaveReady(): Promise<void> {
+    if (this.launching) return;
+    this.launching = true;
+    try {
+      await this.callbacks.onCreated();
+    } catch (error) {
+      this.error = error instanceof Error ? error.message : String(error);
+    } finally {
+      this.launching = false;
+      if (this.parent.isConnected) this.render();
+    }
+  }
+
   private async startFirstObjective(): Promise<void> {
     if (this.launching || !this.readyProgram || !this.readyObjective) return;
     const programId = this.readyProgram.id;
@@ -501,7 +514,8 @@ export class OnboardingFlow {
         panel.createDiv({ cls: "nox-onboarding-help",
           text: "You can inspect your next activity from Learning progress in chat." });
       }
-      this.button(panel, "Maybe later", () => this.callbacks.onCreated());
+      const later = this.button(panel, "Maybe later", () => { void this.leaveReady(); });
+      later.disabled = this.launching;
     }
     if (this.error) {
       const error = panel.createDiv({ cls: "nox-onboarding-error", text: this.error });
