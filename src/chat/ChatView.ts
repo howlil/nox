@@ -294,6 +294,11 @@ export class ChatView extends ItemView {
   }
 
   async onClose(): Promise<void> {
+    try {
+      await this.practiceUi.flushDraft();
+    } catch {
+      new Notice("Could not save quiz draft before closing Nox.");
+    }
     this.learning.cancel();
     this.learningUi.dispose();
     this.transcriptPresenter.cancel();
@@ -385,9 +390,11 @@ export class ChatView extends ItemView {
 
   /** Explicit command-palette entry to revisit guided discovery after skipping. */
   async beginGuidedOnboarding(): Promise<void> {
+    await this.practiceUi.flushDraft();
     await this.learning.newSession();
+    this.invalidateSessionPresentation();
     await this.learning.reopenOnboarding();
-    this.clearReplyReference();
+    this.clearSessionBoundDraft();
     this.input.value = "";
     this.setAction("ask");
     this.showEmpty();
@@ -442,8 +449,9 @@ export class ChatView extends ItemView {
     newBtn.addEventListener("click", () => { void (async () => {
       if (this.uiState === "RUNNING") return;
       try {
-        this.invalidateSessionPresentation();
+        await this.practiceUi.flushDraft();
         await this.learning.newSession();
+        this.invalidateSessionPresentation();
         this.clearSessionBoundDraft();
         this.setAction("ask");
         await this.syncChips();
@@ -509,6 +517,7 @@ export class ChatView extends ItemView {
     this.historyPresenter = new HistoryPresenter(this.historyBtn, this.historyMenuEl, {
       open: id => this.selectHistorySession(id),
       mutate: async (ids, action) => {
+        await this.practiceUi.flushDraft();
         const result = await this.learning.mutateHistory(ids, action);
         if (result.activeSessionChanged) {
           this.invalidateSessionPresentation();
@@ -646,6 +655,7 @@ export class ChatView extends ItemView {
       new Notice("Clear or send the composer draft before forking.");
       return;
     }
+    await this.practiceUi.flushDraft();
     const originSessionId = this.learning.getSession().id;
     const result = await this.learning.forkSession(originSessionId, messageId);
     await this.selectHistorySession(result.session.id);
@@ -663,9 +673,10 @@ export class ChatView extends ItemView {
   private async selectHistorySession(id: string): Promise<void> {
     if (this.uiState === "RUNNING") return;
 
-    this.invalidateSessionPresentation();
+    await this.practiceUi.flushDraft();
     const session = await this.learning.selectSession(id);
     if (!session) return;
+    this.invalidateSessionPresentation();
 
     this.closeHistoryMenu();
     this.clearSessionBoundDraft();
