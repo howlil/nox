@@ -42,7 +42,7 @@ export class LearningPresenter {
   private clockTimer: number | null = null;
   private clockSnapshot: ClockReading | null = null;
   private clockSyncedAt = 0;
-  private clockReadPending = false;
+  private clockActiveRequest: number | null = null;
   private clockEpoch = 0;
 
   constructor(private readonly port: LearningUiPort) {}
@@ -90,10 +90,11 @@ export class LearningPresenter {
     ++this.clockEpoch;
     this.clockSnapshot = null;
     this.clockSyncedAt = 0;
+    this.renderClock(null);
   }
 
   private tickClock(): void {
-    if (!this.clockRoot?.isConnected || this.clockReadPending) return;
+    if (!this.clockRoot?.isConnected || this.clockActiveRequest === this.clockEpoch) return;
     const now = Date.now();
     if (!this.clockSyncedAt || now - this.clockSyncedAt >= 30_000) {
       void this.refreshClock();
@@ -103,9 +104,9 @@ export class LearningPresenter {
   }
 
   async refreshClock(): Promise<void> {
-    if (this.clockReadPending || !this.clockRoot) return;
-    this.clockReadPending = true;
+    if (!this.clockRoot || this.clockActiveRequest === this.clockEpoch) return;
     const epoch = this.clockEpoch;
+    this.clockActiveRequest = epoch;
     try {
       const timing = await this.port.readClock();
       if (epoch !== this.clockEpoch || !this.clockRoot?.isConnected) return;
@@ -115,7 +116,7 @@ export class LearningPresenter {
     } catch {
       // Keep the last known display; refresh on the next interval.
     } finally {
-      this.clockReadPending = false;
+      if (this.clockActiveRequest === epoch) this.clockActiveRequest = null;
     }
   }
 
