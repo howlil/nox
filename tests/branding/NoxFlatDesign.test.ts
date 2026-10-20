@@ -1,8 +1,9 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
+import { noxCssSource } from "../support/css-source";
 
-const css = readFileSync("styles.css", "utf8");
+const css = noxCssSource();
 
 // Protect the design contract at source level, not with a late !important patch.
 test("Nox uses Howlil neutral foundations and a solid purple accent", () => {
