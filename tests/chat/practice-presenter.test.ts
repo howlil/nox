@@ -118,3 +118,63 @@ test("failed pending draft save remains retryable and is not written into a diff
     presenter.dispose();
   });
 });
+
+
+test("overlapping draft flushes serialize writes and persist the latest edit last",async()=>{
+  let finishFirst!: () => void;
+  const firstWrite=new Promise<void>(resolve=>{finishFirst=resolve;});
+  const writes:string[]=[];
+  const actions=makeActions(async(_questionId,answer)=>{
+    if(answer.type!=="essay")throw new Error("expected essay");
+    writes.push(answer.text);
+    if(writes.length===1)await firstWrite;
+  });
+  await withPendingTimer(async()=>{
+    const presenter=new PracticePresenter(actions.callbacks);
+    const root=new FakeEl("div");
+    presenter.renderQuestion(root as unknown as HTMLElement,question,"q1");
+    const editor=root.find("nox-quiz-editor");
+    assert.ok(editor);
+    editor.value="first";
+    editor.fire("input");
+    const first=presenter.flushDraft();
+    editor.value="second";
+    editor.fire("input");
+    const concurrent=presenter.flushDraft();
+    assert.deepEqual(writes,["first"],"new write must not overtake the first pending save");
+    finishFirst();
+    await Promise.all([first,concurrent]);
+    assert.deepEqual(writes,["first","second"]);
+    await presenter.flushDraft();
+    assert.equal(writes.length,2,"already persisted draft must not save twice");
+    presenter.dispose();
+  });
+});
+
+test("failed draft persistence prevents submit and remains retryable",async()=>{
+  let attempts=0;
+  let submitted=0;
+  const actions=makeActions(async()=>{
+    attempts++;
+    if(attempts===1)throw new Error("No space left");
+  });
+  actions.callbacks.submit=async()=>{submitted++;return true;};
+  await withPendingTimer(async()=>{
+    const presenter=new PracticePresenter(actions.callbacks);
+    const root=new FakeEl("div");
+    presenter.renderQuestion(root as unknown as HTMLElement,question,"q1");
+    const editor=root.find("nox-quiz-editor");
+    const submit=root.find("nox-quiz-submit");
+    assert.ok(editor);
+    assert.ok(submit);
+    editor.value="pending answer";
+    editor.fire("input");
+    submit.fire("click");
+    await Promise.resolve();
+    await Promise.resolve();
+    assert.equal(submitted,0,"failed save must block provider execution");
+    await presenter.flushDraft();
+    assert.equal(attempts,2,"unsaved answer must remain retryable");
+    presenter.dispose();
+  });
+});
