@@ -52,6 +52,7 @@ import {
 } from "./primitives";
 import { NoxMenuState } from "./menu";
 import { HistoryPresenter } from "../features/conversation/view/history-presenter";
+import { renderResponseActions } from "../features/conversation/view/response-actions-presenter";
 import { StreamTextPresenter } from "../features/conversation/view/stream-text-presenter";
 import { projectSessionClock } from "../features/conversation/view/session-clock";
 import { TranscriptPresenter } from "../features/conversation/view/transcript-presenter";
@@ -2694,85 +2695,40 @@ export class ChatView extends ItemView {
   private appendResponseActions(
     bubble: HTMLElement, responseText: string, messageIndex: number,
   ): void {
-    if (!responseText.trim()) return;
-    const messages = this.learning.getSession().messages;
-    const message = messages[messageIndex];
-    if (message?.role !== "assistant") return;
-    const user = messages[messageIndex - 1];
-    const isLatest = messageIndex === messages.length - 1;
-    const canRegenerate = isLatest && user?.role === "user" &&
-      (user.action === "ask" || user.action === "explain") &&
-      !this.learning.hasActivePracticeQuestion() &&
-      !message.proposal && !message.parts?.length;
-    if (message.id) {
-      bubble.dataset.messageId = message.id;
-      bubble.dataset.sessionId = this.learning.getSession().id;
-    }
-    const actions = appendMessageActions(bubble, {
-      text: responseText, messageId: message.id, onFork: id => this.forkMessage(id),
-      className: "nox-stream-actions",
-    });
-
-    const versions = message.responseVersions;
-    if (versions && versions.length > 1) {
-      const selected = message.responseVersionIndex ?? versions.length - 1;
-      const back = createNoxIconButton(actions, {
-        cls: "nox-stream-action", icon: "chevron-left",
-        label: "Previous response", title: "Previous response",
-      });
-      back.disabled = selected <= 0;
-      const counter = actions.createSpan({
-        cls: "nox-response-variant-index", text: (selected + 1) + "/" + versions.length,
-      });
-      counter.setAttribute("aria-label", "Response version " + (selected + 1) + " of " + versions.length);
-      const forward = createNoxIconButton(actions, {
-        cls: "nox-stream-action", icon: "chevron-right",
-        label: "Next response", title: "Next response",
-      });
-      forward.disabled = selected >= versions.length - 1;
-      const select = (index: number) => {
-        if (this.uiState === "RUNNING") return;
-        void this.learning.selectResponseVersion(messageIndex, index)
-          .then(() => this.restoreSession())
-          .catch(() => new Notice("Could not select response version."));
-      };
-      back.addEventListener("click", () => select(selected - 1));
-      forward.addEventListener("click", () => select(selected + 1));
-    }
-
-    if (canRegenerate) {
-      const regenerate = createNoxIconButton(actions, {
-        cls: "nox-stream-action", icon: "refresh-cw",
-        label: "Regenerate response", title: "Regenerate response",
-      });
-      regenerate.addEventListener("click", () => {
-        if (this.uiState === "RUNNING" || !this.runtimeReady) return;
-        // Snapshot is checked again at the application/persistence boundary.
-        const request: LearningRequest = {
-          turnId: crypto.randomUUID(),
-          prompt: user?.content ?? "",
-          action: user?.action === "explain" ? "explain" : "ask",
-          explicitContext: [],
-          regenerate: { messageIndex, expectedContent: message.content },
-          ...(user?.replyTo ? { replyTo: user.replyTo } : {}),
-        };
-        this.lastTurnRequest = request;
-        void this.runTurn(request, false);
-      });
-      const quickCheck = createNoxIconButton(actions, {
-        cls: "nox-stream-action", icon: "list-checks",
-        label: "Quiz me", title: "Generate a practice question from this explanation",
-      });
-      quickCheck.addEventListener("click", () => {
-        if (this.uiState === "RUNNING" || !this.runtimeReady) return;
-        this.setAction("practice");
-        this.input.value = "Generate one interactive knowledge-check question " +
-          "(MCQ, essay, or code if appropriate) about this explanation: " +
-          JSON.stringify(responseText.slice(0, 1600));
-        this.onInput();
-        void this.doSend();
-      });
-    }
+    renderResponseActions(
+      bubble, responseText, messageIndex, this.learning.getSession(),
+      this.learning.hasActivePracticeQuestion(), {
+        isBusy: () => this.uiState === "RUNNING",
+        canRegenerate: () => this.uiState !== "RUNNING" && this.runtimeReady,
+        onFork: id => { void this.forkMessage(id); },
+        onSelectVersion: (index, version, sessionId) => {
+          if (this.learning.getSession().id !== sessionId) return;
+          void this.learning.selectResponseVersion(index, version)
+            .then(() => this.restoreSession())
+            .catch(() => new Notice("Could not select response version."));
+        },
+        onRegenerate: (index, user, assistant) => {
+          const request: LearningRequest = {
+            turnId: crypto.randomUUID(),
+            prompt: user.content,
+            action: user.action === "explain" ? "explain" : "ask",
+            explicitContext: [],
+            regenerate: { messageIndex: index, expectedContent: assistant.content },
+            ...(user.replyTo ? { replyTo: user.replyTo } : {}),
+          };
+          this.lastTurnRequest = request;
+          void this.runTurn(request, false);
+        },
+        onQuickCheck: text => {
+          this.setAction("practice");
+          this.input.value = "Generate one interactive knowledge-check question " +
+            "(MCQ, essay, or code if appropriate) about this explanation: " +
+            JSON.stringify(text.slice(0, 1600));
+          this.onInput();
+          void this.doSend();
+        },
+      },
+    );
   }
 
   private appendPracticeQuestion(
