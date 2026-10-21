@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
+import { noxCssSource } from "../../support/css-source";
 
 function source(path: string): string {
   return readFileSync(path, "utf8");
@@ -39,7 +40,7 @@ test("Obsidian community P0 style and settings findings cannot regress", () => {
 });
 
 test("dynamic composer, swipe, icon and motion visuals have a scoped stylesheet contract", () => {
-  const styles = source("styles.css");
+  const styles = noxCssSource();
   const composer = source("src/chat/composer.ts");
   const history = source("src/chat/history-list.ts");
   const motion = source("src/chat/motion.ts");

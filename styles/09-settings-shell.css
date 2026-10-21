@@ -1,0 +1,137 @@
+/* Native PluginSettingTab inherits Nox tokens. No second palette owner,
+   new navigation, or changes to Obsidian's settings behavior. */
+/* Native confirmation dialogs are hosted outside the sidebar DOM. Give them
+   the same token boundary instead of letting the app theme leak through. */
+.nox-theme-portal {
+  background: var(--nox-surface);
+  color: var(--nox-ink);
+}
+.nox-theme-portal .modal-title,
+.nox-theme-portal .modal-content { color: var(--nox-ink); }
+
+/* Obsidian native DOM Menu mounted in an external NOX-owned theme portal. */
+.nox-menu-portal {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  pointer-events: none;
+  background: transparent;
+}
+.nox-menu-portal .menu {
+  pointer-events: auto;
+  background: var(--nox-surface);
+  color: var(--nox-ink);
+  border: 1px solid var(--nox-line-strong);
+  border-radius: var(--nox-radius-card);
+  box-shadow: none;
+}
+.nox-menu-portal .menu-item { color: var(--nox-ink); }
+.nox-menu-portal .menu-item:hover,
+.nox-menu-portal .menu-item.is-selected { background: var(--nox-hover); }
+.nox-menu-portal .menu-item.is-warning { color: var(--nox-red); }
+.nox-theme-portal .nox-history-confirm-actions button:not(.mod-warning) {
+  background: var(--nox-inset);
+  color: var(--nox-ink);
+  border: 1px solid var(--nox-line);
+}
+.nox-theme-portal .nox-history-confirm-actions button.mod-warning {
+  background: var(--nox-red);
+  color: var(--nox-page);
+}
+
+.nox-settings {
+  color: var(--nox-ink);
+  background: var(--nox-page);
+  font-family: var(--font-interface, sans-serif);
+}
+.nox-settings > h2 {
+  color: var(--nox-ink);
+  font-size: 20px;
+  line-height: 28px;
+  font-weight: 500;
+  letter-spacing: -0.03em;
+}
+/* NOX Settings navigation: one active tab, flat/compact, no shadows or rings. */
+.nox-settings-tabs {
+  display:flex;
+  gap:3px;
+  padding:3px;
+  margin:0 0 14px;
+  border:1px solid var(--nox-line);
+  border-radius:var(--nox-radius-control);
+  background:var(--nox-inset);
+  max-width:420px;
+}
+.nox-settings .nox-settings-tab {
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  min-width:0;
+  flex:1 1 0;
+  min-height:34px;
+  padding:6px 10px;
+  font-size:12px;
+  font-weight:500;
+  border:1px solid transparent;
+  border-radius:var(--nox-radius-chip);
+  background:transparent;
+  color:var(--nox-ink-2);
+  box-shadow:none;
+  cursor:pointer;
+}
+.nox-settings .nox-settings-tab:is(:hover,:focus-visible) {
+  background:var(--nox-hover);
+  color:var(--nox-ink);
+}
+.nox-settings .nox-settings-tab[aria-selected="true"],
+.nox-settings .nox-settings-tab[aria-selected="true"]:focus-visible {
+  background:var(--nox-surface);
+  color:var(--nox-accent-ink);
+  border-color:var(--nox-line);
+}
+.nox-settings-page { min-width:0; }
+.nox-settings-page > .nox-usage { margin-top:0; }
+.nox-provider-filter { grid-template-columns:minmax(0,260px); }
+.nox-provider-usage .nox-provider-quota-group:last-child { border-bottom:0; }
+@media (max-width:420px) {
+  .nox-settings-tabs { max-width:100%; }
+  .nox-settings .nox-settings-tab { padding:6px; }
+  .nox-provider-filter { grid-template-columns:1fr; }
+}
+
+.nox-settings .setting-item { border-color: var(--nox-line); }
+.nox-settings .setting-item-name { color: var(--nox-ink); font-weight: 500; }
+.nox-settings .setting-item-description { color: var(--nox-ink-2); }
+.nox-settings :is(select, input[type="text"], input:not([type])) {
+  background: var(--nox-inset);
+  color: var(--nox-ink);
+  border: 1px solid var(--nox-line);
+  border-radius: var(--nox-radius-control);
+  box-shadow: none;
+}
+.nox-settings :is(select, input[type="text"], input:not([type])):focus-visible {
+  border-color: var(--nox-accent-border);
+  outline: none;
+  background: var(--nox-accent-soft);
+}
+.nox-settings .setting-item-control button {
+  border: 1px solid transparent;
+  border-radius: var(--nox-radius-control);
+  background: var(--nox-inset);
+  color: var(--nox-ink);
+  box-shadow: none;
+}
+.nox-settings .setting-item-control button:hover {
+  background: var(--nox-hover);
+}
+.nox-settings .setting-item-control button.mod-cta {
+  background: var(--nox-accent);
+  color: var(--nox-on-accent);
+}
+.nox-settings .setting-item-control button.mod-cta:hover {
+  background: var(--nox-accent-hover);
+}
+.nox-settings .nox-usage-metric strong { color: var(--nox-ink); }
+.nox-settings .nox-usage-description { color: var(--nox-ink-2); }
+.nox-settings .nox-usage-table :is(td, th) { border-color: var(--nox-line); }
+

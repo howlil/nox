@@ -1,8 +1,9 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
+import { noxCssSource } from "../support/css-source";
 
-const css = readFileSync("styles.css", "utf8");
+const css = noxCssSource();
 
 // Protect the design contract at source level, not with a late !important patch.
 test("Nox uses Howlil neutral foundations and a solid purple accent", () => {
@@ -111,4 +112,16 @@ test("Settings use searchable Obsidian definitions and native usage/token pages"
   for (const source of [settings, token, usage]) {
     assert.doesNotMatch(source, /[Cc]redit[Bb]alance|Manual [Bb]alances|Add balance|Set balance/);
   }
+});
+
+test("Settings native rows and panels share one local style scope and explicit CSS failure state", () => {
+  const settings = readFileSync("src/settings/SettingsTab.ts", "utf8");
+  assert.match(settings, /this\.containerEl\.addClass\("nox-settings"\)/);
+  assert.match(settings, /setting\.settingEl\.addClass\("nox-settings-native-row"\)/);
+  assert.match(settings, /getComputedStyle\(surface\)\.getPropertyValue\("--nox-accent"\)/);
+  assert.match(settings, /Nox styles are missing/);
+  assert.match(css, /\.nox-settings \.nox-settings-native-row \.setting-item-name/);
+  assert.match(css, /\.nox-settings \.nox-settings-style-warning\[hidden\]/);
+  assert.match(css, /\.nox-settings-surface \.nox-settings-tabs\s*\{[^}]*width: min\(460px, 100%\)/s);
+  assert.match(settings, /requestAnimationFrame\(\(\) =>\s*this\.containerEl\.querySelector<HTMLButtonElement>/);
 });

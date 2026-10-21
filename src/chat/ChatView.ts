@@ -13,54 +13,52 @@ import {
   LearningActionKind,
   LearningEvent,
   LearningRequest,
-  ProposedEdit,
 } from "../application/learning-types";
 import {
   ExplicitContextRef,
   LearningContext,
 } from "../context/context-types";
 import {
+  PracticeAnswer,
   PracticeEvaluation,
   PracticeQuestion,
 } from "../domain/practice/types";
 import { ReviewFinding } from "../domain/review/types";
-import { renderPracticeQuestionCard, renderPracticeEvaluationCard } from "../features/practice/view/PracticeCards";
+import { PracticePresenter } from "../features/practice/view/PracticePresenter";
 import { renderReviewFindingCards } from "./learning-card-renderers";
-import { ChatMessage, EditProposal, type ChatReplyReference, type AgentModel } from "../types";
-import {
-  parsePromptToken,
-  PromptMenuKind,
-  stripPromptToken,
-} from "./prompt-token";
+import { ChatMessage, type ChatReplyReference } from "../types";
+import { parsePromptToken, stripPromptToken } from "./prompt-token";
 import { NOX_CAPABILITIES } from "./capabilities";
-import { buildActionMenu, getPrimaryAction, type ActionMenuContext, type ActionMenuEntry } from "./action-menu";
-import { animateNoxEnter, animateNoxPopover } from "./motion";
+import { buildActionMenu, getPrimaryAction, type ActionMenuContext } from "./action-menu";
+import { animateNoxEnter } from "./motion";
 import { resolveNoxMarkdownLink } from "./markdown-links";
 import {
   shouldResetAction,
   TerminalOutcome,
 } from "./chat-state";
 import {
-  createNoxButton,
   createNoxIconButton,
   createNoxMessageMeta,
-  createNoxMenuRow,
-  createNoxSurface,
   createNoxStatus,
   setNoxIcon,
 } from "./primitives";
-import { NoxMenuState } from "./menu";
 import { HistoryPresenter } from "../features/conversation/view/history-presenter";
+import { renderResponseActions } from "../features/conversation/view/response-actions-presenter";
 import { StreamTextPresenter } from "../features/conversation/view/stream-text-presenter";
-import { projectSessionClock, type SessionClockSnapshot } from "../features/conversation/view/session-clock";
+import { projectSessionClock } from "../features/conversation/view/session-clock";
 import { TranscriptPresenter } from "../features/conversation/view/transcript-presenter";
-import { modelMenuItems } from "./model-menu";
-import { createNoxPopover, NoxPopoverState } from "./popover";
+import { ModelMenuPresenter } from "./model-menu";
+import { createNoxPopover } from "./popover";
+import { PromptMenuPresenter, type PromptMenuItem } from "./prompt-menu-presenter";
 import { NoxComposer, type NoxComposerContext } from "./composer";
-import { NoxRunInspector } from "./run-inspector";
+import { ComposerAttachmentDraft } from "./composer-draft";
+import { ThinkingPresenter } from "./thinking-presenter";
+import { ProposalPresenter } from "./proposal-presenter";
+import { renderEmptyPrimary, renderEmptyContext } from "./empty-slate-renderer";
 import { appendMessageActions } from "./message-actions";
 import { TranscriptSelectionController } from "./transcript-selection";
 import { renderLearningGraph } from "./learning-graph";
+import { LearningPresenter } from "../features/learning/view/LearningPresenter";
 import { enhanceNoxResponseVisuals } from "./response-visuals";
 import {
   NoxSelectionActions,
@@ -88,26 +86,6 @@ const ACTIONS: Array<{
   })),
 ];
 
-type PromptMenuAction =
-  | { type: "attach" }
-  | { type: "info" }
-  | { type: "vault-note"; path: string }
-  | { type: "scope"; command: string }
-  | { type: "learning"; kind: Exclude<LearningActionKind, "ask"> }
-  | { type: "programs" }
-  | { type: "menu-back" }
-  | { type: "switch-program"; id: string };
-
-interface PromptMenuItem {
-  key: string;
-  name: string;
-  description: string;
-  icon: IconName;
-  command?: string;
-  disabled?: boolean;
-  action: PromptMenuAction;
-}
-
 export class ChatView extends ItemView {
   private thread!: HTMLElement;
   private composer!: HTMLElement;
@@ -125,65 +103,28 @@ export class ChatView extends ItemView {
   private input!: HTMLTextAreaElement;
   private sendBtn!: HTMLButtonElement;
   private cancelBtn!: HTMLButtonElement;
-  private modelTrigger!: HTMLButtonElement;
-  private modelMenuEl: HTMLElement | null = null;
-  private modelPopover!: NoxPopoverState;
-  private readonly modelMenuState = new NoxMenuState();
-  private models: AgentModel[] = [];
-  private quizDraftTimer: number | null = null;
+  private modelUi: ModelMenuPresenter | null = null;
+  private readonly practiceUi: PracticePresenter;
+  private readonly learningUi: LearningPresenter;
   private fileInput!: HTMLInputElement;
   private actionMenuBtn!: HTMLButtonElement;
-  private commandHintBtn: HTMLButtonElement | null = null;
-  private promptMenuEl: HTMLElement | null = null;
-  private promptPopover!: NoxPopoverState;
-  private promptMenu: PromptMenuKind | null = null;
-  private commandPage: "actions" | "programs" = "actions";
-  private lastCommandQuery = "";
+  private promptUi: PromptMenuPresenter | null = null;
   private commandProgramSnapshot: Awaited<ReturnType<LearningController["getProgramMenuState"]>> | null = null;
   private scopeGoal: { sessionId: string; programId: string; goal: string } | null = null;
-  private readonly promptMenuState = new NoxMenuState();
-  private promptMenuRequest = 0;
-  private attachments: Array<{
-    name: string;
-    ref: ExplicitContextRef;
-  }> = [];
+  private readonly attachmentDraft = new ComposerAttachmentDraft();
 
   private agentCursorEl: HTMLElement | null = null;
   private agentContentEl: HTMLElement | null = null;
-  private statusEl: HTMLElement | null = null;
-  private loadingElapsedEl: HTMLElement | null = null;
-  private loadingStartedAt = 0;
-  private loadingTimer: number | null = null;
-  private lastAgentActivityAt = 0;
+  private thinkingUi: ThinkingPresenter | null = null;
+  private proposalUi: ProposalPresenter | null = null;
   private sessionClockEl: HTMLElement | null = null;
   private sessionClockTextEl: HTMLElement | null = null;
   private sessionClockButtonEl: HTMLButtonElement | null = null;
-  private sessionClockTimer: number | null = null;
-  private refreshingSessionClock = false;
-  private sessionClockSnapshot: SessionClockSnapshot | null = null;
-  private sessionClockSyncedAt = 0;
-  private thinkingToggleEl: HTMLButtonElement | null = null;
-  private thinkingLabelEl: HTMLElement | null = null;
-  private thinkingChevronEl: HTMLElement | null = null;
-  private thinkingPanelEl: HTMLElement | null = null;
-  private thinkingThoughtEl: HTMLElement | null = null;
-  private thinkingRows = new Map<number, HTMLElement>();
-  private thinkingToolRows = new Map<string, HTMLElement>();
-  private thinkingListEl: HTMLElement | null = null;
-  private thinkingViewportEl: HTMLElement | null = null;
-  private thinkingStage = -1;
-  private thinkingStageAt = 0;
   private readonly streamText = new StreamTextPresenter({
     request: callback => window.requestAnimationFrame(callback),
     cancel: id => window.cancelAnimationFrame(id),
   });
-  private runInspector: NoxRunInspector | null = null;
-  private learningGraphEl: HTMLElement | null = null;
   private focusStripEl: HTMLButtonElement | null = null;
-  private focusStripEpoch = 0;
-  private learningActivityEl: HTMLElement | null = null;
-  private thinkingManualExpanded: boolean | null = null;
-  private streamedThoughtText = "";
 
   private uiState: UIState = "EMPTY";
   private selectedAction: LearningActionKind = "ask";
@@ -192,6 +133,10 @@ export class ChatView extends ItemView {
   private systemContextFiles: string[] = [];
   private lastTurnRequest: LearningRequest | null = null;
   private turnTerminal = false;
+  /** Guards the async gap while pending Practice edits are flushed before a new turn. */
+  private turnStarting = false;
+  /** Invalidates in-flight admission after session change or view close/reopen. */
+  private viewEpoch = 0;
   private restoringSession = false;
   private workspaceEventsRegistered = false;
   private runtimeReady = false;
@@ -200,7 +145,6 @@ export class ChatView extends ItemView {
   private turnContextSource: string | null = null;
   private pendingFindingSource: string | null = null;
 
-  private extraCtx: ExplicitContextRef[] = [];
   private currentContext: LearningContext | null = null;
 
   constructor(
@@ -210,6 +154,49 @@ export class ChatView extends ItemView {
     private readonly getLogoUrl: () => string,
   ) {
     super(leaf);
+    this.practiceUi = new PracticePresenter({
+      session: () => this.learning.getSession(),
+      hasActiveQuestion: () => this.learning.hasActivePracticeQuestion(),
+      isBusy: () => this.uiState === "RUNNING",
+      saveDraft: async (questionId, answer, sessionId) => {
+        if (this.learning.getSession().id !== sessionId) return;
+        await this.learning.savePracticeDraft(questionId, answer);
+      },
+      requestHint: (question, sessionId) => this.requestPracticeHint(question, sessionId),
+      submit: (questionId, answer, sessionId) => this.submitPracticeAnswer(questionId, answer, sessionId),
+      clarify: () => {
+        this.setAction("ask");
+        this.input.value = "/clarify ";
+        this.onInput();
+        this.input.focus();
+      },
+      prepareContinue: (evaluation, sessionId) => this.prepareNextPracticeActivity(evaluation, sessionId),
+      reportError: message => { new Notice(message); },
+    });
+    this.learningUi = new LearningPresenter({
+      thread: () => this.thread,
+      overview: () => this.learning.getProgramOverview(),
+      activity: async scope => {
+        const state = await this.learning.getProgramMenuState();
+        return this.learning.getActivitySummary(scope === "active" ? state.activeProgramId : undefined);
+      },
+      readClock: () => this.learning.getSessionTime(),
+      projectClock: projectSessionClock,
+      mountMap: (overview, onClose, onNext, onCommand) =>
+        renderLearningGraph(this.thread, overview, onClose, onNext, onCommand),
+      mountActivity: (summary, scope, onClose, onScopeChange) =>
+        renderLearningActivity(this.thread, summary, { scope, onClose, onScopeChange }),
+      onNext: overview => {
+        if (this.uiState === "RUNNING") return;
+        this.input.value = overview?.focus?.status === "paused" ? "/resume-focus" :
+          overview?.active ? "/next" : overview?.next.objectiveId
+            ? "/focus " + overview.next.objectiveId : overview ? "/progress" : "/plan ";
+        this.onInput();
+        if (overview) void this.doSend(); else this.focusComposer();
+      },
+      onCommand: command => this.submitLearningPanelCommand(command),
+      reportError: message => { new Notice(message); },
+    });
   }
 
   getViewType() {
@@ -225,12 +212,27 @@ export class ChatView extends ItemView {
   }
 
   async onOpen(): Promise<void> {
+    ++this.viewEpoch;
     const root = this.contentEl;
     root.empty();
     root.addClass("nox-root");
 
     this.buildHeader(root);
     this.thread = root.createDiv({ cls: "nox-thread" });
+    this.proposalUi = new ProposalPresenter(this.thread, {
+      reject: id => this.learning.rejectProposal(id),
+      apply: id => this.learning.applyProposal(id),
+      retryStatus: id => this.learning.retryAppliedStatus(id),
+      setState: state => this.setUIState(state),
+      reportError: (parent, message) => this.appendInlineStatus(parent, "failed", message),
+      scroll: () => this.scrollThread(),
+    });
+    this.thinkingUi?.dispose();
+    this.thinkingUi = new ThinkingPresenter(
+      this.thread,
+      this.getLogoUrl,
+      action => ACTIONS.find(item => item.kind === action)?.label ?? "Ask",
+    );
     this.composer = root.createDiv({ cls: "nox-composer" });
     this.selectionActions = new NoxSelectionActions(this.composer, {
       onAction: (action) => this.runSelectionAction(action),
@@ -253,25 +255,32 @@ export class ChatView extends ItemView {
     await this.restoreRuntimeState();
     await this.ensureRuntimeReady();
     void this.refreshFocusStrip();
+    this.learningUi.startClock(this.sessionClockEl!, this.sessionClockTextEl!, this.sessionClockButtonEl!);
     void this.refreshSessionClock();
-    // Smooth local display ticks; one authoritative Vault read at most every 30s.
-    this.sessionClockTimer = window.setInterval(() => { this.tickSessionClock(); }, 2000);
   }
 
   async onClose(): Promise<void> {
+    ++this.viewEpoch;
+    try {
+      await this.practiceUi.flushDraft();
+    } catch {
+      new Notice("Could not save quiz draft before closing Nox.");
+    }
     this.learning.cancel();
-    this.focusStripEpoch++;
+    this.learningUi.dispose();
     this.transcriptPresenter.cancel();
     this.streamText.dispose();
     this.historyPresenter?.close();
     this.transcriptSelection?.destroy();
     this.transcriptSelection = null;
-    this.stopLoadingTimer();
-    if (this.sessionClockTimer !== null) window.clearInterval(this.sessionClockTimer);
-    this.sessionClockTimer = null;
-    this.sessionClockSnapshot = null;
-    this.sessionClockSyncedAt = 0;
-    if (this.quizDraftTimer !== null) window.clearTimeout(this.quizDraftTimer);
+    this.thinkingUi?.dispose();
+    this.thinkingUi = null;
+    this.proposalUi = null;
+    this.practiceUi.dispose();
+    this.modelUi?.dispose();
+    this.modelUi = null;
+    this.promptUi?.dispose();
+    this.promptUi = null;
   }
 
   async refreshRuntime(recheckHealth = true): Promise<void> {
@@ -352,9 +361,14 @@ export class ChatView extends ItemView {
 
   /** Explicit command-palette entry to revisit guided discovery after skipping. */
   async beginGuidedOnboarding(): Promise<void> {
+    if (this.turnStarting || this.uiState === "RUNNING") {
+      throw new Error("Finish the active turn before restarting onboarding.");
+    }
+    await this.practiceUi.flushDraft();
     await this.learning.newSession();
+    this.invalidateSessionPresentation();
     await this.learning.reopenOnboarding();
-    this.clearReplyReference();
+    this.clearSessionBoundDraft();
     this.input.value = "";
     this.setAction("ask");
     this.showEmpty();
@@ -407,19 +421,12 @@ export class ChatView extends ItemView {
       title: "New learning session",
     });
     newBtn.addEventListener("click", () => { void (async () => {
-      if (this.uiState === "RUNNING") return;
+      if (this.uiState === "RUNNING" || this.turnStarting) return;
       try {
+        await this.practiceUi.flushDraft();
         await this.learning.newSession();
-        this.clearReplyReference();
-        this.lastTurnRequest = null;
-        this.pendingFindingSource = null;
-        this.systemContextFiles = [];
-        this.extraCtx = [];
-        this.attachments = [];
-        this.renderAttachments();
-        this.clearReplyReference();
-        this.closePromptMenu();
-        this.closeModelMenu();
+        this.invalidateSessionPresentation();
+        this.clearSessionBoundDraft();
         this.setAction("ask");
         await this.syncChips();
         this.showEmpty();
@@ -451,7 +458,7 @@ export class ChatView extends ItemView {
       attr: { type: "button", "aria-label": "Open active learning focus" },
     });
     this.focusStripEl.addEventListener("click", () => {
-      if (!this.learningGraphEl?.isConnected) void this.toggleLearningMap();
+      if (!this.learningUi.hasMap) void this.toggleLearningMap();
     });
     this.sessionClockEl = this.headerEl.createDiv({ cls: "nox-session-clock nox-hidden" });
     this.sessionClockEl.setAttribute("role", "group");
@@ -484,16 +491,14 @@ export class ChatView extends ItemView {
     this.historyPresenter = new HistoryPresenter(this.historyBtn, this.historyMenuEl, {
       open: id => this.selectHistorySession(id),
       mutate: async (ids, action) => {
+        if (this.turnStarting || this.uiState === "RUNNING") {
+          throw new Error("Finish the active turn before modifying history.");
+        }
+        await this.practiceUi.flushDraft();
         const result = await this.learning.mutateHistory(ids, action);
         if (result.activeSessionChanged) {
-          this.lastTurnRequest = null;
-          this.pendingFindingSource = null;
-          this.systemContextFiles = [];
-          this.extraCtx = [];
-          this.attachments = [];
-          this.renderAttachments();
-          this.closePromptMenu();
-          this.closeModelMenu();
+          this.invalidateSessionPresentation();
+          this.clearSessionBoundDraft();
           this.syncPracticeComposerState();
           await this.syncChips();
           await this.restoreSession();
@@ -515,121 +520,22 @@ export class ChatView extends ItemView {
     this.historyPresenter.render();
   }
 
-  private tickSessionClock(): void {
-    if (!this.sessionClockEl?.isConnected || this.refreshingSessionClock) return;
-    const now = Date.now();
-    if (!this.sessionClockSyncedAt || now - this.sessionClockSyncedAt >= 30_000) {
-      void this.refreshSessionClock();
-      return;
-    }
-    this.renderSessionClock(projectSessionClock(this.sessionClockSnapshot, this.sessionClockSyncedAt, now));
-  }
-
   private async refreshSessionClock(): Promise<void> {
-    if (this.refreshingSessionClock || !this.sessionClockEl) return;
-    this.refreshingSessionClock = true;
-    try {
-      const timing = await this.learning.getSessionTime();
-      if (!this.sessionClockEl?.isConnected) return;
-      this.sessionClockSnapshot = timing;
-      this.sessionClockSyncedAt = Date.now();
-      this.renderSessionClock(timing);
-    } catch {
-      // Keep the last known display; the next tick retries an authoritative read.
-    } finally {
-      this.refreshingSessionClock = false;
-    }
-  }
-
-  private renderSessionClock(timing: SessionClockSnapshot | null): void {
-    if (!this.sessionClockEl?.isConnected) return;
-    this.sessionClockEl.toggleClass("nox-hidden", !timing);
-    if (!timing || !this.sessionClockTextEl || !this.sessionClockButtonEl) return;
-    const minutes = Math.ceil(timing.remainingMs / 60_000);
-    const labels: Record<typeof timing.status, string> = {
-      active: "Learning", "waiting-ai": "AI running · time paused",
-      paused: "Paused", recovered: "Session recovered · paused",
-      exhausted: "Timebox complete",
-    };
-    this.sessionClockTextEl.textContent = `${labels[timing.status]} · ${minutes}m left`;
-    this.sessionClockEl.title =
-      `Active: ${Math.round(timing.activeMs / 1000)}s · AI waiting: ${Math.round(timing.aiWaitingMs / 1000)}s`;
-    const pause = timing.status === "active" || timing.status === "waiting-ai";
-    this.sessionClockButtonEl.dataset.action = pause ? "pause" : "resume";
-    this.sessionClockButtonEl.textContent = pause ? "Pause" : "Resume";
-    this.sessionClockButtonEl.title = pause ? "Pause learning budget" : "Resume learning budget";
-    this.sessionClockButtonEl.setAttribute("aria-label", this.sessionClockButtonEl.title);
-    this.sessionClockButtonEl.toggleClass("nox-hidden", timing.status === "exhausted");
+    await this.learningUi.refreshClock();
   }
 
   private async toggleLearningActivity(scope: "active" | "all" = "active"): Promise<void> {
-    if (this.learningActivityEl?.isConnected && scope === "active") {
-      this.learningActivityEl.remove();
-      this.learningActivityEl = null;
-      return;
-    }
-    try {
-      const state = await this.learning.getProgramMenuState();
-      const id = scope === "active" ? state.activeProgramId : undefined;
-      const summary = await this.learning.getActivitySummary(id);
-      this.learningActivityEl?.remove();
-      this.learningActivityEl = renderLearningActivity(this.thread, summary, {
-        scope,
-        onClose: () => { this.learningActivityEl?.remove(); this.learningActivityEl = null; },
-        onScopeChange: next => {
-          // Do not treat scope switching as a toggle-close operation.
-          this.learningActivityEl?.remove();
-          this.learningActivityEl = null;
-          void this.toggleLearningActivity(next);
-        },
-      });
-      this.thread.prepend(this.learningActivityEl);
-      this.learningActivityEl.scrollIntoView({ block: "start", behavior: "smooth" });
-    } catch (error) {
-      new Notice(error instanceof Error ? error.message : "Learning activity unavailable.");
-    }
+    await this.learningUi.toggleActivity(scope);
   }
 
-  /** Focus strip is a read-only preview. Durable program data remains authoritative. */
   private async refreshFocusStrip(): Promise<void> {
-    const epoch = ++this.focusStripEpoch;
-    const strip = this.focusStripEl;
-    if (!strip?.isConnected) return;
-    try {
-      const overview = await this.learning.getProgramOverview();
-      if (epoch !== this.focusStripEpoch || !strip.isConnected) return;
-      const focus = overview?.focus;
-      const objective = overview?.objectives.find(item =>
-        item.objective.id === focus?.objectiveId);
-      const preview = overview?.revisionPreview;
-      if (!focus && !preview) {
-        strip.addClass("nox-hidden");
-        strip.empty();
-        return;
-      }
-      strip.removeClass("nox-hidden");
-      strip.empty();
-      const icon = strip.createSpan({ cls: "nox-focus-strip-icon" });
-      setNoxIcon(icon, focus?.status === "paused" ? "pause-circle"
-        : focus ? "target" : "git-branch");
-      const label = focus
-        ? (focus.status === "paused" ? "Paused · " : "Focus · ") +
-          (objective?.objective.title ?? focus.objectiveId)
-        : "Curriculum revision awaiting approval";
-      strip.createSpan({ cls: "nox-focus-strip-label", text: label });
-      const chevron = strip.createSpan({ cls: "nox-focus-strip-chevron" });
-      setNoxIcon(chevron, "chevron-right");
-    } catch {
-      // A damaged program store cannot prevent ordinary chat interactions.
-      if (epoch === this.focusStripEpoch) strip.addClass("nox-hidden");
-    }
+    await this.learningUi.refreshFocusStrip(this.focusStripEl);
   }
 
   private submitLearningPanelCommand(command: string): void {
     if (this.uiState === "RUNNING" || this.pendingReplyTo) return;
     if (!this.learning.canExecuteOfflineCommand(command) && command !== "/next") return;
-    this.learningGraphEl?.remove();
-    this.learningGraphEl = null;
+    this.learningUi.closeMap();
     this.setAction("ask");
     this.input.value = command;
     this.onInput();
@@ -637,27 +543,7 @@ export class ChatView extends ItemView {
   }
 
   private async toggleLearningMap(): Promise<void> {
-    if (this.learningGraphEl?.isConnected) {
-      this.learningGraphEl.remove(); this.learningGraphEl = null; return;
-    }
-    try {
-      const overview = await this.learning.getProgramOverview();
-      this.learningGraphEl = renderLearningGraph(this.thread, overview,
-        () => { this.learningGraphEl?.remove(); this.learningGraphEl = null; },
-        () => {
-          if (this.uiState === "RUNNING") return;
-          this.learningGraphEl?.remove(); this.learningGraphEl = null;
-          this.input.value = overview?.focus?.status === "paused" ? "/resume-focus" :
-            overview?.active ? "/next" : overview?.next.objectiveId
-              ? "/focus " + overview.next.objectiveId : overview ? "/progress" : "/plan ";
-          this.onInput();
-          if (overview) void this.doSend(); else this.focusComposer();
-        },
-        command => this.submitLearningPanelCommand(command));
-      this.thread.scrollTo({ top: 0, behavior: "smooth" });
-    } catch (error) {
-      new Notice(error instanceof Error ? error.message : "Learning map unavailable.");
-    }
+    await this.learningUi.toggleMap();
   }
 
   private toggleHistoryMenu(): void {
@@ -719,12 +605,36 @@ export class ChatView extends ItemView {
     this.composerUi?.setReplyReference(null);
   }
 
+  /** Shell-only cross-feature invalidation; presenters keep their own timers and overlays. */
+  private invalidateSessionPresentation(): void {
+    ++this.viewEpoch;
+    this.thinkingUi?.reset();
+    this.practiceUi.reset();
+    this.learningUi.reset();
+    this.transcriptPresenter.cancel();
+  }
+
+  private clearSessionBoundDraft(): void {
+    this.clearReplyReference();
+    this.transcriptSelection?.hide();
+    this.lastTurnRequest = null;
+    this.pendingFindingSource = null;
+    this.systemContextFiles = [];
+    
+    this.attachmentDraft.clear();
+    this.renderAttachments();
+    this.closePromptMenu();
+    this.closeModelMenu();
+  }
+
+
   private async forkMessage(messageId: string): Promise<void> {
-    if (this.uiState === "RUNNING") return;
+    if (this.uiState === "RUNNING" || this.turnStarting) return;
     if (this.input.value.trim()) {
       new Notice("Clear or send the composer draft before forking.");
       return;
     }
+    await this.practiceUi.flushDraft();
     const originSessionId = this.learning.getSession().id;
     const result = await this.learning.forkSession(originSessionId, messageId);
     await this.selectHistorySession(result.session.id);
@@ -740,24 +650,17 @@ export class ChatView extends ItemView {
   }
 
   private async selectHistorySession(id: string): Promise<void> {
-    if (this.uiState === "RUNNING") return;
+    if (this.uiState === "RUNNING" || this.turnStarting) return;
 
+    await this.practiceUi.flushDraft();
     const session = await this.learning.selectSession(id);
     if (!session) return;
+    this.invalidateSessionPresentation();
 
     this.closeHistoryMenu();
-    this.clearReplyReference();
-    this.transcriptSelection?.hide();
+    this.clearSessionBoundDraft();
     this.input.value = "";
     this.composerUi.syncInputLayout();
-    this.lastTurnRequest = null;
-    this.pendingFindingSource = null;
-    this.systemContextFiles = [];
-    this.extraCtx = [];
-    this.attachments = [];
-    this.renderAttachments();
-    this.closePromptMenu();
-    this.closeModelMenu();
     this.syncPracticeComposerState();
     await this.syncChips();
     await this.restoreSession();
@@ -768,190 +671,19 @@ export class ChatView extends ItemView {
   }
 
   private async refreshModelList(): Promise<void> {
-    this.models = this.learning.getModels();
-    if (this.modelMenuState.isOpen) {
-      this.modelMenuState.setActive(this.getSelectedModelIndex());
-    }
-    this.syncModelTrigger();
-    this.renderModelMenu();
-  }
-
-  private getModelMenuItems(): AgentModel[] {
-    return modelMenuItems(this.models, this.learning.getSession().model);
-  }
-
-  private getSelectedModelIndex(): number {
-    const selected = this.learning.getSession().model ?? "";
-    const index = this.getModelMenuItems().findIndex(
-      (model) => model.id === selected,
-    );
-    return index >= 0 ? index : 0;
-  }
-
-  private syncModelTrigger(): void {
-    if (!this.modelTrigger) return;
-
-    const selected = this.learning.getSession().model ?? "";
-    const model = this.getModelMenuItems().find((item) => item.id === selected);
-    const label = !selected && !this.models.length && this.learning.getModelDiscoveryError()
-      ? "Models unavailable" : model?.name ?? "Runtime default";
-
-    this.composerUi?.setModelLabel(label);
-    this.modelMenuState.syncTrigger(this.modelTrigger, "nox-model-menu");
-    this.modelTrigger.setAttribute("aria-label", `Learning model: ${label}`);
-  }
-
-  private modelDiscoveryLoading = false;
-
-  private async discoverModels(): Promise<void> {
-    if (this.modelDiscoveryLoading) return;
-    this.modelDiscoveryLoading = true;
-    this.renderModelMenu();
-    try {
-      await this.learning.refreshModels();
-    } finally {
-      this.modelDiscoveryLoading = false;
-      await this.refreshModelList();
-    }
-  }
-
-  private openModelMenu(): void {
-    this.models = this.learning.getModels();
-    this.closePromptMenu();
-    this.modelMenuState.openAt(this.getSelectedModelIndex());
-    this.syncModelTrigger();
-    this.renderModelMenu();
-    if (!this.models.length && !this.learning.getModelDiscoveryError()) {
-      void this.discoverModels().catch(() => this.refreshModelList());
-    }
+    this.modelUi?.refresh();
   }
 
   private closeModelMenu(): void {
-    if (!this.modelMenuState.isOpen && !this.modelMenuEl?.hasChildNodes()) return;
-
-    this.modelMenuState.close();
-    this.syncModelTrigger();
-    this.renderModelMenu();
+    this.modelUi?.close();
   }
 
   private toggleModelMenu(): void {
-    if (this.modelMenuState.isOpen) {
-      this.closeModelMenu();
-    } else {
-      this.openModelMenu();
-    }
-  }
-
-  private renderModelMenu(): void {
-    if (!this.modelMenuEl) return;
-
-    this.modelMenuEl.empty();
-    this.modelPopover.setOpen(this.modelMenuState.isOpen);
-    this.syncModelTrigger();
-
-    if (!this.modelMenuState.isOpen) return;
-
-    const selected = this.learning.getSession().model ?? "";
-    const rows: HTMLButtonElement[] = [];
-    for (const [index, model] of this.getModelMenuItems().entries()) {
-      const row = createNoxMenuRow(this.modelMenuEl, {
-        cls: "nox-model-menu-row",
-        id: `nox-model-menu-option-${index}`,
-        name: model.name,
-        nameClass: "nox-model-menu-name",
-        selected: model.id === selected,
-        trailingClass: "nox-model-menu-check",
-        trailingIcon: model.id === selected ? "check" : undefined,
-      });
-
-      row.addEventListener("mouseenter", () => {
-        this.modelMenuState.setActive(index);
-        this.syncModelMenuRows();
-      });
-      row.addEventListener("mousedown", (event) => event.preventDefault());
-      row.addEventListener("click", () => {
-        void this.selectModel(model.id).catch(error => console.warn("[Nox] Model selection failed", error));
-      });
-      rows.push(row);
-    }
-
-    const discoveryError = this.learning.getModelDiscoveryError();
-    if (!this.models.length && this.modelDiscoveryLoading) {
-      this.modelMenuEl.createDiv({ cls: "nox-model-menu-status", text: "Discovering models…" });
-    }
-    if (!this.models.length && discoveryError && !this.modelDiscoveryLoading) {
-      this.modelMenuEl.createDiv({ cls: "nox-model-menu-error", text: discoveryError });
-      const retry = this.modelMenuEl.createEl("button", {
-        cls: "nox-model-menu-retry",
-        text: "Retry model discovery",
-        attr: { type: "button" },
-      });
-      retry.addEventListener("click", () => {
-        retry.disabled = true;
-        void this.discoverModels().catch(() => this.refreshModelList());
-      });
-    }
-    this.modelMenuState.setRows(rows);
-    this.syncModelMenuRows();
-    animateNoxPopover(this.modelMenuEl);
-  }
-
-  private syncModelMenuRows(): void {
-    const selected = this.learning.getSession().model ?? "";
-    const rows = this.modelMenuEl?.querySelectorAll<HTMLButtonElement>(
-      ".nox-model-menu-row",
-    ) ?? [];
-    rows.forEach((row, index) => {
-      row.setAttribute(
-        "aria-selected",
-        String(this.getModelMenuItems()[index]?.id === selected),
-      );
-    });
-    this.modelMenuState.syncTrigger(this.modelTrigger, "nox-model-menu");
-  }
-
-  private async selectModel(modelId: string): Promise<void> {
-    try {
-      await this.learning.setModel(modelId || undefined);
-    } catch (error) {
-      new Notice(error instanceof Error ? error.message : "Unable to save model selection.");
-    }
-    this.closeModelMenu();
-    this.modelTrigger.focus();
+    this.modelUi?.toggle();
   }
 
   private onModelTriggerKey(event: KeyboardEvent): void {
-    const items = this.getModelMenuItems();
-
-    if (event.key === "ArrowDown" || event.key === "ArrowUp") {
-      event.preventDefault();
-      if (!this.modelMenuState.isOpen) {
-        this.openModelMenu();
-        return;
-      }
-
-      const direction = event.key === "ArrowDown" ? 1 : -1;
-      this.modelMenuState.move(direction);
-      this.syncModelMenuRows();
-      return;
-    }
-
-    if ((event.key === "Enter" || event.key === " ") && this.modelMenuState.isOpen) {
-      event.preventDefault();
-      const model = items[this.modelMenuState.activeIndex];
-      if (model) void this.selectModel(model.id).catch(error => console.warn("[Nox] Model selection failed", error));
-      return;
-    }
-
-    if (event.key === "Escape" && this.modelMenuState.isOpen) {
-      event.preventDefault();
-      this.closeModelMenu();
-      return;
-    }
-
-    if (event.key === "Tab" && this.modelMenuState.isOpen) {
-      this.closeModelMenu();
-    }
+    this.modelUi?.onTriggerKey(event);
   }
 
   private buildComposer(parent: HTMLElement): void {
@@ -968,14 +700,7 @@ export class ChatView extends ItemView {
       },
       onOpenCommandMenu: () => {
         this.closeModelMenu();
-        if (this.promptMenu === "command") {
-          this.closePromptMenu();
-        } else {
-          this.promptMenu = "command";
-          this.commandPage = "actions";
-          this.promptMenuState.openAt(0);
-          void this.renderPromptMenu();
-        }
+        this.promptUi?.toggleCommand();
         this.composerUi.focus();
       },
       onToggleModelMenu: () => this.toggleModelMenu(),
@@ -988,17 +713,39 @@ export class ChatView extends ItemView {
       onRemoveReply: () => this.clearReplyReference(),
     });
 
-    this.promptMenuEl = this.composerUi.promptMenuEl;
-    this.promptPopover = this.composerUi.promptPopover;
-    this.modelMenuEl = this.composerUi.modelMenuEl;
-    this.modelPopover = this.composerUi.modelPopover;
     this.input = this.composerUi.input;
     this.fileInput = this.composerUi.fileInput;
     this.actionMenuBtn = this.composerUi.actionMenuBtn;
-    this.modelTrigger = this.composerUi.modelTrigger;
+
     this.cancelBtn = this.composerUi.cancelBtn;
     this.sendBtn = this.composerUi.sendBtn;
-    this.syncModelTrigger();
+    this.modelUi = new ModelMenuPresenter(
+      this.composerUi.modelTrigger,
+      this.composerUi.modelMenuEl,
+      this.composerUi.modelPopover,
+      {
+        models: () => this.learning.getModels(),
+        selectedId: () => this.learning.getSession().model,
+        discoveryError: () => this.learning.getModelDiscoveryError(),
+        discover: () => this.learning.refreshModels(),
+        select: id => this.learning.setModel(id || undefined),
+        setLabel: label => this.composerUi.setModelLabel(label),
+        beforeOpen: () => this.closePromptMenu(),
+        reportError: message => { new Notice(message); },
+      },
+    );
+    this.promptUi = new PromptMenuPresenter(
+      this.composerUi.input,
+      this.composerUi.promptMenuEl,
+      this.composerUi.promptPopover,
+      this.composerUi.actionMenuBtn,
+      {
+        items: (kind, page) => this.getPromptMenuItems(kind, page),
+        select: item => this.pickPromptMenuItem(item),
+        invalidate: () => { this.commandProgramSnapshot = null; },
+        reportError: message => { new Notice(message); },
+      },
+    );
     this.registerDomEvent(document, "pointerdown", (event) => {
       const target = event.target;
       if (
@@ -1015,14 +762,12 @@ export class ChatView extends ItemView {
 
   private renderAttachments(): void {
     this.composerUi.setAttachments(
-      this.attachments.map((attachment) => ({
+      this.attachmentDraft.items().map((attachment) => ({
         key: attachment.name,
         text: attachment.name,
         onRemove: () => {
-          const index = this.attachments.indexOf(attachment);
-          if (index < 0) return;
-          this.attachments.splice(index, 1);
-          this.extraCtx = this.attachments.map((item) => item.ref);
+          if (!this.attachmentDraft.remove(attachment)) return;
+          
           this.renderAttachments();
           void this.syncChips();
         },
@@ -1034,22 +779,35 @@ export class ChatView extends ItemView {
     if (!files || files.length === 0) return;
 
     this.closePromptMenu();
+    const epoch = this.viewEpoch;
+    const sessionId = this.learning.getSession().id;
+    const input = this.fileInput;
+    const pending: Array<{ name: string; content: string }> = [];
 
-    for (const file of Array.from(files)) {
-      const content = await file.text();
-      this.attachments.push({
-        name: file.name,
-        ref: {
-          kind: "attachment",
-          name: file.name,
-          content,
-        },
-      });
+    try {
+      for (const file of Array.from(files)) {
+        const content = await file.text();
+        if (epoch !== this.viewEpoch || this.learning.getSession().id !== sessionId) return;
+        pending.push({ name: file.name, content });
+      }
+    } catch (error) {
+      if (epoch === this.viewEpoch) {
+        new Notice(error instanceof Error ? error.message : "Could not read attached file.");
+      }
+      return;
+    } finally {
+      // Clear the original picker; never touch the newly mounted Composer on close.
+      input.value = "";
     }
 
-    this.extraCtx = this.attachments.map((item) => item.ref);
+    for (const file of pending) {
+      this.attachmentDraft.add(file.name, {
+        kind: "attachment",
+        name: file.name,
+        content: file.content,
+      });
+    }
     this.renderAttachments();
-    this.fileInput.value = "";
     await this.syncChips();
     this.composerUi.focus();
   }
@@ -1066,19 +824,23 @@ export class ChatView extends ItemView {
     };
   }
 
-  private async getPromptMenuItems(): Promise<PromptMenuItem[]> {
-    if (this.promptMenu === "command") {
+  private async getPromptMenuItems(kind: "command" | "source", page: "actions" | "programs"): Promise<PromptMenuItem[]> {
+    if (kind === "command") {
       let programState: Awaited<ReturnType<LearningController["getProgramMenuState"]>>;
       try {
+        const sessionId = this.learning.getSession().id;
         programState = this.commandProgramSnapshot ??
           await this.learning.getProgramMenuState();
-        this.commandProgramSnapshot = programState;
+        // A closed menu or switched session cannot reinstate a stale program cache.
+        if (this.promptUi?.isOpen && this.learning.getSession().id === sessionId) {
+          this.commandProgramSnapshot = programState;
+        }
       } catch {
         // The ordinary note actions remain usable when the vault program index is unavailable.
         programState = { sessionActive: false, programs: [] };
       }
 
-      if (this.commandPage === "programs") {
+      if (page === "programs") {
         return [
           { key: "back", name: "Back to actions", description: "Return to the main menu",
             icon: "arrow-left", action: { type: "menu-back" } },
@@ -1137,7 +899,7 @@ export class ChatView extends ItemView {
       const excluded = new Set([
         this.currentContext?.activeNote?.path,
         this.currentContext?.selection?.file,
-        ...this.extraCtx
+        ...this.attachmentDraft.contexts()
           .filter(
             (item): item is Extract<
               ExplicitContextRef,
@@ -1170,116 +932,6 @@ export class ChatView extends ItemView {
     return items;
   }
 
-  private async renderPromptMenu(): Promise<void> {
-    if (!this.promptMenuEl) return;
-
-    const requestId = ++this.promptMenuRequest;
-    this.promptMenuEl.empty();
-    this.promptPopover.setOpen(this.promptMenuState.isOpen);
-    this.syncPromptMenuControls();
-    if (!this.promptMenu) {
-      this.promptMenuState.close();
-      this.promptPopover.close();
-      this.input.removeAttribute("aria-expanded");
-      this.input.removeAttribute("aria-activedescendant");
-      return;
-    }
-
-    this.input.setAttribute("aria-expanded", "true");
-
-    const token = parsePromptToken(this.input.value);
-    const query = token?.kind === this.promptMenu ? token.query : "";
-    const rows = await this.getPromptMenuItems();
-    if (requestId !== this.promptMenuRequest || !this.promptMenu) return;
-    if (this.promptMenu === "command") {
-      const key = this.commandPage + ":" + query;
-      if (key !== this.lastCommandQuery) {
-        this.promptMenuState.setActive(0);
-        this.lastCommandQuery = key;
-      }
-      const head = this.promptMenuEl.createDiv({ cls: "nox-prompt-menu-heading" });
-      head.createSpan({ text: this.commandPage === "programs" ? "Learning programs" : "Actions" });
-      if (this.commandPage === "actions") head.createSpan({
-        cls: "nox-prompt-menu-heading-hint", text: query ? "Search results" : "Quick actions",
-      });
-    }
-    if (rows.length === 0) {
-      this.promptMenuEl.createDiv({
-        cls: "nox-prompt-menu-empty",
-        text: "No matching actions. Try another keyword.",
-      });
-    }
-
-    let interactiveIndex = 0;
-    const rowsForState: HTMLButtonElement[] = [];
-    for (const item of rows) {
-      const menuIndex = item.disabled ? -1 : interactiveIndex++;
-      const button = createNoxMenuRow(this.promptMenuEl, {
-        cls: "nox-prompt-menu-row",
-        ...(item.disabled ? {} : { id: `nox-prompt-menu-option-${menuIndex}` }),
-        icon: item.icon,
-        iconClass: "nox-prompt-menu-icon",
-        name: item.name,
-        nameClass: "nox-prompt-menu-name",
-        description: item.description,
-        descriptionClass: "nox-prompt-menu-description",
-        command: item.command,
-        commandClass: "nox-prompt-menu-command",
-        stacked: this.promptMenu === "command",
-        disabled: item.disabled,
-      });
-
-      if (!item.disabled) {
-        button.addEventListener("mouseenter", () => {
-          this.promptMenuState.setActive(menuIndex);
-          this.syncPromptMenuRows();
-        });
-        button.addEventListener("click", () => void this.pickPromptMenuItem(item));
-        rowsForState.push(button);
-      }
-    }
-
-    this.promptMenuEl.createDiv({
-      cls: "nox-prompt-menu-hint",
-      text: this.promptMenu === "source"
-        ? query ? "Select a note or attach a text file" : "Type @name to search vault notes"
-        : this.commandPage === "programs"
-          ? "Select a plan or return to actions"
-          : query
-            ? "↑ ↓ navigate · Enter select · Esc close"
-            : "Type / plus a keyword for more actions",
-    });
-    this.promptMenuState.setRows(rowsForState);
-    this.syncPromptMenuRows();
-    animateNoxPopover(this.promptMenuEl);
-  }
-
-  private syncPromptMenuControls(): void {
-    const commandOpen = this.promptMenu === "command";
-
-    this.actionMenuBtn?.setAttribute("aria-expanded", String(commandOpen));
-    this.commandHintBtn?.setAttribute("aria-expanded", String(commandOpen));
-    this.commandHintBtn?.setAttribute("aria-controls", "nox-prompt-menu");
-  }
-
-  private syncPromptMenuRows(): void {
-    this.promptMenuState.syncRows();
-    const rows = this.promptMenuEl?.querySelectorAll<HTMLButtonElement>(
-      ".nox-prompt-menu-row:not(:disabled)",
-    ) ?? [];
-    rows.forEach((row, index) => {
-      const active = index === this.promptMenuState.activeIndex;
-      row.setAttribute("aria-selected", String(active));
-    });
-
-    const activeRow = rows[this.promptMenuState.activeIndex];
-    if (activeRow) {
-      this.input.setAttribute("aria-activedescendant", activeRow.id);
-    } else {
-      this.input.removeAttribute("aria-activedescendant");
-    }
-  }
-
   private async pickPromptMenuItem(item: PromptMenuItem): Promise<void> {
     const action = item.action;
     if (action.type === "attach") {
@@ -1290,18 +942,6 @@ export class ChatView extends ItemView {
       return;
     }
     if (action.type === "info") return;
-    if (action.type === "programs") {
-      this.commandPage = "programs";
-      this.promptMenuState.openAt(0);
-      await this.renderPromptMenu();
-      return;
-    }
-    if (action.type === "menu-back") {
-      this.commandPage = "actions";
-      this.promptMenuState.openAt(0);
-      await this.renderPromptMenu();
-      return;
-    }
     if (action.type === "switch-program") {
       if (this.uiState === "RUNNING") return;
       this.setAction("ask");
@@ -1324,11 +964,7 @@ export class ChatView extends ItemView {
     const prefix = token ? this.input.value.slice(0, token.start) : this.input.value;
 
     if (action.type === "vault-note") {
-      const exists = this.extraCtx.some(
-        (item) =>
-          item.kind === "vault-note" &&
-          item.path === action.path,
-      );
+      const exists = this.attachmentDraft.hasNote(action.path);
 
       if (!exists) {
         const ref: ExplicitContextRef = {
@@ -1336,11 +972,8 @@ export class ChatView extends ItemView {
           path: action.path,
         };
 
-        this.attachments.push({
-          name: action.path.split("/").pop() ?? action.path,
-          ref,
-        });
-        this.extraCtx = this.attachments.map((item) => item.ref);
+        this.attachmentDraft.add(action.path.split("/").pop() ?? action.path, ref);
+        
         this.renderAttachments();
         await this.syncChips();
       }
@@ -1352,6 +985,8 @@ export class ChatView extends ItemView {
       return;
     }
 
+    // Page navigation is presenter-owned, never dispatched to the application.
+    if (action.type === "programs" || action.type === "menu-back") return;
     this.setAction(action.kind);
     this.input.value = prefix;
     this.closePromptMenu();
@@ -1360,19 +995,7 @@ export class ChatView extends ItemView {
   }
 
   private closePromptMenu(): void {
-    this.promptMenuRequest += 1;
-    this.promptMenu = null;
-    this.commandPage = "actions";
-    this.lastCommandQuery = "";
-    this.commandProgramSnapshot = null;
-    this.promptMenuState.close();
-    this.promptPopover.close();
-    this.syncPromptMenuControls();
-    void this.renderPromptMenu();
-  }
-
-  private getPromptMenuStartIndex(_menu: PromptMenuKind): number {
-    return 0;
+    this.promptUi?.close();
   }
 
   private setAction(action: LearningActionKind): void {
@@ -1383,13 +1006,10 @@ export class ChatView extends ItemView {
       this.pendingFindingSource = null;
       this.syncContextChips();
     }
-    if (this.promptMenu === "command") {
-      this.promptMenuState.setActive(this.getPromptMenuStartIndex("command"));
-    }
+    this.promptUi?.resetSelection();
     this.updatePlaceholder();
     this.renderIntent();
     this.syncCapabilityCards();
-    this.syncPromptMenuRows();
   }
 
   private runSelectionAction(action: NoxSelectionAction): void {
@@ -1510,7 +1130,7 @@ export class ChatView extends ItemView {
     const requestId = ++this.contextSyncRequest;
     let context: LearningContext;
     try {
-      context = await this.learning.resolveContext(this.extraCtx);
+      context = await this.learning.resolveContext(this.attachmentDraft.contexts());
     } catch {
       // Deleted supporting notes receive an actionable error at turn start.
       return;
@@ -1597,46 +1217,11 @@ export class ChatView extends ItemView {
       return;
     }
 
-    const token = parsePromptToken(this.input.value);
-    if (token?.kind === "command" && token.query) this.commandPage = "actions";
-    if (token && this.promptMenu !== token.kind) {
-      this.promptMenu = token.kind;
-      this.promptMenuState.openAt(this.getPromptMenuStartIndex(token.kind));
-    } else if (!token) {
-      this.closePromptMenu();
-    }
-
-    this.renderPromptMenu();
-
+    this.promptUi?.onInput();
   }
 
   private onKey(event: KeyboardEvent): void {
-    // Unknown slash queries are searches, not messages to dispatch to an agent.
-    if (this.promptMenu === "command" && this.promptMenuState.rowCount === 0 &&
-        parsePromptToken(this.input.value)?.kind === "command" &&
-        (event.key === "Enter" && !event.shiftKey || event.key === "Tab")) {
-      event.preventDefault();
-      return;
-    }
-    if (this.promptMenu && this.promptMenuState.rowCount > 0) {
-      if (event.key === "ArrowDown" || event.key === "ArrowUp") {
-        event.preventDefault();
-        const direction = event.key === "ArrowDown" ? 1 : -1;
-        this.promptMenuState.move(direction);
-        this.syncPromptMenuRows();
-        return;
-      }
-
-      if ((event.key === "Enter" && !event.shiftKey) || event.key === "Tab") {
-        event.preventDefault();
-        const rows = this.promptMenuEl?.querySelectorAll<HTMLButtonElement>(
-          ".nox-prompt-menu-row:not(:disabled)",
-        ) ?? [];
-        const row = rows[this.promptMenuState.activeIndex];
-        if (row) row.click();
-        return;
-      }
-    }
+    if (this.promptUi?.onKey(event)) return;
 
     if (event.key === "Enter" && !event.shiftKey) {
       event.preventDefault();
@@ -1644,9 +1229,9 @@ export class ChatView extends ItemView {
     }
 
     if (event.key === "Escape") {
-      if (this.promptMenu) {
+      if (this.promptUi?.isOpen) {
         this.closePromptMenu();
-      } else if (this.modelMenuState.isOpen) {
+      } else if (this.modelUi?.isOpen) {
         this.closeModelMenu();
       } else if (this.historyPresenter?.isOpen) {
         this.closeHistoryMenu();
@@ -1658,7 +1243,7 @@ export class ChatView extends ItemView {
 
   private async doSend(): Promise<void> {
     const prompt = this.input.value.trim() || "Review the attached context.";
-    if (!this.canSend() || this.uiState === "RUNNING") return;
+    if (!this.canSend() || this.uiState === "RUNNING" || this.turnStarting) return;
     if (this.pendingReplyTo && prompt.startsWith("/")) {
       new Notice("Remove the quoted response before running a command.");
       return;
@@ -1669,7 +1254,7 @@ export class ChatView extends ItemView {
       turnId: crypto.randomUUID(),
       prompt,
       action: this.selectedAction,
-      explicitContext: [...this.extraCtx],
+      explicitContext: [...this.attachmentDraft.contexts()],
       ...(this.pendingReplyTo ? { replyTo: structuredClone(this.pendingReplyTo) } : {}),
       sourcePath: (this.selectedAction === "edit" || this.selectedAction === "practice")
         ? this.pendingFindingSource ?? undefined
@@ -1681,7 +1266,7 @@ export class ChatView extends ItemView {
   }
 
   private async retryLastTurn(): Promise<void> {
-    if (!this.lastTurnRequest || this.uiState === "RUNNING") return;
+    if (!this.lastTurnRequest || this.uiState === "RUNNING" || this.turnStarting) return;
 
     this.thread
       .querySelectorAll(".nox-inline-status--failed")
@@ -1694,38 +1279,41 @@ export class ChatView extends ItemView {
     request: LearningRequest,
     appendUserMessage: boolean,
   ): Promise<void> {
+    // Admission must be synchronous: awaiting a draft flush cannot permit two sends.
+    if (this.turnStarting || this.uiState === "RUNNING") return;
+    this.turnStarting = true;
+    const epoch = this.viewEpoch;
+    try {
+      // /hint, normal sends, retry and regenerate preserve the answer before inference.
+      await this.practiceUi.flushDraft();
+    } catch {
+      if (epoch === this.viewEpoch) new Notice("Could not save the quiz draft. Retry before sending.");
+      return;
+    } finally {
+      this.turnStarting = false;
+    }
+    if (epoch !== this.viewEpoch) return;
     this.closePromptMenu();
     this.clearReplyReference();
 
     this.input.value = "";
     this.composerUi.syncInputLayout();
-    this.attachments = [];
-    this.extraCtx = [];
+    this.attachmentDraft.clear();
+    
     this.renderAttachments();
     this.sendBtn.disabled = true;
 
     this.agentCursorEl = null;
     this.agentContentEl = null;
-    this.statusEl = null;
-    this.streamedThoughtText = "";
-    this.thinkingThoughtEl = null;
     this.streamText.reset();
-    this.thinkingStage = -1;
-    this.thinkingRows.clear();
-    this.thinkingToolRows.clear();
-    this.thinkingListEl = null;
-    this.thinkingViewportEl = null;
-    this.thinkingManualExpanded = null;
-    this.stopLoadingTimer();
-    this.runInspector = null;
+    this.thinkingUi?.reset();
     this.turnTerminal = false;
 
     this.runningAction = request.action;
-    this.lastAgentActivityAt = Date.now();
     this.turnContextSource = null;
     if (appendUserMessage) this.appendUserBubble(request.prompt, request.turnId, request.replyTo);
     this.setUIState("RUNNING");
-    this.ensureThinkingTrace();
+    this.thinkingUi?.begin(request.action);
 
     try {
       let regenerated = false;
@@ -1734,15 +1322,23 @@ export class ChatView extends ItemView {
         ...request,
         retry: !appendUserMessage && !request.regenerate,
       })) {
+        // The Obsidian leaf may have closed while a provider was awaiting I/O.
+        // Do not write streamed content into detached or subsequently remounted UI.
+        if (epoch !== this.viewEpoch) {
+          this.learning.cancel();
+          return;
+        }
         if (event.type === "completed") regenerated = true;
         this.handleLearningEvent(event);
       }
       // Drop the provisional streaming bubble only after the new version is
       // durable. A failure leaves the original response intact.
-      if (request.regenerate && regenerated && this.learning.getSession().id === sessionId) {
+      if (epoch === this.viewEpoch && request.regenerate && regenerated &&
+          this.learning.getSession().id === sessionId) {
         await this.restoreSession();
       }
     } catch (error) {
+      if (epoch !== this.viewEpoch) return;
       const message = error instanceof Error ? error.message : String(error);
       console.warn("[Nox] Unexpected turn failure", message);
       this.terminateTurn(
@@ -1754,26 +1350,21 @@ export class ChatView extends ItemView {
 
   private handleLearningEvent(event: LearningEvent): void {
     if (event.type === "activity-phase") {
-      if (event.phase === "waiting-model") this.setThinkingStage(2);
-      else if (event.phase === "receiving-output") this.setThinkingStage(3);
-      else this.setThinkingStage(4);
-      this.lastAgentActivityAt = Date.now();
+      if (event.phase === "waiting-model") this.thinkingUi?.stage(2);
+      else if (event.phase === "receiving-output") this.thinkingUi?.stage(3);
+      else this.thinkingUi?.stage(4);
       return;
     }
     if (event.type === "tool-started") {
-      this.lastAgentActivityAt = Date.now();
-      this.runInspector?.toolStarted(event.toolCallId, event.name);
-      this.appendThinkingTool(event.toolCallId, event.name);
+      this.thinkingUi?.toolStarted(event.toolCallId, event.name);
       return;
     }
     if (event.type === "tool-completed") {
-      this.lastAgentActivityAt = Date.now();
-      this.runInspector?.toolCompleted(event.toolCallId, event.outcome);
-      this.completeThinkingTool(event.toolCallId, event.outcome);
+      this.thinkingUi?.toolCompleted(event.toolCallId, event.outcome);
       return;
     }
     if (event.type === "context-ready") {
-      this.runInspector?.setContext(event.context);
+      this.thinkingUi?.contextReady(event.context);
       this.currentContext = event.context.resolved;
       this.turnContextSource =
         event.context.mutableFile ??
@@ -1784,23 +1375,20 @@ export class ChatView extends ItemView {
       }
       this.systemContextFiles = event.context.system.map((item) => item.file);
       this.syncContextChips();
-      this.setThinkingStage(1);
       return;
     }
 
     if (event.type === "thought-delta") {
-      this.lastAgentActivityAt = Date.now();
       const shouldFollow = this.isNearThreadBottom();
-      this.setThinkingStage(3);
-      this.appendThoughtText(event.text);
+      this.thinkingUi?.thoughtDelta(event.text);
       if (shouldFollow) this.scrollThread("auto");
       return;
     }
 
     if (event.type === "response-delta") {
-      this.lastAgentActivityAt = Date.now();
       const shouldFollow = this.isNearThreadBottom();
-      this.setThinkingStage(3);
+      this.thinkingUi?.activity();
+      this.thinkingUi?.stage(3);
       this.appendToAgentBubble(event.text);
       if (shouldFollow) this.scrollThread("auto");
       return;
@@ -1808,21 +1396,21 @@ export class ChatView extends ItemView {
 
     if (event.type === "practice-question") {
       this.setAction("practice");
-      this.setThinkingStage(3);
+      this.thinkingUi?.stage(3);
       this.ensureAgentBubble();
       this.appendPracticeQuestion(event.question, this.agentCursorEl, event.questionId);
       return;
     }
 
     if (event.type === "practice-evaluation") {
-      this.setThinkingStage(3);
+      this.thinkingUi?.stage(3);
       this.ensureAgentBubble();
       this.appendPracticeEvaluation(event.evaluation, this.agentCursorEl, event.questionId);
       return;
     }
 
     if (event.type === "review-findings") {
-      this.setThinkingStage(3);
+      this.thinkingUi?.stage(3);
       this.ensureAgentBubble();
       this.appendReviewFindings(event.findings, this.turnContextSource);
       return;
@@ -1835,7 +1423,7 @@ export class ChatView extends ItemView {
 
     if (event.type === "mutation-proposed") {
       // The request remains running even after a proposal is streamed.
-      this.appendProposalBubble(event.edit);
+      this.proposalUi?.append(event.edit);
       return;
     }
 
@@ -1861,7 +1449,7 @@ export class ChatView extends ItemView {
     if (this.turnTerminal) return;
     this.turnTerminal = true;
     void this.refreshSessionClock();
-    this.runInspector?.settle(outcome);
+    this.thinkingUi?.settleInspector(outcome);
 
     const action = this.runningAction;
     if (this.uiState === "RUNNING") this.setUIState("ANSWER");
@@ -1897,187 +1485,14 @@ export class ChatView extends ItemView {
   }
 
   private finishStreamingBubble(doneLabel?: string): void {
-    const elapsed = this.formatElapsed(Date.now() - this.loadingStartedAt);
     this.flushStreamingText();
     this.renderMarkdownResponse();
     if (doneLabel === undefined) this.appendStreamActions();
-    const defaultLabel = `Completed in ${elapsed}`;
-    this.settleThinking(doneLabel ?? defaultLabel);
-    this.stopLoadingTimer();
+    this.thinkingUi?.finish(doneLabel);
     this.agentCursorEl?.removeClass("nox-bubble--streaming");
     this.agentCursorEl = null;
     this.agentContentEl = null;
-    this.statusEl = null;
-    this.thinkingToggleEl = null;
-    this.thinkingLabelEl = null;
-    this.thinkingChevronEl = null;
-    this.thinkingPanelEl = null;
-    this.thinkingThoughtEl = null;
-    this.thinkingRows.clear();
-    this.thinkingToolRows.clear();
-    this.thinkingListEl = null;
-    this.thinkingViewportEl = null;
-    this.thinkingStage = -1;
-    this.thinkingManualExpanded = null;
     this.streamText.detach();
-    this.runInspector = null;
-  }
-
-  private settleThinking(doneLabel: string): void {
-    if (!this.thinkingLabelEl) return;
-    this.thinkingLabelEl.textContent = doneLabel;
-    this.thinkingLabelEl.removeClass("nox-thinking-label--active");
-    this.thinkingLabelEl.addClass("nox-thinking-label--done");
-
-    const completed = doneLabel.startsWith("Completed");
-    const active = this.thinkingRows.get(this.thinkingStage);
-    if (active) {
-      this.setThinkingRowStatus(active, completed ? "complete" : "interrupted");
-      const time = active.querySelector<HTMLElement>(".nox-thinking-phase-time");
-      if (time) time.textContent = this.formatElapsed(Date.now() - this.thinkingStageAt);
-    }
-    // Actual tool calls without terminal events are interrupted, never marked done.
-    for (const row of this.thinkingToolRows.values()) {
-      if (row.dataset.status === "running") {
-        row.dataset.status = "interrupted";
-        const marker = row.querySelector<HTMLElement>(".nox-thinking-marker");
-        if (marker) setNoxIcon(marker, "minus");
-        const meta = row.querySelector<HTMLElement>(".nox-thinking-phase-time");
-        if (meta) meta.textContent = "Interrupted";
-      }
-    }
-
-    this.statusEl?.removeClass("nox-thinking--working");
-    this.statusEl?.addClass("nox-thinking--settled");
-    // BeUI pattern: auto-disclose live activity, collapse on completion.
-    this.updateThinkingDisclosure(this.thinkingManualExpanded ?? false);
-  }
-
-  private updateThinkingDisclosure(expanded: boolean): void {
-    this.thinkingPanelEl?.toggleClass("is-expanded", expanded);
-    this.thinkingToggleEl?.setAttribute("aria-expanded", String(expanded));
-    this.thinkingChevronEl?.toggleClass("is-expanded", expanded);
-  }
-
-  private setThinkingRowStatus(row: HTMLElement, status: "active" | "complete" | "interrupted"): void {
-    row.removeClass("is-active", "is-done", "is-interrupted");
-    row.addClass(status === "active" ? "is-active" : status === "complete" ? "is-done" : "is-interrupted");
-    row.dataset.status = status;
-    const marker = row.querySelector<HTMLElement>(".nox-thinking-marker");
-    if (!marker) return;
-    marker.removeClass("nox-thinking-marker--spinner");
-    marker.empty();
-    if (status === "complete") setNoxIcon(marker, "check");
-    else if (status === "interrupted") setNoxIcon(marker, "minus");
-    else marker.addClass("nox-thinking-marker--spinner");
-  }
-
-  private setThinkingStage(activeIndex: number): void {
-    if (!this.thinkingListEl || activeIndex <= this.thinkingStage) return;
-    const prior = this.thinkingRows.get(this.thinkingStage);
-    if (prior) {
-      this.setThinkingRowStatus(prior, "complete");
-      const time = prior.querySelector<HTMLElement>(".nox-thinking-phase-time");
-      if (time) time.textContent = this.formatElapsed(Date.now() - this.thinkingStageAt);
-    }
-
-    const labels = [
-      "Resolving context",
-      "Preparing " + (ACTIONS.find(action => action.kind === this.runningAction)?.label ?? "Ask") + " request",
-      "Waiting for AI activity",
-      "Receiving model output",
-      "Finalizing response",
-    ];
-    const label = labels[activeIndex];
-    if (!label) return;
-    // Add only actually observed stages. Do not backfill missing ones.
-    const row = this.thinkingListEl.createDiv({ cls: "nox-thinking-row" });
-    row.createSpan({ cls: "nox-thinking-marker" });
-    row.createSpan({ cls: "nox-thinking-primary", text: label });
-    row.createSpan({ cls: "nox-thinking-phase-time" });
-    this.thinkingRows.set(activeIndex, row);
-    this.thinkingStage = activeIndex;
-    this.thinkingStageAt = Date.now();
-    this.setThinkingRowStatus(row, "active");
-    this.followThinkingActivity();
-  }
-
-  private appendThinkingTool(id: string, name: string): void {
-    if (!this.thinkingListEl || this.thinkingToolRows.has(id) || this.thinkingToolRows.size >= 40) return;
-    const row = this.thinkingListEl.createDiv({ cls: "nox-thinking-row nox-thinking-tool" });
-    row.dataset.status = "running";
-    const marker = row.createSpan({ cls: "nox-thinking-marker" });
-    setNoxIcon(marker, "wrench");
-    row.createSpan({ cls: "nox-thinking-primary", text: name });
-    row.createSpan({ cls: "nox-thinking-phase-time", text: "Running" });
-    this.thinkingToolRows.set(id, row);
-    this.followThinkingActivity();
-  }
-
-  private completeThinkingTool(id: string, outcome: "completed" | "failed"): void {
-    const row = this.thinkingToolRows.get(id);
-    if (!row || row.dataset.status !== "running") return;
-    row.dataset.status = outcome;
-    const marker = row.querySelector<HTMLElement>(".nox-thinking-marker");
-    if (marker) setNoxIcon(marker, outcome === "completed" ? "check" : "x");
-    const meta = row.querySelector<HTMLElement>(".nox-thinking-phase-time");
-    if (meta) meta.textContent = outcome === "completed" ? "Done" : "Failed";
-  }
-
-  private followThinkingActivity(): void {
-    const viewport = this.thinkingViewportEl;
-    if (!viewport || !this.statusEl?.hasClass("nox-thinking--working")) return;
-    // Short capped activity viewport; newest *observed* event stays visible.
-    window.requestAnimationFrame(() => {
-      if (this.thinkingViewportEl === viewport && viewport.isConnected) {
-        viewport.scrollTop = viewport.scrollHeight;
-      }
-    });
-  }
-
-  private startLoadingTimer(): void {
-    if (this.loadingTimer !== null) {
-      window.clearInterval(this.loadingTimer);
-      this.loadingTimer = null;
-    }
-
-    const update = () => {
-      const elapsed = this.formatElapsed(Date.now() - this.loadingStartedAt);
-      if (this.loadingElapsedEl) this.loadingElapsedEl.textContent = elapsed;
-      if (this.thinkingLabelEl?.hasClass("nox-thinking-label--active")) {
-        const quietMs = Date.now() - this.lastAgentActivityAt;
-        this.thinkingLabelEl.textContent = this.thinkingStage === 2
-          ? "Waiting for AI"
-          : this.thinkingStage === 4 ? "Finalizing"
-          : this.thinkingStage === 3 ? "Receiving response"
-          : this.thinkingStage === 1 ? "Preparing request" : "Working";
-        const waiting = this.thinkingRows.get(2)?.querySelector<HTMLElement>(".nox-thinking-phase-time");
-        if (waiting && this.thinkingStage === 2 && quietMs >= 15_000) {
-          waiting.textContent = "No updates yet";
-        }
-      }
-    };
-
-    this.loadingStartedAt = Date.now();
-    update();
-    this.loadingTimer = window.setInterval(update, 500);
-  }
-
-  private stopLoadingTimer(): void {
-    if (this.loadingTimer !== null) {
-      window.clearInterval(this.loadingTimer);
-      this.loadingTimer = null;
-    }
-
-    this.loadingElapsedEl = null;
-  }
-
-  private formatElapsed(milliseconds: number): string {
-    const seconds = milliseconds / 1000;
-
-    if (seconds < 60) return `${seconds.toFixed(1)}s`;
-
-    return `${Math.floor(seconds / 60)}m ${(seconds % 60).toFixed(1)}s`;
   }
 
   private setUIState(state: UIState): void {
@@ -2094,7 +1509,7 @@ export class ChatView extends ItemView {
   }
 
   private canSend(): boolean {
-    const hasInput = this.input.value.trim().length > 0 || this.attachments.length > 0;
+    const hasInput = this.input.value.trim().length > 0 || this.attachmentDraft.length > 0;
     return hasInput && (this.runtimeReady || this.learning.canExecuteOfflineCommand(this.input.value));
   }
 
@@ -2133,13 +1548,13 @@ export class ChatView extends ItemView {
   }
 
   private showEmpty(): void {
+    this.practiceUi.reset();
     this.transcriptPresenter.cancel();
     this.streamText.reset();
     this.transcriptSelection?.hide();
-    this.stopLoadingTimer();
+    this.thinkingUi?.reset();
     this.thread.empty();
     this.agentCursorEl = null;
-    this.statusEl = null;
     this.capabilityCards.clear();
 
     const slate = this.thread.createDiv({
@@ -2212,7 +1627,7 @@ export class ChatView extends ItemView {
       console.warn("[Nox] Onboarding detection failed", error);
     });
 
-    this.renderEmptyContext(slate);
+    renderEmptyContext(slate, this.currentContext);
 
     const intro = slate.createDiv({
       cls: "nox-empty-intro",
@@ -2227,7 +1642,23 @@ export class ChatView extends ItemView {
         "Continue a learning plan, or explore your current note.",
     });
 
-    this.renderEmptyPrimary(slate);
+    renderEmptyPrimary(slate, {
+      getPrimaryAction: async () => getPrimaryAction(this.toActionMenuContext(
+        await this.learning.getProgramMenuState())),
+      canStart: () => this.uiState !== "RUNNING" && this.runtimeReady,
+      getDraft: () => this.input.value.trim(),
+      onBlocked: () => {
+        new Notice("Finish or clear your message before starting another learning action.");
+        this.focusComposer();
+      },
+      onStart: (action, draft) => {
+        this.setAction("ask");
+        this.input.value = draft ? "/plan " + draft : action.command ?? "";
+        this.onInput();
+        this.focusComposer();
+        if (!draft && action.command && action.command.trim() !== "/plan") void this.doSend();
+      },
+    });
 
     const section = slate.createDiv({
       cls: "nox-capability-section",
@@ -2250,12 +1681,10 @@ export class ChatView extends ItemView {
         "aria-expanded": "false",
       },
     });
-    this.commandHintBtn = commandHint;
+    this.promptUi?.setCommandHint(commandHint);
     commandHint.addEventListener("click", () => {
-      this.promptMenu = "command";
-      this.commandPage = "actions";
-      this.promptMenuState.openAt(0);
-      void this.renderPromptMenu();
+      this.closeModelMenu();
+      this.promptUi?.openCommand();
       this.focusComposer();
     });
 
@@ -2315,93 +1744,6 @@ export class ChatView extends ItemView {
     animateNoxEnter(slate, 5);
   }
 
-  private renderEmptyPrimary(slate: HTMLElement): void {
-    const button = slate.createEl("button", {
-      cls: "nox-learning-start",
-      attr: { type: "button", "aria-label": "Create a learning plan" },
-    });
-    const icon = button.createSpan({ cls: "nox-learning-start-icon" });
-    const body = button.createDiv({ cls: "nox-learning-start-body" });
-    const title = body.createSpan({ cls: "nox-learning-start-title" });
-    const description = body.createSpan({ cls: "nox-learning-start-description" });
-    const arrow = button.createSpan({ cls: "nox-learning-start-arrow" });
-    setNoxIcon(arrow, "arrow-right");
-
-    let action: ActionMenuEntry = getPrimaryAction({
-      hasActiveSession: false, savedProgramCount: 0,
-      hasPracticeQuestion: false, legacyMode: "free",
-    });
-    const update = (item: ActionMenuEntry) => {
-      action = item;
-      setNoxIcon(icon, item.icon);
-      title.setText(item.name);
-      description.setText(item.description);
-      button.setAttribute("aria-label", item.name + ": " + item.description);
-    };
-    update(action);
-    button.addEventListener("click", () => {
-      if (this.uiState === "RUNNING" || !this.runtimeReady) return;
-      const draft = this.input.value.trim();
-      if (draft && (action.command?.trim() !== "/plan" || draft.startsWith("/"))) {
-        new Notice("Finish or clear your message before starting another learning action.");
-        this.focusComposer();
-        return;
-      }
-      this.setAction("ask");
-      this.input.value = draft ? `/plan ${draft}` : action.command ?? "";
-      this.onInput();
-      this.focusComposer();
-      // Session commands are complete; /plan remains editable until the goal is ready.
-      if (!draft && action.command && action.command.trim() !== "/plan") {
-        void this.doSend();
-      }
-    });
-    void this.learning.getProgramMenuState().then(state => {
-      if (!slate.isConnected || !slate.contains(button)) return;
-      update(getPrimaryAction(this.toActionMenuContext(state)));
-    }).catch(() => {
-      // Keep the non-destructive Create plan action available if the index cannot load.
-    });
-  }
-
-  private renderEmptyContext(parent: HTMLElement): void {
-    const context = this.currentContext;
-    if (!context?.selection && !context?.activeNote) return;
-
-    const wrap = createNoxSurface(parent, "nox-empty-context");
-    const left = wrap.createDiv({
-      cls: "nox-empty-context-main",
-    });
-    const icon = left.createSpan({
-      cls: "nox-empty-context-icon",
-    });
-    setNoxIcon(icon, "file-text");
-
-    const copy = left.createDiv({
-      cls: "nox-empty-context-copy",
-    });
-    copy.createSpan({
-      cls: "nox-empty-context-label",
-      text: "Current context",
-    });
-
-    const file =
-      context.selection?.file ??
-      context.activeNote?.path ??
-      "";
-    copy.createSpan({
-      cls: "nox-empty-context-file",
-      text: file.split("/").pop() ?? file,
-    });
-
-    if (context.selection) {
-      wrap.createSpan({
-        cls: "nox-empty-context-meta",
-        text: "Selection",
-      });
-    }
-  }
-
   /** An interrupted approved setup remains discoverable even with old chat history. */
   private async showPendingOnboardingRecovery(): Promise<void> {
     const sessionId = this.learning.getSession().id;
@@ -2431,10 +1773,10 @@ export class ChatView extends ItemView {
       clear: () => this.thread.empty(),
       empty: () => this.showEmpty(),
       user: message => this.appendUserBubble(message.content, message.id, message.replyTo),
-      thinking: message => { this.appendRestoredThinkingTrace(message); },
+      thinking: message => { this.thinkingUi?.appendRestoredThinkingTrace(message); },
       assistant: (message, index) =>
         this.appendRestoredAssistant(message.content, message.sourcePath, index),
-      proposal: message => this.appendRestoredProposal(message),
+      proposal: message => { this.proposalUi?.restore(message); },
       structured: message => this.appendRestoredStructuredParts(message),
       complete: () => {
         this.setUIState(this.runtimeReady ? "ANSWER" : "ERROR");
@@ -2489,40 +1831,6 @@ export class ChatView extends ItemView {
     }
   }
 
-  private appendRestoredProposal(message: ChatMessage): void {
-    const proposal = message.proposal;
-    if (!proposal) return;
-    const wrap = this.renderProposal(proposal);
-    const state = message.proposalState ?? "stale";
-
-    if (state === "pending" && message.proposalId) {
-      this.appendProposalActions(wrap, {
-        id: message.proposalId,
-        proposal,
-      });
-      return;
-    }
-
-    const labels: Record<"applied" | "rejected" | "stale", string> = {
-      applied: `✓ Applied to ${proposal.file}`,
-      rejected: "✕ Rejected",
-      stale: "⚠ Expired after restart",
-    };
-    const settledState = state === "applied" || state === "rejected"
-      ? state
-      : "stale";
-    const resultKind = settledState === "applied"
-      ? "success"
-      : settledState === "rejected"
-        ? "neutral"
-        : "warning";
-    createNoxStatus(wrap, {
-      cls: `nox-result-badge nox-badge--${settledState}`,
-      kind: resultKind,
-      text: labels[settledState],
-    });
-  }
-
   private appendUserBubble(
     text: string, messageId?: string, replyTo?: ChatReplyReference,
   ): void {
@@ -2540,13 +1848,8 @@ export class ChatView extends ItemView {
     animateNoxEnter(wrap, 4);
   }
 
-  private ensureThinkingTrace(): void {
-    if (this.statusEl) return;
-    this.statusEl = this.buildThinkingTrace();
-  }
-
   private ensureAgentBubble(streaming = false): void {
-    this.ensureThinkingTrace();
+    this.thinkingUi?.ensureTrace();
     if (this.agentCursorEl) {
       this.agentCursorEl.toggleClass("nox-bubble--streaming", streaming);
       return;
@@ -2566,140 +1869,6 @@ export class ChatView extends ItemView {
       cls: "nox-bubble-content nox-message-content",
     });
     animateNoxEnter(this.agentCursorEl, 4);
-  }
-
-  private buildThinkingTrace(): HTMLElement {
-    const trace = this.thread.createDiv({ cls: "nox-thinking nox-thinking--working" });
-    trace.setAttribute("role", "group");
-    trace.setAttribute("aria-label", "Nox run activity");
-    this.statusEl = trace;
-    const toggle = trace.createEl("button", {
-      cls: "nox-thinking-toggle",
-      attr: { type: "button", "aria-expanded": "true" },
-    });
-    this.thinkingToggleEl = toggle;
-    toggle.createEl("img", {
-      cls: "nox-thinking-logo",
-      attr: { src: this.getLogoUrl(), alt: "" },
-    });
-    this.thinkingLabelEl = toggle.createSpan({
-      cls: "nox-thinking-label nox-thinking-label--active",
-      text: "Working",
-    });
-    this.loadingElapsedEl = toggle.createSpan({ cls: "nox-thinking-elapsed" });
-    this.loadingElapsedEl.setAttribute("aria-hidden", "true");
-    const chevron = toggle.createSpan({ cls: "nox-thinking-chevron" });
-    setNoxIcon(chevron, "chevron-down");
-    this.thinkingChevronEl = chevron;
-
-    // The 0fr/1fr grid must have exactly one direct child. The previous
-    // list + inspector siblings caused the inspector to escape disclosure.
-    const panel = trace.createDiv({ cls: "nox-thinking-panel is-expanded" });
-    panel.id = "nox-activity-" + crypto.randomUUID();
-    toggle.setAttribute("aria-controls", panel.id);
-    this.thinkingLabelEl.setAttribute("aria-live", "polite");
-    this.thinkingPanelEl = panel;
-    const inner = panel.createDiv({ cls: "nox-thinking-panel-inner" });
-    const viewport = inner.createDiv({ cls: "nox-thinking-viewport" });
-    this.thinkingViewportEl = viewport;
-    this.thinkingListEl = viewport.createDiv({ cls: "nox-thinking-trace nox-thinking-trace--facts" });
-    this.runInspector = new NoxRunInspector(inner);
-
-    this.setThinkingStage(0);
-    toggle.addEventListener("click", () => {
-      const expanded = !panel.hasClass("is-expanded");
-      this.thinkingManualExpanded = expanded;
-      this.updateThinkingDisclosure(expanded);
-    });
-
-    this.startLoadingTimer();
-    animateNoxEnter(trace, 4);
-    return trace;
-  }
-
-  private appendThoughtText(text: string): void {
-    this.ensureThinkingTrace();
-    this.setThinkingStage(3);
-    if (!this.thinkingPanelEl) return;
-
-    if (!this.thinkingThoughtEl) {
-      this.thinkingThoughtEl = (this.thinkingPanelEl.querySelector<HTMLElement>(".nox-thinking-panel-inner") ?? this.thinkingPanelEl).createDiv({
-        cls: "nox-thinking-thought",
-      });
-    }
-
-    this.streamedThoughtText += text;
-    this.thinkingThoughtEl.textContent = this.streamedThoughtText;
-
-    // Model-supplied thought text is optional; never auto-reveal private trace text.
-  }
-
-  private appendRestoredThinkingTrace(message: ChatMessage): HTMLElement {
-    const trace = this.thread.createDiv({ cls: "nox-thinking nox-thinking--restored" });
-    trace.setAttribute("role", "status");
-
-    const toggle = trace.createEl("button", {
-      cls: "nox-thinking-toggle",
-      attr: { type: "button", "aria-expanded": "false" },
-    });
-
-    toggle.createEl("img", {
-      cls: "nox-thinking-logo",
-      attr: { src: this.getLogoUrl(), alt: "" },
-    });
-
-    const elapsed = message.elapsedMs !== undefined ? this.formatElapsed(message.elapsedMs) : null;
-    const labelText = message.thought
-      ? (elapsed ? `Thought for ${elapsed}` : "Thought")
-      : (elapsed ? `Completed in ${elapsed}` : "Completed");
-
-    toggle.createSpan({
-      cls: "nox-thinking-label nox-thinking-label--done",
-      text: labelText,
-    });
-
-    const chevron = toggle.createSpan({ cls: "nox-thinking-chevron" });
-    setNoxIcon(chevron, "chevron-down");
-
-    const panel = trace.createDiv({ cls: "nox-thinking-panel" });
-    panel.id = "nox-activity-" + crypto.randomUUID();
-    toggle.setAttribute("aria-controls", panel.id);
-    const inner = panel.createDiv({ cls: "nox-thinking-panel-inner" });
-    const list = inner.createDiv({ cls: "nox-thinking-trace nox-thinking-trace--facts" });
-
-    const source = message.sourcePath;
-    const facts: Array<{ primary: string; secondary?: string }> = [
-      {
-        primary: "Resolving context",
-        secondary: source?.split("/").pop(),
-      },
-      {
-        primary: `Ran ${ACTIONS.find((action) => action.kind === message.action)?.label ?? "Ask"}`,
-      },
-      { primary: "Generated response" },
-    ];
-
-    for (const fact of facts) {
-      const row = list.createDiv({ cls: "nox-thinking-row is-done" });
-      const marker = row.createSpan({ cls: "nox-thinking-marker" });
-      setNoxIcon(marker, "check");
-      row.createSpan({ cls: "nox-thinking-primary", text: fact.primary });
-      if (fact.secondary) row.createSpan({ cls: "nox-thinking-secondary", text: fact.secondary });
-    }
-
-    if (message.thought?.trim()) {
-      const thoughtEl = inner.createDiv({ cls: "nox-thinking-thought" });
-      thoughtEl.textContent = message.thought;
-    }
-
-    toggle.addEventListener("click", () => {
-      const expanded = !panel.hasClass("is-expanded");
-      panel.toggleClass("is-expanded", expanded);
-      toggle.setAttribute("aria-expanded", String(expanded));
-      chevron.toggleClass("is-expanded", expanded);
-    });
-
-    return trace;
   }
 
   private appendToAgentBubble(text: string): void {
@@ -2773,85 +1942,40 @@ export class ChatView extends ItemView {
   private appendResponseActions(
     bubble: HTMLElement, responseText: string, messageIndex: number,
   ): void {
-    if (!responseText.trim()) return;
-    const messages = this.learning.getSession().messages;
-    const message = messages[messageIndex];
-    if (message?.role !== "assistant") return;
-    const user = messages[messageIndex - 1];
-    const isLatest = messageIndex === messages.length - 1;
-    const canRegenerate = isLatest && user?.role === "user" &&
-      (user.action === "ask" || user.action === "explain") &&
-      !this.learning.hasActivePracticeQuestion() &&
-      !message.proposal && !message.parts?.length;
-    if (message.id) {
-      bubble.dataset.messageId = message.id;
-      bubble.dataset.sessionId = this.learning.getSession().id;
-    }
-    const actions = appendMessageActions(bubble, {
-      text: responseText, messageId: message.id, onFork: id => this.forkMessage(id),
-      className: "nox-stream-actions",
-    });
-
-    const versions = message.responseVersions;
-    if (versions && versions.length > 1) {
-      const selected = message.responseVersionIndex ?? versions.length - 1;
-      const back = createNoxIconButton(actions, {
-        cls: "nox-stream-action", icon: "chevron-left",
-        label: "Previous response", title: "Previous response",
-      });
-      back.disabled = selected <= 0;
-      const counter = actions.createSpan({
-        cls: "nox-response-variant-index", text: (selected + 1) + "/" + versions.length,
-      });
-      counter.setAttribute("aria-label", "Response version " + (selected + 1) + " of " + versions.length);
-      const forward = createNoxIconButton(actions, {
-        cls: "nox-stream-action", icon: "chevron-right",
-        label: "Next response", title: "Next response",
-      });
-      forward.disabled = selected >= versions.length - 1;
-      const select = (index: number) => {
-        if (this.uiState === "RUNNING") return;
-        void this.learning.selectResponseVersion(messageIndex, index)
-          .then(() => this.restoreSession())
-          .catch(() => new Notice("Could not select response version."));
-      };
-      back.addEventListener("click", () => select(selected - 1));
-      forward.addEventListener("click", () => select(selected + 1));
-    }
-
-    if (canRegenerate) {
-      const regenerate = createNoxIconButton(actions, {
-        cls: "nox-stream-action", icon: "refresh-cw",
-        label: "Regenerate response", title: "Regenerate response",
-      });
-      regenerate.addEventListener("click", () => {
-        if (this.uiState === "RUNNING" || !this.runtimeReady) return;
-        // Snapshot is checked again at the application/persistence boundary.
-        const request: LearningRequest = {
-          turnId: crypto.randomUUID(),
-          prompt: user?.content ?? "",
-          action: user?.action === "explain" ? "explain" : "ask",
-          explicitContext: [],
-          regenerate: { messageIndex, expectedContent: message.content },
-          ...(user?.replyTo ? { replyTo: user.replyTo } : {}),
-        };
-        this.lastTurnRequest = request;
-        void this.runTurn(request, false);
-      });
-      const quickCheck = createNoxIconButton(actions, {
-        cls: "nox-stream-action", icon: "list-checks",
-        label: "Quiz me", title: "Generate a practice question from this explanation",
-      });
-      quickCheck.addEventListener("click", () => {
-        if (this.uiState === "RUNNING" || !this.runtimeReady) return;
-        this.setAction("practice");
-        this.input.value = "Generate one interactive knowledge-check question " +
-          "(MCQ, essay, or code if appropriate) about this explanation: " +
-          JSON.stringify(responseText.slice(0, 1600));
-        this.onInput();
-        void this.doSend();
-      });
-    }
+    renderResponseActions(
+      bubble, responseText, messageIndex, this.learning.getSession(),
+      this.learning.hasActivePracticeQuestion(), {
+        isBusy: () => this.uiState === "RUNNING",
+        canRegenerate: () => this.uiState !== "RUNNING" && this.runtimeReady,
+        onFork: id => this.forkMessage(id),
+        onSelectVersion: (index, version, sessionId) => {
+          if (this.learning.getSession().id !== sessionId) return;
+          void this.learning.selectResponseVersion(index, version)
+            .then(() => this.restoreSession())
+            .catch(() => new Notice("Could not select response version."));
+        },
+        onRegenerate: (index, user, assistant) => {
+          const request: LearningRequest = {
+            turnId: crypto.randomUUID(),
+            prompt: user.content,
+            action: user.action === "explain" ? "explain" : "ask",
+            explicitContext: [],
+            regenerate: { messageIndex: index, expectedContent: assistant.content },
+            ...(user.replyTo ? { replyTo: user.replyTo } : {}),
+          };
+          this.lastTurnRequest = request;
+          void this.runTurn(request, false);
+        },
+        onQuickCheck: text => {
+          this.setAction("practice");
+          this.input.value = "Generate one interactive knowledge-check question " +
+            "(MCQ, essay, or code if appropriate) about this explanation: " +
+            JSON.stringify(text.slice(0, 1600));
+          this.onInput();
+          void this.doSend();
+        },
+      },
+    );
   }
 
   private appendPracticeQuestion(
@@ -2860,71 +1984,7 @@ export class ChatView extends ItemView {
     questionId?: string,
   ): void {
     if (!parent) return;
-    const session = this.learning.getSession();
-    const current = [...session.messages].reverse().flatMap(m =>
-      (m.parts ?? []).filter(p => p.type === "practice-question"));
-    const active = Boolean(questionId && current[0]?.questionId === questionId &&
-      this.learning.hasActivePracticeQuestion() &&
-      !session.messages.some(m => m.parts?.some(p =>
-        p.type === "practice-evaluation" && p.questionId === questionId)));
-    const questionIndex = questionId ? session.messages.findIndex(m => m.parts?.some(p =>
-      p.type === "practice-question" && p.questionId === questionId)) : -1;
-    const hintUsed = questionIndex >= 0 && session.messages.slice(questionIndex + 1)
-      .some(m => m.role === "user" && m.content.trim().toLowerCase() === "/hint");
-    renderPracticeQuestionCard(parent, question, questionId ? {
-      questionId, active, hintUsed, draft: session.practiceDrafts?.[questionId],
-      onDraft: answer => {
-        if (!active) return;
-        if (this.quizDraftTimer !== null) window.clearTimeout(this.quizDraftTimer);
-        this.quizDraftTimer = window.setTimeout(() => {
-          this.quizDraftTimer = null;
-          void this.learning.savePracticeDraft(questionId, answer)
-            .catch(() => new Notice("Could not save quiz draft."));
-        }, 450);
-      },
-      onClarify: () => {
-        if (this.uiState === "RUNNING") return;
-        this.setAction("ask");
-        this.input.value = "/clarify ";
-        this.onInput();
-        this.input.focus();
-      },
-      onHint: async () => {
-        if (this.uiState === "RUNNING" || !this.learning.hasActivePracticeQuestion()) return false;
-        const before = this.learning.getSession().messages.length;
-        const request: LearningRequest = {
-          prompt: "/hint", action: "practice", explicitContext: [],
-          turnId: crypto.randomUUID(),
-        };
-        this.lastTurnRequest = request;
-        await this.runTurn(request, true);
-        // Do not reveal the hint when the transcript operation failed.
-        const after = this.learning.getSession();
-        return after.id === session.id && after.messages.slice(before).some(
-          m => m.role === "assistant" && m.content === "Hint: " + question.hint);
-      },
-      onSubmit: async answer => {
-        if (!active || this.uiState === "RUNNING") return false;
-        if (this.quizDraftTimer !== null) window.clearTimeout(this.quizDraftTimer);
-        this.quizDraftTimer = null;
-        // Persist before provider call: retry/cancel must not lose the answer.
-        await this.learning.savePracticeDraft(questionId, answer);
-        const summary = answer.type === "multiple-choice"
-          ? "Selected option: " + answer.optionId
-          : answer.type === "code"
-            ? "Code answer (" + answer.language + "):\n" + answer.source
-            : answer.text;
-        const request: LearningRequest = {
-          turnId: crypto.randomUUID(), action: "practice",
-          prompt: summary, explicitContext: [],
-          practiceSubmission: { questionId, answer },
-        };
-        this.lastTurnRequest = request;
-        await this.runTurn(request, true);
-        return this.learning.getSession().messages.some(m => m.parts?.some(p =>
-          p.type === "practice-evaluation" && p.questionId === questionId));
-      },
-    } : undefined);
+    this.practiceUi.renderQuestion(parent, question, questionId);
     this.scrollThread();
   }
 
@@ -2934,32 +1994,61 @@ export class ChatView extends ItemView {
     questionId?: string,
   ): void {
     if (!parent) return;
-    // Only a committed evaluation can resolve a correct-answer disclosure.
-    const session = this.learning.getSession();
-    const questionPart = questionId ? session.messages.flatMap(m => m.parts ?? [])
-      .find(p => p.type === "practice-question" && p.questionId === questionId) : undefined;
-    const question = questionPart?.type === "practice-question" ? questionPart.question : undefined;
-    const input = question?.input;
-    const choice = input?.type === "multiple-choice"
-      ? input.options.find(o => o.id === input.correctOptionId) : undefined;
-    renderPracticeEvaluationCard(parent, evaluation, {
-      correctAnswer: choice?.text,
-      onContinue: this.learning.hasActivePracticeQuestion() ? undefined : () => {
-        if (this.uiState === "RUNNING") return;
-        const sessionId = session.id;
-        void this.learning.getProgramMenuState().then(state => {
-          if (this.learning.getSession().id !== sessionId) return;
-          this.setAction(state.activeProgramId ? "ask" : "practice");
-          this.input.value = state.activeProgramId
-            ? (state.focusStatus === "paused" ? "/resume-focus" :
-                state.sessionActive ? "/next" : "/progress")
-            : "Give me another practice question about " + evaluation.concept + ".";
-          this.onInput();
-          this.focusComposer();
-        }).catch(() => new Notice("Unable to prepare the next learning activity."));
-      },
-    });
+    this.practiceUi.renderEvaluation(parent, evaluation, questionId);
     this.scrollThread();
+  }
+
+  private async requestPracticeHint(question: PracticeQuestion, sessionId: string): Promise<boolean> {
+    if (this.uiState === "RUNNING" || !this.learning.hasActivePracticeQuestion() ||
+        this.learning.getSession().id !== sessionId) return false;
+    const before = this.learning.getSession().messages.length;
+    const request: LearningRequest = {
+      prompt: "/hint", action: "practice", explicitContext: [],
+      turnId: crypto.randomUUID(),
+    };
+    this.lastTurnRequest = request;
+    await this.runTurn(request, true);
+    // Only a durable transcript hint can unlock the disclosure.
+    const after = this.learning.getSession();
+    return after.id === sessionId && after.messages.slice(before).some(
+      message => message.role === "assistant" && message.content === "Hint: " + question.hint);
+  }
+
+  private async submitPracticeAnswer(
+    questionId: string, answer: PracticeAnswer, sessionId: string,
+  ): Promise<boolean> {
+    if (this.uiState === "RUNNING" || this.learning.getSession().id !== sessionId) return false;
+    // Persist before inference so cancellation and retry cannot discard the answer.
+    await this.learning.savePracticeDraft(questionId, answer);
+    const summary = answer.type === "multiple-choice"
+      ? "Selected option: " + answer.optionId
+      : answer.type === "code"
+        ? "Code answer (" + answer.language + "):\n" + answer.source
+        : answer.text;
+    const request: LearningRequest = {
+      turnId: crypto.randomUUID(), action: "practice",
+      prompt: summary, explicitContext: [],
+      practiceSubmission: { questionId, answer },
+    };
+    this.lastTurnRequest = request;
+    await this.runTurn(request, true);
+    return this.learning.getSession().id === sessionId &&
+      this.learning.getSession().messages.some(message => message.parts?.some(part =>
+        part.type === "practice-evaluation" && part.questionId === questionId));
+  }
+
+  private prepareNextPracticeActivity(evaluation: PracticeEvaluation, sessionId: string): void {
+    if (this.uiState === "RUNNING" || this.learning.getSession().id !== sessionId) return;
+    void this.learning.getProgramMenuState().then(state => {
+      if (this.learning.getSession().id !== sessionId) return;
+      this.setAction(state.activeProgramId ? "ask" : "practice");
+      this.input.value = state.activeProgramId
+        ? (state.focusStatus === "paused" ? "/resume-focus" :
+            state.sessionActive ? "/next" : "/progress")
+        : "Give me another practice question about " + evaluation.concept + ".";
+      this.onInput();
+      this.focusComposer();
+    }).catch(() => new Notice("Unable to prepare the next learning activity."));
   }
 
   private appendReviewFindings(
@@ -3016,174 +2105,6 @@ export class ChatView extends ItemView {
         ? `Learning state updated · ${open} open ${open === 1 ? "gap" : "gaps"}`
         : "Learning state updated",
     });
-  }
-
-  private appendProposalBubble(edit: ProposedEdit): void {
-    const wrap = this.renderProposal(edit.proposal);
-    this.appendProposalActions(wrap, edit);
-    this.scrollThread();
-  }
-
-  private appendProposalActions(
-    wrap: HTMLElement,
-    edit: ProposedEdit,
-  ): void {
-    const proposal = edit.proposal;
-    const actions = wrap.createDiv({
-      cls: "nox-proposal-actions",
-    });
-
-    const rejectBtn = createNoxButton(actions, {
-      cls: "nox-btn-reject",
-      variant: "secondary",
-      text: "Reject",
-    });
-
-    const applyBtn = createNoxButton(actions, {
-      cls: "nox-btn-apply",
-      variant: "primary",
-      text: "Apply ✓",
-    });
-
-    rejectBtn.addEventListener("click", () => { void (async () => {
-      rejectBtn.disabled = true;
-      applyBtn.disabled = true;
-      try {
-        await this.learning.rejectProposal(edit.id);
-        actions.remove();
-        createNoxStatus(wrap, {
-          cls: "nox-result-badge nox-badge--rejected",
-          kind: "neutral",
-          text: "✕ Rejected",
-        });
-        this.setUIState("ANSWER");
-      } catch {
-        rejectBtn.disabled = false;
-        applyBtn.disabled = false;
-        this.appendInlineStatus(wrap, "failed", "Could not save rejection. Retry.");
-      }
-    })().catch(error => console.warn("[Nox] UI action failed", error)); });
-
-    applyBtn.addEventListener("click", () => { void (async () => {
-      applyBtn.disabled = true;
-      rejectBtn.disabled = true;
-      applyBtn.textContent = "Applying…";
-
-      try {
-        const result = await this.learning.applyProposal(edit.id);
-        wrap.querySelector(".nox-proposal-retry-status")?.remove();
-        if (result.ok) {
-          actions.remove();
-          if (result.statusSync === "failed") {
-            this.appendAppliedStatusRecovery(wrap, edit.id, proposal.file, result.message);
-            this.setUIState("ANSWER");
-          } else {
-            createNoxStatus(wrap, {
-              cls: "nox-result-badge nox-badge--applied",
-              kind: "success",
-              text: "✓ Applied to " + proposal.file,
-            });
-            this.setUIState("APPLIED");
-          }
-        } else if (result.reason === "status-unsaved") {
-          actions.remove();
-          this.appendAppliedStatusRecovery(wrap, edit.id, proposal.file, result.message);
-        } else if (result.reason === "no-editor" || result.reason === "error") {
-          // Source remains valid: keep Apply available after the user fixes the blocker.
-          applyBtn.disabled = false;
-          rejectBtn.disabled = false;
-          applyBtn.textContent = "Retry Apply";
-          createNoxStatus(wrap, {
-            cls: "nox-proposal-retry-status",
-            kind: "warning",
-            text: result.message,
-          });
-        } else {
-          actions.remove();
-          createNoxStatus(wrap, {
-            cls: "nox-result-badge nox-badge--stale",
-            kind: "warning",
-            text: result.message,
-          });
-          this.setUIState("ANSWER");
-        }
-      } catch {
-        applyBtn.disabled = false;
-        rejectBtn.disabled = false;
-        applyBtn.textContent = "Retry Apply";
-        this.appendInlineStatus(wrap, "failed", "Could not save the result. Check the note before retrying.");
-      }
-    })().catch(error => console.warn("[Nox] UI action failed", error)); });
-  }
-
-  private appendAppliedStatusRecovery(
-    wrap: HTMLElement,
-    proposalId: string,
-    file: string,
-    message?: string,
-  ): void {
-    const recovery = wrap.createDiv({ cls: "nox-proposal-status-recovery" });
-    let status = createNoxStatus(recovery, {
-      cls: "nox-proposal-retry-status",
-      kind: "warning",
-      text: message ?? "Edit applied, but status could not be saved.",
-    });
-    const retryBtn = createNoxButton(recovery, {
-      cls: "nox-btn-sync-status",
-      variant: "secondary",
-      text: "Retry status sync",
-    });
-    retryBtn.addEventListener("click", () => { void (async () => {
-      retryBtn.disabled = true;
-      retryBtn.textContent = "Saving status…";
-      try {
-        const result = await this.learning.retryAppliedStatus(proposalId);
-        if (result.ok && result.statusSync !== "failed") {
-          recovery.remove();
-          createNoxStatus(wrap, {
-            cls: "nox-result-badge nox-badge--applied",
-            kind: "success",
-            text: "✓ Applied to " + file,
-          });
-          this.setUIState("APPLIED");
-          return;
-        }
-        status.remove();
-        status = createNoxStatus(recovery, {
-          cls: "nox-proposal-retry-status",
-          kind: "warning",
-          text: result.message ?? "Status was not saved. Do not apply the edit again.",
-        });
-      } catch {
-        status.remove();
-        status = createNoxStatus(recovery, {
-          cls: "nox-proposal-retry-status",
-          kind: "warning",
-          text: "Status sync failed. The note was already edited; do not apply again.",
-        });
-      }
-      retryBtn.disabled = false;
-      retryBtn.textContent = "Retry status sync";
-    })().catch(error => console.warn("[Nox] UI action failed", error)); });
-  }
-
-  private renderProposal(proposal: EditProposal): HTMLElement {
-    const wrap = createNoxSurface(this.thread, "nox-proposal", "approval");
-    wrap.createDiv({
-      cls: "nox-proposal-badge",
-      text: "📄 " + proposal.file,
-    });
-    if (proposal.reason) {
-      wrap.createDiv({ cls: "nox-proposal-reason", text: proposal.reason });
-    }
-    const diff = wrap.createDiv({ cls: "nox-proposal-diff" });
-    proposal.original.split("\n").forEach((line) => {
-      diff.createDiv({ cls: "nox-diff-removed", text: "- " + line });
-    });
-    proposal.replacement.split("\n").forEach((line) => {
-      diff.createDiv({ cls: "nox-diff-added", text: "+ " + line });
-    });
-    return wrap;
   }
 
   private appendInlineStatus(
