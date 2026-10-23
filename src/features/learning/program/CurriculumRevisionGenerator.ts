@@ -1,4 +1,4 @@
-import type { AgentRuntimePort } from "../../../agent/AgentRuntime";
+import type { AgentRuntimePort } from "../../../types";
 import type { LearningEvidence } from "../../../domain/learning-state/types";
 import type { LearningProgram } from "../../../domain/learning-program/types";
 import { decodeCurriculumOperations } from "../../../domain/learning-program/curriculum-revision-schema";

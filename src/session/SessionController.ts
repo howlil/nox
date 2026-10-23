@@ -1,7 +1,7 @@
 import { SessionStore } from "./SessionStore";
-import { PersistenceError } from "../persistence/PersistenceError";
+import { PersistenceError } from "../domain/persistence/errors";
 import { findCommittedPracticeOutcome, findCommittedReview, type TranscriptPart } from "./transcript-types";
-import { PluginDataRepository } from "../persistence/PluginDataRepository";
+import type { SessionDataPort } from "../types";
 import type { LearningScopeState } from "../domain/practice/learning-scope";
 import type { PracticeAnswer } from "../domain/practice/types";
 import { isPracticeAnswer } from "../domain/practice/question-schema";
@@ -21,11 +21,11 @@ export class SessionController {
   private currentSession: ChatSession | null = null;
   private runtimeProvider?: string;
   // All session mutations—including snapshot staging and disk writes—have
-  // one legal ordering. PluginDataRepository only serializes the I/O itself.
+  // one legal ordering. The injected host repository serializes durable I/O.
   private writeTail: Promise<void> = Promise.resolve();
 
   constructor(
-    private readonly pluginData: PluginDataRepository,
+    private readonly pluginData: SessionDataPort,
     private readonly store: SessionStore,
   ) {}
 

@@ -58,11 +58,10 @@ function isApprovedFeatureEdge(from, to) {
   if (fromPackage === "conversation/turn") {
     return ["src/application/learning-types.ts", "src/application/ports.ts",
       "src/application/reply-context.ts", "src/agent/StructuredStreamParser.ts",
-      "src/context/context-types.ts", "src/context/ContextBudget.ts",
-      "src/persistence/PersistenceError.ts"].includes(to);
+      "src/context/context-types.ts", "src/context/ContextBudget.ts"].includes(to);
   }
   if (fromPackage === "learning/program") {
-    return ["src/application/ports.ts", "src/agent/AgentRuntime.ts"].includes(to);
+    return ["src/application/ports.ts"].includes(to);
   }
   if (fromPackage === "learning/onboarding") return false;
   return false;
@@ -91,18 +90,14 @@ function isApprovedEdge(from, to) {
     // Exception: normalized parser/port, session transcript shape, and shared
     // persistence failure contract. No adapter, controller or repository.
     if (target === "agent") {
-      return to === "src/agent/AgentRuntime.ts" ||
-        to === "src/agent/StructuredStreamParser.ts";
+      return to === "src/agent/StructuredStreamParser.ts";
     }
     if (target === "context") return to === "src/context/context-types.ts" || to === "src/context/ContextBudget.ts" || to === "src/context/LocalResearch.ts";
     if (target === "session") return to === "src/session/transcript-types.ts";
-    if (target === "persistence") return to === "src/persistence/PersistenceError.ts";
+    if (target === "persistence") return false;
   }
   if (owner === "chat" && target === "context") return to === "src/context/context-types.ts";
-  if (owner === "session" && target === "persistence") {
-    return to === "src/persistence/PluginDataRepository.ts" ||
-      to === "src/persistence/PersistenceError.ts";
-  }
+  if (owner === "session" && target === "persistence") return false;
   return true;
 }
 

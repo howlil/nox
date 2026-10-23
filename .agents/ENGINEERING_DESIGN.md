@@ -9,6 +9,60 @@ Last updated: 2026-10-13
 ---
 
 
+## M1 portable data/runtime dependency inversion — 2026-10-24
+
+**State: implemented in PR #134 branch, subject to CI and code review.**
+
+### Implementation graph (A / E / R)
+
+```text
+Obsidian main.ts (composition)
+  ├─ existing PluginDataRepository implements SessionDataPort
+  │     └─ SessionController → SessionStore (exactly one ordered mutation lane)
+  │                            → portable persistence error constructors
+  ├─ existing AgentRuntime implements AgentRuntimePort from shared types.ts
+  │     └─ LearningController / RunLearningTurn / ProgramOrchestrator
+  │           └─ provider-neutral AgentStreamEvent contract
+  └─ Obsidian Context / VaultProgramStore / VaultLearningStore / editor adapter
+        └─ existing application ports and CAS lane (unchanged)
+
+A: committed transcript and application events identical to M0, but host
+   implementations are supplied structurally and no concrete repository or
+   provider runtime type is imported by the affected core controllers.
+E: injected I/O error maps to the same PersistenceError constructor;
+   failed transaction publishes no in-memory state, then retries safely.
+R: SessionDataPort.read/update (serialized atomic record mutation),
+   AgentRuntimePort stream/health, existing program/evidence ports.
+```
+
+### Ownership, invariants and compatibility
+
+- `PluginDataRepository` **remains the single concrete Obsidian loadData/
+  update/saveData writer**; it now explicitly implements `SessionDataPort`.
+  SessionController retains its own ordered snapshot transaction queue.
+  An adapter for another host must provide a serializable, durable update,
+  not merely independently called read/write operations.
+- `AgentRuntimePort` now resides in the already protected shared contract
+  `src/types.ts`, while `src/agent/AgentRuntime.ts` re-exports the type
+  for existing callers. Neither streaming terminal behavior, provider auth,
+  model discovery nor cancellation semantics change.
+- `PersistenceError` and `LearningStateWriteConflict` move to the
+  portable `domain/persistence/errors.ts` owner; the prior
+  `persistence/PersistenceError.ts` path re-exports the *same classes*.
+  Identity-based `instanceof` logic keeps working for retry/recovery.
+- The M0 portability fence now protects `SessionController` and
+  `SessionStore` as well as the previously protected contracts. Current
+  application orchestration is **not** declared host-independent: it still
+  has concrete collaborator coupling and lifecycle to invert in further M1
+  slices, and is out of M2 portability-proof acceptance scope for now.
+
+No persisted keys, schema formats, CAS protocols, provider transports,
+Obsidian bootstrap registrations, editor effects, or build outputs are changed.
+Tests assert host-neutral session substitution and error identity; existing
+recovery and inference tests must remain green.
+
+---
+
 ## M0 portable-core implementation contract — 2026-10-24
 
 **State: implemented in draft PR #134, pending full CI and diff review.**

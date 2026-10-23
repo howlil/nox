@@ -203,7 +203,7 @@ test("W1 projection modules live under their private feature owners", () => {
 test("R1 curriculum revision generator is private to the learning program orchestrator", () => {
   const modules = [
     { path: "src/features/learning/program/CurriculumRevisionGenerator.ts",
-      source: 'import type { AgentRuntimePort } from "../../../agent/AgentRuntime";' },
+      source: 'import type { AgentRuntimePort } from "../../../types";' },
     { path: "src/agent/AgentRuntime.ts", source: "" },
     { path: "src/domain/learning-program/curriculum-preview.ts", source: "" },
     { path: "src/application/LearningProgramOrchestrator.ts",
@@ -287,4 +287,28 @@ test("diagnostics own filesystem diagnostics while settings cannot access Node F
     path: "src/settings/FutureSettings.ts",
     source: 'import { readFile } from "fs/promises";',
   }]).some(issue => issue.includes("cannot own host filesystem")));
+});
+
+
+test("M1 portable application and session owners reject concrete host/runtime imports", () => {
+  const sources = [
+    { path: "src/application/LearningController.ts",
+      source: 'import type { AgentRuntimePort } from "../agent/AgentRuntime";' },
+    { path: "src/session/SessionController.ts",
+      source: 'import type { PluginDataRepository } from "../persistence/PluginDataRepository";' },
+    { path: "src/agent/AgentRuntime.ts", source: "" },
+    { path: "src/persistence/PluginDataRepository.ts", source: "" },
+  ];
+  const issues = validateArchitecture(sources);
+  assert.equal(issues.filter(issue => issue.includes("forbidden dependency")).length, 2);
+});
+test("M1 portable controllers can depend on the shared runtime and session contracts", () => {
+  const sources = [
+    { path: "src/application/LearningController.ts",
+      source: 'import type { AgentRuntimePort } from "../types";' },
+    { path: "src/session/SessionController.ts",
+      source: 'import type { SessionDataPort } from "../types";' },
+    { path: "src/types.ts", source: "" },
+  ];
+  assert.deepEqual(validateArchitecture(sources), []);
 });
