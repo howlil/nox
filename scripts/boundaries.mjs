@@ -11,6 +11,8 @@ const ALLOWED_OWNERS = {
   context: ["context", "types"],
   diagnostics: ["diagnostics"],
   domain: ["domain"],
+  // Concrete adapters may depend inward; application/domain may never depend on host.
+  host: ["host", "application", "agent", "context", "domain", "mutation", "persistence", "session", "types"],
   mutation: ["mutation", "domain", "types"],
   persistence: ["persistence", "domain", "types"],
   session: ["session", "persistence", "domain", "types"],
@@ -72,6 +74,7 @@ function isApprovedEdge(from, to) {
   const target = to === "src/types.ts" ? "types" : to.split("/")[1];
   if (from === "src/types.ts") return to === "src/session/transcript-types.ts";
   if (from === "src/main.ts") return true;
+  if (owner === "host" && !from.startsWith("src/host/obsidian/")) return false;
   if (from.startsWith("src/features/") || to.startsWith("src/features/")) return isApprovedFeatureEdge(from, to);
   // M4: the context application-facing resolver consumes a structural port,
   // never the concrete Obsidian adapter or any host-specific implementation.

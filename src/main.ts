@@ -1,4 +1,4 @@
-import { addIcon, FileSystemAdapter, Notice, TFile, Plugin, requestUrl } from "obsidian";
+import { addIcon, FileSystemAdapter, Notice, Plugin, requestUrl } from "obsidian";
 import { shell } from "electron";
 import { AgyAdapter } from "./agent/AgyAdapter";
 import { CodexAdapter } from "./agent/CodexAdapter";
@@ -7,24 +7,14 @@ import { ChatGptAuth, type ChatGptConnection } from "./agent/ChatGptAuth";
 import { createObsidianOAuthFetch } from "./agent/ObsidianOAuthTransport";
 import { createObsidianInferenceFetch } from "./agent/ObsidianInferenceTransport";
 import { createNodeInferenceFetch } from "./agent/NodeInferenceTransport";
-import { AgentRuntime } from "./agent/AgentRuntime";
 import { QuotaSync } from "./application/QuotaSync";
+import type { AgentRuntime } from "./agent/AgentRuntime";
+import type { LearningController } from "./application/LearningController";
+import { createObsidianLearningHost } from "./host/obsidian/composition";
+import { bindObsidianLearningLifecycle } from "./host/obsidian/lifecycle";
 import { ChatView, NOX_VIEW_TYPE } from "./chat/ChatView";
-import { ContextResolver } from "./context/ContextResolver";
-import { ObsidianContext } from "./context/ObsidianContext";
-import { PolicyLoader } from "./context/PolicyLoader";
-import { LearningController } from "./application/LearningController";
-import { LearningActivityPresence } from "./application/LearningActivityPresence";
-import { MutationService } from "./mutation/MutationService";
-import { VaultLearningStore } from "./persistence/VaultLearningStore";
-import { VaultProgramStore } from "./persistence/VaultProgramStore";
-import { VaultWorkspaceWriter } from "./persistence/VaultWorkspaceWriter";
-import { OnboardingStateRepository } from "./persistence/OnboardingStateRepository";
-import { LearningProgramOrchestrator } from "./application/LearningProgramOrchestrator";
 import { PluginDataRepository } from "./persistence/PluginDataRepository";
 import { TokenUsageRepository } from "./persistence/TokenUsageRepository";
-import { SessionController } from "./session/SessionController";
-import { SessionStore } from "./session/SessionStore";
 import {
   decodeNoxSettings,
   NOX_SETTINGS_KEY,
@@ -70,77 +60,25 @@ export default class NoxPlugin extends Plugin {
     this.tokenUsage = new TokenUsageRepository(this.pluginData);
     this.noxSettings = decodeNoxSettings(await this.pluginData.read());
     this.quotaSync = this.createQuotaSync(this.noxSettings);
-    const adapter = this.createAdapter(this.noxSettings);
-    const runtime = new AgentRuntime(adapter,
-      (usage, model, metadata) => this.tokenUsage.record(this.noxSettings.provider, model, usage, metadata));
-    this.runtime = runtime;
-    const sessionStore = new SessionStore();
-    const sessions = new SessionController(
-      this.pluginData,
-      sessionStore,
-    );
-
-    // Local sessions must load even if the selected CLI is absent or hung.
-    // Model discovery is performed only when the model picker is opened.
-    await sessions.init();
-    await sessions.configureRuntime(this.noxSettings.provider, this.noxSettings.preferredModel || undefined);
-    if (!sessions.getSession().model && this.noxSettings.preferredModel) {
-      await sessions.setModel(this.noxSettings.preferredModel);
-    }
-
-    const obsidianContext = new ObsidianContext(this.app, this);
-    const contexts = new ContextResolver(obsidianContext);
-    const policies = new PolicyLoader(this.app);
-    const mutations = new MutationService(this.app);
-    const learningState = new VaultLearningStore(this.app);
-    const programStore = new VaultProgramStore(this.app);
-    const workspaceWriter = new VaultWorkspaceWriter(this.app);
-    const programs = new LearningProgramOrchestrator(
-      runtime, contexts, learningState, programStore,
-      () => sessions.getSession().model,
-      () => sessions.getSession().runtimeProvider,
-    );
-    // Host events are observed here; desired/confirmed idle transitions live in
-    // the application coordinator. Failed writes are retried on the next tick.
-    const activity = new LearningActivityPresence(idle => programs.setIdle(idle));
-    const observeInteraction = () => {
-      void activity.observeInteraction().catch(error =>
-        console.warn("[Nox] Idle resume failed", error));
-    };
-    this.registerDomEvent(document, "keydown", observeInteraction);
-    this.registerDomEvent(document, "pointerdown", observeInteraction);
-    this.registerDomEvent(document, "scroll", observeInteraction, true);
-    this.registerInterval(window.setInterval(() => {
-      void activity.checkIdle().catch(error =>
-        console.warn("[Nox] Idle checkpoint failed", error));
-    }, 30_000));
-    this.registerEvent(this.app.workspace.on("file-open", file => {
-      if (file?.extension === "md") void programs.focusMaterial(file.path).catch(() => {});
-    }));
-    this.registerEvent(this.app.vault.on("rename", (file, oldPath) => {
-      if (file instanceof TFile && file.extension === "md") {
-        void programs.renameMaterial(oldPath, file.path).catch(() => {});
-      }
-    }));
-    this.registerDomEvent(document, "visibilitychange", () => {
-      void programs.setAppInactive(document.hidden).catch(error =>
-        console.warn("[Nox] Could not save visibility pause", error));
+    const host = await createObsidianLearningHost({
+      plugin: this,
+      app: this.app,
+      data: this.pluginData,
+      adapter: this.createAdapter(this.noxSettings),
+      provider: this.noxSettings.provider,
+      preferredModel: this.noxSettings.preferredModel || undefined,
+      onUsage: (usage, model, metadata) =>
+        this.tokenUsage.record(this.noxSettings.provider, model, usage, metadata),
     });
+    this.runtime = host.runtime;
+    // Listener ownership stays with Obsidian and its Plugin.register* cleanup.
+    bindObsidianLearningLifecycle(this, host.programs);
 
     // Do not charge inactive wall-clock time after Obsidian restart or hot reload.
-    try { await programs.recoverSessions(); }
+    try { await host.programs.recoverSessions(); }
     catch (error) { console.warn("[Nox] Learning session recovery failed", error); }
 
-    this.learning = new LearningController(
-      sessions,
-      runtime,
-      contexts,
-      policies,
-      mutations,
-      learningState,
-      { programStore, workspaceWriter, onboardingState: new OnboardingStateRepository(this.pluginData) },
-      programs,
-    );
+    this.learning = host.learning;
 
     // Recover only user-approved workspaces. Legacy /plan programs never scaffold files.
     this.app.workspace.onLayoutReady(() => {

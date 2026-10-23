@@ -9,6 +9,50 @@ Last updated: 2026-10-13
 ---
 
 
+## M3 — Obsidian host composition and contract conformance (2026-10-24)
+
+**Status:** implementation in PR #134; acceptance subject to CI.
+
+### A / E / R graph
+
+```text
+src/main.ts (Obsidian lifecycle, settings, menus, ChatView)
+  → host/obsidian/composition.ts (one Obsidian host)
+    → SAME PluginDataRepository instance for settings, session and token usage
+    → SessionController (one transaction lane) + SessionStore
+    → AgentRuntime → LearningController → LearningProgramOrchestrator
+    → ObsidianContext, PolicyLoader, VaultLearningStore, VaultProgramStore,
+      VaultWorkspaceWriter, MutationService, OnboardingStateRepository
+  → host/obsidian/lifecycle.ts (host event observers only)
+    → LearningActivityPresence → LearningProgramOrchestrator (sole writer)
+  → recoverSessions → recoverLearningWorkspaces onLayoutReady
+  → onUnload flushSessionTime → learning.dispose; runtime/auth/quota disposed
+
+A: original event registration, program recovery ordering, model selection,
+   native editor Undo, persistence and provider behavior preserved.
+E: startup store failure aborts composition; no provider discovery;
+   activity persistence failure stays observable and retryable.
+R: one plugin data writer; Obsidian vault CAS stores; Plugin.register* owns
+   event subscriptions and activity interval; no portable-core reverse imports.
+```
+
+### Conformance gates
+
+- Same `SessionDataPort` test scenarios apply to plugin-data Obsidian adapter
+  and durable FileWorkspace headless adapter: serialize concurrent updates,
+  preserve unrelated keys, surface failed writes and recover after failure.
+- Existing VaultLearningStore vs FileWorkspace LearningStatePort conformance
+  verifies stale evidence CAS, one authoritative saved record, and retry.
+- Host imports are explicit one-way outward boundary. The M0 protected modules
+  cannot import host code; any new `src/host` subtype must be approved.
+- Obsidian UI, auth, main.js build, provider transports and vault serialization
+  remain unchanged. Composition does not create a new data store or core copy.
+
+M3 does not make Obsidian Vault undo applicable to Node or browser editors.
+Full native desktop acceptance remains separate from automated conformance.
+
+---
+
 ## M2 headless proof — 2026-10-24
 
 **State: implemented in PR #134 branch; final acceptance depends on CI.**
