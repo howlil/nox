@@ -1,5 +1,10 @@
 import path from "node:path";
-import ts from "typescript";
+import { createRequire } from "node:module";
+
+// Match scripts/architecture-graph.mjs: resolve TypeScript from the workspace,
+// not from the temporary bundled test location.
+const loadWorkspaceDependency = createRequire(path.resolve(process.cwd(), "package.json"));
+const ts = loadWorkspaceDependency("typescript");
 
 /**
  * M0 portability fence. These modules already expose pure rules or
