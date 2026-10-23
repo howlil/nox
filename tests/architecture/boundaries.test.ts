@@ -277,3 +277,14 @@ test("R4 feature-private onboarding and practice may not read unrelated domain p
   }]);
   assert.equal(invalid.filter(issue => issue.includes("forbidden dependency")).length, 2);
 });
+
+test("diagnostics own filesystem diagnostics while settings cannot access Node FS", () => {
+  assert.deepEqual(validateArchitecture([{
+    path: "src/diagnostics/runtime-provenance.ts",
+    source: 'import { readFile } from "fs/promises";',
+  }]), []);
+  assert.ok(validateArchitecture([{
+    path: "src/settings/FutureSettings.ts",
+    source: 'import { readFile } from "fs/promises";',
+  }]).some(issue => issue.includes("cannot own host filesystem")));
+});

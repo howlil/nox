@@ -1,9 +1,9 @@
 import type { LearningProgram } from "../domain/learning-program/types";
-import type { LearningController } from "../application/LearningController";
+import { OnboardingReceiptWriteError, type LearningController } from "../application/LearningController";
 
 /** Only the operations needed by the stateful onboarding view, never the whole controller API. */
 export type OnboardingLearningPort = Pick<LearningController,
-  "saveOnboardingDraft" | "getOnboardingContext" | "checkRuntime" | "previewLearningProgram" | "approveLearningWorkspace" | "approveLearningProgram" | "getProgramOverview" | "getProgramMenuState" | "recoverOnboardingApproval" | "cancel" >;
+  "saveOnboardingDraft" | "getOnboardingContext" | "checkRuntime" | "previewLearningProgram" | "approveOnboarding" | "getProgramOverview" | "getProgramMenuState" | "recoverOnboardingApproval" | "cancel" >;
 import type { OnboardingDraft } from "../domain/onboarding/types";
 import { restoreOnboardingDraft, withOnboardingStage, withOnboardingSource, onboardingConstraints, quickPlanCommand, firstOnboardingObjective } from "../features/learning/onboarding/OnboardingWorkflow";
 import { planWorkspace } from "../domain/workspace/plan";
@@ -223,26 +223,25 @@ export class OnboardingFlow {
     this.retryWorkspace = withWorkspace;
     const approval = { programId: this.preview.id, operationId: this.operationId, withWorkspace };
     this.applying = true;
-    try {
-      // The receipt must reach persistent storage before the first CAS/program write.
-      await this.learning.saveOnboardingDraft({ ...this.draft, stage: "applying", approval });
-    } catch (error) {
-      this.error = "Could not save the approval receipt. No program was created. " +
-        (error instanceof Error ? error.message : String(error));
-      this.applying = false;
-      this.stage = "preview";
-      this.render();
-      return;
-    }
-    this.draft = { ...this.draft, approval };
     this.stage = "applying"; this.render();
     let committed: LearningProgram;
     try {
-      committed = withWorkspace
-        ? await this.learning.approveLearningWorkspace(this.preview.id, this.operationId)
-        : await this.learning.approveLearningProgram(this.preview.id, this.operationId);
+      // Application owns receipt → CAS commit → optional filesystem effect.
+      committed = await this.learning.approveOnboarding(
+        this.draft, this.preview.id, this.operationId, withWorkspace);
+      this.draft = { ...this.draft, approval };
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
+      if (error instanceof OnboardingReceiptWriteError) {
+        // No commit was attempted. Keep the preview available for another try.
+        this.error = message;
+        this.stage = "preview";
+        this.applying = false;
+        this.render();
+        return;
+      }
+      // The receipt was saved before the commit attempt; restart reconciles it.
+      this.draft = { ...this.draft, approval };
       // The orchestrator checks operation receipts before preview expiry.
       // An expired preview therefore cannot have committed this operation.
       if (/preview expired/i.test(message)) {

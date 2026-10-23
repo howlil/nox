@@ -347,6 +347,9 @@ export class LearningProgramOrchestrator {
     this.pendingRevisions.delete(operationId);
   }
 
+  /** Use the same injected clock as adaptive decisions and session timing. */
+  nowForProjection(): number { return this.now(); }
+
   async getActiveProgram(): Promise<LearningProgram | null> {
     const collection = await this.store.load();
     return collection.programs.find(p => p.id === collection.activeProgramId) ?? null;

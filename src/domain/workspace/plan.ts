@@ -16,6 +16,32 @@ export function workspaceRoot(program: Pick<LearningProgram, "id" | "goal">): st
   return `00-learning-os/workspaces/${slug}--${program.id}`;
 }
 
+/** Domain-owned lesson content; persistence only materializes this plan. */
+export function planObjectiveLesson(program: LearningProgram, objectiveId: string): WorkspaceFile {
+  const objective = program.objectives.find(item => item.id === objectiveId);
+  if (!objective) throw new Error("Unknown learning objective.");
+  const root = workspaceRoot(program);
+  return {
+    path: `${root}/Lessons/${objective.id}.md`,
+    content: [
+      "---",
+      `nox-program-id: "${program.id}"`,
+      `nox-objective-id: "${objective.id}"`,
+      "---",
+      `# ${objective.title.replace(/[\\r\\n#]/g, " ")}`,
+      "",
+      "## Learning outcome",
+      objective.outcome,
+      "",
+      "## Success criteria",
+      ...objective.rubric.map(item => "- " + item),
+      "",
+      "## Study notes",
+      "Add your notes here as you learn with NOX.",
+      "",
+    ].join("\n"),
+  };
+}
 /** Pure, provider-independent manifest. The model never chooses vault paths. */
 export function planWorkspace(program: LearningProgram): WorkspaceManifest {
   const root = workspaceRoot(program);

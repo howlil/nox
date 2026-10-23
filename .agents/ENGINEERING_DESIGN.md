@@ -8,6 +8,38 @@ Last updated: 2026-10-13
 
 ---
 
+## Boundary ownership follow-up — 2026-10-24 (draft PR #133)
+
+This review narrows behavioral ownership without replacing the established
+SessionController, PluginDataRepository, VaultProgramStore, VaultLearningStore,
+RunLearningTurn, or the single ProgramMutationQueue.
+
+- Host DOM activity events/ticks stay registered in `main.ts`; ephemeral
+  desired/confirmed idle reconciliation and failed-write retry are handled by
+  `LearningActivityPresence`. Only `LearningProgramOrchestrator.setIdle`
+  performs the durable state transition through program CAS.
+- Onboarding approval now has one application entry point:
+  `LearningController.approveOnboarding` persists the exact operation receipt
+  before program CAS and optional create-only workspace effects. UI never owns
+  the commit ordering. Retry/restart uses existing receipt reconciliation.
+- The `domain/workspace/plan.ts` planner generates both manifest and
+  objective lesson content; VaultWorkspaceWriter only performs host filesystem
+  effects, ownership validation, and no-overwrite recovery.
+- Learning overview is a pure domain projection with an explicit timestamp from
+  the program orchestrator's injected clock. The domain also owns the
+  prerequisite mastery gate before creating an objective focus.
+- Installed-bundle diagnostics are owned by `src/diagnostics/`, not the
+  Obsidian settings UI; boundary checks prohibit direct Node filesystem
+  access inside `src/settings/`.
+
+No persistence schema, provider protocol, timer accounting definition, or
+editor proposal transaction boundary is changed by this slice.
+
+Verification requires CI (architecture, typecheck, lint, unit/integration,
+build) and native Obsidian Desktop acceptance for host lifecycle behaviors.
+GitHub CI alone does not establish desktop acceptance.
+
+
 ## M5 feature-private physical package checkpoint — 2026-10-20
 
 **State:** Scoped M0–M5 code migration is implemented in draft PR #121.
