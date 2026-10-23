@@ -1,7 +1,6 @@
 import { SessionStore } from "./SessionStore";
 import { PersistenceError } from "../domain/persistence/errors";
 import { findCommittedPracticeOutcome, findCommittedReview, type TranscriptPart } from "./transcript-types";
-import type { SessionDataPort } from "../types";
 import type { LearningScopeState } from "../domain/practice/learning-scope";
 import type { PracticeAnswer } from "../domain/practice/types";
 import { isPracticeAnswer } from "../domain/practice/question-schema";
@@ -9,6 +8,7 @@ import {
   ChatSession,
   EditProposal,
   type ChatReplyReference,
+  type SessionDataPort,
 } from "../types";
 
 /**

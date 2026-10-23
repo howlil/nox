@@ -2,6 +2,7 @@ import {
   AgentContext,
   type ResearchScope,
   AgentFailure,
+  type AgentRuntimePort,
   ChatSession,
 } from "../types";
 import {
@@ -24,7 +25,6 @@ import {
   recordReviewFindings,
 } from "../domain/learning-state/transitions";
 import { findCommittedPracticeOutcome, findCommittedReview, type TranscriptPart } from "../session/transcript-types";
-import type { AgentRuntimePort } from "../types";
 import {
   buildActionInstruction,
   selectGraphPresentation,
