@@ -48,9 +48,9 @@ test("M0 rejects dynamic imports and require(), including computed specifiers", 
 
 test("M0 forbids triple-slash type and library directives", () => {
   for (const source of [
-    '/// <reference types="node" />\\nexport type X = string;',
-    '/// <reference path="../../persistence/host.d.ts" />\\nexport type X = string;',
-    '/// <reference lib="dom" />\\nexport type X = string;',
+    '/// <reference types="node" />\nexport type X = string;',
+    '/// <reference path="../../persistence/host.d.ts" />\nexport type X = string;',
+    '/// <reference lib="dom" />\nexport type X = string;',
   ]) {
     assert.ok(validatePortableBoundaries([rule(source)]).some((x: string) =>
       x.includes("portable module cannot include triple-slash reference")), source);
