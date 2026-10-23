@@ -10,8 +10,7 @@ import { RunLearningTurn } from "./RunLearningTurn";
 import { isActiveLearningScope, isProgramLearningScope, isLockedLearningMode, parseScopeCommand } from "../domain/practice/learning-scope";
 import { parseProgramCommand } from "../domain/learning-program/commands";
 import { feasibility } from "../domain/learning-program/rules";
-import { deriveLearnerProfile } from "../domain/learner-model/learner-profile";
-import { selectAdaptiveActivity } from "../domain/learner-model/activity-policy";
+import { projectLearningOverview } from "../domain/learner-model/learning-overview";
 import { authorizeFocusIntent } from "../domain/learning-program/focus-transitions";
 import type { LearningProgramOrchestrator } from "./LearningProgramOrchestrator";
 
@@ -242,43 +241,11 @@ export class LearningController {
     const program = await this.programs.getActiveProgram();
     if (!program) return null;
     const learning = await this.learningState.load();
-    const now = Date.now();
-    const profile = deriveLearnerProfile(program, learning, now);
-    const next = selectAdaptiveActivity(program, learning, now, profile);
-    const byObjective = new Map(profile.objectives.map(item => [item.objectiveId, item]));
-    const attemptCounts = new Map<string, number>();
-    const objectiveRevisions = new Map(program.objectives
-      .filter(objective => !objective.deprecated)
-      .map(objective => [objective.id, objective.objectiveRevision ?? program.planVersion] as const));
-    for (const evidence of learning.evidence) {
-      if (evidence.type !== "practice" || evidence.scope !== "learner" ||
-          evidence.programId !== program.id || evidence.evidenceVersion !== 3 ||
-          !evidence.objectiveId ||
-          objectiveRevisions.get(evidence.objectiveId) !== evidence.objectiveRevision) continue;
-      attemptCounts.set(evidence.objectiveId, (attemptCounts.get(evidence.objectiveId) ?? 0) + 1);
-    }
-    return {
-      goal: program.goal,
-      planVersion: program.planVersion,
-      ...(this.programs.peekCurriculumRevision(program) ? {
-        revisionPreview: this.programs.peekCurriculumRevision(program),
-      } : {}),
-      active: Boolean(program.session || program.focus?.status === "active"),
-      focus: program.focus ? { status: program.focus.status,
-        objectiveId: program.focus.objectiveId } : undefined,
-      ...(program.session ? { sessionTime: (await this.programs.getSessionTime(program)) ?? undefined } : {}),
-      next: { kind: next.kind, objectiveId: next.objective?.id,
-        reason: next.reason, dueAt: next.dueAt,
-        trigger: next.provenance?.trigger,
-        criterionIds: next.provenance?.criterionIds,
-        scaffoldLevel: next.provenance?.scaffoldLevel },
-      objectives: program.objectives.filter(objective => !objective.deprecated).map(objective => {
-        const projected = byObjective.get(objective.id);
-        return { objective, status: projected?.status ?? "unseen", attempts: attemptCounts.get(objective.id) ?? 0,
-          dueAt: projected?.dueAt ?? null,
-          criteria: projected?.criterion ?? [] };
-      }),
-    };
+    const now = this.programs.nowForProjection?.() ?? Date.now();
+    return projectLearningOverview(
+      program, learning, now, this.programs.peekCurriculumRevision(program),
+      program.session ? await this.programs.getSessionTime(program) : null,
+    );
   }
 
   async flushSessionTime(): Promise<void> {
