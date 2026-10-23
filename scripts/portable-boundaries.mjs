@@ -94,6 +94,16 @@ export function validatePortableBoundaries(files, { requireManifest = false } = 
   for (const { path: filename, source } of files) {
     if (!isPortableSource(filename)) continue;
     const sourceFile = ts.createSourceFile(filename, source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
+    // Triple-slash directives also import ambient host contracts. They do not
+    // appear as ordinary import declarations in the TypeScript AST.
+    for (const reference of [
+      ...sourceFile.referencedFiles,
+      ...sourceFile.typeReferenceDirectives,
+      ...sourceFile.libReferenceDirectives,
+    ]) {
+      const line = sourceFile.getLineAndCharacterOfPosition(reference.pos).line + 1;
+      issues.push(`${filename}:${line}: portable module cannot include triple-slash reference "${reference.fileName}"`);
+    }
     for (const problem of sourceFile.parseDiagnostics) {
       issues.push(`${filename}:${sourceFile.getLineAndCharacterOfPosition(problem.start ?? 0).line + 1}: invalid portable TypeScript syntax`);
     }
