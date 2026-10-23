@@ -8,6 +8,75 @@ Last updated: 2026-10-13
 
 ---
 
+
+## M0 portable-core implementation contract — 2026-10-24
+
+**State: implemented in draft PR #134, pending full CI and diff review.**
+M0 is only a dependency fence, not an extracted core runtime.
+
+### A / E / R execution graph
+
+```text
+pnpm check:boundaries
+  → read all src/*.ts (current repository snapshot)
+  → validateArchitecture (existing ownership constraints)
+  → validatePortableBoundaries (TypeScript AST: imports + ambient globals)
+  → validate declared portable contract file existence
+  → exit 0 on no violations; nonzero with exact file/line errors otherwise
+
+A: architecture validation result, unchanged application runtime.
+E: malformed source, missing contract file, unresolved/out-of-zone import,
+   runtime or host package reference, dynamic specifier, host-specific global.
+R: repository source, installed TypeScript parser and existing boundary script.
+Execution: read-only single CI command. No state mutation or background work.
+```
+
+### Protected baseline and known exclusions
+
+The fence applies automatically to `src/domain/**/*.ts` and explicitly to
+`src/application/{ports,learning-types,learning-state-projection}.ts`,
+`src/context/{ContextResolver,ContextSourcePort,ContextBudget,LocalResearch,context-types}.ts`,
+`src/session/{message-types,transcript-part-types,transcript-types,transcript-schema}.ts`
+and `src/types.ts`. New domain files are covered without a manifest update.
+The declared shared contract list is mandatory in repository CI, so deleting
+a file does not accidentally erase a portability promise.
+
+Guarded files cannot import nonportable local modules or runtime packages
+(including type-only imports and exports), use unresolvable dynamic imports,
+or access Node/browser-specific runtime globals. The TypeScript syntax tree
+prevents misleading string literals and comments from triggering false alarms.
+The existing owner graph is enforced by the same `pnpm check:boundaries` run.
+
+**Not yet protected as portable:** `LearningController`, `RunLearningTurn`,
+`LearningProgramOrchestrator`, `SessionController`, vault stores, provider
+transports, `ChatView` and `main.ts`. They still have concrete runtime edges;
+M1/M3 must invert those first rather than declaring them portable prematurely.
+
+### Frozen correctness and compatibility obligations
+
+| Obligation | Existing authority; M0 does not replace |
+| --- | --- |
+| Transcript terminal success precedes evidence | RunLearningTurn, SessionController, TranscriptEvidenceReconciler |
+| Serialized session and plugin-data writes | SessionController + PluginDataRepository |
+| Program CAS, single focus and one mutation lane | LearningProgramOrchestrator + ProgramMutationQueue + VaultProgramStore |
+| Learning evidence CAS and legacy progress decoder | VaultLearningStore + learning-state-schema |
+| Onboarding receipt before CAS, no overwrite | LearningController + OnboardingStateRepository + VaultWorkspaceWriter |
+| Explicit approved edit + revision/Undo semantics | MutationService + domain mutation planner |
+| Legacy session and program interpretation | SessionStore, SessionController and versioned program decoder |
+
+These are **engineering guarantees to preserve**, not new static tests proving
+runtime transaction correctness. Existing behavioral tests own that evidence.
+M0 adds only source-level architecture checks with negative regression tests.
+
+### Verification gate
+
+`pnpm check:boundaries` must fail for cross-zone, host-package or host-global
+usage. `pnpm test:unit` covers positive and negative portable guard behavior.
+`pnpm verify` continues exercising the unchanged Obsidian bundle and legacy
+state tests. Headless CLI parity and packaging are explicitly future milestones.
+
+---
+
 ## Proposed: portable NOX core boundary — 2026-10-24
 
 **Status: PROPOSED, not accepted or implemented.** This extends the
