@@ -17,7 +17,7 @@ import type { LearningProgramOrchestrator } from "./LearningProgramOrchestrator"
 
 /** No program mutation starts when the approval receipt cannot be persisted. */
 export class OnboardingReceiptWriteError extends Error {
-  constructor(cause: unknown) {
+  constructor() {
     super("Could not save approval receipt. No program was created.");
     this.name = "OnboardingReceiptWriteError";
   }
@@ -199,7 +199,7 @@ export class LearningController {
       await this.onboardingState.saveDraft({ ...draft, stage: "applying", approval });
     } catch (error) {
       // Distinguish pre-commit receipt failure from an uncertain later effect.
-      throw new OnboardingReceiptWriteError(error);
+      throw new OnboardingReceiptWriteError();
     }
     const program = await this.programs.commitPrepared(draftId, operationId, withWorkspace);
     if (withWorkspace) await this.workspaceWriter!.ensure(program);

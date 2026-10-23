@@ -18,7 +18,7 @@ export class VaultWorkspaceWriter {
       if (!(existing instanceof TFile)) throw new Error("Lesson path is not a file.");
       const content = await this.app.vault.read(existing);
       if (!content.includes(`nox-program-id: "${program.id}"`) ||
-          !content.includes(`nox-objective-id: "${objective.id}"`)) {
+          !content.includes(`nox-objective-id: "${objectiveId}"`)) {
         throw new Error("Lesson path conflicts with an unowned note.");
       }
       return; // Never rewrite a learner-modified note.
