@@ -31,7 +31,7 @@ import {
   NoxSettings,
 } from "./settings/NoxSettings";
 import { NoxSettingsTab } from "./settings/SettingsTab";
-import { runtimeProvenanceReport } from "./settings/runtime-provenance";
+import { runtimeProvenanceReport } from "./diagnostics/runtime-provenance";
 
 // Values are injected into the actual production bundle by esbuild. They are
 // not read from a manifest that could be newer than the loaded JavaScript.
