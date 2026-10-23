@@ -204,6 +204,7 @@ test("R1 curriculum revision generator is private to the learning program orches
   const modules = [
     { path: "src/features/learning/program/CurriculumRevisionGenerator.ts",
       source: 'import type { AgentRuntimePort } from "../../../types";' },
+    { path: "src/types.ts", source: "" },
     { path: "src/agent/AgentRuntime.ts", source: "" },
     { path: "src/domain/learning-program/curriculum-preview.ts", source: "" },
     { path: "src/application/LearningProgramOrchestrator.ts",
