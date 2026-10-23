@@ -1,4 +1,6 @@
 import type { FocusSession, LearningProgram } from "./types";
+import type { LearningState } from "../learning-state/types";
+import { deriveLearnerProfile } from "../learner-model/learner-profile";
 
 export type FocusIntent =
   | { kind: "start"; objectiveId: string }
@@ -42,6 +44,21 @@ export function startObjectiveFocus(
   }
   return { ...program, focus: { id, programId: program.id, objectiveId,
     curriculumRevision: program.planVersion, chatSessionId, status: "active", startedAt: now } };
+}
+
+/** Domain owns mastery-gated admission, not a feature service wrapper. */
+export function startEligibleObjectiveFocus(
+  program: LearningProgram, state: LearningState,
+  objectiveId: string, chatSessionId: string, now: number, focusId: string,
+): LearningProgram {
+  const objective = program.objectives.find(item => item.id === objectiveId);
+  if (!objective) throw new Error("Unknown learning objective.");
+  const profile = deriveLearnerProfile(program, state, now);
+  const statuses = new Map(profile.objectives.map(item => [item.objectiveId, item.status]));
+  if (!objective.prerequisiteIds.every(id => statuses.get(id) === "mastered")) {
+    throw new Error("Prerequisites are not mastered for this objective.");
+  }
+  return startObjectiveFocus(program, objectiveId, chatSessionId, now, focusId);
 }
 
 export function transitionObjectiveFocus(
