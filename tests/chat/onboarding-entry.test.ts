@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { OnboardingFlow } from "../../src/chat/onboarding-flow";
-import type { LearningController } from "../../src/application/LearningController";
+import { OnboardingReceiptWriteError, type LearningController } from "../../src/application/LearningController";
 
 class FakeElement {
   children: FakeElement[] = [];
@@ -175,15 +175,16 @@ function setupM3(overrides: {
     },
     checkRuntime: async () => ({ status: "ready" }),
     previewLearningProgram: async () => { calls.push("preview"); return m3Program; },
-    approveLearningProgram: async (_id: string, op: string) => {
-      calls.push("approve-only"); operations.push(op);
+    // UI adapter now calls the single application-owned approval operation.
+    // Order and pre-commit failures are covered independently in OnboardingApproval.test.ts.
+    approveOnboarding: async (_draft: unknown, _id: string, op: string, workspace: boolean) => {
+      if (overrides.failReceipt) throw new OnboardingReceiptWriteError();
+      calls.push(workspace ? "approve-workspace" : "approve-only"); operations.push(op);
       if (overrides.expiredPreview) throw Error("The preview expired. Generate a fresh learning blueprint.");
-      return m3Program;
-    },
-    approveLearningWorkspace: async (_id: string, op: string) => {
-      calls.push("approve-workspace"); operations.push(op);
-      if (overrides.failWorkspace && operations.length === 1) throw Error("Workspace write failed");
-      return { ...m3Program, workspaceApproved: true };
+      if (workspace && overrides.failWorkspace && operations.length === 1) {
+        throw Error("Workspace write failed");
+      }
+      return workspace ? { ...m3Program, workspaceApproved: true } : m3Program;
     },
     dismissOnboarding: async () => {
       calls.push("dismiss");
