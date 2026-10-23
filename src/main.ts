@@ -14,6 +14,7 @@ import { ContextResolver } from "./context/ContextResolver";
 import { ObsidianContext } from "./context/ObsidianContext";
 import { PolicyLoader } from "./context/PolicyLoader";
 import { LearningController } from "./application/LearningController";
+import { LearningActivityPresence } from "./application/LearningActivityPresence";
 import { MutationService } from "./mutation/MutationService";
 import { VaultLearningStore } from "./persistence/VaultLearningStore";
 import { VaultProgramStore } from "./persistence/VaultProgramStore";
@@ -99,23 +100,19 @@ export default class NoxPlugin extends Plugin {
       () => sessions.getSession().model,
       () => sessions.getSession().runtimeProvider,
     );
-    let lastInteraction = Date.now();
-    let idle = false;
+    // Host events are observed here; desired/confirmed idle transitions live in
+    // the application coordinator. Failed writes are retried on the next tick.
+    const activity = new LearningActivityPresence(idle => programs.setIdle(idle));
     const observeInteraction = () => {
-      lastInteraction = Date.now();
-      if (idle) {
-        idle = false;
-        void programs.setIdle(false).catch(error => console.warn("[Nox] Idle resume failed", error));
-      }
+      void activity.observeInteraction().catch(error =>
+        console.warn("[Nox] Idle resume failed", error));
     };
     this.registerDomEvent(document, "keydown", observeInteraction);
     this.registerDomEvent(document, "pointerdown", observeInteraction);
     this.registerDomEvent(document, "scroll", observeInteraction, true);
     this.registerInterval(window.setInterval(() => {
-      if (!idle && Date.now() - lastInteraction >= 180_000) {
-        idle = true;
-        void programs.setIdle(true).catch(error => console.warn("[Nox] Idle checkpoint failed", error));
-      }
+      void activity.checkIdle().catch(error =>
+        console.warn("[Nox] Idle checkpoint failed", error));
     }, 30_000));
     this.registerEvent(this.app.workspace.on("file-open", file => {
       if (file?.extension === "md") void programs.focusMaterial(file.path).catch(() => {});
