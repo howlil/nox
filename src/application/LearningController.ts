@@ -15,6 +15,14 @@ import { selectAdaptiveActivity } from "../domain/learner-model/activity-policy"
 import { authorizeFocusIntent } from "../domain/learning-program/focus-transitions";
 import type { LearningProgramOrchestrator } from "./LearningProgramOrchestrator";
 
+/** No program mutation starts when the approval receipt cannot be persisted. */
+export class OnboardingReceiptWriteError extends Error {
+  constructor(cause: unknown) {
+    super("Could not save approval receipt. No program was created.", { cause });
+    this.name = "OnboardingReceiptWriteError";
+  }
+}
+
 export interface LearningControllerOptions {
   turnTimeoutMs?: number;
   programStore?: ProgramStorePort;
@@ -170,18 +178,31 @@ export class LearningController {
     return this.programs.prepareProgram(goal, constraints);
   }
 
-  /** Approve the validated preview without creating workspace files. */
-  async approveLearningProgram(draftId: string, operationId: string) {
-    if (!this.programs) throw new Error("Learning programs are unavailable.");
+  /**
+   * One application-owned approval flow. The receipt must become durable
+   * BEFORE the CAS commit, including for plan-only approval. A failed file
+   * materialization leaves the receipt available for read-first recovery.
+   */
+  async approveOnboarding(
+    draft: import("../domain/onboarding/types").OnboardingDraft,
+    draftId: string, operationId: string, withWorkspace: boolean,
+  ) {
+    if (!this.programs || !this.onboardingState) {
+      throw new Error("Learning onboarding is unavailable.");
+    }
+    if (withWorkspace && !this.workspaceWriter) {
+      throw new Error("Learning workspace is unavailable.");
+    }
     this.assertRuntimeIdle();
-    return this.programs.commitPrepared(draftId, operationId);
-  }
-
-  async approveLearningWorkspace(draftId: string, operationId: string) {
-    if (!this.programs || !this.workspaceWriter) throw new Error("Learning workspace is unavailable.");
-    this.assertRuntimeIdle();
-    const program = await this.programs.commitPrepared(draftId, operationId, true);
-    await this.workspaceWriter.ensure(program);
+    const approval = { programId: draftId, operationId, withWorkspace };
+    try {
+      await this.onboardingState.saveDraft({ ...draft, stage: "applying", approval });
+    } catch (error) {
+      // Distinguish pre-commit receipt failure from an uncertain later effect.
+      throw new OnboardingReceiptWriteError(error);
+    }
+    const program = await this.programs.commitPrepared(draftId, operationId, withWorkspace);
+    if (withWorkspace) await this.workspaceWriter!.ensure(program);
     return program;
   }
 
