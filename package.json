@@ -14,6 +14,8 @@
   "main": "dist/main.js",
   "scripts": {
     "architecture:graph": "node scripts/architecture-graph.mjs",
+    "headless:check": "node scripts/headless.mjs check",
+    "headless:demo": "node scripts/headless.mjs demo",
     "dev": "node scripts/dev.mjs",
     "dev:build": "node esbuild.config.mjs",
     "build": "node esbuild.config.mjs production",
@@ -27,7 +29,7 @@
     "test:integration": "node scripts/test.mjs integration",
     "test:all": "node scripts/test.mjs all",
     "bench:research": "node scripts/bench-research.mjs",
-    "verify": "pnpm check:boundaries && pnpm typecheck && pnpm lint && pnpm lint:css && pnpm test:unit && pnpm test:integration && pnpm docs:check && pnpm release:check && pnpm build && pnpm test:artifacts",
+    "verify": "pnpm check:boundaries && pnpm typecheck && pnpm lint && pnpm lint:css && pnpm test:unit && pnpm test:integration && pnpm docs:check && pnpm release:check && pnpm headless:check && pnpm build && pnpm test:artifacts",
     "test:artifacts": "node scripts/verify-artifacts.mjs",
     "docs:check": "node scripts/check-docs.mjs",
     "release:check": "node scripts/check-release.mjs",

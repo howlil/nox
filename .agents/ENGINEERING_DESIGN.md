@@ -9,6 +9,32 @@ Last updated: 2026-10-13
 ---
 
 
+## M2 headless proof — 2026-10-24
+
+**State: implemented in PR #134 branch; final acceptance depends on CI.**
+
+A second Node host now composes the real NOX `LearningController`,
+`RunLearningTurn`, Practice/evidence rules, `SessionController` and
+`SessionStore` from existing source, with separate Node file I/O adapters.
+A scripted provider is used **only as an inference substitute**, never as a
+copy of the learning engine. See `docs/HEADLESS_PROOF.md` for commands and
+transaction, lifecycle, trust and recovery scope.
+
+- **A:** Ask → question → durable transcript → restart → answer →
+  terminal evaluation → transcript commit → one evidence CAS append.
+- **E:** invalid/locked workspace, malformed persistence, stale evidence,
+  provider failure or crash are explicit; no automatic replay of inference
+  or editing.
+- **R:** Node filesystem adapter owns exclusive workspace lock, atomic
+  state files and evidence CAS; application code sees injected narrow ports.
+
+This proves a **limited headless Ask/Practice runtime**. It does not yet
+satisfy portable curriculum planning, full Obsidian lifecycle parity, real
+provider authentication, cross-device sync or editor-native Undo. No
+Obsidian release code, persisted keys or authoritative state owner changes.
+
+---
+
 ## M1 portable data/runtime dependency inversion — 2026-10-24
 
 **State: implemented in PR #134 branch, subject to CI and code review.**
