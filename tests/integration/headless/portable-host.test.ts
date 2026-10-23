@@ -93,6 +93,33 @@ test("M2 actual file evidence store rejects stale CAS and preserves bytes", asyn
   });
 });
 
+test("M2 rejects unguarded overwrite and never repairs malformed progress by destroying it", async () => {
+  await tempWorkspace(async root => {
+    const workspace = await FileWorkspace.open(root);
+    try {
+      const original = await workspace.learningState.load();
+      await workspace.learningState.save({ ...original, target: "owned" }, original);
+      const committed = await readFile(join(root, "progress.json"), "utf8");
+      await assert.rejects(workspace.learningState.save({ ...original, target: "unauthorized" }),
+        LearningStateWriteConflict);
+      assert.equal(await readFile(join(root, "progress.json"), "utf8"), committed);
+    } finally {
+      await workspace.close();
+    }
+    const invalid = "{damaged progress";
+    await writeFile(join(root, "progress.json"), invalid);
+    const resumed = await FileWorkspace.open(root);
+    try {
+      await assert.rejects(resumed.learningState.save({
+        version: 2, target: "unsafe", gaps: [], evidence: [],
+      }), LearningStateWriteConflict);
+      assert.equal(await readFile(join(root, "progress.json"), "utf8"), invalid);
+    } finally {
+      await resumed.close();
+    }
+  });
+});
+
 test("M2 local runtime refuses another owner and releases workspace on disposal", async () => {
   await tempWorkspace(async root => {
     const first = await FileWorkspace.open(root);

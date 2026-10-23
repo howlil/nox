@@ -46,7 +46,11 @@ export class FileWorkspace {
       if (expected && token === undefined) return Promise.reject(new LearningStateWriteConflict());
       return this.enqueue(async () => {
         const current = await this.readBytes("progress.json");
+        // No caller may overwrite existing evidence without a loaded CAS snapshot.
+        if (current !== null && !expected) throw new LearningStateWriteConflict();
         if (expected && current !== token) throw new LearningStateWriteConflict();
+        // Existing malformed state must never be overwritten as a fresh state.
+        if (current !== null) decodeLearningState(JSON.parse(current));
         const decoded = decodeLearningState(state);
         await this.writeJson("progress.json", decoded);
       });
