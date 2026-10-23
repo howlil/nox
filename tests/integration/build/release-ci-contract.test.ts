@@ -9,6 +9,10 @@ test("plugin CI has no Cloudflare or landing jobs", () => {
   assert.match(dev, /paths-ignore: \['landing\/\*\*'\]/);
   assert.match(dev, /run: pnpm ci:critical/);
   assert.match(dev, /node scripts\/ci\/check-public-release\.mjs/);
+  // Candidate release PRs are verified by ci-release.yml; master still checks
+  // parity against the public tag to prevent Obsidian manifest mismatch.
+  assert.match(dev, /startsWith\(github\.head_ref, 'release\/'\)/);
+  assert.match(dev, /github\.event_name == 'pull_request'/);
   assert.doesNotMatch(dev, /^  landing:/m);
   assert.doesNotMatch(dev, /npm run build/);
   assert.doesNotMatch(dev, /^  windows-dpapi:/m);

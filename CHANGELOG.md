@@ -1,5 +1,26 @@
 # Changelog
 
+## [1.3.2]
+
+### Improvements
+
+- Modularize NOX UI presentation into feature-owned Practice, Learning, Model Picker, Prompt Menu, Thinking, and Proposal presenters; keep canonical session and learning state in existing controllers.
+- Consolidate Composer attachment/context state, preserve drafts across session transitions, and prevent stale async events from modifying closed or switched views.
+- Separate Empty Slate rendering, improve onboarding UI dependencies, and split CSS sources by surface while retaining a single compiled Obsidian stylesheet.
+- Improve Settings design consistency and source-bound accessibility behavior.
+
+### Fixes
+
+- Replace direct DOM style assignments with supported Obsidian CSS helpers across nine UI files, preventing Community Scanner `obsidianmd/no-static-styles-assignment` findings.
+- Gate static style regressions in CI using source-wide TypeScript AST checks.
+- Preserve model-selection error retry, Practice draft write ordering, terminal Thinking cleanup, and resilient history/session navigation.
+
+### Compatibility and verification
+
+- Desktop only; requires Obsidian 1.13.0 or later. No migration of learning data, credentials, or plugin settings.
+- GitHub CI and release certification validate architecture boundaries, Windows transport, Community policy, and reproducible plugin artifacts.
+- Native Obsidian Desktop acceptance D01–D10 must be verified on this release's exact source commit before public publication.
+
 ## [1.3.1]
 
 ### Fixes

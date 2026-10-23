@@ -2,6 +2,8 @@ name: Stage NOX Release Draft
 
 # Build an installable DRAFT from release/x.y.z without bypassing the native
 # Obsidian Desktop D01-D10 acceptance required for PUBLIC publication.
+# For a refreshed release candidate, the staged draft is a testing artifact only:
+# the canonical manifest on master remains at the last publicly shipped version.
 on:
   push:
     branches:
