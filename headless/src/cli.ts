@@ -26,6 +26,7 @@ async function main() {
   ]);
   const host = await openHeadlessNox(root, fixture);
   try {
+    const beforeEvidence = (await host.workspace.learningState.load()).evidence.length;
     const run = async (request: LearningRequest): Promise<LearningEvent[]> => {
       const events: LearningEvent[] = [];
       for await (const event of host.controller.run(request)) events.push(event);
@@ -46,7 +47,7 @@ async function main() {
       throw new Error("The real NOX Practice pipeline did not produce its required typed outcomes.");
     }
     const state = await host.workspace.learningState.load();
-    if (state.evidence.length !== 1) throw new Error("Exactly one durable learner evidence event was expected.");
+    if (state.evidence.length !== beforeEvidence + 1) throw new Error("Exactly one new durable learner evidence event was expected.");
     console.log(JSON.stringify({
       host: "node-headless-fixture",
       provider: "scripted, no external AI",

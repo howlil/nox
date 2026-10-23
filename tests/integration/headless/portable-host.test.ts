@@ -152,5 +152,12 @@ test("M2 executable CLI demo bundles without Obsidian and commits evidence to di
     assert.match(run.stdout, /"practiceEvaluation": true/);
     const state = JSON.parse(await readFile(join(root, "progress.json"), "utf8")) as { evidence: unknown[] };
     assert.equal(state.evidence.length, 1);
+    // A second independent process must reuse the durable workspace without
+    // assuming history/evidence were empty before this run.
+    const again = spawnSync(process.execPath, ["scripts/headless.mjs", "demo", "--data-dir", root],
+      { encoding: "utf8", timeout: 30_000 });
+    assert.equal(again.status, 0, (again.stderr || "") + (again.stdout || ""));
+    const resumed = JSON.parse(await readFile(join(root, "progress.json"), "utf8")) as { evidence: unknown[] };
+    assert.equal(resumed.evidence.length, 2);
   });
 });
