@@ -57,6 +57,9 @@ try {
     platform: "node",
     format: "esm",
     target: "node22",
+    // Bundled CJS tools (e.g. TypeScript compiler API) need Node builtins
+    // even though the test entrypoints themselves execute as ESM.
+    banner: { js: 'import { createRequire } from "node:module"; const require = createRequire(import.meta.url);' },
     alias: {
       obsidian: resolve("tests/support/obsidian.ts"),
     },
