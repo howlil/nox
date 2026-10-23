@@ -10,10 +10,17 @@ import { RunLearningTurn } from "./RunLearningTurn";
 import { isActiveLearningScope, isProgramLearningScope, isLockedLearningMode, parseScopeCommand } from "../domain/practice/learning-scope";
 import { parseProgramCommand } from "../domain/learning-program/commands";
 import { feasibility } from "../domain/learning-program/rules";
-import { deriveLearnerProfile } from "../domain/learner-model/learner-profile";
-import { selectAdaptiveActivity } from "../domain/learner-model/activity-policy";
+import { projectLearningOverview } from "../domain/learner-model/learning-overview";
 import { authorizeFocusIntent } from "../domain/learning-program/focus-transitions";
 import type { LearningProgramOrchestrator } from "./LearningProgramOrchestrator";
+
+/** No program mutation starts when the approval receipt cannot be persisted. */
+export class OnboardingReceiptWriteError extends Error {
+  constructor() {
+    super("Could not save approval receipt. No program was created.");
+    this.name = "OnboardingReceiptWriteError";
+  }
+}
 
 export interface LearningControllerOptions {
   turnTimeoutMs?: number;
@@ -170,18 +177,31 @@ export class LearningController {
     return this.programs.prepareProgram(goal, constraints);
   }
 
-  /** Approve the validated preview without creating workspace files. */
-  async approveLearningProgram(draftId: string, operationId: string) {
-    if (!this.programs) throw new Error("Learning programs are unavailable.");
+  /**
+   * One application-owned approval flow. The receipt must become durable
+   * BEFORE the CAS commit, including for plan-only approval. A failed file
+   * materialization leaves the receipt available for read-first recovery.
+   */
+  async approveOnboarding(
+    draft: import("../domain/onboarding/types").OnboardingDraft,
+    draftId: string, operationId: string, withWorkspace: boolean,
+  ) {
+    if (!this.programs || !this.onboardingState) {
+      throw new Error("Learning onboarding is unavailable.");
+    }
+    if (withWorkspace && !this.workspaceWriter) {
+      throw new Error("Learning workspace is unavailable.");
+    }
     this.assertRuntimeIdle();
-    return this.programs.commitPrepared(draftId, operationId);
-  }
-
-  async approveLearningWorkspace(draftId: string, operationId: string) {
-    if (!this.programs || !this.workspaceWriter) throw new Error("Learning workspace is unavailable.");
-    this.assertRuntimeIdle();
-    const program = await this.programs.commitPrepared(draftId, operationId, true);
-    await this.workspaceWriter.ensure(program);
+    const approval = { programId: draftId, operationId, withWorkspace };
+    try {
+      await this.onboardingState.saveDraft({ ...draft, stage: "applying", approval });
+    } catch (error) {
+      // Distinguish pre-commit receipt failure from an uncertain later effect.
+      throw new OnboardingReceiptWriteError();
+    }
+    const program = await this.programs.commitPrepared(draftId, operationId, withWorkspace);
+    if (withWorkspace) await this.workspaceWriter!.ensure(program);
     return program;
   }
 
@@ -221,43 +241,11 @@ export class LearningController {
     const program = await this.programs.getActiveProgram();
     if (!program) return null;
     const learning = await this.learningState.load();
-    const now = Date.now();
-    const profile = deriveLearnerProfile(program, learning, now);
-    const next = selectAdaptiveActivity(program, learning, now, profile);
-    const byObjective = new Map(profile.objectives.map(item => [item.objectiveId, item]));
-    const attemptCounts = new Map<string, number>();
-    const objectiveRevisions = new Map(program.objectives
-      .filter(objective => !objective.deprecated)
-      .map(objective => [objective.id, objective.objectiveRevision ?? program.planVersion] as const));
-    for (const evidence of learning.evidence) {
-      if (evidence.type !== "practice" || evidence.scope !== "learner" ||
-          evidence.programId !== program.id || evidence.evidenceVersion !== 3 ||
-          !evidence.objectiveId ||
-          objectiveRevisions.get(evidence.objectiveId) !== evidence.objectiveRevision) continue;
-      attemptCounts.set(evidence.objectiveId, (attemptCounts.get(evidence.objectiveId) ?? 0) + 1);
-    }
-    return {
-      goal: program.goal,
-      planVersion: program.planVersion,
-      ...(this.programs.peekCurriculumRevision(program) ? {
-        revisionPreview: this.programs.peekCurriculumRevision(program),
-      } : {}),
-      active: Boolean(program.session || program.focus?.status === "active"),
-      focus: program.focus ? { status: program.focus.status,
-        objectiveId: program.focus.objectiveId } : undefined,
-      ...(program.session ? { sessionTime: (await this.programs.getSessionTime(program)) ?? undefined } : {}),
-      next: { kind: next.kind, objectiveId: next.objective?.id,
-        reason: next.reason, dueAt: next.dueAt,
-        trigger: next.provenance?.trigger,
-        criterionIds: next.provenance?.criterionIds,
-        scaffoldLevel: next.provenance?.scaffoldLevel },
-      objectives: program.objectives.filter(objective => !objective.deprecated).map(objective => {
-        const projected = byObjective.get(objective.id);
-        return { objective, status: projected?.status ?? "unseen", attempts: attemptCounts.get(objective.id) ?? 0,
-          dueAt: projected?.dueAt ?? null,
-          criteria: projected?.criterion ?? [] };
-      }),
-    };
+    const now = this.programs.nowForProjection?.() ?? Date.now();
+    return projectLearningOverview(
+      program, learning, now, this.programs.peekCurriculumRevision(program),
+      program.session ? await this.programs.getSessionTime(program) : null,
+    );
   }
 
   async flushSessionTime(): Promise<void> {

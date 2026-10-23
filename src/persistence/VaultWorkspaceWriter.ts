@@ -1,6 +1,6 @@
 import { App, TFile, TFolder } from "obsidian";
 import type { LearningProgram } from "../domain/learning-program/types";
-import { planWorkspace } from "../domain/workspace/plan";
+import { planWorkspace, planObjectiveLesson } from "../domain/workspace/plan";
 
 /** Reentrant create-only writer. Partial failures can safely retry after restart. */
 export class VaultWorkspaceWriter {
@@ -10,39 +10,20 @@ export class VaultWorkspaceWriter {
   /** Materialize only the selected objective, never an entire speculative curriculum. */
   async ensureObjective(program: LearningProgram, objectiveId: string): Promise<void> {
     if (program.constraints.sourceBound) return; // Respect the learner's original source notes.
-    const objective = program.objectives.find(item => item.id === objectiveId);
-    if (!objective) throw new Error("Unknown learning objective.");
+    const lesson = planObjectiveLesson(program, objectiveId);
     await this.ensure(program);
-    const root = planWorkspace(program).root;
-    const path = `${root}/Lessons/${objective.id}.md`;
+    const path = lesson.path;
     const existing = this.app.vault.getAbstractFileByPath(path);
     if (existing) {
       if (!(existing instanceof TFile)) throw new Error("Lesson path is not a file.");
       const content = await this.app.vault.read(existing);
       if (!content.includes(`nox-program-id: "${program.id}"`) ||
-          !content.includes(`nox-objective-id: "${objective.id}"`)) {
+          !content.includes(`nox-objective-id: "${objectiveId}"`)) {
         throw new Error("Lesson path conflicts with an unowned note.");
       }
       return; // Never rewrite a learner-modified note.
     }
-    const text = [
-      "---",
-      `nox-program-id: "${program.id}"`,
-      `nox-objective-id: "${objective.id}"`,
-      "---",
-      `# ${objective.title.replace(/[\\r\\n#]/g, " ")}`,
-      "",
-      "## Learning outcome",
-      objective.outcome,
-      "",
-      "## Success criteria",
-      ...objective.rubric.map(item => "- " + item),
-      "",
-      "## Study notes",
-      "Add your notes here as you learn with NOX.",
-      "",
-    ].join("\n");
-    await this.app.vault.create(path, text);
+    await this.app.vault.create(path, lesson.content);
   }
 
   async ensure(program: LearningProgram): Promise<void> {

@@ -9,6 +9,7 @@ const ALLOWED_OWNERS = {
   agent: ["agent", "domain", "types"],
   chat: ["chat", "application", "domain", "context", "types"],
   context: ["context", "types"],
+  diagnostics: ["diagnostics"],
   domain: ["domain"],
   mutation: ["mutation", "domain", "types"],
   persistence: ["persistence", "domain", "types"],
@@ -148,6 +149,9 @@ export function validateArchitecture(files) {
         issues.push(`${filename}: feature module cannot import host/OS implementation "${specifier}"`);
       } else if (owner === "application" && specifier === "obsidian") {
         issues.push(`${filename}: application must not import Obsidian APIs`);
+      } else if (owner === "settings" &&
+          ["fs", "fs/promises", "path", "child_process", "os"].includes(specifier)) {
+        issues.push(`${filename}: settings UI cannot own host filesystem or process I/O`);
       } else if (owner === "agent" && ["child_process", "fs", "os", "path"].includes(specifier)
         && filename !== "src/agent/AgyAdapter.ts" && filename !== "src/agent/CodexAdapter.ts" && filename !== "src/agent/ChatGptAuth.ts") {
         issues.push(`${filename}: provider/process I/O belongs in a concrete agent adapter`);

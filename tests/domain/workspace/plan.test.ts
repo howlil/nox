@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { planWorkspace, workspaceRoot } from "../../../src/domain/workspace/plan";
+import { planWorkspace, planObjectiveLesson, workspaceRoot } from "../../../src/domain/workspace/plan";
 import type { LearningProgram } from "../../../src/domain/learning-program/types";
 
 const program: LearningProgram = {
@@ -19,4 +19,13 @@ test("workspace file paths are deterministic and remain below NOX root", () => {
 });
 test("workspace path rejects untrusted program identities", () => {
   assert.throws(() => workspaceRoot({ id: "../escape", goal: "foo" }), /Invalid workspace/);
+});
+
+test("objective template is a deterministic pure plan and validates the objective", () => {
+  const lesson = planObjectiveLesson(program, "hello");
+  assert.equal(lesson.path, planWorkspace(program).root + "/Lessons/hello.md");
+  assert.match(lesson.content, /nox-objective-id: "hello"/);
+  assert.match(lesson.content, /Appropriate greeting/);
+  assert.deepEqual(planObjectiveLesson(program, "hello"), lesson);
+  assert.throws(() => planObjectiveLesson(program, "missing"), /Unknown learning objective/);
 });

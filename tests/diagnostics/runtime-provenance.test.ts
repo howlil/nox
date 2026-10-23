@@ -4,7 +4,7 @@ import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createHash } from "node:crypto";
-import { runtimeProvenanceReport } from "../../src/settings/runtime-provenance";
+import { runtimeProvenanceReport } from "../../src/diagnostics/runtime-provenance";
 
 const identity = { revision: "release/1.3.0", sourceSha: "a".repeat(40), builtAt: "reproducible-release",
   transport: "NOX_RUNTIME_TRANSPORT_V3:node-https-sse",

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { authorizeFocusIntent, startObjectiveFocus, transitionObjectiveFocus, validateObjectiveFocus } from "../../../src/domain/learning-program/focus-transitions";
+import { authorizeFocusIntent, startObjectiveFocus, startEligibleObjectiveFocus, transitionObjectiveFocus, validateObjectiveFocus } from "../../../src/domain/learning-program/focus-transitions";
 import { chooseFocusedActivity } from "../../../src/domain/learning-program/rules";
 import type { LearningProgram } from "../../../src/domain/learning-program/types";
 
@@ -87,4 +87,17 @@ test("M1 old rubric revision cannot become ready under a revised pinned focus", 
       met: true, evidence: "old answer" }],
   };
   assert.equal(chooseFocusedActivity(revised, [previous], 90_000_000).kind, "diagnostic");
+});
+
+test("focus admission enforces prerequisite mastery inside the domain", () => {
+  const first = program();
+  const gated = { ...first, objectives: [...first.objectives, {
+    ...first.objectives[0], id: "advanced", title: "Advanced",
+    prerequisiteIds: ["race"],
+  }] };
+  const state = { version: 3 as const, target: null, gaps: [], evidence: [] };
+  assert.throws(() => startEligibleObjectiveFocus(gated, state,
+    "advanced", "chat-a", 10, "focus-2"), /Prerequisites are not mastered/);
+  assert.equal(startEligibleObjectiveFocus(gated, state, "race", "chat-a",
+    10, "focus-1").focus?.objectiveId, "race");
 });
