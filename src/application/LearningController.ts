@@ -18,7 +18,7 @@ import type { LearningProgramOrchestrator } from "./LearningProgramOrchestrator"
 /** No program mutation starts when the approval receipt cannot be persisted. */
 export class OnboardingReceiptWriteError extends Error {
   constructor(cause: unknown) {
-    super("Could not save approval receipt. No program was created.", { cause });
+    super("Could not save approval receipt. No program was created.");
     this.name = "OnboardingReceiptWriteError";
   }
 }
