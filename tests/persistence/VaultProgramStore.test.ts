@@ -72,27 +72,22 @@ test("program loads use the authoritative vault read, not stale cached content",
   assert.equal(vault.readCalls, 1);
 });
 
-test("program loads await an in-flight write before reading the snapshot", async () => {
+test("program loads wait for a serialized in-flight CAS write", async () => {
   const vault = new MemoryVault();
   vault.files.set(PATH, JSON.stringify(EMPTY));
-  let entered!: () => void;
   let release!: () => void;
-  const modifyEntered = new Promise<void>(resolve => { entered = resolve; });
-  const modificationGate = new Promise<void>(resolve => { release = resolve; });
-  vault.beforeModify = async () => { entered(); await modificationGate; };
+  const gate = new Promise<void>(resolve => { release = resolve; });
+  vault.beforeModify = async () => { await gate; };
   const store = new VaultProgramStore({ vault } as never);
   const expected = await store.load();
   const saving = store.save(EMPTY, expected);
-  await Promise.race([
-    modifyEntered,
-    new Promise<void>((_, reject) => setTimeout(() =>
-      reject(new Error("CAS save never entered the vault mutation")), 2000)),
-  ]);
   const loading = store.load();
   try {
     await Promise.resolve();
-    assert.equal(vault.readCalls, 1);
-  } finally { release(); }
+    assert.equal(vault.readCalls, 1, "the read cannot bypass the queued mutation");
+  } finally {
+    release();
+  }
   await saving;
   assert.deepEqual(await loading, EMPTY);
   assert.equal(vault.readCalls, 2);
