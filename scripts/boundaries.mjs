@@ -139,7 +139,11 @@ export function validateArchitecture(files) {
         }
         // M10 compatibility exports must target the exact package-owned module.
         const physicalCore = target === "packages/core/src/" + filename.slice("src/".length);
-        if (!physicalCore && !isApprovedEdge(filename, target)) {
+        // The canonical package path has the same logical owner as its previous
+        // src/ path; preserve every existing feature and layer rule.
+        const logicalTarget = target.startsWith("packages/core/src/")
+          ? "src/" + target.slice("packages/core/src/".length) : target;
+        if (!physicalCore && !isApprovedEdge(filename, logicalTarget)) {
           issues.push(`${filename}: forbidden dependency -> ${target}`);
         }
       } else if (owner === "domain") {
