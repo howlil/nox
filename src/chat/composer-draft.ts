@@ -1,4 +1,4 @@
-import type { ExplicitContextRef } from "../context/context-types";
+import type { ExplicitContextRef } from "../../packages/core/src/context/context-types";
 
 export interface ComposerAttachment {
   name: string;

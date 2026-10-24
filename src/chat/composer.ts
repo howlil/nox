@@ -1,5 +1,5 @@
 import type { IconName } from "obsidian";
-import type { ChatReplyReference } from "../types";
+import type { ChatReplyReference } from "../../packages/core/src/types";
 import {
   createNoxChip,
   createNoxIconButton,

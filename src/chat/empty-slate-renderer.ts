@@ -1,4 +1,4 @@
-import { type LearningContext } from "../context/context-types";
+import { type LearningContext } from "../../packages/core/src/context/context-types";
 import { getPrimaryAction, type ActionMenuEntry } from "./action-menu";
 import { createNoxSurface, setNoxIcon } from "./primitives";
 
