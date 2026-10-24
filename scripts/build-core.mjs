@@ -65,7 +65,9 @@ function checkDeclarations(directory) {
     const source = readFileSync(file, "utf8");
     const specifier = relative(dirname(file), publicModule).split(sep).join("/");
     const target = specifier.startsWith(".") ? specifier : "./" + specifier;
-    const fixed = source.replaceAll("packages/core/src", target);
+    const fixed = source
+      .replaceAll('"packages/core/src"', '"' + target + '"')
+      .replaceAll("'packages/core/src'", "'" + target + "'");
     if (fixed.includes('import("obsidian")') || fixed.includes('from "obsidian"')) {
       throw new Error("Portable core declarations reference the Obsidian SDK: " + file);
     }
