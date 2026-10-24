@@ -44,6 +44,14 @@ export function checkPhysicalDomain() {
       }
     }
   }
+  const entry = readFileSync(resolve(root, canonicalRoot + "/index.ts"), "utf8");
+  for (const match of entry.matchAll(/\bfrom\s*(["'])([^"']+)\1/g)) {
+    const spec = match[2];
+    const target = posix.normalize(posix.join(canonicalRoot, spec));
+    if (!spec.startsWith("./") || !present.has(target + ".ts")) {
+      issues.push("Core public entry must export only package-owned source: " + spec);
+    }
+  }
   return issues;
 }
 const direct = process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url);
