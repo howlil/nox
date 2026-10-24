@@ -1,4 +1,4 @@
-import { readdirSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { dirname, join, posix, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createRequire } from "node:module";
@@ -80,6 +80,7 @@ function resolveLocal(from, specifier, known) {
 }
 
 function ownerOf(filename) {
+  if (filename.startsWith("packages/core/src/domain/")) return "domain";
   const parts = filename.split("/");
   if (parts.length < 3 || parts[0] !== SOURCE_ROOT) return "(root)";
   // Feature-private collaborators are not one giant 'features' owner.
@@ -216,6 +217,8 @@ export function collectSources(root = process.cwd()) {
     }
   }
   walk(base);
+  const canonicalDomain = resolve(root, "packages/core/src/domain");
+  if (existsSync(canonicalDomain)) walk(canonicalDomain);
   return files;
 }
 

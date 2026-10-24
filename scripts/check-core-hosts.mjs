@@ -36,7 +36,7 @@ for (const entry of entrypoints) {
     "src/application/LearningController.ts",
     "src/session/SessionController.ts",
     "src/session/SessionStore.ts",
-    "src/domain/persistence/errors.ts",
+    "packages/core/src/domain/persistence/errors.ts",
   ];
   for (const single of unique) {
     const count = inputs.filter(file => file === single || file.endsWith("/" + single)).length;
