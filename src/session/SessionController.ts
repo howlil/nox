@@ -37,6 +37,23 @@ export class SessionController {
     this.persistedSessions = JSON.stringify(data["nox-sessions"]);
   }
 
+  /** One authoritative gate for every session write, including edit outcomes. */
+  private async persistSessionDocument(
+    serialized: Record<string, unknown>,
+    operation: string,
+    otherChanges?: (current: Record<string, unknown>) => Record<string, unknown>,
+  ): Promise<void> {
+    try {
+      await this.pluginData.update(current => {
+        this.assertFreshSessions(current);
+        return { ...(otherChanges?.(current) ?? current), ...serialized };
+      });
+    } catch (error) {
+      throw new PersistenceError(operation, error);
+    }
+    this.rememberCommittedSessions(serialized);
+  }
+
   constructor(
     private readonly pluginData: SessionDataPort,
     private readonly store: SessionStore,
@@ -101,13 +118,8 @@ export class SessionController {
         ...(changed ? { conversationId: undefined } : {}),
         ...(changeModel ? { model: preferredModel } : {}) };
       const staged = this.store.stageSessionUpdate(next, { model });
-      try {
-        await this.pluginData.update((data) => {
-          this.assertFreshSessions(data);
-          return { ...(options.updateData?.(data) ?? data), ...staged.serialized };
-        });
-      } catch (error) { throw new PersistenceError("Unable to persist runtime selection", error); }
-      this.rememberCommittedSessions(staged.serialized);
+      await this.persistSessionDocument(staged.serialized,
+        "Unable to persist runtime selection", options.updateData);
       this.store.acceptPersistedSession(staged.committed);
       this.store.setDefaultModel(model);
       this.currentSession = this.store.getSession(current.id);
@@ -257,15 +269,7 @@ export class SessionController {
   /** Save a whole isolated session draft before publishing any of its state. */
   private async commitStoreTransaction<T>(mutate: (draft: SessionStore) => T): Promise<T> {
     const staged = this.store.stageTransaction(mutate);
-    try {
-      await this.pluginData.update((current) => {
-        this.assertFreshSessions(current);
-        return { ...current, ...staged.serialized };
-      });
-    } catch (error) {
-      throw new PersistenceError("Unable to persist Nox session", error);
-    }
-    this.rememberCommittedSessions(staged.serialized);
+    await this.persistSessionDocument(staged.serialized, "Unable to persist Nox session");
     staged.publish();
     this.currentSession = this.store.getCurrentSession();
     return staged.result;
@@ -354,11 +358,7 @@ export class SessionController {
           { role: "assistant", content: reply }],
       };
       const staged = this.store.stageSessionUpdate(next);
-      try {
-        await this.pluginData.update((current) => ({ ...current, ...staged.serialized }));
-      } catch (error) {
-        throw new PersistenceError("Unable to persist learning mode", error);
-      }
+      await this.persistSessionDocument(staged.serialized, "Unable to persist learning mode");
       this.store.acceptPersistedSession(staged.committed);
       if (this.currentSession?.id === sessionId) this.currentSession = this.store.getSession(sessionId);
     });
@@ -569,14 +569,8 @@ export class SessionController {
       }],
     };
     const staged = this.store.stageSessionUpdate(next);
-    try {
-      await this.pluginData.update((current) => ({
-        ...current,
-        ...staged.serialized,
-      }));
-    } catch (error) {
-      throw new PersistenceError("Unable to persist learning outcome", error);
-    }
+
+    await this.persistSessionDocument(staged.serialized, "Unable to persist learning outcome");
     this.store.acceptPersistedSession(staged.committed);
     if (this.currentSession?.id === session.id) {
       this.currentSession = this.store.getSession(session.id);
@@ -619,14 +613,8 @@ export class SessionController {
         ],
       };
       const staged = this.store.stageSessionUpdate(next);
-      try {
-        await this.pluginData.update((current) => ({
-          ...current,
-          ...staged.serialized,
-        }));
-      } catch (error) {
-        throw new PersistenceError("Unable to persist edit proposal", error);
-      }
+
+      await this.persistSessionDocument(staged.serialized, "Unable to persist edit proposal");
       this.store.acceptPersistedSession(staged.committed);
       if (this.currentSession?.id === session.id) {
         this.currentSession = this.store.getSession(session.id);
@@ -672,14 +660,8 @@ export class SessionController {
           item.proposalId === proposalId ? { ...item, proposalState: state } : item),
       };
       const staged = this.store.stageSessionUpdate(next);
-      try {
-        await this.pluginData.update((current) => ({
-          ...current,
-          ...staged.serialized,
-        }));
-      } catch (error) {
-        throw new PersistenceError("Unable to persist proposal status", error);
-      }
+
+      await this.persistSessionDocument(staged.serialized, "Unable to persist proposal status");
       this.store.acceptPersistedSession(staged.committed);
       if (this.currentSession?.id === session.id) {
         this.currentSession = this.store.getSession(session.id);
@@ -688,13 +670,6 @@ export class SessionController {
   }
 
   private async save(): Promise<void> {
-    try {
-      await this.pluginData.update((current) => ({
-        ...current,
-        ...this.store.serialize(),
-      }));
-    } catch (error) {
-      throw new PersistenceError("Unable to persist Nox session", error);
-    }
+    await this.persistSessionDocument(this.store.serialize(), "Unable to persist Nox session");
   }
 }
