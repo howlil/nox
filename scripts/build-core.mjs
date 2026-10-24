@@ -20,7 +20,7 @@ for (const [format, file] of [["esm", "index.mjs"], ["cjs", "index.cjs"]]) {
     bundle: true,
     format,
     platform: "neutral",
-    target: "es2020",
+    target: "es2022",
     treeShaking: true,
     metafile: true,
     logLevel: "silent",
