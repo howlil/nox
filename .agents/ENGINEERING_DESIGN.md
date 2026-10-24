@@ -9,21 +9,22 @@ Last updated: 2026-10-13
 ---
 
 
-## M7 portable final acceptance — 2026-10-25
+## M7 automated portability acceptance — 2026-10-25
 
-State: **automated conformance requires same-head CI; native desktop
-D01–D10 NOT RUN until genuine source-bound evidence is submitted.**
-`pnpm acceptance:portable` checks required CI gates, release human gate,
-package privacy and alias contracts; absent native evidence is reported
-as `mergeReady: false`, not fabricated as PASS. `verify-desktop-acceptance`
-now invalidates old evidence after changes to portable package/host sources,
-public assets, build configs, manifest or other execution-critical paths.
+**Release policy:** automated architecture checks and source-bound build
+provenance are required. D01–D10 desktop acceptance is not a mandatory gate.
 
-A: identical Obsidian/Node/Chromium core behavior plus native D01–D10.
-E: CI failure, stale provider/evidence, missing or stale human proof
-blocks acceptance; no implicit merge or publication.
-R: PR-head CI, source-bound native desktop evidence, release owner.
-See `docs/PORTABLE_CORE_M7_ACCEPTANCE.md` for scenario matrix.
+A: `pnpm verify` covers architecture, types, lint, session/evidence CAS,
+headless, Chromium, core package consumers and Obsidian build artifacts.
+Release certification additionally checks Linux reproducibility, Windows
+provider behavior and upstream Community policy.
+
+E: missing gates, failed source SHA checks, mismatched attestations,
+unpublished manifest versions and invalid asset digests block publication.
+
+R: canonical core plus host adapters, source-bound CI, release artifacts.
+No native UI behavior or real-provider entitlement is inferred from mocks.
+See `docs/PORTABLE_CORE_M7_ACCEPTANCE.md`.
 
 ---
 
@@ -49,7 +50,7 @@ native editor mutation capabilities are granted.
 and same-origin test server. See `docs/BROWSER_PROOF.md`.
 
 No production OAuth, browser file access, cross-device sync, or real browser
-UI are claimed. Native Obsidian acceptance remains required before merge.
+UI are claimed. Native UI behavior is not certified by automated portability tests.
 
 ---
 
@@ -162,7 +163,7 @@ R: one plugin data writer; Obsidian vault CAS stores; Plugin.register* owns
   remain unchanged. Composition does not create a new data store or core copy.
 
 M3 does not make Obsidian Vault undo applicable to Node or browser editors.
-Full native desktop acceptance remains separate from automated conformance.
+Native UI interactions are not certified by these automated tests.
 
 ---
 

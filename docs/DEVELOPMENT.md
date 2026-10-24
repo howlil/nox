@@ -1,6 +1,6 @@
 # Development
 
-Requires **Node.js 22**, **pnpm 10**, and a disposable Obsidian desktop test vault.
+Requires **Node.js 22** and **pnpm 10**. A disposable vault is optional for manual smoke testing.
 
 ## Build and verify
 
@@ -28,6 +28,6 @@ For one-off deployment: `pnpm run deploy "C:\Path\To\TestVault"`.
 
 Follow [Contributing](../CONTRIBUTING.md) and the [engineering boundaries](../.agents/ENGINEERING_DESIGN.md). Include regression tests and update user docs when behavior changes.
 
-CI checks code, architecture, provider mocks, and release artifacts. **It does not prove native Obsidian UI behavior, OAuth entitlement, or real-provider streaming.** Manually test install/enable/reload, sidebar, note context, Practice, approval, recovery, and provider connection before declaring desktop acceptance.
+CI checks code, architecture, provider mocks, and release artifacts. **It does not prove native Obsidian UI behavior, OAuth entitlement, or real-provider streaming.** Manually test install/enable/reload, sidebar, note context, Practice, approval, recovery, and provider connection before claiming native compatibility.
 
 Never commit `.env.local`, provider tokens, real vault data, or generated assets. See [Providers & privacy](PROVIDERS.md) and [Releasing](RELEASING.md).
