@@ -56,6 +56,7 @@ export class VaultProgramStore {
         const content = JSON.stringify(prepared, null, 2) + "\n";
         const file = this.app.vault.getFileByPath(PATH);
         if (file && file instanceof TFile) {
+          if (!expected) throw new ProgramWriteConflict();
           if (upgrade) {
             const previous = await this.app.vault.read(file);
             if ((JSON.parse(previous) as ProgramCollection).version === 1) {
