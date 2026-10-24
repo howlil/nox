@@ -415,10 +415,16 @@ export class LearningProgramOrchestrator {
   }
 
   async startSession(): Promise<LearningProgram> {
-    const result = await this.updateActive(program => startTimedSession(program, this.now()));
+    // Metadata only: starting a timer must not read the ambient note.
+    // Material attribution and the session transition share ONE CAS commit.
+    const activePath = this.contexts.getActiveNotePath?.();
+    const result = await this.updateActive(program => {
+      const now = this.now();
+      const started = startTimedSession(program, now);
+      return activePath?.toLowerCase().endsWith(".md")
+        ? focusTimedMaterial(started, activePath, now) : started;
+    });
     this.startCheckpointLoop();
-    const context = await this.contexts.resolve().catch(() => null);
-    if (context?.activeNote?.path) await this.focusMaterial(context.activeNote.path);
     return result;
   }
 
