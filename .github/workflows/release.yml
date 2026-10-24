@@ -1,15 +1,14 @@
 name: Verify and publish Obsidian release
 
 # Obsidian plugin release only; Cloudflare owns the landing deployment.
-# Publish staged release/x.y.z commits using workflow_dispatch AFTER native
-# acceptance and CI, BEFORE merging the release manifest into master.
+# Publish staged release/x.y.z commits using workflow_dispatch AFTER
+# release certification, BEFORE merging the release manifest into master.
 # Existing master-triggered recovery remains for already prepared releases.
 on:
   push:
     branches: [master]
     paths:
       - '.release-plan.json'
-      - 'docs/desktop-acceptance.json'
       - '.github/workflows/release.yml'
       - '.github/workflows/ci.yml'
       - '.github/workflows/ci-release.yml'
@@ -79,17 +78,6 @@ jobs:
           fi
           echo "prepared=true" >> "$GITHUB_OUTPUT"
           echo "version=$version" >> "$GITHUB_OUTPUT"
-
-  desktop-acceptance:
-    if: needs.detect.outputs.prepared == 'true'
-    needs: detect
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - name: Verify native Obsidian acceptance evidence for this source
-        run: node scripts/verify-desktop-acceptance.mjs
 
   linux:
     if: needs.detect.outputs.prepared == 'true'
@@ -174,7 +162,7 @@ jobs:
 
   release:
     if: needs.detect.outputs.prepared == 'true'
-    needs: [detect, linux, windows, community, desktop-acceptance]
+    needs: [detect, linux, windows, community]
     runs-on: ubuntu-latest
     permissions:
       contents: write

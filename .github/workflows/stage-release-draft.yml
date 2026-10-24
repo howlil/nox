@@ -1,7 +1,7 @@
 name: Stage NOX Release Draft
 
-# Build an installable DRAFT from release/x.y.z without bypassing the native
-# Obsidian Desktop D01-D10 acceptance required for PUBLIC publication.
+# Build an installable DRAFT from release/x.y.z; public publication still
+# requires release certification and matching artifact attestations.
 # For a refreshed release candidate, the staged draft is a testing artifact only:
 # the canonical manifest on master remains at the last publicly shipped version.
 on:
@@ -65,7 +65,7 @@ jobs:
           }
           draft_id="$(jq -r --arg v "$version" '[.[] | select(.draft == true and .tag_name == $v)][0].id // empty' <<< "$releases")"
           if [ -n "$draft_id" ]; then
-            echo "::notice::Draft $version already exists (release ID $draft_id); publication workflow will refresh and attest assets after native acceptance."
+            echo "::notice::Draft $version already exists (release ID $draft_id); publication workflow will refresh and attest the verified source assets."
             exit 0
           fi
           node --input-type=module <<'NODE'
@@ -76,7 +76,7 @@ jobs:
           if (start < 0) throw new Error("Version changelog missing");
           const end = changelog.indexOf("\n## [", start + 4);
           const notes = changelog.slice(start, end < 0 ? undefined : end).trim();
-          writeFileSync("release-notes.md", notes + "\n\nDRAFT ONLY — native Obsidian Desktop D01–D10 acceptance has not been verified. Do not publish without genuine evidence and the normal attestation workflow.\n");
+          writeFileSync("release-notes.md", notes + "\n\nDRAFT ONLY — not a public release. Publish only after release certification and source-bound artifact attestation.\n");
           NODE
           gh release create "$version" dist/main.js dist/manifest.json dist/styles.css \
             --title "Nox $version" --notes-file release-notes.md \

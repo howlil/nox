@@ -67,7 +67,7 @@ Headless Node   → headless adapter      → canonical NOX source
   `private: true` explicitly prevents accidental npm publication. It does
   not change NOX 1.3.2 or its public release manifest.
 - Browser execution, a real second provider, package API semver stability,
-  cross-device sync and native desktop acceptance are **not** established by
+  cross-device sync and native desktop compatibility is **not** established by
   this test. Avoid treating a successful Node consumer as browser certification.
 - When the source tree becomes a full `packages/core` workspace, preserve the
   exact import/export contract and historical session/evidence decoders rather

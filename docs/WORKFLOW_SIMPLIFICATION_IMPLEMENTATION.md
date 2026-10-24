@@ -99,7 +99,7 @@ Practice: session-persisted question + answer + evaluation; eligible evidence on
 - `tests/application/LearningProgramOrchestrator.test.ts`: one preflight collection load and zero extra reads when projecting session time from an existing snapshot.
 - `tests/application/LearningController.test.ts`: end-focus never invokes provider or revision preparation, and advisory gap read errors do not invalidate committed focus termination.
 - Existing Action Menu regression: `/s` remains prefix-only. Existing schema, provider, history, privacy, edit, concurrency/CAS and release-policy tests remain required.
-- GitHub Actions build, unit, integration, typecheck, architecture graph and artifacts must be verified on the final commit. Native Obsidian desktop behavior remains **NOT RUN** unless separately evidenced in `docs/ARCHITECTURE_DESKTOP_ACCEPTANCE.md`.
+- GitHub Actions build, unit, integration, typecheck, architecture graph and artifacts must be verified on the final commit. Native Obsidian desktop behavior remains **NOT RUN** unless separately evidenced in `docs/PORTABLE_CORE_M7_ACCEPTANCE.md`.
 
 ## 5. Impact and deliberate non-goals
 

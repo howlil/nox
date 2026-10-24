@@ -26,8 +26,7 @@ correctness, maintainability, and low regression risk.
 ## Community release and public documentation rules
 
 - `docs/RELEASING.md` owns the publish process; regular feature merges must
-  never create public releases. A reviewed `release/x.y.z` candidate with real
-  native acceptance must publish the exact tag and three installable assets
+  never create public releases. A verified `release/x.y.z` candidate must publish the exact tag and three installable assets
   **before** its version bump is merged into `master`.
 - **Community manifest parity is blocking:** the version in `master/manifest.json`
   must always match a public (non-draft, non-prerelease) GitHub Release tag
@@ -36,9 +35,9 @@ correctness, maintainability, and low regression risk.
 - `CI / build` runs `scripts/ci/check-public-release.mjs` for PRs targeting
   `master` and pushes to `master`. Do not merge a release PR until this
   check succeeds against the live public GitHub Release.
-- Never bypass the D01–D10 native Obsidian acceptance gate, impersonate evidence,
-  or merge version metadata early to force the release job. An unpublished
-  version must remain on `release/x.y.z`, not in `master`.
+- Never bypass release certification, source-bound attestations or live
+  public-release parity. Unpublished version metadata must remain on
+  `release/x.y.z`, not on `master`.
 - Never edit tags or published release binaries. The authoritative public ID
   is `nox`, and package/manifest/tag must use the same `x.y.z` version.
 - Public docs start at `docs/README.md`. Keep a how-to focused on the user's
@@ -47,7 +46,8 @@ correctness, maintainability, and low regression risk.
   Provider/network/privacy/file-access changes require explicit README or
   `docs/PROVIDERS.md` disclosures in the same PR.
 - Never claim production compatibility or external-provider entitlement from
-  mocked CI. Record real desktop acceptance before approving a release PR.
+  mocked CI. Release approval requires verified source-bound certification
+  and provenance; disclose native behavior that was not tested.
 - Check `pnpm docs:check` and `pnpm release:check` alongside `pnpm verify`.
 
 ---

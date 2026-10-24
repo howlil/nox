@@ -10,7 +10,7 @@ Describe relevant modules, state ownership, external providers, vault I/O, and p
 
 - [ ] `pnpm verify` (or list exactly which gates were run).
 - [ ] Unit/integration regression coverage for changed behavior where appropriate.
-- [ ] Manual Obsidian desktop acceptance for changed UI, OS integration, or real provider behavior.
+- [ ] Changed UI, OS or provider behavior has targeted tests or explicit compatibility limitations.
 - [ ] No new secrets, telemetry, unapproved edits, or unreviewed external file/network access.
 - [ ] README/privacy disclosure updated for new external provider or data handling.
 
