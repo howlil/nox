@@ -106,6 +106,6 @@ Injected capabilities are unchanged: `AgentRuntimePort`, `ProgramStorePort`, `Le
 - R3: original quiz/Practice renderer tests now import canonical paths; historical quiz v1 and legacy instruction decoding remain tested; direct architecture regression denies a Practice UI import of private Quick Quiz renderer.
 - R4: boundary tests reject importing arbitrary learner model policy from onboarding/practice presentation, while allowing explicit models and UI helpers; architecture graph must have 0 cycles and unresolved imports.
 - Release-critical and dev orchestrator tests remain part of the existing CI. `getBuildDiagnostics` and the dev timestamp placeholder stay intact. Release workflows, signature verification and Cloudflare automation are not changed.
-- **Native Obsidian D01–D10 in `docs/ARCHITECTURE_DESKTOP_ACCEPTANCE.md` remain NOT RUN** until executable GUI evidence is recorded. Do not merge, tag or publish PR #121 automatically.
+- **Native Obsidian D01–D10 in `docs/PORTABLE_CORE_M7_ACCEPTANCE.md` remain NOT RUN** until executable GUI evidence is recorded. Do not merge, tag or publish PR #121 automatically.
 
 The migration intentionally keeps shared Obsidian UI primitives and the CodeMirror host adapter in `src/chat/` for this slice. Moving these host-owned utilities would require a separate shared host-adapter contract and is not a prerequisite for reducing the present coupling.

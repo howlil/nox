@@ -1,6 +1,6 @@
 # NOX Adaptive Learning — M7 acceptance and release gate
 
-**Status:** Automated hardening implemented on draft PR #110. Real Obsidian desktop/provider acceptance: **NOT RUN**. This document does not authorize a merge or release.
+**Status:** Automated hardening implemented on draft PR #110. Live desktop/provider behavior: **not certified by automated tests**. This document does not authorize a merge or release.
 
 ## Scope and source of authority
 
@@ -56,11 +56,11 @@ Obsidian downloads `main.js`, `manifest.json`, and optionally `styles.css` from 
 - https://docs.obsidian.md/Plugins/Releasing/Submit%20your%20plugin
 - https://docs.obsidian.md/community-directory/submission-requirements-for-plugins
 
-Release automation must retain its existing explicit `desktop_acceptance` approval and matching full SHA before publishing an attested draft. This M7 work does not dispatch or publish a release. Cloudflare owns landing CI/CD separately.
+Release automation must require exact source SHA, provider and policy certification and verified artifact attestations. This M7 work does not dispatch or publish a release. Cloudflare owns landing CI/CD separately.
 
 ## Remaining risk register
 
-- **P0 gate:** real Obsidian desktop + provider acceptance and exact artifact verification (not performed).
+- **P0 gate:** release/provider certification and exact artifact verification.
 - **P0 gate:** release owner approves source privacy checks, fault-injection records and scanner diagnostics on the final merged SHA; code CI alone is not sufficient.
 - **P1 follow-up:** GitHub issue #82 — triage remaining Obsidian typed-lint/CSS warnings with a pinned scanner report. Current advisory scanner success is not zero warnings.
 - **P1 follow-up:** GitHub issue #81 — declarative Obsidian 1.13 settings migration. Do not conflate roadmap issue with a proven production crash without evidence.

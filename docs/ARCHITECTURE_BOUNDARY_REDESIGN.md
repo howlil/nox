@@ -374,7 +374,7 @@ UI/controller calls
 
 **M3 protected behavior:** No second store, no persistence schema migration, no domain-specific calendar closure, no program switching while a different focus is active, no implicit evidence/mastery mutation. `RunLearningTurn` and `LearningController` public contracts remain intact.
 
-**Verification:** Existing `tests/application/LearningProgramOrchestrator.test.ts` exercises plan constraints, source allowlists, malformed provider result, operation deduplication, resume/recover, timed budget, focus sessions and concurrent mutations. M3 strengthens its fake store to verify **expected identity and unchanged snapshot**, and adds simultaneous focus/session/rename/recovery and failed-queue tests. `tests/application/ProgramMutationQueue.test.ts` proves FIFO and recovery after rejection. The current PR CI run must be green before marking automated acceptance passed. Desktop Obsidian acceptance remains mandatory before release.
+**Verification:** Existing `tests/application/LearningProgramOrchestrator.test.ts` exercises plan constraints, source allowlists, malformed provider result, operation deduplication, resume/recover, timed budget, focus sessions and concurrent mutations. M3 strengthens its fake store to verify **expected identity and unchanged snapshot**, and adds simultaneous focus/session/rename/recovery and failed-queue tests. `tests/application/ProgramMutationQueue.test.ts` proves FIFO and recovery after rejection. The current PR CI run must be green before marking automated acceptance passed. Release certification and artifact provenance remain mandatory.
 
 ### M4 — Data/contract direction
 - Move usage arithmetic into pure accounting module; keep ledger repository I/O only.
@@ -431,7 +431,7 @@ Automated CI must pass on the **latest** branch head; native Obsidian desktop va
 ### M5 — Move packages after behavior is decoupled
 - Move files with mostly import-only changes; update boundary checker **in the same slice**, preserve public compatibility facade where necessary.
 - Delete emptied old folders only when all consumers migrate. Do not keep two write paths.
-- Acceptance: TypeScript/lint/test/build/boundary guard green, release-critical artifact checks green, Obsidian desktop acceptance before release.
+- Acceptance: TypeScript/lint/test/build/boundary guard green, release-critical artifact checks green, source-bound release certification before publication.
 
 ### M5 implementation checkpoint — Feature-private package migration (2026-10-20)
 
@@ -490,7 +490,7 @@ No presenter or helper starts asynchronous background work or has another persis
 
 **§8 / Resource scope; §9 / Verification**
 
-No new persistent resource, timer, event bus, queue or provider transport introduced by the physical migration. Unit/integration tests, architecture checker, typed lint and build must pass on the final commit; architecture tests now cover illegal cross-feature imports, allowed facade edges and per-package graph statistics. Native Obsidian desktop acceptance of history swipe, streaming, practice and edit proposal actions remains a **separate release gate**. Execute and record the scenario matrix in `docs/ARCHITECTURE_DESKTOP_ACCEPTANCE.md` (D01–D10); absent native evidence must remain **NOT RUN**, even if CI is green. This milestone is not permission to auto-merge PR #121.
+No new persistent resource, timer, event bus, queue or provider transport introduced by the physical migration. Unit/integration tests, architecture checker, typed lint and build must pass on the final commit; architecture tests now cover illegal cross-feature imports, allowed facade edges and per-package graph statistics. Automated tests, source-bound release certification and verified plugin artifacts remain the release gates. Execute and record the scenario matrix in `docs/PORTABLE_CORE_M7_ACCEPTANCE.md` (D01–D10); absent native evidence must remain **NOT RUN**, even if CI is green. This milestone is not permission to auto-merge PR #121.
 
 **Deferred by design:** a wholesale move of historical session/data/agent adapters to the aspirational `features/` and `platform/` layout. Moving them without first demonstrating their real import dependencies and ownership would increase migration risk with no functional improvement. The target diagram in §4 is directional guidance, not a claim that all listed directories now exist.
 
@@ -572,4 +572,4 @@ The M5 branch received a follow-up, **not a replacement architecture**:
 - **R3:** `src/features/practice/view` owns canonical Practice question/committed evaluation visuals and instruction rendering; `src/features/conversation/view` owns historical Quick Quiz decoding/DOM/local scoring. These are separate *semantics*: Quick Quiz does not produce durable learning evidence.
 - **R4:** `scripts/boundaries.mjs` names both new feature packages and restricts host integration imports to their actual call sites; Practice view may not import learner-model policy, and onboarding may only import its two pure shape contracts. Every active import and regression test uses canonical moved files.
 
-No new persistence writer, provider runtime, duplicated renderer, serialization format, or global application layer was added. Obsidian UI helpers `src/chat/primitives.ts` and `src/chat/code-answer-editor.ts` stay as explicit host bridges. The old M5 diagram remains the historical checkpoint; the *current* package map is `docs/FEATURE_OWNERSHIP_R1_R4.md`. Native desktop acceptance remains NOT RUN; PR #121 stays Draft.
+No new persistence writer, provider runtime, duplicated renderer, serialization format, or global application layer was added. Obsidian UI helpers `src/chat/primitives.ts` and `src/chat/code-answer-editor.ts` stay as explicit host bridges. The old M5 diagram remains the historical checkpoint; the *current* package map is `docs/FEATURE_OWNERSHIP_R1_R4.md`. Native desktop behavior was not covered by the archived CI evidence.

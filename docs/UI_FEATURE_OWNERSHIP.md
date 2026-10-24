@@ -97,7 +97,7 @@ Proof: pnpm check:boundaries, typecheck, lint, unit/integration, build, artifact
 
 **Automated verification:** `tests/chat/practice-presenter.test.ts`, `tests/chat/model-menu.test.ts`, and `tests/architecture/ui-feature-ownership.test.ts` include regression proof for these fixes. The existing CI runs architecture, TypeScript, lint, integration, CSS, build and artifact checks.
 
-**Native UI acceptance:** `docs/UI_M5_DESKTOP_ACCEPTANCE.md` contains a concrete D01–D10 procedure, and its status is **NOT RUN**. Native Obsidian Desktop was not operated in this workflow; no genuine host screenshots, runtime console captures, or `docs/desktop-acceptance.json` were generated. Green CI is not permission to merge/publish.
+**Automated UI verification:** `docs/PORTABLE_CORE_M7_ACCEPTANCE.md` contains a concrete D01–D10 procedure, and its status is **NOT RUN**. CI cannot establish live UI/provider behavior; source-bound release certification and attestation remain mandatory.
 
 ### M4 follow-up: Thinking UI owner (2026-10-21)
 
@@ -163,4 +163,4 @@ The shared code-answer editor remains under `src/chat` because both tracked Prac
 - No new global event bus, app state framework, or unnecessary atoms/layers.
 - No movement of the shared code-answer editor into the Practice-only package; both Practice and non-tracked response Quick Quiz import it.
 - No direct feature UI → persistence, provider adapter, or Obsidian host API dependencies.
-- No merge/release before checks and desktop acceptance; PR #128 is a separate Settings fix.
+- No release without certified CI and attested artifacts; PR #128 is a separate Settings fix.
