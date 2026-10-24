@@ -25,10 +25,19 @@ for (const [format, file] of [["esm", "index.mjs"], ["cjs", "index.cjs"]]) {
     metafile: true,
     logLevel: "silent",
   });
-  const forbidden = Object.keys(result.metafile.inputs).filter(name =>
-    /(^|\\/)(main|ChatView|ObsidianContext|VaultProgramStore|VaultLearningStore|PluginDataRepository|MutationService|ChatGptAuth|CodexAdapter)\\.ts$/.test(name) ||
-    /(^|\\/)src\\/host\\//.test(name) ||
-    /(^|\\/)node_modules\\/(obsidian|electron)\\//.test(name));
+  const hostModules = new Set([
+    "main.ts", "ChatView.ts", "ObsidianContext.ts", "VaultProgramStore.ts",
+    "VaultLearningStore.ts", "PluginDataRepository.ts", "MutationService.ts",
+    "ChatGptAuth.ts", "CodexAdapter.ts",
+  ]);
+  const forbidden = Object.keys(result.metafile.inputs).filter(name => {
+    const pathname = name.split(String.fromCharCode(92)).join("/");
+    const basename = pathname.split("/").at(-1);
+    return pathname.includes("src/host/") ||
+      pathname.includes("node_modules/obsidian/") ||
+      pathname.includes("node_modules/electron/") ||
+      (pathname.includes("src/") && hostModules.has(basename));
+  });
   const unresolved = Object.values(result.metafile.outputs).flatMap(entry =>
     entry.imports.filter(dependency => dependency.external).map(dependency => dependency.path));
   if (forbidden.length || unresolved.length) {

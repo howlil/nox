@@ -52,6 +52,8 @@ importers:
         specifier: ^5.5.0
         version: 5.9.3
 
+  packages/core: {}
+
 packages:
 
   elkjs@0.11.0:
