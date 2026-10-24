@@ -138,9 +138,11 @@ test("M8 one real core handles program planning, focused assessment, restart, an
       const focused = await second.programs.getActiveProgram();
       assert.equal(focused?.focus?.status, "paused",
         "a crashed or closed host cannot silently resume the former focus");
-      assert.equal(second.controller.hasActivePracticeQuestion(), true);
+      // The first controller turn loads the persisted focus admission identity.
       const resumed = await command(second.controller, "/resume-focus");
       assert.ok(resumed.some(event => event.type === "response-delta"));
+      assert.equal(second.controller.hasActivePracticeQuestion(), true,
+        "the committed question is rehydrated under its resumed focus identity");
       const evaluated = await command(second.controller,
         "All writes commit together or they all roll back.");
       assert.ok(evaluated.some(event => event.type === "practice-evaluation"));
