@@ -25,21 +25,21 @@ import { createRequire } from "node:module";
 import {
   AgentRuntime, LearningController, LearningProgramOrchestrator,
   SessionController, SessionStore, ContextResolver,
-  DEFAULT_LEARNING_STATE, PersistenceError, LearningStateWriteConflict, SessionWriteConflict,
+  DEFAULT_LEARNING_STATE, PersistenceError, LearningStateWriteConflict, SessionWriteConflict, ProgramWriteConflict,
 } from "@nox/core";
 const require = createRequire(import.meta.url);
 const commonjs = require("@nox/core");
 for (const symbol of [
   AgentRuntime, LearningController, LearningProgramOrchestrator,
   SessionController, SessionStore, ContextResolver,
-  PersistenceError, LearningStateWriteConflict,
+  PersistenceError, LearningStateWriteConflict, ProgramWriteConflict,
 ]) assert.equal(typeof symbol, "function");
 assert.equal(typeof commonjs.LearningController, "function");
 assert.equal(typeof commonjs.SessionController, "function");
 for (const [name, exported] of Object.entries({
   AgentRuntime, LearningController, LearningProgramOrchestrator,
   SessionController, SessionStore, ContextResolver,
-  PersistenceError, LearningStateWriteConflict, SessionWriteConflict,
+  PersistenceError, LearningStateWriteConflict, SessionWriteConflict, ProgramWriteConflict,
 })) assert.strictEqual(commonjs[name], exported,
   "ESM/CJS constructor mismatch: " + name);
 assert.ok(new commonjs.LearningStateWriteConflict() instanceof LearningStateWriteConflict);
