@@ -101,3 +101,5 @@ session transaction from the staged browser bundle in a JavaScript VM
 without Node globals. This **does not** certify actual browsers, source
 permissions, browser storage, or provider/auth integration. A full web
 host requires a separate capability contract and real browser E2E tests.
+
+M6 adds a real Chromium IndexedDB host proof; see [Browser proof](BROWSER_PROOF.md). The browser host imports only the public `@nox/core` facade, not Obsidian runtime adapters. This does not publish or certify a production web application.

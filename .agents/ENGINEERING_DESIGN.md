@@ -9,6 +9,32 @@ Last updated: 2026-10-13
 ---
 
 
+## M6 real-browser host proof — 2026-10-24
+
+**State:** implemented in PR #134, subject to end-to-end CI.
+
+### Implementation graph
+
+```text
+IndexedDB browser host (no privileged capabilities)
+  → one @nox/core engine → SessionController + RunLearningTurn
+  → IDB readwrite transaction: sessions commit first
+  → Practice terminal transcript → IDB evidence CAS append
+  → real Chrome separate-process restart/resume test
+```
+
+**A:** Ask and Practice use canonical controller/event semantics.
+**E:** IDB mutation aborts before in-memory publication; stale evidence
+revision rejects and preserves committed state. No ambient context or
+native editor mutation capabilities are granted.
+**R:** browser IndexedDB, injected scripted inference, real Chrome CI
+and same-origin test server. See `docs/BROWSER_PROOF.md`.
+
+No production OAuth, browser file access, cross-device sync, or real browser
+UI are claimed. Native Obsidian acceptance remains required before merge.
+
+---
+
 ## M5 host consumption and browser-compatibility proof — 2026-10-24
 
 **State:** implemented in PR #134 branch; CI acceptance pending.
