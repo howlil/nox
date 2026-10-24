@@ -9,6 +9,24 @@ Last updated: 2026-10-13
 ---
 
 
+## M7 portable final acceptance — 2026-10-25
+
+State: **automated conformance requires same-head CI; native desktop
+D01–D10 NOT RUN until genuine source-bound evidence is submitted.**
+`pnpm acceptance:portable` checks required CI gates, release human gate,
+package privacy and alias contracts; absent native evidence is reported
+as `mergeReady: false`, not fabricated as PASS. `verify-desktop-acceptance`
+now invalidates old evidence after changes to portable package/host sources,
+public assets, build configs, manifest or other execution-critical paths.
+
+A: identical Obsidian/Node/Chromium core behavior plus native D01–D10.
+E: CI failure, stale provider/evidence, missing or stale human proof
+blocks acceptance; no implicit merge or publication.
+R: PR-head CI, source-bound native desktop evidence, release owner.
+See `docs/PORTABLE_CORE_M7_ACCEPTANCE.md` for scenario matrix.
+
+---
+
 ## M6 real-browser host proof — 2026-10-24
 
 **State:** implemented in PR #134, subject to end-to-end CI.
