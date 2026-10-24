@@ -9,6 +9,40 @@ Last updated: 2026-10-13
 ---
 
 
+## M4 portable package distribution — 2026-10-24
+
+**Status: private package extraction in PR #134; CI acceptance pending.**
+
+### A / E / R graph
+
+```text
+Canonical src/ application + domain + session + context
+  → curated packages/core/src/index.ts surface
+  → esbuild neutral ESM/CJS + TypeScript declaration emitter
+  → copy ONLY package.json and dist to isolated consumer
+  → independent JS import/require + strict TS type resolution
+  → existing Obsidian/headless CI and release artifact checks
+
+A: one editable engine, external portable runtime/artifact contract, no
+   release/manifest modification; package defaults to private preview.
+E: host code in package graph, unresolved transitive dependency,
+   broken types, missing runtime, package export/ABI mismatch fail CI.
+R: esbuild + TypeScript, current src implementation, independent package
+   consumer sandbox, no Obsidian runtime or credentials.
+```
+
+**Ownership:** `src/` remains authoritative for the engine in this
+non-moving migration. `@nox/core` is a compiled distribution boundary,
+not a second state owner. Obsidian and headless build against the canonical
+source, so a host never mixes the built package with its own source copies.
+A future source relocation must be incremental and independently reviewed.
+
+**Acceptance:** `pnpm core:verify`, existing architecture checks, Obsidian
+build and artifact parity, headless Ask/Practice and conformance tests.
+Source: `docs/CORE_PACKAGE.md`.
+
+---
+
 ## M3 — Obsidian host composition and contract conformance (2026-10-24)
 
 **Status:** implementation in PR #134; acceptance subject to CI.

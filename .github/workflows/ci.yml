@@ -81,6 +81,9 @@ jobs:
       - name: Integration tests
         run: pnpm test:integration
 
+      - name: Verify portable core package (standalone ESM/CJS/types)
+        run: pnpm core:verify
+
       - name: Build
         run: pnpm build
 
