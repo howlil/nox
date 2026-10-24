@@ -77,9 +77,11 @@ function checkDeclarations(directory) {
     const source = readFileSync(file, "utf8");
     const specifier = relative(dirname(file), publicModule).split(sep).join("/");
     const target = specifier.startsWith(".") ? specifier : "./" + specifier;
-    const fixed = source
-      .replaceAll('"packages/core/src"', '"' + target + '"')
-      .replaceAll("'packages/core/src'", "'" + target + "'");
+    // TS sometimes emits baseUrl-style references to nested package modules.
+    // Rewrite both the public index and any package-owned domain subpath
+    // relative to this emitted declaration before staging an external consumer.
+    const fixed = source.replace(/(["'])packages\/core\/src(\/[^"']*)?\1/g,
+      (_whole, quote, nested = "") => quote + target + nested + quote);
     if (fixed.includes('import("obsidian")') || fixed.includes('from "obsidian"')) {
       throw new Error("Portable core declarations reference the Obsidian SDK: " + file);
     }
