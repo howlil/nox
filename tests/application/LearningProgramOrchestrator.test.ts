@@ -35,7 +35,7 @@ function rig(payload: unknown = draft(), success = true, activePath?: string) {
   };
   const orchestrator = new LearningProgramOrchestrator(
     runtime as never,
-    { resolve: async () => context, getActiveNotePath: () => activePath } as never,
+    { resolve: async () => context, getActiveNotePath: () => activePath ?? context.activeNote.path } as never,
     { load: async () => ({ evidence: [] }) } as never,
     { load: async () => { reads++; return structuredClone(stored); },
       save: async (next: ProgramCollection, expected: ProgramCollection) => {
