@@ -10,10 +10,11 @@ test("returns empty policy when AGENTS.md is missing", async () => {
     },
   } as never);
 
-  assert.deepEqual(await loader.load(), {
-    path: "AGENTS.md",
-    rawInstructions: "",
-  });
+  const policy = await loader.load();
+  assert.equal(policy.path, "AGENTS.md");
+  assert.equal(policy.rawInstructions, "");
+  assert.match(policy.hostInstructions ?? "", /Obsidian vault/);
+  assert.match(policy.hostInstructions ?? "", /\[\[note path\]\]/);
 });
 
 test("caches policy by mtime and reloads when it changes", async () => {
@@ -68,4 +69,16 @@ test("rejects oversize optional skills before including their contents", async (
     vault: { getFileByPath: () => file, cachedRead: async () => "unread" },
   } as never);
   await assert.rejects(loader.loadSkill("teaching"), /12 KB/);
+});
+
+test("host instruction is trusted adapter configuration and never AGENTS.md content", async () => {
+  const file = new TFile("AGENTS.md", { mtime: 1 });
+  const loader = new PolicyLoader({ vault: {
+    getFileByPath: () => file,
+    cachedRead: async () => "user-defined research convention",
+  }} as never);
+  const policy = await loader.load();
+  assert.equal(policy.rawInstructions, "user-defined research convention");
+  assert.match(policy.hostInstructions ?? "", /Obsidian vault/);
+  assert.ok(!policy.hostInstructions?.includes("user-defined research convention"));
 });

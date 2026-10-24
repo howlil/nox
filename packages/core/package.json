@@ -14,8 +14,12 @@
     }
   },
   "types": "./dist/types/index.d.ts",
+  "devDependencies": {
+    "esbuild": "^0.25.0",
+    "typescript": "^5.5.0"
+  },
   "scripts": {
-    "build": "node ../../scripts/build-core.mjs",
+    "build": "node ./scripts/build.mjs",
     "verify": "node ../../scripts/check-core.mjs"
   }
 }
