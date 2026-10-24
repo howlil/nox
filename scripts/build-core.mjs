@@ -54,7 +54,7 @@ console.log(`@nox/core canonical CJS bundled ${Object.keys(result.metafile.input
 const require = createRequire(import.meta.url);
 const runtimeExports = Object.keys(require(resolve(out, "index.cjs"))).sort();
 if (!runtimeExports.length || runtimeExports.some(name =>
-  !/^[A-Za-z_$][\\w$]*$/.test(name) || name === "default")) {
+  !/^[A-Za-z_$][A-Za-z0-9_$]*$/.test(name) || name === "default")) {
   throw new Error("Invalid @nox/core CJS runtime export surface");
 }
 writeFileSync(resolve(out, "index.mjs"), [
