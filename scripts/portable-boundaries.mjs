@@ -24,6 +24,7 @@ export const PORTABLE_CONTRACT_FILES = Object.freeze([
   "src/context/ContextSourcePort.ts",
   "src/context/LocalResearch.ts",
   "src/context/context-types.ts",
+  "src/persistence/learning-state-schema.ts",
   "src/session/SessionController.ts",
   "src/session/SessionStore.ts",
   "src/session/message-types.ts",

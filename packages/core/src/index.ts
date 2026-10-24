@@ -12,6 +12,7 @@ export { SessionController } from "../../../src/session/SessionController";
 export { SessionStore } from "../../../src/session/SessionStore";
 export { ContextResolver } from "../../../src/context/ContextResolver";
 export { DEFAULT_LEARNING_STATE } from "../../../src/domain/learning-state/types";
+export { decodeLearningState } from "../../../src/persistence/learning-state-schema";
 export { PersistenceError, LearningStateWriteConflict } from "../../../src/domain/persistence/errors";
 
 export type {
