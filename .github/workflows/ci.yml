@@ -90,6 +90,9 @@ jobs:
       - name: Real browser IndexedDB and NOX engine conformance
         run: pnpm browser:verify
 
+      - name: M7 portable acceptance preflight (native evidence remains external)
+        run: pnpm acceptance:portable
+
       - name: Build
         run: pnpm build
 
