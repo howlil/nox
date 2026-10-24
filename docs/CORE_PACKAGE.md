@@ -113,3 +113,11 @@ bundle**, rather than a second independent bundle. Mixed Node
 `import("@nox/core")` and `require("@nox/core")` share the exact same
 constructor and error objects. The isolated consumer test asserts identity
 and `instanceof` for both persistence-conflict errors.
+
+## M10.4 — Independent source acceptance
+
+The package's `tsconfig.build.json` is standalone, not derived from the Obsidian root config. It emits `dist/types/index.d.ts` and a package-local declaration graph, and `package.json` points to that entrypoint. No declaration import rewrite is required.
+
+`pnpm core:verify` runs `scripts/check-core-source.mjs` with only a copy of `packages/core/src/**`, its manifest, and its own `tsconfig.build.json` in an isolated temporary directory. The staged sources undergo a real TypeScript declarations build and esbuild runtime build graph check (no `src/` root, no parent `tsconfig.json`, no runtime externals) plus an independent runtime smoke. The original output-only ESM/CJS/types consumer and host identity checks continue to run.
+
+The package remains private. Compatibility shims are retained until an actual consumer/reference inventory proves individual shims safe to remove; all production imports already bypass them, and source-only acceptance does not need them.
