@@ -21,6 +21,10 @@ try {
 
   const manifest = JSON.parse(await readFile(join(pkg, "package.json"), "utf8"));
   if (manifest.private !== true) throw new Error("Core must remain private");
+  if (manifest.scripts?.build !== "node ./scripts/build.mjs" ||
+      !manifest.devDependencies?.esbuild || !manifest.devDependencies?.typescript) {
+    throw new Error("Core must own its build script and toolchain dependencies");
+  }
   const types = manifest.exports?.["."]?.types;
   if (types !== "./dist/types/index.d.ts") throw new Error("Nonportable types export path");
   const exported = await readFile(join(pkg, types), "utf8");

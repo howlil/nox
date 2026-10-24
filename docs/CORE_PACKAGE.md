@@ -127,3 +127,9 @@ The package remains private. Compatibility shims are retained until an actual co
 The canonical engine assembles host-neutral instructions. Obsidian-specific `[[note path]]` citation formatting and narrow-pane guidance are supplied as trusted host-owned `LearningPolicy.hostInstructions` by the Obsidian `PolicyLoader`. User-controlled `AGENTS.md` content remains contextual material, not authorization for source access or learning scope changes. Browser and headless hosts do not inherit these Obsidian conventions.
 
 Legacy `src/**` compatibility shims are **in-repository migration conveniences**, not publicly supported import paths. The shim inventory checks repository static importers and portable contract tests only; it cannot prove compatibility for unregistered external deep imports. External clients should import the curated `@nox/core` API, not monorepo paths. Public publication and semantic-version support are separate decisions.
+
+## Build from a separate @nox/core checkout
+
+After installing the package's own development dependencies, run `pnpm build` from the package root. In this workspace the equivalent is `pnpm -C packages/core build`. The package owns `scripts/build.mjs`, its TypeScript configuration and its declared build toolchain. The root `scripts/build-core.mjs` is only a compatibility launcher. A frozen-lockfile CI run verifies the independent package importer and its dependencies.
+
+**Scope of independence:** the core source and its own build can run outside the repository; the current Obsidian UI and some adapters still import package-internal source via monorepo paths. Those host-facing interfaces require an intentionally designed public/first-party contracts surface before distributing the hosts as independent repositories. Do not expose the entire internal package just to remove these imports.
