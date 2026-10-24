@@ -18,7 +18,7 @@ const draft = (refs: string[] = []) => ({
       rubric: ["Respond in context"], sourceRefs: refs, priority: "core" },
   ],
 });
-function rig(payload: unknown = draft(), success = true) {
+function rig(payload: unknown = draft(), success = true, activePath?: string) {
   let currentTime = Date.now();
   let stored: ProgramCollection = { version: 1, programs: [] };
   let writes = 0;
@@ -35,7 +35,7 @@ function rig(payload: unknown = draft(), success = true) {
   };
   const orchestrator = new LearningProgramOrchestrator(
     runtime as never,
-    { resolve: async () => context } as never,
+    { resolve: async () => context, getActiveNotePath: () => activePath } as never,
     { load: async () => ({ evidence: [] }) } as never,
     { load: async () => { reads++; return structuredClone(stored); },
       save: async (next: ProgramCollection, expected: ProgramCollection) => {
@@ -271,4 +271,15 @@ test("M3 expected onboarding program is checked before any focus CAS write", asy
   assert.equal(focused.focus?.objectiveId, "basic");
   assert.equal(h.writes(), writesBefore + 1);
   h.orchestrator.dispose();
+});
+
+test("M9 startSession performs one CAS commit including optional material metadata", async () => {
+  const h = rig(draft(), true, "notes/spanish.md");
+  await h.orchestrator.createProgram("Spanish", base);
+  const writesBefore = h.writes();
+  const started = await h.orchestrator.startSession();
+  assert.equal(h.writes(), writesBefore + 1, "session and material attribution share one write");
+  assert.equal(started.session?.timing?.focusMaterialPath, "notes/spanish.md");
+  assert.equal(h.stored().programs[0].session?.timing?.focusMaterialPath, "notes/spanish.md");
+  await h.orchestrator.endSession();
 });
