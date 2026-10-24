@@ -1,4 +1,4 @@
-import type { ChatSession } from "../../../types";
+import type { ChatSession } from "../../../../packages/core/src/types";
 import { NoxHistoryList, type NoxHistoryCallbacks } from "../../../chat/history-list";
 import { NoxMenuState } from "../../../chat/menu";
 import { animateNoxPopover } from "../../../chat/motion";
