@@ -1,6 +1,7 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { posix, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { extractImports } from "./architecture-graph.mjs";
 
 const root = process.cwd();
 const canonicalRoot = "packages/core/src";
@@ -32,8 +33,9 @@ export function checkPhysicalDomain() {
     if (legacy !== expected) issues.push(old + ": duplicate logic, invalid shim or missing compatibility module");
 
     const source = readFileSync(resolve(root, canonical), "utf8");
-    for (const match of source.matchAll(/\b(?:from\s*|import\s*\(\s*|require\s*\(\s*|import\s*)(["'])([^"']+)\1/g)) {
-      const spec = match[2];
+    const parsed = extractImports(canonical, source);
+    for (const dynamic of parsed.dynamic) issues.push(canonical + ": nonliteral dynamic dependency");
+    for (const { specifier: spec } of parsed.imports) {
       if (!spec.startsWith(".")) {
         issues.push(canonical + ": package core imports runtime/external module " + spec);
       } else {
@@ -45,8 +47,8 @@ export function checkPhysicalDomain() {
     }
   }
   const entry = readFileSync(resolve(root, canonicalRoot + "/index.ts"), "utf8");
-  for (const match of entry.matchAll(/\bfrom\s*(["'])([^"']+)\1/g)) {
-    const spec = match[2];
+  const entryImports = extractImports(canonicalRoot + "/index.ts", entry);
+  for (const { specifier: spec } of entryImports.imports) {
     const target = posix.normalize(posix.join(canonicalRoot, spec));
     if (!spec.startsWith("./") || !present.has(target + ".ts")) {
       issues.push("Core public entry must export only package-owned source: " + spec);
