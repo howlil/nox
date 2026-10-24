@@ -19,7 +19,7 @@ export interface WorkspaceWriterPort {
 }
 export interface ProgramStorePort {
   load(): Promise<ProgramCollection>;
-  /** expected is the authoritative loaded snapshot for an atomic compare-and-swap. */
+  /** Existing collections MUST use a previously loaded authoritative CAS snapshot.\n   * An absent collection may be created without an expected snapshot. */
   save(next: ProgramCollection, expected?: ProgramCollection): Promise<void>;
 }
 
