@@ -87,6 +87,9 @@ jobs:
       - name: Verify single-instance core consumption by both hosts
         run: pnpm core:hosts
 
+      - name: Real browser IndexedDB and NOX engine conformance
+        run: pnpm browser:verify
+
       - name: Build
         run: pnpm build
 
