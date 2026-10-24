@@ -9,6 +9,7 @@ import {
   ContextResolver as PublicContextResolver,
   LearningStateWriteConflict as PublicConflict,
   PersistenceError as PublicPersistenceError,
+  ProgramWriteConflict as PublicProgramConflict,
 } from "@nox/core";
 import { AgentRuntime } from "../../src/agent/AgentRuntime";
 import { LearningController } from "../../src/application/LearningController";
@@ -16,7 +17,7 @@ import { LearningProgramOrchestrator } from "../../src/application/LearningProgr
 import { SessionController } from "../../src/session/SessionController";
 import { SessionStore } from "../../src/session/SessionStore";
 import { ContextResolver } from "../../src/context/ContextResolver";
-import { LearningStateWriteConflict, PersistenceError } from "../../src/domain/persistence/errors";
+import { LearningStateWriteConflict, PersistenceError, ProgramWriteConflict } from "../../src/domain/persistence/errors";
 
 test("M5 public core API resolves the exact canonical constructors", () => {
   assert.strictEqual(PublicAgentRuntime, AgentRuntime);
@@ -27,4 +28,5 @@ test("M5 public core API resolves the exact canonical constructors", () => {
   assert.strictEqual(PublicContextResolver, ContextResolver);
   assert.strictEqual(PublicConflict, LearningStateWriteConflict);
   assert.strictEqual(PublicPersistenceError, PersistenceError);
+  assert.strictEqual(PublicProgramConflict, ProgramWriteConflict);
 });

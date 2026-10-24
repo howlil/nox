@@ -3,7 +3,10 @@ import type { FileHandle } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
 import { join, resolve } from "node:path";
 import type { SessionDataPort } from "../../src/types";
-import type { LearningStatePort } from "../../src/application/ports";
+import type { LearningStatePort, ProgramStorePort } from "../../src/application/ports";
+import type { ProgramCollection } from "../../src/domain/learning-program/types";
+import { decodeProgramCollection } from "../../src/domain/learning-program/collection-schema";
+import { ProgramWriteConflict } from "../../src/domain/persistence/errors";
 import { DEFAULT_LEARNING_STATE, type LearningState } from "../../src/domain/learning-state/types";
 import { LearningStateWriteConflict } from "../../src/domain/persistence/errors";
 import { decodeLearningState } from "../../src/persistence/learning-state-schema";
@@ -57,9 +60,44 @@ export class FileWorkspace {
     },
   };
 
+  /** All program writes share the workspace I/O lane and guard against stale snapshots. */
+  readonly programs: ProgramStorePort = {
+    load: async () => {
+      await this.tail;
+      const raw = await this.readBytes("programs.json");
+      const value: ProgramCollection = raw === null
+        ? { version: 1, programs: [] }
+        : decodeProgramCollection(JSON.parse(raw));
+      const snapshot = structuredClone(value);
+      this.programSnapshots.set(snapshot, raw);
+      return snapshot;
+    },
+    save: (next, expected) => {
+      // Resolve the CAS token synchronously, before entering the queued operation.
+      const token = expected ? this.programSnapshots.get(expected) : undefined;
+      if (expected && token === undefined) return Promise.reject(new ProgramWriteConflict());
+      return this.enqueue(async () => {
+        const current = await this.readBytes("programs.json");
+        if (current !== null && !expected) throw new ProgramWriteConflict();
+        if (expected && current !== token) throw new ProgramWriteConflict();
+        if (current !== null) decodeProgramCollection(JSON.parse(current));
+        // Match Obsidian's legacy v1->v2 upgrade when starting an objective focus.
+        const upgrade = next.version === 2 || next.programs.some(program => Boolean(program.focus));
+        const prepared: ProgramCollection = upgrade
+          ? { ...next, version: 2, programs: next.programs.map(program => ({
+              ...program, version: 2 as const,
+            })) }
+          : next;
+        const validated = decodeProgramCollection(prepared);
+        await this.writeJson("programs.json", validated);
+      });
+    },
+  };
+
   private tail: Promise<void> = Promise.resolve();
   private closed = false;
   private readonly snapshots = new WeakMap<LearningState, string | null>();
+  private readonly programSnapshots = new WeakMap<ProgramCollection, string | null>();
 
   private constructor(
     private readonly root: string,
@@ -101,7 +139,7 @@ export class FileWorkspace {
     return task;
   }
 
-  private async readBytes(name: "sessions.json" | "progress.json"): Promise<string | null> {
+  private async readBytes(name: "sessions.json" | "progress.json" | "programs.json"): Promise<string | null> {
     const file = join(this.root, name);
     try {
       const info = await lstat(file);
@@ -123,7 +161,7 @@ export class FileWorkspace {
     return structuredClone(parsed as Record<string, unknown>);
   }
 
-  private async writeJson(name: "sessions.json" | "progress.json", value: unknown): Promise<void> {
+  private async writeJson(name: "sessions.json" | "progress.json" | "programs.json", value: unknown): Promise<void> {
     const target = join(this.root, name);
     // Fail closed on symlinks rather than replacing external files.
     await this.readBytes(name);

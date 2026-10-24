@@ -49,8 +49,8 @@ console.log(`@nox/core canonical CJS bundled ${Object.keys(result.metafile.input
 const runtimeExports = [
   "AgentRuntime", "LearningController", "LearningProgramOrchestrator",
   "SessionController", "SessionStore", "ContextResolver",
-  "DEFAULT_LEARNING_STATE", "decodeLearningState",
-  "PersistenceError", "LearningStateWriteConflict", "SessionWriteConflict",
+  "DEFAULT_LEARNING_STATE", "decodeLearningState", "decodeProgramCollection",
+  "PersistenceError", "LearningStateWriteConflict", "SessionWriteConflict", "ProgramWriteConflict",
 ];
 writeFileSync(resolve(out, "index.mjs"), [
   'import runtime from "./index.cjs";',

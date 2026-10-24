@@ -1,5 +1,7 @@
 # NOX M2 — Headless portability proof
 
+**M8 extension:** Durable program planning, objective focus, scoped evidence and timed-session recovery are implemented separately in [Headless program conformance](HEADLESS_PROGRAM_CONFORMANCE_M8.md). The M2-specific limitations below describe the earlier Ask/Practice proof.
+
 Status: **M2 proof**, not a production alternative to Obsidian. Related architecture: `.agents/ENGINEERING_DESIGN.md`.
 
 ## Run

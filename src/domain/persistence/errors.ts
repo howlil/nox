@@ -24,3 +24,11 @@ export class LearningStateWriteConflict extends Error {
     this.name = "LearningStateWriteConflict";
   }
 }
+
+/** Program CAS rejected a stale or unguarded collection write. */
+export class ProgramWriteConflict extends Error {
+  constructor() {
+    super("Program write conflict: programs.json changed; reload the curriculum preview.");
+    this.name = "ProgramWriteConflict";
+  }
+}

@@ -7,10 +7,13 @@ import { TFile } from "obsidian";
 import { FileWorkspace } from "../../headless/src/FileWorkspace";
 import { PluginDataRepository } from "../../src/persistence/PluginDataRepository";
 import { VaultLearningStore } from "../../src/persistence/VaultLearningStore";
+import { VaultProgramStore } from "../../src/persistence/VaultProgramStore";
+import { ProgramWriteConflict } from "../../src/domain/persistence/errors";
 import { LearningStateWriteConflict } from "../../src/domain/persistence/errors";
 import { createObsidianLearningHost } from "../../src/host/obsidian/composition";
 import type { SessionDataPort } from "../../src/types";
-import type { LearningStatePort } from "../../src/application/ports";
+import type { LearningStatePort, ProgramStorePort } from "../../src/application/ports";
+import type { ProgramCollection } from "../../src/domain/learning-program/types";
 
 async function sessionContract(create: () => Promise<{ store: SessionDataPort; close: () => Promise<void> }>) {
   const host = await create();
@@ -153,4 +156,45 @@ test("M3 Obsidian factory reuses one plugin writer and never discovers models on
     assert.ok(workspaceEvents.includes("file-open"),
       "Obsidian context listeners must be registered with the owning plugin");
   } finally { host.learning.dispose(); host.runtime.dispose(); }
+});
+
+/** The same read/modify/write and schema-upgrade contract on two real host adapters. */
+async function sharedProgramContract(store: ProgramStorePort): Promise<void> {
+  const initial = await store.load();
+  const stale = await store.load();
+  const program: ProgramCollection["programs"][number] = {
+    version: 1, id: "portable-program", goal: "Learn transactions",
+    createdAt: Date.now(), planVersion: 1,
+    constraints: { minutesPerSession: 45, sessionsPerWeek: 3,
+      sourcePaths: [], sourceBound: false, excludedTopics: [] },
+    objectives: [{ id: "atomicity", title: "Atomicity", outcome: "Explain atomic commits",
+      prerequisiteIds: [], estimatedMinutes: 30, rubric: ["Explain atomic commits"],
+      sourceRefs: [], priority: "core" }],
+  };
+  await store.save({ version: 1, activeProgramId: program.id,
+    programs: [program] }, initial);
+  await assert.rejects(store.save({ version: 1, programs: [] }, stale), ProgramWriteConflict);
+  const fresh = await store.load();
+  const next = structuredClone(fresh);
+  next.programs[0].focus = {
+    id: "focus", programId: program.id, objectiveId: "atomicity",
+    curriculumRevision: 1, chatSessionId: "session-a",
+    status: "active", startedAt: Date.now(),
+  };
+  await store.save(next, fresh);
+  const upgraded = await store.load();
+  assert.equal(upgraded.version, 2);
+  assert.equal(upgraded.programs[0].version, 2);
+  assert.equal(upgraded.programs[0].focus?.status, "active");
+  assert.equal(upgraded.activeProgramId, program.id);
+}
+
+test("M8 Obsidian and headless program stores share CAS, focus and v2 upgrade semantics", async () => {
+  await sharedProgramContract(new VaultProgramStore({ vault: new MemoryVault() } as never));
+  const directory = await mkdtemp(join(tmpdir(), "nox-m8-host-conformance-"));
+  try {
+    const workspace = await FileWorkspace.open(directory);
+    try { await sharedProgramContract(workspace.programs); }
+    finally { await workspace.close(); }
+  } finally { await rm(directory, { recursive: true, force: true }); }
 });

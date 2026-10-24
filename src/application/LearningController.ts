@@ -435,6 +435,7 @@ export class LearningController {
       const trimmed = request.prompt.trim().toLowerCase();
       const inspect = /^\/(?:progress|programs|review-due|session-time|learner-profile)$/.test(trimmed);
       const pauseOrEnd = trimmed === "/pause-focus" || trimmed === "/end-focus";
+      const resumeFocus = trimmed === "/resume-focus";
       const next = trimmed === "/next";
       const clarify = Boolean(request.practiceClarification);
       const hint = trimmed === "/hint";
@@ -443,7 +444,8 @@ export class LearningController {
         (request.action === "ask" || request.action === "practice");
       const practice = request.action === "practice" && !request.freePractice &&
         !trimmed.startsWith("/");
-      const intent = inspect || pauseOrEnd ? { kind: "inspect" as const }
+      const intent = resumeFocus ? { kind: "resume" as const }
+        : inspect || pauseOrEnd ? { kind: "inspect" as const }
         : next || hint || ordinaryAnswer || practice || clarify
           ? { kind: clarify ? "request-clarification" as const :
               next || practice && !question ? "continue" as const
@@ -661,7 +663,10 @@ export class LearningController {
             const selected = await this.programs.getDecision();
             if ((selected?.program?.session || selected?.program?.focus?.status === "active") &&
                 selected.decision.objective) {
-              await this.programs.focusObjective(selected.decision.objective.id);
+              // Self-paced objective focus does not require a timed session.
+              if (selected.program.session) {
+                await this.programs.focusObjective(selected.decision.objective.id);
+              }
               if (selected.program.workspaceApproved) {
                 try {
                   await this.workspaceWriter?.ensureObjective?.(
