@@ -6,7 +6,8 @@ import { cp, copyFile, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/p
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 
-// Validate the artifact as a self-contained package: no source checkout,
+// First run package-owned build/verify, then validate the artifact as a
+// self-contained external package with no source checkout:
 // workspace path aliases, or Node module resolution into the NOX repository.
 const built = spawnSync(process.execPath, [resolve("packages/core/scripts/verify.mjs")], {
   stdio: "inherit",
