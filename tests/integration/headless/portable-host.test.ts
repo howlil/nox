@@ -4,7 +4,7 @@ import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
-import { FileWorkspace } from "../../../headless/src/FileWorkspace";
+import { FileWorkspace, WorkspaceDurabilityUncertain } from "../../../headless/src/FileWorkspace";
 import { openHeadlessNox, ScriptedProvider } from "../../../headless/src/composition";
 import { LearningStateWriteConflict } from "../../../src/domain/persistence/errors";
 import type { LearningEvent, LearningRequest } from "../../../src/application/learning-types";
@@ -136,7 +136,10 @@ test("M8 syncs the parent directory and rejects a post-rename durability failure
         throw new Error("injected post-rename directory fsync failure");
       };
       await assert.rejects(workspace.sessionData.update(current =>
-        ({ ...current, marker: "commit-uncertain" })), /post-rename directory fsync/);
+        ({ ...current, marker: "commit-uncertain" })), error =>
+          error instanceof WorkspaceDurabilityUncertain &&
+          error.filename === "sessions.json" &&
+          (error.cause as Error).message.includes("post-rename directory fsync"));
       assert.equal(flushes, 2, "post-rename sync failure must not be reported as success");
       // Renamed data may already be visible even though durability is uncertain.
       assert.equal((await workspace.sessionData.read()).marker, "commit-uncertain");
