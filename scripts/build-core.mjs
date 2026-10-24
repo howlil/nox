@@ -2,6 +2,7 @@ import { build } from "esbuild";
 import { spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
+import { createRequire } from "node:module";
 
 const directory = resolve("packages/core");
 const out = resolve(directory, "dist");
@@ -48,12 +49,14 @@ const result = await build({
 console.log(`@nox/core canonical CJS bundled ${Object.keys(result.metafile.inputs).length} source files`);
 
 // The ESM file is a thin facade over the CJS module's one set of constructors.
-const runtimeExports = [
-  "AgentRuntime", "LearningController", "LearningProgramOrchestrator",
-  "SessionController", "SessionStore", "ContextResolver",
-  "DEFAULT_LEARNING_STATE", "decodeLearningState", "decodeProgramCollection",
-  "PersistenceError", "LearningStateWriteConflict", "SessionWriteConflict", "ProgramWriteConflict",
-];
+// Reflect actual runtime exports from the canonical bundle. No manually
+// maintained second API list can diverge from index.ts.
+const require = createRequire(import.meta.url);
+const runtimeExports = Object.keys(require(resolve(out, "index.cjs"))).sort();
+if (!runtimeExports.length || runtimeExports.some(name =>
+  !/^[A-Za-z_$][\\w$]*$/.test(name) || name === "default")) {
+  throw new Error("Invalid @nox/core CJS runtime export surface");
+}
 writeFileSync(resolve(out, "index.mjs"), [
   'import runtime from "./index.cjs";',
   ...runtimeExports.map(name => `export const ${name} = runtime.${name};`),

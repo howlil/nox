@@ -121,3 +121,9 @@ The package's `tsconfig.build.json` is standalone, not derived from the Obsidian
 `pnpm core:verify` runs `scripts/check-core-source.mjs` with only a copy of `packages/core/src/**`, its manifest, and its own `tsconfig.build.json` in an isolated temporary directory. The staged sources undergo a real TypeScript declarations build and esbuild runtime build graph check (no `src/` root, no parent `tsconfig.json`, no runtime externals) plus an independent runtime smoke. The original output-only ESM/CJS/types consumer and host identity checks continue to run.
 
 The package remains private. Compatibility shims are retained until an actual consumer/reference inventory proves individual shims safe to remove; all production imports already bypass them, and source-only acceptance does not need them.
+
+## Post-M10 review: compatibility and host-specific presentation
+
+The canonical engine assembles host-neutral instructions. Obsidian-specific `[[note path]]` citation formatting and narrow-pane guidance are supplied as trusted host-owned `LearningPolicy.hostInstructions` by the Obsidian `PolicyLoader`. User-controlled `AGENTS.md` content remains contextual material, not authorization for source access or learning scope changes. Browser and headless hosts do not inherit these Obsidian conventions.
+
+Legacy `src/**` compatibility shims are **in-repository migration conveniences**, not publicly supported import paths. The shim inventory checks repository static importers and portable contract tests only; it cannot prove compatibility for unregistered external deep imports. External clients should import the curated `@nox/core` API, not monorepo paths. Public publication and semantic-version support are separate decisions.

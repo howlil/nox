@@ -35,6 +35,9 @@ import {
 } from "@nox/core";
 const require = createRequire(import.meta.url);
 const commonjs = require("@nox/core");
+const esm = await import("@nox/core");
+assert.deepEqual(Object.keys(esm).sort(), Object.keys(commonjs).sort(),
+  "ESM and CJS must expose the same complete runtime API");
 for (const symbol of [
   AgentRuntime, LearningController, LearningProgramOrchestrator,
   SessionController, SessionStore, ContextResolver,

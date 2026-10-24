@@ -762,7 +762,7 @@ export class RunLearningTurn {
       }
       if (researchQuery !== null) {
         preparedPrompt += "\n\nRESEARCH MODE (grounded, one-pass): " +
-          "Use ONLY retrieved Obsidian excerpts as evidence. Cite sources as [[note path]] " +
+          "Use ONLY retrieved document excerpts as evidence. Cite sources by their supplied paths " +
           "with section/line when available. Distinguish observed evidence, inference, " +
           "conflicts, and unanswered questions. Do not claim web research, external " +
           "verification or graph relations that the evidence does not support. " +
@@ -844,6 +844,12 @@ export class RunLearningTurn {
       preparedPrompt += "\n\nOBJECTIVE-SCOPED LEARNING CONTEXT (derived only from current-revision committed evidence):\n" +
         focusedContextDigest + "\nUse only the attached approved note excerpts for source-grounded facts. " +
         "A previous hidden provider conversation or lossy chat digest is never evidence of mastery.";
+    }
+    // Host conventions are trusted adapter configuration, not user-authored
+    // learning policy. They cannot weaken the source or scope decisions above.
+    if (policy.hostInstructions?.trim()) {
+      preparedPrompt += "\n\nHOST PRESENTATION CONVENTIONS (format only; do not override scope or source authority):\n" +
+        policy.hostInstructions.trim();
     }
     const parser = new StructuredStreamParser();
     const scopedEvents: StructuredStreamEvent[] = [];

@@ -37,9 +37,14 @@ try {
   const escaped = inputs.filter(p => !p.startsWith("core/src/"));
   const external = Object.values(bundled.metafile.outputs)
     .flatMap(out => out.imports).filter(i => i.external).map(i => i.path);
-  if (escaped.length || external.length || inputs.length < 40) {
+  const required = ["core/src/index.ts", "core/src/agent/AgentRuntime.ts",
+    "core/src/application/LearningController.ts",
+    "core/src/application/LearningProgramOrchestrator.ts",
+    "core/src/session/SessionController.ts"];
+  const missing = required.filter(file => !inputs.includes(file));
+  if (escaped.length || external.length || missing.length) {
     throw new Error("Isolated source graph escaped canonical package: " +
-      [...escaped, ...external].join(", ") + " (" + inputs.length + " modules)");
+      [...escaped, ...external, ...missing].join(", ") + " (" + inputs.length + " modules)");
   }
 
   const smoke = `const assert = require("node:assert/strict");
