@@ -173,6 +173,7 @@ async function sharedProgramContract(store: ProgramStorePort): Promise<void> {
   };
   await store.save({ version: 1, activeProgramId: program.id,
     programs: [program] }, initial);
+  await assert.rejects(store.save({ version: 1, programs: [] }), ProgramWriteConflict);
   await assert.rejects(store.save({ version: 1, programs: [] }, stale), ProgramWriteConflict);
   const fresh = await store.load();
   const next = structuredClone(fresh);
