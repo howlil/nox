@@ -1,6 +1,7 @@
 {
   "compilerOptions": {
     "baseUrl": ".",
+    "paths": { "@nox/core": ["packages/core/src/index.ts"] },
     "inlineSourceMap": true,
     "inlineSources": true,
     "module": "ESNext",

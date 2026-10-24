@@ -9,6 +9,41 @@ Last updated: 2026-10-13
 ---
 
 
+## M5 host consumption and browser-compatibility proof — 2026-10-24
+
+**State:** implemented in PR #134 branch; CI acceptance pending.
+
+### A/E/R responsibility graph
+
+```text
+Obsidian host composition ───────┐
+Obsidian main.ts (types only) ────┤
+Headless Node composition ───────┤ @nox/core public facade
+                                 └── src/ canonical modules (one resolved copy)
+                   ↑ checked by graph, constructor-identity & integration tests
+
+Isolated package consumer (no monorepo paths)
+  → browser-target bundle → browser-like restricted JS realm session transaction
+  → inspect bundle imports: zero Node/Obsidian/Electron and runtime externals
+
+A: host consumers compile against curated package surface with identical
+   class identities; portable session transaction works in browser-like realm.
+E: broken workspace resolution, duplicate modules, leaked host API,
+   invalid package export, or session semantics fail CI.
+R: root workspace dependency + TS source path alias, esbuild dependency
+   metafiles, strict isolated consumer, existing host conformance suite.
+```
+
+**Critical distinction:** workspace hosts alias `@nox/core` to the canonical
+source index to avoid a double bundled engine; external consumers use the
+private built distribution. Browser-like VM smoke is a portability regression,
+**not** real Chrome/Firefox/Safari acceptance. No new provider, browser storage
+adapter, hosted service or editor mutation capability is claimed.
+
+See `docs/CORE_PACKAGE.md` for the exact import/bundle contract.
+
+---
+
 ## M4 portable package distribution — 2026-10-24
 
 **Status: private package extraction in PR #134; CI acceptance pending.**

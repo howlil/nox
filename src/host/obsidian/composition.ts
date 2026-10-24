@@ -1,8 +1,6 @@
 import type { App, Plugin } from "obsidian";
-import { AgentRuntime } from "../../agent/AgentRuntime";
-import { LearningController } from "../../application/LearningController";
-import { LearningProgramOrchestrator } from "../../application/LearningProgramOrchestrator";
-import { ContextResolver } from "../../context/ContextResolver";
+import { AgentRuntime, LearningController, LearningProgramOrchestrator,
+  ContextResolver, SessionController, SessionStore, type AgentAdapter } from "@nox/core";
 import { ObsidianContext } from "../../context/ObsidianContext";
 import { PolicyLoader } from "../../context/PolicyLoader";
 import { MutationService } from "../../mutation/MutationService";
@@ -11,9 +9,6 @@ import { VaultProgramStore } from "../../persistence/VaultProgramStore";
 import { VaultWorkspaceWriter } from "../../persistence/VaultWorkspaceWriter";
 import { OnboardingStateRepository } from "../../persistence/OnboardingStateRepository";
 import { PluginDataRepository } from "../../persistence/PluginDataRepository";
-import { SessionController } from "../../session/SessionController";
-import { SessionStore } from "../../session/SessionStore";
-import type { AgentAdapter } from "../../types";
 
 /**
  * Obsidian composition adapter — no parallel state owner or new persistence

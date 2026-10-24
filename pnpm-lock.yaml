@@ -8,6 +8,9 @@ importers:
 
   .:
     dependencies:
+      '@nox/core':
+        specifier: workspace:*
+        version: link:packages/core
       elkjs:
         specifier: 0.11.0
         version: 0.11.0

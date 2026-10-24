@@ -8,12 +8,15 @@ remains a separately built release (`manifest.json`, `main.js`, `styles.css`).
 `packages/core/src/index.ts` is an intentionally small API facade over the
 canonical NOX `src/` application, domain and session modules. It **contains no
 duplicate learning engine**. Build emits ESM, CommonJS and a self-contained
-declaration tree under `packages/core/dist/`. Neither the Obsidian host nor
-the headless host imports its own built distribution bundle inside the plugin:
-that would risk two copies of stateful constructors. They continue using the
-same canonical source graph, while M4 proves an independent external consumer
-can load the packaged form. Adopting the package as a host's sole runtime
-dependency is a separate planned migration with explicit compatibility tests.
+declaration tree under `packages/core/dist/`. The M5 Obsidian and headless compositions now import the **public**
+`@nox/core` API. During monorepo compilation, `tsconfig.json` resolves this
+specifier to `packages/core/src/index.ts`, which re-exports the exact canonical
+`src/` implementations. Both hosts bundle the SAME module graph rather than
+importing the compiled package distribution alongside source modules. This
+explicit source-alias policy is temporary until implementation files physically
+move into `packages/core`. A real standalone consumer resolves the built
+exports, never the monorepo alias. Runtime identity and duplicate-module checks
+are mandatory gates.
 
 ## Build and verify
 

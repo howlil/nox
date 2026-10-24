@@ -1,10 +1,9 @@
-import type { AgentAdapter, AgentHealth, AgentInput, AgentModel, AgentStreamEvent, SendOptions } from "../../src/types";
-import { AgentRuntime } from "../../src/agent/AgentRuntime";
-import { LearningController } from "../../src/application/LearningController";
-import { SessionController } from "../../src/session/SessionController";
-import { SessionStore } from "../../src/session/SessionStore";
-import { ContextResolver } from "../../src/context/ContextResolver";
-import type { ContextSourcePort } from "../../src/context/ContextSourcePort";
+import {
+  AgentRuntime, LearningController, SessionController, SessionStore,
+  ContextResolver, type ContextSourcePort,
+  type AgentAdapter, type AgentHealth, type AgentInput, type AgentModel,
+  type AgentStreamEvent, type SendOptions,
+} from "@nox/core";
 import { FileWorkspace } from "./FileWorkspace";
 
 /**
