@@ -3,7 +3,7 @@ import type {
   AgentFailure,
   AgentFailureCode,
   AgentStreamEvent,
-} from "../types";
+} from "../../packages/core/src/types";
 
 export interface AgyProtocolState {
   conversationId?: string;

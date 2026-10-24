@@ -1,4 +1,4 @@
-import type { AgentAdapter, AgentHealth, AgentInput, AgentModel, AgentStreamEvent, SendOptions } from "../types";
+import type { AgentAdapter, AgentHealth, AgentInput, AgentModel, AgentStreamEvent, SendOptions } from "../../packages/core/src/types";
 import { ChatGptAuth } from "./ChatGptAuth";
 import { parseChatGptUsage } from "./token-usage";
 
