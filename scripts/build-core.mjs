@@ -1,7 +1,7 @@
 import { build } from "esbuild";
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, rmSync } from "node:fs";
-import { resolve } from "node:path";
+import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { dirname, relative, resolve, sep } from "node:path";
 
 const directory = resolve("packages/core");
 const out = resolve(directory, "dist");
@@ -51,6 +51,29 @@ const tsc = spawnSync(process.execPath, [
   "--project", resolve(directory, "tsconfig.build.json"),
 ], { stdio: "inherit" });
 if (tsc.status !== 0) process.exit(tsc.status ?? 1);
+
+// The declaration emitter can synthesize a baseUrl-based import() for a type
+// exposed by our own public index. That path only resolves inside this monorepo
+// and must be rewritten to a relative path inside the shipped type graph.
+const declarationsRoot = resolve(out, "types");
+const publicModule = resolve(declarationsRoot, "packages/core/src");
+function checkDeclarations(directory) {
+  for (const entry of readdirSync(directory, { withFileTypes: true })) {
+    const file = resolve(directory, entry.name);
+    if (entry.isDirectory()) { checkDeclarations(file); continue; }
+    if (!entry.name.endsWith(".d.ts")) continue;
+    const source = readFileSync(file, "utf8");
+    const specifier = relative(dirname(file), publicModule).split(sep).join("/");
+    const target = specifier.startsWith(".") ? specifier : "./" + specifier;
+    const fixed = source.replaceAll("packages/core/src", target);
+    if (fixed.includes('import("obsidian")') || fixed.includes('from "obsidian"')) {
+      throw new Error("Portable core declarations reference the Obsidian SDK: " + file);
+    }
+    if (fixed !== source) writeFileSync(file, fixed);
+  }
+}
+checkDeclarations(declarationsRoot);
+
 if (!existsSync(resolve(out, "types/packages/core/src/index.d.ts"))) {
   throw new Error("Missing @nox/core public TypeScript declaration entrypoint");
 }
