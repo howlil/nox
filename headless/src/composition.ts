@@ -13,10 +13,10 @@ import { FileWorkspace } from "./FileWorkspace";
  */
 export async function openHeadlessNox(directory: string, adapter: AgentAdapter) {
   const workspace = await FileWorkspace.open(directory);
+  const runtime = new AgentRuntime(adapter);
   try {
     const session = new SessionController(workspace.sessionData, new SessionStore());
     await session.init();
-    const runtime = new AgentRuntime(adapter);
     const source: ContextSourcePort = {
       getSelection: () => null,
       getCurrentNote: async () => null,
@@ -54,6 +54,7 @@ export async function openHeadlessNox(directory: string, adapter: AgentAdapter) 
       },
     };
   } catch (error) {
+    runtime.dispose();
     await workspace.close();
     throw error;
   }

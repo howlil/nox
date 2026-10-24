@@ -663,7 +663,10 @@ export class LearningController {
             const selected = await this.programs.getDecision();
             if ((selected?.program?.session || selected?.program?.focus?.status === "active") &&
                 selected.decision.objective) {
-              await this.programs.focusObjective(selected.decision.objective.id);
+              // Self-paced objective focus does not require a timed session.
+              if (selected.program.session) {
+                await this.programs.focusObjective(selected.decision.objective.id);
+              }
               if (selected.program.workspaceApproved) {
                 try {
                   await this.workspaceWriter?.ensureObjective?.(
