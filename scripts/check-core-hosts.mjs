@@ -32,10 +32,10 @@ for (const entry of entrypoints) {
     .map(file => file.replaceAll(String.fromCharCode(92), "/"));
   const unique = [
     "packages/core/src/index.ts",
-    "src/agent/AgentRuntime.ts",
-    "src/application/LearningController.ts",
-    "src/session/SessionController.ts",
-    "src/session/SessionStore.ts",
+    "packages/core/src/agent/AgentRuntime.ts",
+    "packages/core/src/application/LearningController.ts",
+    "packages/core/src/session/SessionController.ts",
+    "packages/core/src/session/SessionStore.ts",
     "packages/core/src/domain/persistence/errors.ts",
   ];
   for (const single of unique) {

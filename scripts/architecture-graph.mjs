@@ -80,7 +80,7 @@ function resolveLocal(from, specifier, known) {
 }
 
 function ownerOf(filename) {
-  if (filename.startsWith("packages/core/src/domain/")) return "domain";
+  if (filename.startsWith("packages/core/src/")) filename = "src/" + filename.slice("packages/core/src/".length);
   const parts = filename.split("/");
   if (parts.length < 3 || parts[0] !== SOURCE_ROOT) return "(root)";
   // Feature-private collaborators are not one giant 'features' owner.
@@ -217,8 +217,8 @@ export function collectSources(root = process.cwd()) {
     }
   }
   walk(base);
-  const canonicalDomain = resolve(root, "packages/core/src/domain");
-  if (existsSync(canonicalDomain)) walk(canonicalDomain);
+  const canonicalCore = resolve(root, "packages/core/src");
+  if (existsSync(canonicalCore)) walk(canonicalCore);
   return files;
 }
 

@@ -1,19 +1,19 @@
 /**
  * @nox/core — host-independent NOX application and learning engine API.
  *
- * The implementation is compiled directly from the canonical src/ tree;
+ * The application, runtime, session and domain source is now package-owned;
  * this facade never copies the engine into a second editable source tree.
  * Do not export Obsidian vault/editor adapters or internal feature modules.
  */
-export { AgentRuntime } from "../../../src/agent/AgentRuntime";
-export { LearningController } from "../../../src/application/LearningController";
-export { LearningProgramOrchestrator } from "../../../src/application/LearningProgramOrchestrator";
-export { SessionController } from "../../../src/session/SessionController";
-export { SessionStore } from "../../../src/session/SessionStore";
-export { ContextResolver } from "../../../src/context/ContextResolver";
+export { AgentRuntime } from "./agent/AgentRuntime";
+export { LearningController } from "./application/LearningController";
+export { LearningProgramOrchestrator } from "./application/LearningProgramOrchestrator";
+export { SessionController } from "./session/SessionController";
+export { SessionStore } from "./session/SessionStore";
+export { ContextResolver } from "./context/ContextResolver";
 export { DEFAULT_LEARNING_STATE } from "./domain/learning-state/types";
 export { decodeProgramCollection } from "./domain/learning-program/collection-schema";
-export { decodeLearningState } from "../../../src/persistence/learning-state-schema";
+export { decodeLearningState } from "./persistence/learning-state-schema";
 export { PersistenceError, LearningStateWriteConflict, SessionWriteConflict, ProgramWriteConflict } from "./domain/persistence/errors";
 
 export type {
@@ -21,26 +21,26 @@ export type {
   AgentModel, AgentStreamEvent, SendOptions, SessionDataPort,
   ChatSession, ChatMessage, AgentFailure, AgentContext, EditProposal,
   ResearchScope, ApplyResult, TokenUsage,
-} from "../../../src/types";
+} from "./types";
 export type {
   SessionPort, ContextPort, PolicyPort, MutationPort, LearningStatePort,
   ProgramStorePort, WorkspaceWriterPort, OnboardingStatePort,
-} from "../../../src/application/ports";
+} from "./application/ports";
 export type {
   LearningEvent, LearningRequest,
-} from "../../../src/application/learning-types";
+} from "./application/learning-types";
 export type {
   SessionStoreOptions,
-} from "../../../src/session/SessionStore";
+} from "./session/SessionStore";
 export type {
   ContextSourcePort,
-} from "../../../src/context/ContextSourcePort";
+} from "./context/ContextSourcePort";
 export type {
   LearningContext, LearningPolicy, ExplicitContextRef,
-} from "../../../src/context/context-types";
+} from "./context/context-types";
 export type {
   LearningState, LearningEvidence, KnowledgeGap,
 } from "./domain/learning-state/types";
 export type {
   LearningProgram, ProgramCollection, ProgramConstraints,
-} from "../../../src/domain/learning-program/types";
+} from "./domain/learning-program/types";
