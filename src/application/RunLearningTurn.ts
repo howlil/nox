@@ -388,8 +388,8 @@ export class RunLearningTurn {
             (request.programActivity && request.programActivity.objectiveId !== program.focus.objectiveId))) {
           throw new Error("The persisted objective focus does not authorize this turn.");
         }
-        if (program?.constraints.sourceBound && sessionAtStart.runtimeProvider !== "chatgpt") {
-          throw new Error("Strict source-bound learning requires the ChatGPT provider without vault filesystem tools. Local CLI agents can read beyond selected notes.");
+        if (program?.constraints.sourceBound && !this.runtime.supportsSourceIsolation?.()) {
+          throw new Error("Source-bound learning requires an isolated provider without filesystem tools.");
         }
         if (program?.constraints.sourceBound) {
           // Read only objective-specific, already approved sources when focus
@@ -424,7 +424,9 @@ export class RunLearningTurn {
       // Independent vault reads share the same preflight window; required
       // source resolution and learning-policy failures still fail this turn.
       [context, [policy, state]] = await Promise.all([
-        this.contexts.resolve(refs, { includeAmbient: request.contextMode !== "explicit-only" }),
+        this.contexts.resolve(refs, {
+          includeAmbient: !program?.constraints.sourceBound && request.contextMode !== "explicit-only",
+        }),
         Promise.all([this.policies.load(), this.learningState.load()]),
       ]);
       state = await this.evidence.reconcileTranscript(sessionAtStart, state);

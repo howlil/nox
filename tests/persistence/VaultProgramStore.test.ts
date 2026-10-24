@@ -72,24 +72,25 @@ test("program loads use the authoritative vault read, not stale cached content",
   assert.equal(vault.readCalls, 1);
 });
 
-test("program loads await an in-flight write before reading the snapshot", async () => {
+test("program loads wait for a serialized in-flight CAS write", async () => {
   const vault = new MemoryVault();
-  vault.files.set(PATH, '{"version":1,"programs":');
-  let entered!: () => void;
+  vault.files.set(PATH, JSON.stringify(EMPTY));
   let release!: () => void;
-  const modifyEntered = new Promise<void>(resolve => { entered = resolve; });
-  const modificationGate = new Promise<void>(resolve => { release = resolve; });
-  vault.beforeModify = async () => { entered(); await modificationGate; };
+  const gate = new Promise<void>(resolve => { release = resolve; });
+  vault.beforeModify = async () => { await gate; };
   const store = new VaultProgramStore({ vault } as never);
-  const saving = store.save(EMPTY);
-  await modifyEntered;
+  const expected = await store.load();
+  const saving = store.save(EMPTY, expected);
   const loading = store.load();
-  await Promise.resolve();
-  assert.equal(vault.readCalls, 0);
-  release();
+  try {
+    await Promise.resolve();
+    assert.equal(vault.readCalls, 1, "the read cannot bypass the queued mutation");
+  } finally {
+    release();
+  }
   await saving;
   assert.deepEqual(await loading, EMPTY);
-  assert.equal(vault.readCalls, 1);
+  assert.equal(vault.readCalls, 2);
 });
 
 test("v1 program persists a focus using v2 and retains a verified legacy backup", async () => {
@@ -107,7 +108,7 @@ test("v1 program persists a focus using v2 and retains a verified legacy backup"
   const loaded = await store.load();
   loaded.programs[0].focus = { id: "focus-1", programId: "p", objectiveId: "race",
     curriculumRevision: 1, chatSessionId: "chat-1", status: "active", startedAt: 20 };
-  await store.save(loaded);
+  await store.save(loaded, loaded);
   const restored = await store.load();
   assert.equal(restored.version, 2);
   assert.equal(restored.programs[0].version, 2);
@@ -179,5 +180,18 @@ test("M7 injected process failure preserves program bytes and later save remains
   vault.beforeModify = undefined;
   const refreshed = await store.load();
   await store.save(refreshed, refreshed);
+  assert.deepEqual(await store.load(), EMPTY);
+});
+
+
+test("M9 existing Obsidian program collection rejects unguarded writes", async () => {
+  const vault = new MemoryVault();
+  const store = new VaultProgramStore({ vault } as never);
+  await store.save(EMPTY); // A missing collection can still be created.
+  const original = vault.files.get(PATH);
+  await assert.rejects(store.save(EMPTY), ProgramWriteConflict);
+  assert.equal(vault.files.get(PATH), original);
+  const loaded = await store.load();
+  await store.save(loaded, loaded);
   assert.deepEqual(await store.load(), EMPTY);
 });

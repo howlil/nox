@@ -43,7 +43,9 @@ function createHarness(
     evaluationTranscriptFailures?: number;
     programStore?: ProgramStorePort;
     runtimeProvider?: ChatSession["runtimeProvider"];
+    sourceIsolation?: boolean;
     onResolve?: (refs: ExplicitContextRef[]) => void;
+    onResolveOptions?: (options?: { includeAmbient?: boolean }) => void;
     programTimer?: { beginAiWait(id: string): Promise<boolean>;
       finishAiWait?(id: string): Promise<void>; isPlanning(): boolean };
   } = {},
@@ -210,6 +212,7 @@ function createHarness(
   };
 
   const runtime = {
+    supportsSourceIsolation: () => options.sourceIsolation === true,
     check: async () => ({ status: "ready" as const }),
     getModels: () => [],
     send: async function* (
@@ -228,8 +231,9 @@ function createHarness(
 
   const contexts = {
     getActiveNotePath: () => options.contextOverride?.activeNote.path ?? "note.md",
-    resolve: async (refs: ExplicitContextRef[] = []) => {
+    resolve: async (refs: ExplicitContextRef[] = [], settings?: { includeAmbient?: boolean }) => {
       options.onResolve?.(refs);
+      options.onResolveOptions?.(settings);
       return options.contextOverride ?? ({
       activeNote: {
         path: "note.md",
@@ -1363,6 +1367,7 @@ test("M5 source-bound provider receives only objective-grounded chunks and scope
     yield { type: "completed" };
   }, {
     runtimeProvider: "chatgpt",
+    sourceIsolation: true,
     programStore: { load: async () => ({ version: 2, activeProgramId: "plan",
       programs: [structuredClone(plan)] }), save: async () => {} },
     onResolve: refs => requestedRefs.push([...refs]),
@@ -1408,6 +1413,7 @@ test("M5 missing source cannot reach provider and produces recoverable failed ev
     yield { type: "completed" };
   }, {
     runtimeProvider: "chatgpt",
+    sourceIsolation: true,
     programStore: { load: async () => ({ version: 2, activeProgramId: "plan",
       programs: [structuredClone(plan)] }), save: async () => {} },
     contextOverride: { activeNote: { path: "private.md", content: "do not send" }, explicit: [] },
@@ -1534,4 +1540,69 @@ test("M1 onboarding screen reads only note path even when an unselected note is 
   assert.equal(info.hasProgram, false);
   assert.equal(contentsResolved, 0);
   h.controller.dispose();
+});
+
+test("M9 rejects spoofed ChatGPT identity when the adapter lacks source isolation", async () => {
+  const plan: LearningProgram = {
+    id: "source-bound", version: 2, goal: "Scoped database", createdAt: 1, planVersion: 1,
+    constraints: { sourceBound: true, sourcePaths: ["sql.md"], excludedTopics: [],
+      minutesPerSession: 45, sessionsPerWeek: 3 },
+    objectives: [{ id: "sql", title: "SQL", outcome: "Explain locks",
+      prerequisiteIds: [], estimatedMinutes: 30, rubric: ["Explain locks"],
+      priority: "core", sourceRefs: ["sql.md"] }],
+    session: { startedAt: Date.now(), timeBudgetMinutes: 45 },
+  };
+  let reads = 0;
+  const h = createHarness(async function* () {
+    throw new Error("A spoofed provider must not receive the prompt");
+  }, {
+    runtimeProvider: "chatgpt",
+    sourceIsolation: false,
+    programStore: { load: async () => ({ version: 2 as const,
+      activeProgramId: plan.id, programs: [plan] }), save: async () => {} },
+    onResolve: () => { reads++; },
+  });
+  const result = await collectEvents(h.controller.run({
+    action: "practice", prompt: "Quiz me", explicitContext: [],
+  }));
+  assert.ok(result.some(event => event.type === "failed"));
+  assert.equal(h.prompts.length, 0);
+  assert.equal(reads, 0, "deny before reading any source");
+});
+
+test("M9 isolated non-ChatGPT provider gets source-bound practice with no ambient reads", async () => {
+  const plan: LearningProgram = {
+    id: "source-bound", version: 2, goal: "Scoped database", createdAt: 1, planVersion: 1,
+    constraints: { sourceBound: true, sourcePaths: ["sql.md"], excludedTopics: [],
+      minutesPerSession: 45, sessionsPerWeek: 3 },
+    objectives: [{ id: "sql", title: "SQL", outcome: "Explain locks",
+      prerequisiteIds: [], estimatedMinutes: 30, rubric: ["Explain locks"],
+      priority: "core", sourceRefs: ["sql.md"] }],
+    session: { startedAt: Date.now(), timeBudgetMinutes: 45 },
+  };
+  const resolvedSettings: Array<{ includeAmbient?: boolean } | undefined> = [];
+  const h = createHarness(async function* () {
+    yield { type: "text", content: "```learning-practice\n" +
+      JSON.stringify({ kind: "question", concept: "SQL", question: "What is a lock?" }) +
+      "\n```" };
+    yield { type: "completed" };
+  }, {
+    runtimeProvider: "agy",
+    sourceIsolation: true,
+    programStore: { load: async () => ({ version: 2 as const,
+      activeProgramId: plan.id, programs: [plan] }), save: async () => {} },
+    onResolveOptions: options => resolvedSettings.push(options),
+    contextOverride: { activeNote: { path: "private.md", content: "SECRET" },
+      explicit: [{ type: "note", path: "sql.md",
+        content: "Transaction locks protect consistency.", source: "explicit" }] },
+    agentContexts: [{ type: "note", file: "private.md", content: "SECRET" },
+      { type: "note", file: "sql.md", content: "Transaction locks protect consistency." }],
+  });
+  const result = await collectEvents(h.controller.run({
+    action: "practice", prompt: "Quiz me", explicitContext: [],
+  }));
+  assert.ok(result.some(event => event.type === "practice-question"));
+  assert.ok(resolvedSettings.some(options => options?.includeAmbient === false));
+  assert.equal(h.prompts.length, 1);
+  assert.ok(h.getSentContexts()[0]?.every(item => item.file === "sql.md"));
 });

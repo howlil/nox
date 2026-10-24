@@ -4,7 +4,7 @@ import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
-import { FileWorkspace } from "../../../headless/src/FileWorkspace";
+import { FileWorkspace, WorkspaceDurabilityUncertain } from "../../../headless/src/FileWorkspace";
 import { openHeadlessNox, ScriptedProvider } from "../../../headless/src/composition";
 import { LearningStateWriteConflict } from "../../../src/domain/persistence/errors";
 import type { LearningEvent, LearningRequest } from "../../../src/application/learning-types";
@@ -136,7 +136,10 @@ test("M8 syncs the parent directory and rejects a post-rename durability failure
         throw new Error("injected post-rename directory fsync failure");
       };
       await assert.rejects(workspace.sessionData.update(current =>
-        ({ ...current, marker: "commit-uncertain" })), /post-rename directory fsync/);
+        ({ ...current, marker: "commit-uncertain" })), error =>
+          error instanceof WorkspaceDurabilityUncertain &&
+          error.filename === "sessions.json" &&
+          (error.cause as Error).message.includes("post-rename directory fsync"));
       assert.equal(flushes, 2, "post-rename sync failure must not be reported as success");
       // Renamed data may already be visible even though durability is uncertain.
       assert.equal((await workspace.sessionData.read()).marker, "commit-uncertain");
@@ -190,5 +193,67 @@ test("M2 executable CLI demo bundles without Obsidian and commits evidence to di
     assert.equal(again.status, 0, (again.stderr || "") + (again.stdout || ""));
     const resumed = JSON.parse(await readFile(join(root, "progress.json"), "utf8")) as { evidence: unknown[] };
     assert.equal(resumed.evidence.length, 2);
+  });
+});
+
+test("M9 uncertain session transitions recover from persisted state without duplicate ledger", async () => {
+  await tempWorkspace(async root => {
+    const curriculum = {
+      kind: "curriculum", objectives: [{
+        id: "atomicity", title: "Atomic commits", outcome: "Explain atomic commits",
+        prerequisiteIds: [], estimatedMinutes: 30, rubric: ["All or nothing"],
+        sourceRefs: [], priority: "core",
+      }],
+    };
+    const source = String.fromCharCode(96).repeat(3) + "learning-program\n" +
+      JSON.stringify(curriculum) + "\n" + String.fromCharCode(96).repeat(3);
+    const first = await openHeadlessNox(root, new ScriptedProvider([source]));
+    try {
+      await first.programs.createProgram("Atomic commits", {
+        minutesPerSession: 45, sessionsPerWeek: 3,
+        sourcePaths: [], sourceBound: false, excludedTopics: [],
+      }, "m9-once");
+      const hooks = first.workspace as unknown as { syncParentDirectory: () => Promise<void> };
+      const actual = hooks.syncParentDirectory.bind(first.workspace);
+      hooks.syncParentDirectory = async () => {
+        throw new Error("injected metadata durability failure at session start");
+      };
+      try {
+        await assert.rejects(first.programs.startSession(), error =>
+          error instanceof WorkspaceDurabilityUncertain && error.filename === "programs.json");
+      } finally { hooks.syncParentDirectory = actual; }
+      // Failure is ambiguous: the durable store, not the exception, decides what happened.
+      assert.ok((await first.programs.getActiveProgram())?.session,
+        "rename committed the session before metadata sync failed");
+      await assert.rejects(first.programs.startSession(), /already active/);
+    } finally { await first.close(); }
+
+    const second = await openHeadlessNox(root, new ScriptedProvider([]));
+    try {
+      assert.equal((await second.programs.getSessionTime())?.status, "recovered");
+      await second.programs.resumeSession();
+      const hooks = second.workspace as unknown as { syncParentDirectory: () => Promise<void> };
+      const actual = hooks.syncParentDirectory.bind(second.workspace);
+      hooks.syncParentDirectory = async () => {
+        throw new Error("injected metadata durability failure at session end");
+      };
+      try {
+        await assert.rejects(second.programs.endSession(), error =>
+          error instanceof WorkspaceDurabilityUncertain && error.filename === "programs.json");
+      } finally { hooks.syncParentDirectory = actual; }
+      const after = await second.programs.getActiveProgram();
+      assert.equal(after?.session, undefined);
+      assert.equal(after?.sessionHistory?.length, 1);
+      await assert.rejects(second.programs.endSession(), /No active session/);
+      assert.equal((await second.programs.getActiveProgram())?.sessionHistory?.length, 1);
+    } finally { await second.close(); }
+
+    const third = await openHeadlessNox(root, new ScriptedProvider([]));
+    try {
+      const saved = await third.programs.getActiveProgram();
+      assert.equal(saved?.sessionHistory?.length, 1, "reopen must not duplicate the ledger");
+      assert.equal(saved?.session, undefined);
+      assert.equal((await third.programs.listPrograms()).programs.length, 1);
+    } finally { await third.close(); }
   });
 });
