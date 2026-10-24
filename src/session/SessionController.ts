@@ -1,5 +1,5 @@
 import { SessionStore } from "./SessionStore";
-import { PersistenceError } from "../domain/persistence/errors";
+import { PersistenceError, SessionWriteConflict } from "../domain/persistence/errors";
 import { findCommittedPracticeOutcome, findCommittedReview, type TranscriptPart } from "./transcript-types";
 import type { LearningScopeState } from "../domain/practice/learning-scope";
 import type { PracticeAnswer } from "../domain/practice/types";
@@ -23,6 +23,19 @@ export class SessionController {
   // All session mutations—including snapshot staging and disk writes—have
   // one legal ordering. The injected host repository serializes durable I/O.
   private writeTail: Promise<void> = Promise.resolve();
+  // A second browser tab has its own controller and in-memory lane.
+  // Verify the committed whole-session document inside the host transaction.
+  private persistedSessions: string | undefined;
+
+  private assertFreshSessions(data: Record<string, unknown>): void {
+    if (JSON.stringify(data["nox-sessions"]) !== this.persistedSessions) {
+      throw new SessionWriteConflict();
+    }
+  }
+
+  private rememberCommittedSessions(data: Record<string, unknown>): void {
+    this.persistedSessions = JSON.stringify(data["nox-sessions"]);
+  }
 
   constructor(
     private readonly pluginData: SessionDataPort,
@@ -32,6 +45,7 @@ export class SessionController {
   async init(): Promise<void> {
     const data = await this.pluginData.read();
     await this.store.load(data);
+    this.persistedSessions = JSON.stringify(data["nox-sessions"]);
 
     // One-time legacy migration. Only compact a fully decodable, selected
     // conversation; leave malformed legacy data intact for safe recovery.
@@ -55,6 +69,7 @@ export class SessionController {
             delete next["agy-sessions"];
             return next;
           });
+          this.rememberCommittedSessions(normalized);
         } catch (error) {
           throw new PersistenceError("Unable to migrate legacy Nox sessions", error);
         }
@@ -87,8 +102,12 @@ export class SessionController {
         ...(changeModel ? { model: preferredModel } : {}) };
       const staged = this.store.stageSessionUpdate(next, { model });
       try {
-        await this.pluginData.update((data) => ({ ...(options.updateData?.(data) ?? data), ...staged.serialized }));
+        await this.pluginData.update((data) => {
+          this.assertFreshSessions(data);
+          return { ...(options.updateData?.(data) ?? data), ...staged.serialized };
+        });
       } catch (error) { throw new PersistenceError("Unable to persist runtime selection", error); }
+      this.rememberCommittedSessions(staged.serialized);
       this.store.acceptPersistedSession(staged.committed);
       this.store.setDefaultModel(model);
       this.currentSession = this.store.getSession(current.id);
@@ -239,10 +258,14 @@ export class SessionController {
   private async commitStoreTransaction<T>(mutate: (draft: SessionStore) => T): Promise<T> {
     const staged = this.store.stageTransaction(mutate);
     try {
-      await this.pluginData.update((current) => ({ ...current, ...staged.serialized }));
+      await this.pluginData.update((current) => {
+        this.assertFreshSessions(current);
+        return { ...current, ...staged.serialized };
+      });
     } catch (error) {
       throw new PersistenceError("Unable to persist Nox session", error);
     }
+    this.rememberCommittedSessions(staged.serialized);
     staged.publish();
     this.currentSession = this.store.getCurrentSession();
     return staged.result;

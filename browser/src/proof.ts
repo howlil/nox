@@ -1,6 +1,6 @@
 import { openBrowserNox, BrowserScriptedProvider } from "./composition";
 import { BrowserWorkspace } from "./BrowserWorkspace";
-import { DEFAULT_LEARNING_STATE, LearningStateWriteConflict,
+import { DEFAULT_LEARNING_STATE, LearningStateWriteConflict, SessionController, SessionStore,
   type LearningEvent, type LearningRequest } from "@nox/core";
 
 const fence = String.fromCharCode(96).repeat(3);
@@ -99,6 +99,34 @@ async function run() {
       check(abortCaught, "A failed browser session transaction was not rejected");
       check(JSON.stringify(await host.workspace.sessionData.read()) === beforeRollback,
         "Aborted browser transaction published unsaved session changes");
+
+      // Two independent controllers holding the same transcript snapshot.
+      const conflictDb = "nox-browser-m8-two-tabs";
+      const seeded = await BrowserWorkspace.open(conflictDb);
+      try {
+        const seed = new SessionController(seeded.sessionData, new SessionStore());
+        await seed.init();
+        await seed.recordUserMessage("seed", undefined, "ask");
+      } finally { seeded.close(); }
+      const tabA = await BrowserWorkspace.open(conflictDb);
+      const tabB = await BrowserWorkspace.open(conflictDb);
+      try {
+        const a = new SessionController(tabA.sessionData, new SessionStore());
+        const b = new SessionController(tabB.sessionData, new SessionStore());
+        await a.init(); await b.init();
+        await a.recordUserMessage("committed-A", undefined, "ask");
+        let rejected = false;
+        try { await b.recordUserMessage("should-not-commit-B", undefined, "ask"); }
+        catch { rejected = true; }
+        check(rejected, "Stale browser controller silently overwrote transcript");
+        check(!b.getSession().messages.some(m => m.content === "should-not-commit-B"),
+          "Rejected transcript mutation leaked into memory");
+        const reloaded = new SessionStore();
+        await reloaded.load(await tabA.sessionData.read());
+        const messages = reloaded.getCurrentSession()?.messages.map(m => m.content) ?? [];
+        check(messages.includes("committed-A") && !messages.includes("should-not-commit-B"),
+          "Concurrent tabs lost a committed transcript");
+      } finally { tabA.close(); tabB.close(); }
 
       // Fault injection uses another database so accepted learner progress
       // is not touched; malformed persisted state must never be rewritten.

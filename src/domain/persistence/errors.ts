@@ -9,6 +9,14 @@ export class PersistenceError extends Error {
   }
 }
 
+/** Another host committed a newer session document. Reload before retrying. */
+export class SessionWriteConflict extends Error {
+  constructor() {
+    super("Conversation changed in another tab or host. Reload before retrying.");
+    this.name = "SessionWriteConflict";
+  }
+}
+
 /** Optimistic authoritative snapshot conflict, safe to retry after a fresh load. */
 export class LearningStateWriteConflict extends Error {
   constructor() {
