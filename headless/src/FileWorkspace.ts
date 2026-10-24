@@ -11,6 +11,16 @@ import { DEFAULT_LEARNING_STATE, type LearningState } from "../../src/domain/lea
 import { LearningStateWriteConflict } from "../../src/domain/persistence/errors";
 import { decodeLearningState } from "../../src/persistence/learning-state-schema";
 
+/** Atomic rename occurred, but syncing the parent directory failed.
+ * New bytes may be observable even though power-loss durability is unknown.
+ * Callers must reload the authoritative state before retrying. */
+export class WorkspaceDurabilityUncertain extends Error {
+  constructor(readonly filename: string, cause: unknown) {
+    super("Commit durability uncertain for " + filename + ". Reload authoritative state before retrying.", { cause });
+    this.name = "WorkspaceDurabilityUncertain";
+  }
+}
+
 /**
  * Local single-process authority for the M2 headless host.
  * Refuses a second process and refuses stale lock removal automatically.
@@ -178,13 +188,13 @@ export class FileWorkspace {
     await handle.close();
     try {
       await rename(tmp, target);
-      // fsync the directory entry as well as the file before acknowledging
-      // success. POSIX rename atomicity alone is not power-loss durability.
-      await this.syncParentDirectory();
     } catch (error) {
       await unlink(tmp).catch(() => {});
       throw error;
     }
+    // Do not conflate failure after an observable commit with a failed rename.
+    try { await this.syncParentDirectory(); }
+    catch (error) { throw new WorkspaceDurabilityUncertain(name, error); }
   }
 
   private async syncParentDirectory(): Promise<void> {
