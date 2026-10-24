@@ -1,6 +1,7 @@
 import { openBrowserNox, BrowserScriptedProvider } from "./composition";
 import { BrowserWorkspace } from "./BrowserWorkspace";
-import { LearningStateWriteConflict, type LearningEvent, type LearningRequest } from "@nox/core";
+import { DEFAULT_LEARNING_STATE, LearningStateWriteConflict,
+  type LearningEvent, type LearningRequest } from "@nox/core";
 
 const fence = String.fromCharCode(96).repeat(3);
 const encoded = (value: unknown) => fence + "learning-practice\n" + JSON.stringify(value) + "\n" + fence;
@@ -86,6 +87,50 @@ async function run() {
       const persisted = await host.workspace.sessionData.read();
       check(persisted["m6:first"] === "one" && persisted["m6:second"] === "two",
         "Concurrent session transaction lost data after reload");
+      const beforeRollback = JSON.stringify(await host.workspace.sessionData.read());
+      let abortCaught = false;
+      try {
+        await host.workspace.sessionData.update(() => {
+          throw new Error("intentional transaction failure");
+        });
+      } catch (error) {
+        abortCaught = error instanceof Error && error.message.includes("intentional");
+      }
+      check(abortCaught, "A failed browser session transaction was not rejected");
+      check(JSON.stringify(await host.workspace.sessionData.read()) === beforeRollback,
+        "Aborted browser transaction published unsaved session changes");
+
+      // Fault injection uses another database so accepted learner progress
+      // is not touched; malformed persisted state must never be rewritten.
+      const corruptDatabase = "nox-browser-m6-corrupt";
+      const initialized = await BrowserWorkspace.open(corruptDatabase);
+      initialized.close();
+      const raw = await new Promise<IDBDatabase>((resolve, reject) => {
+        const opened = indexedDB.open(corruptDatabase, 1);
+        opened.onsuccess = () => resolve(opened.result);
+        opened.onerror = () => reject(opened.error);
+      });
+      try {
+        await new Promise<void>((resolve, reject) => {
+          const tx = raw.transaction("records", "readwrite");
+          tx.objectStore("records").put({ key: "progress", revision: 1,
+            data: { version: 444, target: "corrupt", gaps: [], evidence: [] } });
+          tx.oncomplete = () => resolve();
+          tx.onabort = () => reject(tx.error);
+        });
+      } finally { raw.close(); }
+      const damaged = await BrowserWorkspace.open(corruptDatabase);
+      try {
+        let readDenied = false, writeDenied = false;
+        try { await damaged.learningState.load(); } catch { readDenied = true; }
+        try { await damaged.learningState.save(structuredClone(DEFAULT_LEARNING_STATE)); }
+        catch { writeDenied = true; }
+        check(readDenied && writeDenied,
+          "Corrupt browser progress must fail closed on load and unguarded save");
+        let stillDamaged = false;
+        try { await damaged.learningState.load(); } catch { stillDamaged = true; }
+        check(stillDamaged, "Failed progress repair overwrote a malformed record");
+      } finally { damaged.close(); }
     }
     document.getElementById("result")!.textContent = "NOX_BROWSER_PROOF_PASS:" + stage;
     document.documentElement.dataset.proofStatus = "passed";

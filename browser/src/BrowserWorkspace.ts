@@ -32,8 +32,7 @@ function transact<T>(
     const tx = db.transaction(STORE, mode);
     const store = tx.objectStore(STORE);
     let result: T;
-    let completed = false;
-    tx.oncomplete = () => { completed = true; resolve(result); };
+    tx.oncomplete = () => resolve(result);
     tx.onabort = () => reject(tx.error ?? new Error("IndexedDB transaction aborted"));
     tx.onerror = () => {
       // onabort is authoritative; avoid rejecting before the transaction settles.
@@ -53,8 +52,6 @@ function transact<T>(
         tx.abort();
       }
     };
-    // Suppress unhandled rejection only when an aborted request raced oncomplete.
-    void completed;
   });
 }
 
