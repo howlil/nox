@@ -22,6 +22,7 @@ try {
   const manifest = JSON.parse(await readFile(join(pkg, "package.json"), "utf8"));
   if (manifest.private !== true) throw new Error("Core must remain private");
   if (manifest.scripts?.build !== "node ./scripts/build.mjs" ||
+      manifest.scripts?.verify !== "node ./scripts/verify.mjs" ||
       !manifest.devDependencies?.esbuild || !manifest.devDependencies?.typescript) {
     throw new Error("Core must own its build script and toolchain dependencies");
   }

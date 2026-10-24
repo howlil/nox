@@ -8,7 +8,7 @@ import { join, resolve } from "node:path";
 
 // Validate the artifact as a self-contained package: no source checkout,
 // workspace path aliases, or Node module resolution into the NOX repository.
-const built = spawnSync(process.execPath, [resolve("scripts/build-core.mjs")], {
+const built = spawnSync(process.execPath, [resolve("packages/core/scripts/verify.mjs")], {
   stdio: "inherit",
 });
 if (built.status !== 0) process.exit(built.status ?? 1);
