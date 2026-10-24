@@ -1,6 +1,6 @@
 import { App, TFile, TFolder } from "obsidian";
-import type { LearningProgram } from "../domain/learning-program/types";
-import { planWorkspace, planObjectiveLesson } from "../domain/workspace/plan";
+import type { LearningProgram } from "../../packages/core/src/domain/learning-program/types";
+import { planWorkspace, planObjectiveLesson } from "../../packages/core/src/domain/workspace/plan";
 
 /** Reentrant create-only writer. Partial failures can safely retry after restart. */
 export class VaultWorkspaceWriter {

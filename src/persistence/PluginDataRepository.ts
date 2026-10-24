@@ -1,5 +1,5 @@
 import type { Plugin } from "obsidian";
-import type { SessionDataPort } from "../types";
+import type { SessionDataPort } from "../../packages/core/src/types";
 
 export type PluginData = Record<string, unknown>;
 
