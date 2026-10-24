@@ -8,8 +8,8 @@ remains a separately built release (`manifest.json`, `main.js`, `styles.css`).
 `packages/core/src/index.ts` remains a public API facade. Since M10.1, **all 31
 canonical domain modules live physically at `packages/core/src/domain/`**.
 Legacy `src/domain/` paths are compatibility-only exports of that single
-implementation; application, session and runtime remain in root `src/` pending
-M10.2. This **does not duplicate the learning engine**. Build emits ESM, CommonJS and a self-contained
+implementation; application, session and runtime were extracted in M10.2; their old root paths
+remain temporary re-exports pending M10.3 host import cleanup. This **does not duplicate the learning engine**. Build emits ESM, CommonJS and a self-contained
 declaration tree under `packages/core/dist/`. Neither the Obsidian host nor
 the headless host imports its own built distribution bundle inside the plugin:
 that would risk two copies of stateful constructors. They continue using the
