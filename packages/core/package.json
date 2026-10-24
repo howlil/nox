@@ -1,0 +1,21 @@
+{
+  "name": "@nox/core",
+  "version": "0.1.0",
+  "description": "Portable NOX learning application engine and contracts",
+  "private": true,
+  "type": "module",
+  "sideEffects": false,
+  "files": ["dist"],
+  "exports": {
+    ".": {
+      "types": "./dist/types/packages/core/src/index.d.ts",
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.cjs"
+    }
+  },
+  "types": "./dist/types/packages/core/src/index.d.ts",
+  "scripts": {
+    "build": "node ../../scripts/build-core.mjs",
+    "verify": "node ../../scripts/check-core.mjs"
+  }
+}
