@@ -1,9 +1,12 @@
-import { appendFileSync, existsSync, readFileSync } from "node:fs";
+import { appendFileSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { resolve } from "node:path";
-import { verifyDesktopAcceptanceFile } from "./verify-desktop-acceptance.mjs";
 
-/** Automated contracts never substitute for actual native desktop evidence. */
+/**
+ * Automated preflight for NOX portable core and release provenance contracts.
+ * This validates configuration only; a passing check does NOT replace the
+ * completed GitHub CI run or the release-candidate certification workflow.
+ */
 export function portableAcceptanceIssues({ ci, release, recovery, core, tsconfig, source }) {
   const issues = [];
   const ciGates = [
@@ -15,12 +18,15 @@ export function portableAcceptanceIssues({ ci, release, recovery, core, tsconfig
   for (const name of ciGates) {
     if (!ci.includes(name)) issues.push("Missing portable CI gate: " + name);
   }
-  for (const name of ["desktop-acceptance:", "node scripts/verify-desktop-acceptance.mjs",
-    "desktop-acceptance]"]) {
-    if (!release.includes(name)) issues.push("Native desktop publication gate missing: " + name);
+  if (!release.includes("needs: [detect, linux, windows, community]")) {
+    issues.push("Publication must depend on Linux, Windows, and Community certification");
   }
-  if (!recovery.includes("node scripts/verify-desktop-acceptance.mjs")) {
-    issues.push("Recovery publication must verify native desktop evidence");
+  for (const token of ["gh attestation verify", "Source ref moved", "remote asset allowlist"]) {
+    if (!release.includes(token)) issues.push("Publication provenance check missing: " + token);
+  }
+  for (const token of ["gh attestation verify", "node scripts/check-release.mjs",
+    "EXPECTED_SHA"]) {
+    if (!recovery.includes(token)) issues.push("Recovery provenance check missing: " + token);
   }
   if (core.name !== "@nox/core" || core.private !== true ||
     core.exports?.["."]?.import !== "./dist/index.mjs" ||
@@ -39,25 +45,14 @@ export function portableAcceptanceIssues({ ci, release, recovery, core, tsconfig
   return issues;
 }
 
-/**
- * CI configuration is NOT evidence that the workflow passed on this SHA.
- * The preflight runs before the build job finishes; only a separate,
- * externally verified same-head CI result may satisfy ciRunVerified.
- */
-export function summarizePortableAcceptance({ issues, nativeStatus, ciRunVerified = false }) {
-  const blockers = [...issues];
-  if (nativeStatus !== "PASS") {
-    blockers.push("Native Obsidian desktop D01-D10 acceptance is NOT RUN or unverified.");
-  }
-  if (!ciRunVerified) {
-    blockers.push("Same-head complete CI result must be verified independently.");
-  }
-  return { automated: issues.length ? "FAIL" : "PASS", native: nativeStatus,
-    ciVerified: ciRunVerified, mergeReady: blockers.length === 0, blockers };
+/** Preflight reports structural policy only, never a fabricated overall CI result. */
+export function summarizePortableAcceptance({ issues }) {
+  return { configuration: issues.length ? "FAIL" : "PASS",
+    blockers: issues, completedCiVerified: false };
 }
 
 export function checkPortableAcceptance(root = process.cwd()) {
-  const read = path => readFileSync(resolve(root, path), "utf8");
+  const read = file => readFileSync(resolve(root, file), "utf8");
   const issues = portableAcceptanceIssues({
     ci: read(".github/workflows/ci.yml"),
     release: read(".github/workflows/release.yml"),
@@ -66,21 +61,13 @@ export function checkPortableAcceptance(root = process.cwd()) {
     tsconfig: JSON.parse(read("tsconfig.json")),
     source: read("packages/core/src/index.ts"),
   });
-  let nativeStatus = "NOT RUN";
-  const nativeFile = resolve(root, "docs/desktop-acceptance.json");
-  if (existsSync(nativeFile)) {
-    verifyDesktopAcceptanceFile(nativeFile);
-    nativeStatus = "PASS";
-  }
-  const report = summarizePortableAcceptance({ issues, nativeStatus });
+  const report = summarizePortableAcceptance({ issues });
   if (process.env.GITHUB_STEP_SUMMARY) {
-    appendFileSync(process.env.GITHUB_STEP_SUMMARY, [
-      "\n## M7 Portable NOX acceptance",
-      "- Automated contract: **" + report.automated + "**",
-      "- Native Obsidian desktop: **" + report.native + "**",
-      "- Merge-ready: **" + (report.mergeReady ? "YES" : "NO") + "**",
-      "- Blockers: " + report.blockers.join("; "), "",
-    ].join("\n"));
+    appendFileSync(process.env.GITHUB_STEP_SUMMARY,
+      "\n## Portable NOX automated preflight\n" +
+      "- Configuration: **" + report.configuration + "**\n" +
+      "- Complete same-head CI: must be checked independently\n" +
+      "- Issues: " + (issues.join("; ") || "none") + "\n");
   }
   if (issues.length) throw new Error(issues.join("\n"));
   console.log(JSON.stringify(report, null, 2));

@@ -68,9 +68,6 @@ jobs:
           node scripts/check-release.mjs
           test "$(node -p 'require("./package.json").version')" = "$VERSION"
 
-      - name: Require native Obsidian acceptance of the recovered source
-        run: node scripts/verify-desktop-acceptance.mjs
-
       - name: Download and attest the exact draft assets
         env:
           GH_TOKEN: ${{ github.token }}

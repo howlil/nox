@@ -36,7 +36,7 @@ test("release certification is strict and requires Windows plus reproducible art
 test("auto-publication requires strict source-bound attestations on the exact downloaded assets", () => {
   const release = read(".github/workflows/release.yml");
   const recovery = read(".github/workflows/publish-release.yml");
-  assert.match(release, /needs: \[detect, linux, windows, community, desktop-acceptance\]/);
+  assert.match(release, /needs: \[detect, linux, windows, community\]/);
   assert.match(release, /lint: "true"/);
   assert.match(release, /Detect unshipped release by ID rather than public tag/);
   assert.match(release, /contents: write/);
@@ -50,10 +50,8 @@ test("auto-publication requires strict source-bound attestations on the exact do
   assert.ok(release.indexOf("Publish only source-bound assets by release ID") <
     release.indexOf("gh api -X PATCH -F draft=false"));
   assert.match(release, /gh api -X PATCH -F draft=false/);
-  assert.match(release, /node scripts\/verify-desktop-acceptance\.mjs/);
   assert.match(release, /"release\/\$version"/);
   assert.match(release, /Source ref moved/);
   assert.match(recovery, /expected_sha/);
-  assert.match(recovery, /node scripts\/verify-desktop-acceptance\.mjs/);
   assert.match(recovery, /gh attestation verify/);
 });

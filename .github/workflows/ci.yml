@@ -68,7 +68,7 @@ jobs:
 
       - name: Enforce Obsidian public manifest = published release
         # Staged release PRs intentionally have no public tag until source-bound
-        # desktop acceptance and release certification pass. Master/push and
+        # release certification and source-bound artifact checks pass. Master/push and
         # ordinary PRs must still prove public manifest parity.
         if: ${{ !(github.event_name == 'pull_request' && startsWith(github.head_ref, 'release/')) }}
         env:
@@ -90,7 +90,7 @@ jobs:
       - name: Real browser IndexedDB and NOX engine conformance
         run: pnpm browser:verify
 
-      - name: M7 portable acceptance preflight (native evidence remains external)
+      - name: M7 automated portability and release policy preflight
         run: pnpm acceptance:portable
 
       - name: Build
