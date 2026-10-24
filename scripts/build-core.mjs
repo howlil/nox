@@ -13,12 +13,12 @@ mkdirSync(out, { recursive: true });
  * source facade implements application behavior. Any host-only dependency is
  * a fatal packaging regression even when the existing Obsidian build succeeds.
  */
-for (const [format, file] of [["esm", "index.mjs"], ["cjs", "index.cjs"]]) {
-  const result = await build({
+// Compile the stateful engine exactly once. Both entrypoints load this object.
+const result = await build({
     entryPoints: [resolve(directory, "src/index.ts")],
-    outfile: resolve(out, file),
+    outfile: resolve(out, "index.cjs"),
     bundle: true,
-    format,
+    format: "cjs",
     platform: "neutral",
     target: "es2022",
     treeShaking: true,
@@ -41,10 +41,22 @@ for (const [format, file] of [["esm", "index.mjs"], ["cjs", "index.cjs"]]) {
   const unresolved = Object.values(result.metafile.outputs).flatMap(entry =>
     entry.imports.filter(dependency => dependency.external).map(dependency => dependency.path));
   if (forbidden.length || unresolved.length) {
-    throw new Error(`Core ${format} contains host imports: ${[...forbidden, ...unresolved].join(", ")}`);
+    throw new Error(`Core CJS contains host imports: ${[...forbidden, ...unresolved].join(", ")}`);
   }
-  console.log(`@nox/core ${format} bundled ${Object.keys(result.metafile.inputs).length} source files`);
-}
+console.log(`@nox/core canonical CJS bundled ${Object.keys(result.metafile.inputs).length} source files`);
+
+// The ESM file is a thin facade over the CJS module's one set of constructors.
+const runtimeExports = [
+  "AgentRuntime", "LearningController", "LearningProgramOrchestrator",
+  "SessionController", "SessionStore", "ContextResolver",
+  "DEFAULT_LEARNING_STATE", "decodeLearningState",
+  "PersistenceError", "LearningStateWriteConflict", "SessionWriteConflict",
+];
+writeFileSync(resolve(out, "index.mjs"), [
+  'import runtime from "./index.cjs";',
+  ...runtimeExports.map(name => `export const ${name} = runtime.${name};`),
+  "",
+].join("\n"));
 
 const tsc = spawnSync(process.execPath, [
   resolve("node_modules/typescript/bin/tsc"),

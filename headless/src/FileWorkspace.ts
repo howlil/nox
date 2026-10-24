@@ -140,10 +140,22 @@ export class FileWorkspace {
     await handle.close();
     try {
       await rename(tmp, target);
+      // fsync the directory entry as well as the file before acknowledging
+      // success. POSIX rename atomicity alone is not power-loss durability.
+      await this.syncParentDirectory();
     } catch (error) {
       await unlink(tmp).catch(() => {});
       throw error;
     }
+  }
+
+  private async syncParentDirectory(): Promise<void> {
+    // Windows does not consistently support directory FileHandle sync. It
+    // retains atomic rename plus file fsync, without a full metadata guarantee.
+    if (process.platform === "win32") return;
+    const directory = await open(this.root, "r");
+    try { await directory.sync(); }
+    finally { await directory.close(); }
   }
 
   async close(): Promise<void> {

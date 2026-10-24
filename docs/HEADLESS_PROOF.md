@@ -68,3 +68,12 @@ fail-closed behavior, and executes the demo CLI from a separate Node process.
 M2 establishes **a portable Ask/Practice slice**. Program planning/timers,
 host-specific note selection, desktop providers/auth and edit Apply remain
 future conformance targets rather than implied capabilities.
+
+## Crash consistency correction
+
+FileWorkspace now fsyncs the temporary file, atomically renames it, then
+fsyncs the parent directory on POSIX before acknowledging a successful
+commit. On Windows, directory fsync is not consistently available: file
+fsync and rename are retained but full power-loss durability is not claimed.
+If directory sync fails after rename, the write reports failure; reopen and
+reload the workspace before retrying to avoid an ambiguous commit.

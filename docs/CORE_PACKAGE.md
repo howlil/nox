@@ -103,3 +103,11 @@ permissions, browser storage, or provider/auth integration. A full web
 host requires a separate capability contract and real browser E2E tests.
 
 M6 adds a real Chromium IndexedDB host proof; see [Browser proof](BROWSER_PROOF.md). The browser host imports only the public `@nox/core` facade, not Obsidian runtime adapters. This does not publish or certify a production web application.
+
+## Reliability correction — mixed-module runtime identity
+
+The ESM entrypoint is now a native ESM facade importing the **one CJS engine
+bundle**, rather than a second independent bundle. Mixed Node
+`import("@nox/core")` and `require("@nox/core")` share the exact same
+constructor and error objects. The isolated consumer test asserts identity
+and `instanceof` for both persistence-conflict errors.
