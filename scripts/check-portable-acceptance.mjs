@@ -39,13 +39,21 @@ export function portableAcceptanceIssues({ ci, release, recovery, core, tsconfig
   return issues;
 }
 
-export function summarizePortableAcceptance({ issues, nativeStatus }) {
-  if (issues.length) return { automated: "FAIL", native: nativeStatus,
-    mergeReady: false, blockers: issues };
-  if (nativeStatus !== "PASS") return { automated: "PASS",
-    native: nativeStatus, mergeReady: false,
-    blockers: ["Native Obsidian desktop D01-D10 acceptance is NOT RUN or unverified."] };
-  return { automated: "PASS", native: "PASS", mergeReady: true, blockers: [] };
+/**
+ * CI configuration is NOT evidence that the workflow passed on this SHA.
+ * The preflight runs before the build job finishes; only a separate,
+ * externally verified same-head CI result may satisfy ciRunVerified.
+ */
+export function summarizePortableAcceptance({ issues, nativeStatus, ciRunVerified = false }) {
+  const blockers = [...issues];
+  if (nativeStatus !== "PASS") {
+    blockers.push("Native Obsidian desktop D01-D10 acceptance is NOT RUN or unverified.");
+  }
+  if (!ciRunVerified) {
+    blockers.push("Same-head complete CI result must be verified independently.");
+  }
+  return { automated: issues.length ? "FAIL" : "PASS", native: nativeStatus,
+    ciVerified: ciRunVerified, mergeReady: blockers.length === 0, blockers };
 }
 
 export function checkPortableAcceptance(root = process.cwd()) {

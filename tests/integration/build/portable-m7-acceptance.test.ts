@@ -47,8 +47,19 @@ test("M7 blocks missing browser checks, public core and missing native release c
   assert.equal(summarizePortableAcceptance({ issues, nativeStatus: "PASS" }).mergeReady, false);
 });
 
-test("M7 can accept native evidence only with full automated requirements", () => {
-  assert.equal(summarizePortableAcceptance({ issues: [], nativeStatus: "PASS" }).mergeReady, true);
+test("M7 requires separately verified complete same-head CI plus native evidence", () => {
+  assert.equal(summarizePortableAcceptance({
+    issues: [], nativeStatus: "PASS",
+  }).mergeReady, false, "preflight cannot treat future CI steps as already passed");
+  assert.equal(summarizePortableAcceptance({
+    issues: [], nativeStatus: "PASS", ciRunVerified: true,
+  }).mergeReady, true);
+  assert.equal(summarizePortableAcceptance({
+    issues: ["failed build"], nativeStatus: "PASS", ciRunVerified: true,
+  }).mergeReady, false);
+  assert.equal(summarizePortableAcceptance({
+    issues: [], nativeStatus: "NOT RUN", ciRunVerified: true,
+  }).mergeReady, false);
 });
 
 test("M7 repository preflight reports native acceptance as NOT RUN", () => {
