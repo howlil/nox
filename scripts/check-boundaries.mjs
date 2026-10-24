@@ -4,6 +4,7 @@ import { validateArchitecture } from "./boundaries.mjs";
 import { validatePortableBoundaries } from "./portable-boundaries.mjs";
 import { checkPhysicalDomain } from "./check-physical-domain.mjs";
 import { checkHostConsumption } from "./check-host-consumption.mjs";
+import { auditLegacyCoreShims } from "./check-core-shims.mjs";
 
 function walk(directory) {
   return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
@@ -18,7 +19,11 @@ const legacy = walk("tests").filter((pathname) =>
   (pathname.startsWith("tests/ui/") ||
     (pathname.startsWith("tests/learning/") &&
       !pathname.startsWith("tests/integration/learning/"))));
-const issues = [...checkPhysicalDomain(), ...checkHostConsumption(), ...validateArchitecture(files),
+const shimReport = auditLegacyCoreShims();
+console.log("M10.4 legacy compatibility shims still referenced:", shimReport.retained.length);
+console.log("M10.4 unused shims:", JSON.stringify(shimReport.unused));
+const issues = [...shimReport.missingReferenced.map(p => p + ": imported compatibility shim missing"),
+  ...checkPhysicalDomain(), ...checkHostConsumption(), ...validateArchitecture(files),
   ...validatePortableBoundaries(files, { requireManifest: true }),
   ...legacy.map((pathname) => `${pathname}: tests must live with their application/domain owner`)];
 if (issues.length > 0) {
