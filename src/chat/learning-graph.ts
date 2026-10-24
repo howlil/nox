@@ -1,4 +1,4 @@
-import type { NoxProgramOverview } from "../application/learning-types";
+import type { NoxProgramOverview } from "../../packages/core/src/application/learning-types";
 import { createNoxButton, setNoxIcon } from "./primitives";
 import { layoutLearningMap, LEARNING_MAP_NODE_SIZE, type LearningMapLayout } from "./learning-graph-layout";
 import { projectLearningPanel } from "./learning-panel-state";
