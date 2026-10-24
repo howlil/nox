@@ -1,5 +1,5 @@
-import type { NoxProgramOverview } from "../../../application/learning-types";
-import type { ActivitySummary } from "../../../domain/activity/aggregation";
+import type { NoxProgramOverview } from "../../../../packages/core/src/application/learning-types";
+import type { ActivitySummary } from "../../../../packages/core/src/domain/activity/aggregation";
 import { setNoxIcon } from "../../../chat/primitives";
 
 export type ActivityScope = "active" | "all";

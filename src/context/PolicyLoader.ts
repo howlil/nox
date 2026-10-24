@@ -1,5 +1,5 @@
 import { App, TFile } from "obsidian";
-import { LearningPolicy } from "./context-types";
+import { LearningPolicy } from "../../packages/core/src/context/context-types";
 
 /**
  * Loads vault-level learning policy from AGENTS.md.

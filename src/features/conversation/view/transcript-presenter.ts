@@ -1,4 +1,4 @@
-import type { ChatMessage } from "../../../types";
+import type { ChatMessage } from "../../../../packages/core/src/types";
 
 export interface TranscriptRenderer {
   clear(): void;

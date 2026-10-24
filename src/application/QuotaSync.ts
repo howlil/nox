@@ -1,4 +1,4 @@
-import type { ProviderQuotaSnapshot, QuotaProvider, QuotaReading } from "../types";
+import type { ProviderQuotaSnapshot, QuotaProvider, QuotaReading } from "../../packages/core/src/types";
 
 type Reader = (signal: AbortSignal) => Promise<QuotaReading[]>;
 

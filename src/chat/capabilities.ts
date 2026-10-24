@@ -1,5 +1,5 @@
 import type { IconName } from "obsidian";
-import type { LearningActionKind } from "../application/learning-types";
+import type { LearningActionKind } from "../../packages/core/src/application/learning-types";
 
 export interface NoxCapability {
   action: Exclude<LearningActionKind, "ask">;

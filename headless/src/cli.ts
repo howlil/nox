@@ -1,6 +1,6 @@
 import { resolve } from "node:path";
 import { openHeadlessNox, ScriptedProvider } from "./composition";
-import type { LearningEvent, LearningRequest } from "../../src/application/learning-types";
+import type { LearningEvent, LearningRequest } from "@nox/core";
 
 const codeFence = String.fromCharCode(96).repeat(3);
 function practicePayload(value: unknown) {

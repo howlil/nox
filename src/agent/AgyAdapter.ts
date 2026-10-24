@@ -15,7 +15,7 @@ import {
   AgentHealth,
   AgentRuntimeConfig,
   SendOptions,
-} from "../types";
+} from "../../packages/core/src/types";
 import {
   AgyProtocolState,
   encodeAgyUserMessage,
