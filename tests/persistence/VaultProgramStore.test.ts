@@ -83,11 +83,16 @@ test("program loads await an in-flight write before reading the snapshot", async
   const store = new VaultProgramStore({ vault } as never);
   const expected = await store.load();
   const saving = store.save(EMPTY, expected);
-  await modifyEntered;
+  await Promise.race([
+    modifyEntered,
+    new Promise<void>((_, reject) => setTimeout(() =>
+      reject(new Error("CAS save never entered the vault mutation")), 2000)),
+  ]);
   const loading = store.load();
-  await Promise.resolve();
-  assert.equal(vault.readCalls, 1);
-  release();
+  try {
+    await Promise.resolve();
+    assert.equal(vault.readCalls, 1);
+  } finally { release(); }
   await saving;
   assert.deepEqual(await loading, EMPTY);
   assert.equal(vault.readCalls, 2);
