@@ -79,8 +79,8 @@ jobs:
           echo "prepared=true" >> "$GITHUB_OUTPUT"
           echo "version=$version" >> "$GITHUB_OUTPUT"
 
-  desktop-acceptance:
-    if: needs.detectared == 'true'
+  linux:
+    if: needs.detect.outputs.prepared == 'true'
     needs: detect
     runs-on: ubuntu-latest
     permissions:
