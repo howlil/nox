@@ -1,5 +1,5 @@
-import type { ChatMessage, EditProposal, ApplyResult } from "../types";
-import type { ProposedEdit } from "../application/learning-types";
+import type { ChatMessage, EditProposal, ApplyResult } from "../../packages/core/src/types";
+import type { ProposedEdit } from "../../packages/core/src/application/learning-types";
 import { createNoxButton, createNoxSurface, createNoxStatus } from "./primitives";
 
 /** Native view owns durable mutation authority; this presenter owns only the proposal DOM. */
