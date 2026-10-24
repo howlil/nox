@@ -120,6 +120,37 @@ test("M2 rejects unguarded overwrite and never repairs malformed progress by des
   });
 });
 
+
+test("M8 syncs the parent directory and rejects a post-rename durability failure", async () => {
+  await tempWorkspace(async root => {
+    const workspace = await FileWorkspace.open(root);
+    const hooks = workspace as unknown as { syncParentDirectory: () => Promise<void> };
+    const actual = hooks.syncParentDirectory.bind(workspace);
+    let flushes = 0;
+    try {
+      hooks.syncParentDirectory = async () => { flushes++; await actual(); };
+      await workspace.sessionData.update(current => ({ ...current, marker: "durable" }));
+      assert.equal(flushes, 1, "success must flush metadata after atomic rename");
+      hooks.syncParentDirectory = async () => {
+        flushes++;
+        throw new Error("injected post-rename directory fsync failure");
+      };
+      await assert.rejects(workspace.sessionData.update(current =>
+        ({ ...current, marker: "commit-uncertain" })), /post-rename directory fsync/);
+      assert.equal(flushes, 2, "post-rename sync failure must not be reported as success");
+      // Renamed data may already be visible even though durability is uncertain.
+      assert.equal((await workspace.sessionData.read()).marker, "commit-uncertain");
+    } finally {
+      hooks.syncParentDirectory = actual;
+      await workspace.close();
+    }
+    const reopened = await FileWorkspace.open(root);
+    try {
+      assert.equal((await reopened.sessionData.read()).marker, "commit-uncertain");
+    } finally { await reopened.close(); }
+  });
+});
+
 test("M2 local runtime refuses another owner and releases workspace on disposal", async () => {
   await tempWorkspace(async root => {
     const first = await FileWorkspace.open(root);

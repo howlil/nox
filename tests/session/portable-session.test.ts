@@ -37,3 +37,30 @@ test("M1 real session controller accepts a host-neutral transaction adapter", as
   assert.deepEqual(durable["nox-settings"], { provider: "agy" });
   assert.ok(durable["nox-sessions"], "session commits through the injected port");
 });
+
+test("M8 two controllers cannot overwrite the same persisted conversation", async () => {
+  let durable: Record<string, unknown> = {};
+  const host: SessionDataPort = {
+    read: async () => structuredClone(durable),
+    update: async mutate => { durable = structuredClone(mutate(structuredClone(durable))); },
+  };
+  const make = () => new SessionController(host, new SessionStore());
+  const seeded = make();
+  await seeded.init();
+  await seeded.recordUserMessage("seed");
+  const first = make();
+  const stale = make();
+  await first.init();
+  await stale.init();
+  await first.recordUserMessage("committed by first tab");
+  const before = structuredClone(durable);
+  await assert.rejects(stale.recordUserMessage("stale overwrite"), PortableError);
+  assert.deepEqual(durable, before, "failed CAS must preserve committed bytes");
+  assert.equal(stale.getSession().messages.some(m => m.content === "stale overwrite"), false);
+  const reloaded = make();
+  await reloaded.init();
+  assert.deepEqual(reloaded.getSession().messages.map(m => m.content),
+    ["seed", "committed by first tab"]);
+  await reloaded.recordUserMessage("written only after reload");
+  assert.deepEqual((await host.read())["nox-sessions"] !== undefined, true);
+});
