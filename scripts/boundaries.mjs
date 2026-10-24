@@ -138,9 +138,8 @@ export function validateArchitecture(files) {
           continue;
         }
         // M10 compatibility exports must target the exact package-owned module.
-        const physicalDomain = owner === "domain" && target ===
-          "packages/core/src/domain/" + filename.slice("src/domain/".length);
-        if (!physicalDomain && !isApprovedEdge(filename, target)) {
+        const physicalCore = target === "packages/core/src/" + filename.slice("src/".length);
+        if (!physicalCore && !isApprovedEdge(filename, target)) {
           issues.push(`${filename}: forbidden dependency -> ${target}`);
         }
       } else if (owner === "domain") {

@@ -6,15 +6,27 @@ import { ProgramWriteConflict as CanonicalConflict } from "../../packages/core/s
 import { ProgramWriteConflict as LegacyConflict } from "../../src/domain/persistence/errors";
 import { validateCurriculum as canonicalValidate } from "../../packages/core/src/domain/learning-program/rules";
 import { validateCurriculum as legacyValidate } from "../../src/domain/learning-program/rules";
+import { LearningController as CanonicalLearning } from "../../packages/core/src/application/LearningController";
+import { LearningController as LegacyLearning } from "../../src/application/LearningController";
+import { LearningProgramOrchestrator as CanonicalPrograms } from "../../packages/core/src/application/LearningProgramOrchestrator";
+import { LearningProgramOrchestrator as LegacyPrograms } from "../../src/application/LearningProgramOrchestrator";
+import { SessionController as CanonicalSessions } from "../../packages/core/src/session/SessionController";
+import { SessionController as LegacySessions } from "../../src/session/SessionController";
+import { AgentRuntime as CanonicalRuntime } from "../../packages/core/src/agent/AgentRuntime";
+import { AgentRuntime as LegacyRuntime } from "../../src/agent/AgentRuntime";
 import { checkPhysicalDomain } from "../../scripts/check-physical-domain.mjs";
 
-test("M10 one canonical domain constructor and pure policy identity", () => {
+test("M10 canonical domain and application constructors have one runtime identity", () => {
   assert.strictEqual(CanonicalPractice, LegacyPractice);
   assert.strictEqual(CanonicalConflict, LegacyConflict);
   assert.strictEqual(canonicalValidate, legacyValidate);
+  assert.strictEqual(CanonicalLearning, LegacyLearning);
+  assert.strictEqual(CanonicalPrograms, LegacyPrograms);
+  assert.strictEqual(CanonicalSessions, LegacySessions);
+  assert.strictEqual(CanonicalRuntime, LegacyRuntime);
   assert.ok(new LegacyConflict() instanceof CanonicalConflict);
 });
 
-test("M10 physical domain migration preserves all ownership edges", () => {
+test("M10 physically extracted core rejects duplicated logic or outward dependency", () => {
   assert.deepEqual(checkPhysicalDomain(), []);
 });

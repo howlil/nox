@@ -1,0 +1,123 @@
+import { AgentFailure, EditProposal } from "../types";
+import {
+  ExplicitContextRef,
+  TurnContextSnapshot,
+} from "../context/context-types";
+import { LearningState } from "../domain/learning-state/types";
+import {
+  PracticeEvaluation,
+  PracticeQuestion,
+  PracticeAnswer,
+} from "../domain/practice/types";
+import { ReviewFinding } from "../domain/review/types";
+import type { LearningObjective, ActivityKind } from "../domain/learning-program/types";
+import type { CriterionKnowledge } from "../domain/learner-model/learner-profile";
+import type { CurriculumRevisionPreview } from "../domain/learning-program/curriculum-preview";
+
+/** Read-only graph derived from authoritative learner evidence. */
+export interface NoxProgramOverview {
+  goal: string;
+  planVersion: number;
+  revisionPreview?: CurriculumRevisionPreview;
+  active: boolean;
+  focus?: { status: "active" | "paused"; objectiveId: string };
+  sessionTime?: {
+    budgetMs: number; activeMs: number; remainingMs: number; aiWaitingMs: number;
+    status: "active" | "waiting-ai" | "paused" | "recovered" | "exhausted";
+  };
+  next: { kind: ActivityKind; objectiveId?: string; reason: string; dueAt?: number;
+    trigger?: string; criterionIds?: string[]; scaffoldLevel?: number };
+  objectives: Array<{ objective: LearningObjective;
+    status: "unseen" | "remediate" | "provisional" | "mastered";
+    attempts: number; dueAt: number | null;
+    criteria: Array<{ id: string; label: string; status: CriterionKnowledge;
+      evidenceIds: string[] }> }>;
+}
+
+
+export type LearningActionKind =
+  | "ask"
+  | "explain"
+  | "practice"
+  | "review"
+  | "edit";
+
+export interface LearningRequest {
+  prompt: string;
+  replyTo?: import("../types").ChatReplyReference;
+  action: LearningActionKind;
+  explicitContext: ExplicitContextRef[];
+  /** Single explicitly chosen onboarding note; never include ambient editor context. */
+  contextMode?: "explicit-only";
+  /** Expected program for onboarding focus; checked inside the program CAS mutation. */
+  focusProgramId?: string;
+  /** Origin of a Review finding; follow-ups must not silently retarget edits. */
+  sourcePath?: string;
+  /** A retry is another attempt at the same logical user turn. */
+  retry?: boolean;
+  /** Generate a new alternative for the latest Ask/Explain assistant message. */
+  regenerate?: { messageIndex: number; expectedContent: string };
+  /** Stable identity across Retry. New user submissions receive new IDs. */
+  turnId?: string;
+  programActivity?: { programId: string; objectiveId: string; kind: "teach" };
+  freePractice?: boolean;
+  practiceClarification?: { questionId: string };
+  /** Typed submit from an interactive card, validated against the active question. */
+  practiceSubmission?: { questionId: string; answer: PracticeAnswer };
+}
+
+export interface ProposedEdit {
+  id: string;
+  proposal: EditProposal;
+}
+
+export type LearningEvent =
+  | {
+      type: "context-ready";
+      context: TurnContextSnapshot;
+    }
+  /** Runtime-observed activity only; not model reasoning or estimated progress. */
+  | { type: "activity-phase"; phase: "waiting-model" | "receiving-output" | "finalizing"; at: number }
+  | {
+      type: "thought-delta";
+      text: string;
+    }
+  | {
+      type: "response-delta";
+      text: string;
+    }
+  | {
+      type: "practice-question";
+      question: PracticeQuestion;
+      questionId?: string;
+    }
+  | {
+      type: "practice-evaluation";
+      evaluation: PracticeEvaluation;
+      /** Identity of the evaluated question, for post-commit UI reveal. */
+      questionId?: string;
+    }
+  | {
+      type: "review-findings";
+      findings: ReviewFinding[];
+    }
+  | {
+      type: "mutation-proposed";
+      edit: ProposedEdit;
+    }
+  | {
+      type: "learning-state-updated";
+      state: LearningState;
+    }
+  | { type: "tool-started"; toolCallId: string; name: string }
+  | { type: "tool-completed"; toolCallId: string; outcome: "completed" | "failed" }
+  | {
+      type: "completed";
+    }
+  | {
+      type: "failed";
+      failure: AgentFailure | { code: "timeout" | "busy"; message: string };
+    }
+  | {
+      type: "cancelled";
+    };
