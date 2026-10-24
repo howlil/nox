@@ -1,7 +1,7 @@
 import type { ChatSession } from "../../../types";
 import type { LearningState } from "../../../domain/learning-state/types";
 import type { LearningStatePort } from "../../../application/ports";
-import { LearningStateWriteConflict } from "../../../persistence/PersistenceError";
+import { LearningStateWriteConflict } from "../../../domain/persistence/errors";
 import { recordPracticeEvaluation, recordReviewFindings } from "../../../domain/learning-state/transitions";
 
 /** Reconciles committed transcript outcomes into the durable learning ledger.

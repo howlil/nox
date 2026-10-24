@@ -1,4 +1,4 @@
-import type { AgentRuntimePort } from "../agent/AgentRuntime";
+import type { AgentRuntimePort } from "../types";
 import type { ContextPort, LearningStatePort, ProgramStorePort } from "./ports";
 import type { LearningProgram, ProgramCollection, ProgramConstraints, SessionPauseReason } from "../domain/learning-program/types";
 import { feasibility } from "../domain/learning-program/rules";

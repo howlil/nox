@@ -1,0 +1,16 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "rootDir": "../..",
+    "lib": ["ES2023", "DOM"],
+    "target": "ES2022",
+    "outDir": "./dist/types",
+    "declaration": true,
+    "emitDeclarationOnly": true,
+    "inlineSourceMap": false,
+    "inlineSources": false,
+    "noEmitOnError": true,
+    "types": []
+  },
+  "include": ["src/index.ts"]
+}

@@ -1,4 +1,5 @@
 import type { Plugin } from "obsidian";
+import type { SessionDataPort } from "../types";
 
 export type PluginData = Record<string, unknown>;
 
@@ -12,7 +13,7 @@ type PluginDataMutation = (current: PluginData) => PluginData;
  * read/modify/write ordering so independent settings/session updates cannot
  * overwrite each other from stale snapshots.
  */
-export class PluginDataRepository {
+export class PluginDataRepository implements SessionDataPort {
   private writeTail: Promise<void> = Promise.resolve();
 
   constructor(private readonly plugin: PluginDataAccess) {}

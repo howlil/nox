@@ -11,6 +11,8 @@ const ALLOWED_OWNERS = {
   context: ["context", "types"],
   diagnostics: ["diagnostics"],
   domain: ["domain"],
+  // Concrete adapters may depend inward; application/domain may never depend on host.
+  host: ["host", "application", "agent", "context", "domain", "mutation", "persistence", "session", "types"],
   mutation: ["mutation", "domain", "types"],
   persistence: ["persistence", "domain", "types"],
   session: ["session", "persistence", "domain", "types"],
@@ -58,11 +60,10 @@ function isApprovedFeatureEdge(from, to) {
   if (fromPackage === "conversation/turn") {
     return ["src/application/learning-types.ts", "src/application/ports.ts",
       "src/application/reply-context.ts", "src/agent/StructuredStreamParser.ts",
-      "src/context/context-types.ts", "src/context/ContextBudget.ts",
-      "src/persistence/PersistenceError.ts"].includes(to);
+      "src/context/context-types.ts", "src/context/ContextBudget.ts"].includes(to);
   }
   if (fromPackage === "learning/program") {
-    return ["src/application/ports.ts", "src/agent/AgentRuntime.ts"].includes(to);
+    return ["src/application/ports.ts"].includes(to);
   }
   if (fromPackage === "learning/onboarding") return false;
   return false;
@@ -73,6 +74,7 @@ function isApprovedEdge(from, to) {
   const target = to === "src/types.ts" ? "types" : to.split("/")[1];
   if (from === "src/types.ts") return to === "src/session/transcript-types.ts";
   if (from === "src/main.ts") return true;
+  if (owner === "host" && !from.startsWith("src/host/obsidian/")) return false;
   if (from.startsWith("src/features/") || to.startsWith("src/features/")) return isApprovedFeatureEdge(from, to);
   // M4: the context application-facing resolver consumes a structural port,
   // never the concrete Obsidian adapter or any host-specific implementation.
@@ -91,18 +93,14 @@ function isApprovedEdge(from, to) {
     // Exception: normalized parser/port, session transcript shape, and shared
     // persistence failure contract. No adapter, controller or repository.
     if (target === "agent") {
-      return to === "src/agent/AgentRuntime.ts" ||
-        to === "src/agent/StructuredStreamParser.ts";
+      return to === "src/agent/StructuredStreamParser.ts";
     }
     if (target === "context") return to === "src/context/context-types.ts" || to === "src/context/ContextBudget.ts" || to === "src/context/LocalResearch.ts";
     if (target === "session") return to === "src/session/transcript-types.ts";
-    if (target === "persistence") return to === "src/persistence/PersistenceError.ts";
+    if (target === "persistence") return false;
   }
   if (owner === "chat" && target === "context") return to === "src/context/context-types.ts";
-  if (owner === "session" && target === "persistence") {
-    return to === "src/persistence/PluginDataRepository.ts" ||
-      to === "src/persistence/PersistenceError.ts";
-  }
+  if (owner === "session" && target === "persistence") return false;
   return true;
 }
 

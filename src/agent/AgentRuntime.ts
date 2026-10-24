@@ -6,21 +6,10 @@ import {
   AgentStreamEvent,
   SendOptions,
   TokenUsage,
+  type AgentRuntimePort,
 } from "../types";
 
-export interface AgentRuntimePort {
-  supportsSourceIsolation?(): boolean;
-  replaceAdapter?(adapter: AgentAdapter): Promise<void>;
-  check(): Promise<AgentHealth>;
-  getModels(): AgentModel[];
-  getModelDiscoveryError?(): string | undefined;
-  refreshModels?(): Promise<void>;
-  send(
-    input: AgentInput,
-    opts: SendOptions,
-    signal: AbortSignal,
-  ): AsyncIterable<AgentStreamEvent>;
-}
+export type { AgentRuntimePort } from "../types";
 
 /**
  * Owns runtime lifecycle and runtime-derived state.

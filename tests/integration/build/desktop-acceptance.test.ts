@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { checkDesktopAcceptance, verifyDesktopAcceptanceFile } from "../../../scripts/verify-desktop-acceptance.mjs";
+import { checkDesktopAcceptance, verifyDesktopAcceptanceFile,
+  DESKTOP_ACCEPTANCE_CRITICAL_PATHS } from "../../../scripts/verify-desktop-acceptance.mjs";
 
 const commit = "a".repeat(40);
 const makeEvidence = () => ({
@@ -42,4 +43,18 @@ test("acceptance rejects stale source, wrong version or non-GitHub evidence", ()
   const external = makeEvidence();
   external.cases[0].evidenceUrl = "https://arbitrary.example/pass";
   assert.throws(() => checkDesktopAcceptance(external, { version: "1.3.0" }), /unlinked/);
+});
+
+test("M7 source-bound desktop evidence covers package, browser, headless and build entrypoints", () => {
+  const required = [
+    "src", "browser", "headless", "packages/core", "public",
+    "styles.css", "scripts", "tests", ".github/workflows",
+    "esbuild.config.mjs", "package.json", "pnpm-lock.yaml",
+    "pnpm-workspace.yaml", "tsconfig.json", "manifest.json", "versions.json",
+  ];
+  assert.deepEqual(DESKTOP_ACCEPTANCE_CRITICAL_PATHS, required);
+  assert.equal(new Set(DESKTOP_ACCEPTANCE_CRITICAL_PATHS).size, required.length,
+    "Every distinct runtime/build authority must have one acceptance path");
+  assert.equal(DESKTOP_ACCEPTANCE_CRITICAL_PATHS.includes("docs/desktop-acceptance.json"), false,
+    "Acceptance record itself must not invalidate the runtime evidence");
 });

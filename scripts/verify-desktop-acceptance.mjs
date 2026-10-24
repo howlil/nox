@@ -7,6 +7,30 @@ const expectedCases = Array.from({ length: 10 }, (_, i) => "D" + String(i + 1).p
 const commitId = /^[a-f0-9]{40}$/;
 const evidenceLink = /^https:\/\/(github\.com|github\.usercontent\.com|objects\.githubusercontent\.com)\//i;
 
+// Runtime- and release-critical source. An acceptance for one SHA must not
+// silently cover a changed host, published package entrypoint or build graph.
+// Metadata-only documentation can change, but execution-affecting assets cannot.
+export const DESKTOP_ACCEPTANCE_CRITICAL_PATHS = Object.freeze([
+  "src",
+  "browser",
+  "headless",
+  "packages/core",
+  "public",
+  "styles.css",
+  "scripts",
+  "tests",
+  ".github/workflows",
+  "esbuild.config.mjs",
+  "package.json",
+  "pnpm-lock.yaml",
+  "pnpm-workspace.yaml",
+  "tsconfig.json",
+  "manifest.json",
+  "versions.json",
+]);
+
+
+
 /** Human desktop proof is an input, not something simulated by mock tests. */
 export function checkDesktopAcceptance(evidence, { version, isAncestor, changesSince } = {}) {
   if (!evidence || typeof evidence !== "object" || Array.isArray(evidence)) throw new Error("Invalid desktop acceptance record.");
@@ -64,7 +88,7 @@ export function verifyDesktopAcceptanceFile(filename = "docs/desktop-acceptance.
         // Release-only metadata may change after acceptance. Any runtime, test,
         // security or publication logic change invalidates the prior desktop proof.
         git("diff", "--quiet", sha, "HEAD", "--",
-          "src", "styles.css", "scripts", "tests", ".github/workflows", "esbuild.config.mjs");
+          ...DESKTOP_ACCEPTANCE_CRITICAL_PATHS);
         return false;
       } catch { return true; }
     },

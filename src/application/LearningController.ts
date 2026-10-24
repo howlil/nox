@@ -1,9 +1,8 @@
 import { summarizeActivity } from "../domain/activity/aggregation";
 import { isLocallyExecutableCommand } from "./local-command";
-import type { AgentAdapter, AgentHealth, AgentModel, ApplyResult, ChatSession, ChatMessage } from "../types";
+import type { AgentAdapter, AgentHealth, AgentModel, ApplyResult, ChatSession, ChatMessage, AgentRuntimePort } from "../types";
 import type { ExplicitContextRef, LearningContext } from "../context/context-types";
 import type { SessionPort, ContextPort, PolicyPort, MutationPort, LearningStatePort, RuntimeSettingsWrite, ProgramStorePort, WorkspaceWriterPort } from "./ports";
-import type { AgentRuntimePort } from "../agent/AgentRuntime";
 import type { LearningEvent, LearningRequest, NoxProgramOverview } from "./learning-types";
 import type { PracticeOrigin, PracticeAnswer } from "../domain/practice/types";
 import { RunLearningTurn } from "./RunLearningTurn";

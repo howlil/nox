@@ -8,6 +8,511 @@ Last updated: 2026-10-13
 
 ---
 
+
+## M7 portable final acceptance — 2026-10-25
+
+State: **automated conformance requires same-head CI; native desktop
+D01–D10 NOT RUN until genuine source-bound evidence is submitted.**
+`pnpm acceptance:portable` checks required CI gates, release human gate,
+package privacy and alias contracts; absent native evidence is reported
+as `mergeReady: false`, not fabricated as PASS. `verify-desktop-acceptance`
+now invalidates old evidence after changes to portable package/host sources,
+public assets, build configs, manifest or other execution-critical paths.
+
+A: identical Obsidian/Node/Chromium core behavior plus native D01–D10.
+E: CI failure, stale provider/evidence, missing or stale human proof
+blocks acceptance; no implicit merge or publication.
+R: PR-head CI, source-bound native desktop evidence, release owner.
+See `docs/PORTABLE_CORE_M7_ACCEPTANCE.md` for scenario matrix.
+
+---
+
+## M6 real-browser host proof — 2026-10-24
+
+**State:** implemented in PR #134, subject to end-to-end CI.
+
+### Implementation graph
+
+```text
+IndexedDB browser host (no privileged capabilities)
+  → one @nox/core engine → SessionController + RunLearningTurn
+  → IDB readwrite transaction: sessions commit first
+  → Practice terminal transcript → IDB evidence CAS append
+  → real Chrome separate-process restart/resume test
+```
+
+**A:** Ask and Practice use canonical controller/event semantics.
+**E:** IDB mutation aborts before in-memory publication; stale evidence
+revision rejects and preserves committed state. No ambient context or
+native editor mutation capabilities are granted.
+**R:** browser IndexedDB, injected scripted inference, real Chrome CI
+and same-origin test server. See `docs/BROWSER_PROOF.md`.
+
+No production OAuth, browser file access, cross-device sync, or real browser
+UI are claimed. Native Obsidian acceptance remains required before merge.
+
+---
+
+## M5 host consumption and browser-compatibility proof — 2026-10-24
+
+**State:** implemented in PR #134 branch; CI acceptance pending.
+
+### A/E/R responsibility graph
+
+```text
+Obsidian host composition ───────┐
+Obsidian main.ts (types only) ────┤
+Headless Node composition ───────┤ @nox/core public facade
+                                 └── src/ canonical modules (one resolved copy)
+                   ↑ checked by graph, constructor-identity & integration tests
+
+Isolated package consumer (no monorepo paths)
+  → browser-target bundle → browser-like restricted JS realm session transaction
+  → inspect bundle imports: zero Node/Obsidian/Electron and runtime externals
+
+A: host consumers compile against curated package surface with identical
+   class identities; portable session transaction works in browser-like realm.
+E: broken workspace resolution, duplicate modules, leaked host API,
+   invalid package export, or session semantics fail CI.
+R: root workspace dependency + TS source path alias, esbuild dependency
+   metafiles, strict isolated consumer, existing host conformance suite.
+```
+
+**Critical distinction:** workspace hosts alias `@nox/core` to the canonical
+source index to avoid a double bundled engine; external consumers use the
+private built distribution. Browser-like VM smoke is a portability regression,
+**not** real Chrome/Firefox/Safari acceptance. No new provider, browser storage
+adapter, hosted service or editor mutation capability is claimed.
+
+See `docs/CORE_PACKAGE.md` for the exact import/bundle contract.
+
+---
+
+## M4 portable package distribution — 2026-10-24
+
+**Status: private package extraction in PR #134; CI acceptance pending.**
+
+### A / E / R graph
+
+```text
+Canonical src/ application + domain + session + context
+  → curated packages/core/src/index.ts surface
+  → esbuild neutral ESM/CJS + TypeScript declaration emitter
+  → copy ONLY package.json and dist to isolated consumer
+  → independent JS import/require + strict TS type resolution
+  → existing Obsidian/headless CI and release artifact checks
+
+A: one editable engine, external portable runtime/artifact contract, no
+   release/manifest modification; package defaults to private preview.
+E: host code in package graph, unresolved transitive dependency,
+   broken types, missing runtime, package export/ABI mismatch fail CI.
+R: esbuild + TypeScript, current src implementation, independent package
+   consumer sandbox, no Obsidian runtime or credentials.
+```
+
+**Ownership:** `src/` remains authoritative for the engine in this
+non-moving migration. `@nox/core` is a compiled distribution boundary,
+not a second state owner. Obsidian and headless build against the canonical
+source, so a host never mixes the built package with its own source copies.
+A future source relocation must be incremental and independently reviewed.
+
+**Acceptance:** `pnpm core:verify`, existing architecture checks, Obsidian
+build and artifact parity, headless Ask/Practice and conformance tests.
+Source: `docs/CORE_PACKAGE.md`.
+
+---
+
+## M3 — Obsidian host composition and contract conformance (2026-10-24)
+
+**Status:** implementation in PR #134; acceptance subject to CI.
+
+### A / E / R graph
+
+```text
+src/main.ts (Obsidian lifecycle, settings, menus, ChatView)
+  → host/obsidian/composition.ts (one Obsidian host)
+    → SAME PluginDataRepository instance for settings, session and token usage
+    → SessionController (one transaction lane) + SessionStore
+    → AgentRuntime → LearningController → LearningProgramOrchestrator
+    → ObsidianContext, PolicyLoader, VaultLearningStore, VaultProgramStore,
+      VaultWorkspaceWriter, MutationService, OnboardingStateRepository
+  → host/obsidian/lifecycle.ts (host event observers only)
+    → LearningActivityPresence → LearningProgramOrchestrator (sole writer)
+  → recoverSessions → recoverLearningWorkspaces onLayoutReady
+  → onUnload flushSessionTime → learning.dispose; runtime/auth/quota disposed
+
+A: original event registration, program recovery ordering, model selection,
+   native editor Undo, persistence and provider behavior preserved.
+E: startup store failure aborts composition; no provider discovery;
+   activity persistence failure stays observable and retryable.
+R: one plugin data writer; Obsidian vault CAS stores; Plugin.register* owns
+   event subscriptions and activity interval; no portable-core reverse imports.
+```
+
+### Conformance gates
+
+- Same `SessionDataPort` test scenarios apply to plugin-data Obsidian adapter
+  and durable FileWorkspace headless adapter: serialize concurrent updates,
+  preserve unrelated keys, surface failed writes and recover after failure.
+- Existing VaultLearningStore vs FileWorkspace LearningStatePort conformance
+  verifies stale evidence CAS, one authoritative saved record, and retry.
+- Host imports are explicit one-way outward boundary. The M0 protected modules
+  cannot import host code; any new `src/host` subtype must be approved.
+- Obsidian UI, auth, main.js build, provider transports and vault serialization
+  remain unchanged. Composition does not create a new data store or core copy.
+
+M3 does not make Obsidian Vault undo applicable to Node or browser editors.
+Full native desktop acceptance remains separate from automated conformance.
+
+---
+
+## M2 headless proof — 2026-10-24
+
+**State: implemented in PR #134 branch; final acceptance depends on CI.**
+
+A second Node host now composes the real NOX `LearningController`,
+`RunLearningTurn`, Practice/evidence rules, `SessionController` and
+`SessionStore` from existing source, with separate Node file I/O adapters.
+A scripted provider is used **only as an inference substitute**, never as a
+copy of the learning engine. See `docs/HEADLESS_PROOF.md` for commands and
+transaction, lifecycle, trust and recovery scope.
+
+- **A:** Ask → question → durable transcript → restart → answer →
+  terminal evaluation → transcript commit → one evidence CAS append.
+- **E:** invalid/locked workspace, malformed persistence, stale evidence,
+  provider failure or crash are explicit; no automatic replay of inference
+  or editing.
+- **R:** Node filesystem adapter owns exclusive workspace lock, atomic
+  state files and evidence CAS; application code sees injected narrow ports.
+
+This proves a **limited headless Ask/Practice runtime**. It does not yet
+satisfy portable curriculum planning, full Obsidian lifecycle parity, real
+provider authentication, cross-device sync or editor-native Undo. No
+Obsidian release code, persisted keys or authoritative state owner changes.
+
+---
+
+## M1 portable data/runtime dependency inversion — 2026-10-24
+
+**State: implemented in PR #134 branch, subject to CI and code review.**
+
+### Implementation graph (A / E / R)
+
+```text
+Obsidian main.ts (composition)
+  ├─ existing PluginDataRepository implements SessionDataPort
+  │     └─ SessionController → SessionStore (exactly one ordered mutation lane)
+  │                            → portable persistence error constructors
+  ├─ existing AgentRuntime implements AgentRuntimePort from shared types.ts
+  │     └─ LearningController / RunLearningTurn / ProgramOrchestrator
+  │           └─ provider-neutral AgentStreamEvent contract
+  └─ Obsidian Context / VaultProgramStore / VaultLearningStore / editor adapter
+        └─ existing application ports and CAS lane (unchanged)
+
+A: committed transcript and application events identical to M0, but host
+   implementations are supplied structurally and no concrete repository or
+   provider runtime type is imported by the affected core controllers.
+E: injected I/O error maps to the same PersistenceError constructor;
+   failed transaction publishes no in-memory state, then retries safely.
+R: SessionDataPort.read/update (serialized atomic record mutation),
+   AgentRuntimePort stream/health, existing program/evidence ports.
+```
+
+### Ownership, invariants and compatibility
+
+- `PluginDataRepository` **remains the single concrete Obsidian loadData/
+  update/saveData writer**; it now explicitly implements `SessionDataPort`.
+  SessionController retains its own ordered snapshot transaction queue.
+  An adapter for another host must provide a serializable, durable update,
+  not merely independently called read/write operations.
+- `AgentRuntimePort` now resides in the already protected shared contract
+  `src/types.ts`, while `src/agent/AgentRuntime.ts` re-exports the type
+  for existing callers. Neither streaming terminal behavior, provider auth,
+  model discovery nor cancellation semantics change.
+- `PersistenceError` and `LearningStateWriteConflict` move to the
+  portable `domain/persistence/errors.ts` owner; the prior
+  `persistence/PersistenceError.ts` path re-exports the *same classes*.
+  Identity-based `instanceof` logic keeps working for retry/recovery.
+- The M0 portability fence now protects `SessionController` and
+  `SessionStore` as well as the previously protected contracts. Current
+  application orchestration is **not** declared host-independent: it still
+  has concrete collaborator coupling and lifecycle to invert in further M1
+  slices, and is out of M2 portability-proof acceptance scope for now.
+
+No persisted keys, schema formats, CAS protocols, provider transports,
+Obsidian bootstrap registrations, editor effects, or build outputs are changed.
+Tests assert host-neutral session substitution and error identity; existing
+recovery and inference tests must remain green.
+
+---
+
+## M0 portable-core implementation contract — 2026-10-24
+
+**State: implemented in draft PR #134, pending full CI and diff review.**
+M0 is only a dependency fence, not an extracted core runtime.
+
+### A / E / R execution graph
+
+```text
+pnpm check:boundaries
+  → read all src/*.ts (current repository snapshot)
+  → validateArchitecture (existing ownership constraints)
+  → validatePortableBoundaries (TypeScript AST: imports + ambient globals)
+  → validate declared portable contract file existence
+  → exit 0 on no violations; nonzero with exact file/line errors otherwise
+
+A: architecture validation result, unchanged application runtime.
+E: malformed source, missing contract file, unresolved/out-of-zone import,
+   runtime or host package reference, dynamic specifier, host-specific global.
+R: repository source, installed TypeScript parser and existing boundary script.
+Execution: read-only single CI command. No state mutation or background work.
+```
+
+### Protected baseline and known exclusions
+
+The fence applies automatically to `src/domain/**/*.ts` and explicitly to
+`src/application/{ports,learning-types,learning-state-projection}.ts`,
+`src/context/{ContextResolver,ContextSourcePort,ContextBudget,LocalResearch,context-types}.ts`,
+`src/session/{message-types,transcript-part-types,transcript-types,transcript-schema}.ts`
+and `src/types.ts`. New domain files are covered without a manifest update.
+The declared shared contract list is mandatory in repository CI, so deleting
+a file does not accidentally erase a portability promise.
+
+Guarded files cannot import nonportable local modules or runtime packages
+(including type-only imports and exports), use unresolvable dynamic imports,
+or access Node/browser-specific runtime globals. The TypeScript syntax tree
+prevents misleading string literals and comments from triggering false alarms.
+The existing owner graph is enforced by the same `pnpm check:boundaries` run.
+
+**Not yet protected as portable:** `LearningController`, `RunLearningTurn`,
+`LearningProgramOrchestrator`, `SessionController`, vault stores, provider
+transports, `ChatView` and `main.ts`. They still have concrete runtime edges;
+M1/M3 must invert those first rather than declaring them portable prematurely.
+
+### Frozen correctness and compatibility obligations
+
+| Obligation | Existing authority; M0 does not replace |
+| --- | --- |
+| Transcript terminal success precedes evidence | RunLearningTurn, SessionController, TranscriptEvidenceReconciler |
+| Serialized session and plugin-data writes | SessionController + PluginDataRepository |
+| Program CAS, single focus and one mutation lane | LearningProgramOrchestrator + ProgramMutationQueue + VaultProgramStore |
+| Learning evidence CAS and legacy progress decoder | VaultLearningStore + learning-state-schema |
+| Onboarding receipt before CAS, no overwrite | LearningController + OnboardingStateRepository + VaultWorkspaceWriter |
+| Explicit approved edit + revision/Undo semantics | MutationService + domain mutation planner |
+| Legacy session and program interpretation | SessionStore, SessionController and versioned program decoder |
+
+These are **engineering guarantees to preserve**, not new static tests proving
+runtime transaction correctness. Existing behavioral tests own that evidence.
+M0 adds only source-level architecture checks with negative regression tests.
+
+### Verification gate
+
+`pnpm check:boundaries` must fail for cross-zone, host-package or host-global
+usage. `pnpm test:unit` covers positive and negative portable guard behavior.
+`pnpm verify` continues exercising the unchanged Obsidian bundle and legacy
+state tests. Headless CLI parity and packaging are explicitly future milestones.
+
+---
+
+## Proposed: portable NOX core boundary — 2026-10-24
+
+**Status: PROPOSED, not accepted or implemented.** This extends the
+existing Obsidian-centric contract for a possible future second host.
+Do not move source files, introduce cloud services, change schemas, or replace
+the current persistence/agent mechanisms until the contract is agreed.
+
+### Product and runtime scope
+
+Preserve a single domain-neutral learning engine for Ask, Explain, Practice,
+Review, curriculum/focus, evidence and safe approved edits. Obsidian remains
+the first-class production host. A headless, non-Obsidian Node host is the first
+proof of portability. Browser/web, VS Code, mobile and remote/cloud runtimes
+are possible *future hosts*, not committed deliverables.
+
+A host need not support every operation. Unsupported capabilities must fail
+explicitly and be omitted from presentation without weakening authorization.
+
+### Current → target responsibility graph
+
+Current (simplified):
+```text
+Obsidian main.ts → ChatView → LearningController / RunLearningTurn
+                 → application ports + concrete feature/agent/session types
+                 → Obsidian vault stores / PluginDataRepository / editor mutation
+                 → selected provider adapter
+```
+
+Target:
+```text
+Obsidian UI ───────┐
+Node/headless CLI ─┼─ driving adapters ─→ portable application use cases
+Future web UI ─────┘                       │
+                                         ├─ pure learning domain and session model
+                                         ├─ conversation/receipt/state ports
+                                         ├─ material/context/query ports
+                                         ├─ authorized mutation port
+                                         ├─ inference runtime port
+                                         └─ clock/lifecycle capabilities
+                                             ↓ implementations injected at host composition
+                            Obsidian | local Node | browser | future remote
+```
+
+Dependency direction: Host → Core; Adapters → Core ports; Core must not
+import Host, Obsidian, Electron, Node-specific APIs, DOM, or platform filesystem.
+Provider adapters remain orthogonal to host adapters (although their transport
+and credential access must be constructed with host-supported capabilities).
+Obsidian ChatView remains an Obsidian view; visual component reuse is optional
+and is not required to prove the engine portable.
+
+### Responsibilities and boundaries
+
+- **Core domain:** curriculum validation, objective/practice/focus transitions,
+  evidence/progress projection, question/review schemas, safe edit planning,
+  token-usage arithmetic. No I/O or global host state.
+- **Core application:** turn orchestration, scope/permission enforcement,
+  durable terminal outcome ordering, program mutation serialization,
+  approval receipts and recovery, session lifecycle, timer semantics.
+  No direct host SDK or provider process/HTTP details.
+- **Core ports:** host-neutral typed contracts for conversation transaction,
+  program CAS, evidence CAS, onboarding receipts, material/context access,
+  approved editor mutation, inference events, policy loading, clock and
+  persistence/permission error reporting.
+- **Host adapters:** active editor selection, vault/document search, source
+  snapshots, native Undo, materialization, plugin/host data, activity/visibility,
+  UI registration and disposal. Host owns capability discovery and consent UX.
+- **Provider adapters:** model discovery, inference/auth transport,
+  process lifecycle, retries and quota reporting. No learning mastery rules.
+- **Composition:** each host builds exactly one session writer, one program
+  mutation lane, its permitted source gateway and its provider runtime.
+
+Do not create a universal 'storage' or 'platform' service that hides different
+transaction and authorization guarantees. Extend only purposeful ports.
+
+### Authoritative state and invariants
+
+| State | Single authority | Required semantics |
+| --- | --- | --- |
+| Conversation, transcript, proposal receipt | One session transaction owner, currently SessionController + PluginDataRepository | Ordered durable publication; no uncommitted visible transcript; idempotent operation IDs |
+| Program selection, curriculum, focus, timer checkpoints | ProgramStorePort with one application mutation queue | Load-current/compare/atomic save; no double focused program; restart reconciliation |
+| Evidence/knowledge gaps | LearningStatePort | Evidence only after committed transcript; CAS, stable evidence identity, replay-safe reconciliation |
+| Onboarding approval intent | OnboardingStatePort | Persist receipt before any program CAS; restart reads receipt; optional workspace creation is create-only |
+| Materials, selected content, file edits | The host's workspace/editor | Context is an authorized *read snapshot*, not copy of source ownership; editing requires explicit consent and optimistic revision check/native editor transaction |
+| Provider credentials/secrets | Host-specific secure credential owner | Not placed in transcripts, export bundles or core; never silently copied across hosts |
+| Usage telemetry, UI state | Existing usage store / ephemeral host view respectively | Usage is not mastery evidence; UI state never becomes canonical |
+
+A portable runtime is **one workspace authority**, not a magical cross-device
+sync system. Simultaneous writes across tabs/processes require atomic store
+implementations; in-process promises alone are insufficient.
+Remote multi-tenant auth, sync and conflict reconciliation are deliberately
+outside the initial portable-core scope.
+
+### Minimum contracts
+
+- **Driving use cases**: `runTurn(request, signal) → AsyncIterable<LearningEvent>`;
+  `preview/approveProgram`, `commitPracticeOutcome`, `getOverview`,
+  `applyApprovedProposal`. Use domain-specific APIs rather than a generic
+  untyped command bus or an all-purpose 'platform context'.
+- **Material identity**: new portable `MaterialRef` identifies a source,
+  workspace and document; version/revision is independent. Current
+  `vault-note + path` and stored source paths remain readable through an
+  Obsidian compatibility adapter/codec until separately migrated.
+- **Material access**: search/list metadata are distinct from authorized
+  content reads. The host evaluates scoped grants *before* reading and
+  revalidates source identity/revision immediately before mutation.
+  Model-produced references never grant read/write permission.
+- **Conversation transaction**: atomic serial publication of transcript and
+  proposal status. Existing session snapshots/IDs must roundtrip unmodified.
+- **Program/evidence stores**: explicit conflict on stale expected snapshot.
+  First extraction retains the existing `save(next, expected)` CAS contract;
+  any later revision-token redesign is separate and needs equivalence proof.
+- **Mutation**: pure replacement plan plus host-specific approved atomic
+  editor change. Native Undo is a host guarantee; a host without an equivalent
+  transaction cannot claim Edit/Apply capability and may expose copy-only
+  proposals instead.
+- **Inference**: `AsyncIterable` of normalized text/tool/terminal events with
+  cancellation. CLI/OAuth/HTTP implementation is outside core; source-isolation
+  and transport permissions are verified at runtime, not inferred from host name.
+- **Lifecycle**: clock, activity/visibility observations and cancellation
+  signals are supplied by the host; core never registers DOM listeners.
+
+The existing `ContextSourcePort`, `AgentRuntimePort`,
+`LearningStatePort`, `ProgramStorePort`, and `SessionPort` are migration
+starting points, not grounds for duplicating interfaces.
+
+### Critical paths
+
+1. **Ordinary turn**: host user intent → core validates scope/source authority
+   → material snapshot → provider stream → terminal outcome validation →
+   one transcript transaction → only then reconcile evidence; cancellation
+   or incomplete output cannot award evidence.
+2. **Focus/program update**: host intent → application program lane →
+   expected snapshot → pure domain transition → atomic CAS save → view event.
+   A stale snapshot signals conflict; never silently overwrite.
+3. **Approved edit**: core prepares proposal → user approves in host →
+   host verifies same document and expected content/revision → transactional
+   editor apply + native Undo where supported → durable proposal outcome.
+   No active transactional editor means explicit unsupported/copy-only result.
+4. **Restart/partial failure**: host reconstructs session + program/evidence
+   through existing decoders, recovers approval receipts, replays committed
+   transcript events idempotently and does not blindly repeat inference/edits.
+
+### Guarantees and proof gates
+
+- **G1: host independence** — bundle and execute the application/domain without
+  `obsidian`, `electron`, Node-only modules, `window` or `document`.
+- **G2: state correctness** — existing snapshot CAS, serialized session commit,
+  terminal outcome gating, transcript-first evidence and onboarding receipt
+  invariants remain unchanged on the Obsidian adapter.
+- **G3: least authority** — source scope, provider tool access and edit consent
+  cannot be enlarged by provider output or inferred platform capability.
+- **G4: backward compatibility** — existing vault folders, plugin-data keys,
+  v1/v2 programs, v1/v2/v3 evidence and transcript decoders roundtrip without
+  eager rewrite or destructive migration.
+- **G5: substitutability** — one non-Obsidian host runs Ask and Practice with
+  the real core and real durable transactions; not a fork of business logic.
+  Unsupported edit capability returns a predictable non-mutating result.
+- **G6: operational separation** — browser bundles have no Node-only imports,
+  hosted secrets never leak to browser; any cloud/sync design must come with a
+  distinct authorization and consistency contract.
+
+### Recommended architecture progression (not code milestones yet)
+
+- **M0 — contract and guardrails:** freeze the current authoritative write
+  paths and legacy decoders. Add forbidden-import CI checks for portable
+  modules; keep `master` shipping Obsidian unchanged.
+- **M1 — eliminate concrete application dependencies:** add thin storage,
+  session, runtime error and host lifecycle interfaces where current imports
+  prevent a headless run; bridge existing objects rather than rewrite them.
+- **M2 — prove the real core in a headless host:** same turn/evaluation/
+  program engine with in-memory + durable file adapters, fake inference
+  substitute and explicit no-edit support. Run against realistic old data.
+- **M3 — make the Obsidian integration an adapter/composition shell:** its
+  existing vault CAS, editor Undo, UI and provider adapters continue to work.
+  Cross-host conformance tests cover CAS, cancellation and recovery.
+- **M4 — package when proven:** publish a private workspace package
+  `@nox/core` with narrow exports, plus an Obsidian host entrypoint; keep
+  build outputs/manifest unchanged. Only then add VS Code/web/other hosts
+  in separate slices.
+
+No monorepo split is required for M0/M1. Any eventual workspace packages must
+avoid copying mutable state or rebuilding the entire product separately.
+
+### Consequential open questions
+
+- Which second host provides the first concrete product requirement? A
+  headless Node runner is the lowest-cost portability proof; a web app would
+  additionally require choosing permitted auth and persistent transaction
+  capabilities.
+- What is the lifetime/identity of a workspace outside an Obsidian vault?
+  Host must assign stable workspace identity before portable references can
+  safely cross host boundaries.
+- Is cross-device synchronization required? If yes, consistency,
+  conflict resolution, identity and trust boundaries require a separate
+  architectural decision; not part of this proposal.
+
+**ADR:** `.agents/decisions/ADR-0001-portable-nox-core.md` (proposed).
+
+
 ## Boundary ownership follow-up — 2026-10-24 (draft PR #133)
 
 This review narrows behavioral ownership without replacing the established

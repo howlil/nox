@@ -2,6 +2,7 @@ import {
   AgentContext,
   type ResearchScope,
   AgentFailure,
+  type AgentRuntimePort,
   ChatSession,
 } from "../types";
 import {
@@ -11,7 +12,7 @@ import {
 } from "../context/context-types";
 import type { SessionPort, ContextPort, PolicyPort, LearningStatePort, ProgramStorePort } from "./ports";
 import { formatReplyPrompt } from "./reply-context";
-import { PersistenceError } from "../persistence/PersistenceError";
+import { PersistenceError } from "../domain/persistence/errors";
 import { TranscriptEvidenceReconciler } from "../features/conversation/turn/TranscriptEvidenceReconciler";
 import { StructuredTurnBuffer } from "../features/conversation/turn/StructuredTurnBuffer";
 import { InvalidLearningOutputError } from "../features/conversation/turn/turn-output-error";
@@ -24,7 +25,6 @@ import {
   recordReviewFindings,
 } from "../domain/learning-state/transitions";
 import { findCommittedPracticeOutcome, findCommittedReview, type TranscriptPart } from "../session/transcript-types";
-import type { AgentRuntimePort } from "../agent/AgentRuntime";
 import {
   buildActionInstruction,
   selectGraphPresentation,

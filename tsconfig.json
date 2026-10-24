@@ -1,6 +1,7 @@
 {
   "compilerOptions": {
     "baseUrl": ".",
+    "paths": { "@nox/core": ["packages/core/src/index.ts"] },
     "inlineSourceMap": true,
     "inlineSources": true,
     "module": "ESNext",
@@ -13,5 +14,5 @@
     "lib": ["ES2018", "DOM"],
     "skipLibCheck": true
   },
-  "include": ["src/**/*.ts"]
+  "include": ["src/**/*.ts", "headless/src/**/*.ts", "browser/src/**/*.ts"]
 }

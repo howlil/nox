@@ -121,6 +121,13 @@ export interface AgentModel {
 
 // ── Agent runtime boundary ──────────────────────────────────────────────────
 
+/** Host-neutral session document transaction. One existing host implementation owns
+ * the serialized read/modify/write lane; this contract is not a new writer. */
+export interface SessionDataPort {
+  read(): Promise<Record<string, unknown>>;
+  update(mutate: (current: Record<string, unknown>) => Record<string, unknown>): Promise<void>;
+}
+
 export interface AgentAdapter {
   /** Explicit capability; CLI adapters with filesystem tools must never claim it. */
   readonly sourceIsolation?: "no-filesystem-tools";
@@ -134,6 +141,18 @@ export interface AgentAdapter {
 
   listModels(signal?: AbortSignal): Promise<AgentModel[]>;
 
+}
+
+/** Application-facing inference capability. Transport, auth, discovery and
+ * provider process lifetimes remain behind this port. */
+export interface AgentRuntimePort {
+  supportsSourceIsolation?(): boolean;
+  replaceAdapter?(adapter: AgentAdapter): Promise<void>;
+  check(): Promise<AgentHealth>;
+  getModels(): AgentModel[];
+  getModelDiscoveryError?(): string | undefined;
+  refreshModels?(): Promise<void>;
+  send(input: AgentInput, opts: SendOptions, signal: AbortSignal): AsyncIterable<AgentStreamEvent>;
 }
 
 export interface AgentRuntimeConfig {
