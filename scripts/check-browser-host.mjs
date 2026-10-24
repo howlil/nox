@@ -46,6 +46,8 @@ const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 
 async function runChrome(stage) {
   const profile = join(directory, "chrome-profile");
+  // Chrome may leave the previous remote-debugging marker after graceful exit.
+  await rm(join(profile, "DevToolsActivePort"), { force: true });
   const url = `http://127.0.0.1:${port}/?stage=${stage}`;
   const args = [
     "--headless=new", "--disable-gpu", "--no-sandbox", "--disable-dev-shm-usage",
@@ -72,10 +74,15 @@ async function runChrome(stage) {
     if (!debugPort) throw new Error("Chrome did not expose remote DevTools");
     let page;
     for (let attempt = 0; attempt < 70; attempt++) {
-      const response = await fetch(`http://127.0.0.1:${debugPort}/json/list`);
-      const targets = await response.json();
-      page = targets.find(target => target.type === "page" && target.url.includes("stage=" + stage));
-      if (page) break;
+      try {
+        const response = await fetch(`http://127.0.0.1:${debugPort}/json/list`);
+        const targets = await response.json();
+        page = targets.find(target => target.type === "page" && target.url.includes("stage=" + stage));
+        if (page) break;
+      } catch {
+        // Port marker can precede DevTools HTTP listener startup.
+      }
+      if (child.exitCode !== null) throw new Error("Chrome quit before DevTools attached");
       await sleep(150);
     }
     if (!page) throw new Error("Chrome did not open the M6 proof page");
