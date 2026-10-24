@@ -84,8 +84,8 @@ Proof: pnpm check:boundaries, typecheck, lint, unit/integration, build, artifact
 | M1 | `PracticePresenter` owns question/evaluation projection and one stale-safe draft debounce; ChatView exposes narrow request callbacks | Desktop quiz/CodeMirror smoke |
 | M2 | Existing History/Transcript presenters retained; response toolbar moved to `response-actions-presenter.ts` with typed session-scoped callbacks | Desktop navigation, fork and regenerated-response smoke |
 | M3 | `LearningPresenter` owns Learning Map, Activity, Focus Strip, session clock/cache/polling; original `OnboardingFlow` remains the sole onboarding owner | Desktop focus and onboarding recovery smoke |
-| M4 | ChatView composes Practice/Learning/Model/Prompt/**Thinking** presenters. `ThinkingPresenter` owns live/restored trace, observed stages, tool rows, disclosure, elapsed time, stale-event guard and interval lifecycle. ChatView retains cross-feature routing and canonical turn dispatch. | Desktop Thinking/stream acceptance remains |
-| M5 | Explicit architecture allow-list, presenter tests and final race-condition fixes (single-flight Practice draft, post-close streaming guard, retryable Model selection), plus D01–D10 native acceptance plan | CI on final HEAD; native Obsidian desktop acceptance NOT RUN |
+| M4 | ChatView composes Practice/Learning/Model/Prompt/**Thinking** presenters. `ThinkingPresenter` owns live/restored trace, observed stages, tool rows, disclosure, elapsed time, stale-event guard and interval lifecycle. ChatView retains cross-feature routing and canonical turn dispatch. | Targeted UI tests pass; native behavior remains unverified |
+| M5 | Explicit architecture allow-list, presenter tests and final race-condition fixes (single-flight Practice draft, post-close streaming guard, retryable Model selection), with automated architecture and presenter tests | CI on final HEAD |
 
 ### M5 audit findings and verification boundary (2026-10-21)
 
@@ -97,7 +97,7 @@ Proof: pnpm check:boundaries, typecheck, lint, unit/integration, build, artifact
 
 **Automated verification:** `tests/chat/practice-presenter.test.ts`, `tests/chat/model-menu.test.ts`, and `tests/architecture/ui-feature-ownership.test.ts` include regression proof for these fixes. The existing CI runs architecture, TypeScript, lint, integration, CSS, build and artifact checks.
 
-**Automated UI verification:** `docs/PORTABLE_CORE_M7_ACCEPTANCE.md` contains a concrete D01–D10 procedure, and its status is **NOT RUN**. CI cannot establish live UI/provider behavior; source-bound release certification and attestation remain mandatory.
+**Automated UI verification:** `docs/PORTABLE_CORE_M7_ACCEPTANCE.md` records the automated portability and release verification contract. CI cannot establish live UI/provider behavior; source-bound release certification and attestation remain mandatory.
 
 ### M4 follow-up: Thinking UI owner (2026-10-21)
 

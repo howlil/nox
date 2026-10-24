@@ -549,8 +549,8 @@ GitHub CI alone does not establish desktop acceptance.
 ## M5 feature-private physical package checkpoint — 2026-10-20
 
 **State:** Scoped M0–M5 code migration is implemented in draft PR #121.
-GitHub CI verifies static/automated safety; Obsidian desktop acceptance remains
-outstanding. The full aspirational feature-first layout is NOT fully migrated.
+GitHub CI verifies static/automated safety; native UI behavior is not
+certified by these checks. The full aspirational feature-first layout is NOT fully migrated.
 
 Physical ownership after moving eleven tested M1–M3 private collaborators:
 - `src/features/conversation/turn/`: `StructuredTurnBuffer`,
@@ -2918,8 +2918,8 @@ Settings reads a snapshot through the plugin host boundary. See
 - Offline chat input distinguishes local commands from model-backed operations.
   Plan generation, /next and free practice continue to require inference.
 - Regression proofs: provider input capture, authority unit test, timer failure
-  injection and offline command classification. Desktop acceptance remains a
-  separate mandatory release gate.
+  injection and offline command classification. Release publication is guarded
+  by candidate CI, signed source-bound artifacts and public version parity.
 
 ## R1–R4 ownership follow-up — 2026-10-20
 

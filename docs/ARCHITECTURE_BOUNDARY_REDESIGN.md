@@ -277,7 +277,7 @@ Streaming delta (LearningController.run)
    -> final Markdown and message actions
 ```
 
-**Acceptance gate:** run `pnpm verify` plus `pnpm lint:typed` and `pnpm ci:critical` using the existing CI workflow. Do not claim green tests or desktop acceptance merely because GitHub accepted a commit. Obsidian desktop history swipe, transcript visuals, stream completion, practice cards, and proposal approval must be exercised before merging/releasing behavior-sensitive changes.
+**Acceptance gate:** run `pnpm verify` plus `pnpm lint:typed` and `pnpm ci:critical` using the existing CI workflow. Do not claim green tests or desktop acceptance merely because GitHub accepted a commit. Behavior-sensitive changes must have targeted tests and disclose native compatibility that automation cannot establish.
 
 ### M2 — Conversation turn coordinator
 - Keep one `RunTurn` active-turn/cancel owner.
@@ -333,7 +333,7 @@ LearningController.run(request)
 
 **Release boundary:** No feature state model, provider wire schema, Obsidian editor adapter,
 database/writer, or `ChatView` UI interaction is changed in M2. CI verifies the TypeScript
-and unit/integration regressions; native Obsidian desktop acceptance remains separate.
+and unit/integration regressions; native UI behavior is not certified by CI.
 Do not infer that the entire feature-first modular monolith is implemented.
 
 ### M3 — Learning program responsibilities
@@ -490,7 +490,7 @@ No presenter or helper starts asynchronous background work or has another persis
 
 **§8 / Resource scope; §9 / Verification**
 
-No new persistent resource, timer, event bus, queue or provider transport introduced by the physical migration. Unit/integration tests, architecture checker, typed lint and build must pass on the final commit; architecture tests now cover illegal cross-feature imports, allowed facade edges and per-package graph statistics. Automated tests, source-bound release certification and verified plugin artifacts remain the release gates. Execute and record the scenario matrix in `docs/PORTABLE_CORE_M7_ACCEPTANCE.md` (D01–D10); absent native evidence must remain **NOT RUN**, even if CI is green. This milestone is not permission to auto-merge PR #121.
+No new persistent resource, timer, event bus, queue or provider transport introduced by the physical migration. Unit/integration tests, architecture checker, typed lint and build must pass on the final commit; architecture tests now cover illegal cross-feature imports, allowed facade edges and per-package graph statistics. Automated tests, source-bound release certification and verified plugin artifacts remain the release gates. Use `docs/PORTABLE_CORE_M7_ACCEPTANCE.md` for automated acceptance criteria; never fabricate native behavior from mock results. This milestone is not permission to auto-merge PR #121.
 
 **Deferred by design:** a wholesale move of historical session/data/agent adapters to the aspirational `features/` and `platform/` layout. Moving them without first demonstrating their real import dependencies and ownership would increase migration risk with no functional improvement. The target diagram in §4 is directional guidance, not a claim that all listed directories now exist.
 
