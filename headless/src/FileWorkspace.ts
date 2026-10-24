@@ -15,8 +15,8 @@ import { decodeLearningState } from "../../src/persistence/learning-state-schema
  * New bytes may be observable even though power-loss durability is unknown.
  * Callers must reload the authoritative state before retrying. */
 export class WorkspaceDurabilityUncertain extends Error {
-  constructor(readonly filename: string, cause: unknown) {
-    super("Commit durability uncertain for " + filename + ". Reload authoritative state before retrying.", { cause });
+  constructor(readonly filename: string, readonly cause: unknown) {
+    super("Commit durability uncertain for " + filename + ". Reload authoritative state before retrying.");
     this.name = "WorkspaceDurabilityUncertain";
   }
 }
