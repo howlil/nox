@@ -3,42 +3,43 @@ import { posix, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = process.cwd();
-const canonicalRoot = "packages/core/src/domain";
-const legacyRoot = "src/domain";
+const canonicalRoot = "packages/core/src";
+const legacyRoot = "src";
 function walk(directory) {
   return readdirSync(resolve(root, directory), { withFileTypes: true }).flatMap(entry => {
-    const path = directory + "/" + entry.name;
-    return entry.isDirectory() ? walk(path) : path.endsWith(".ts") ? [path] : [];
+    const filename = directory + "/" + entry.name;
+    return entry.isDirectory() ? walk(filename) : filename.endsWith(".ts") ? [filename] : [];
   }).sort();
 }
-/** Fail closed on duplicate domain implementation, a missing shim, or an outward runtime edge. */
+
+/** Guard all physically extracted core modules, not just domain. */
 export function checkPhysicalDomain() {
-  const canonical = walk(canonicalRoot);
-  const legacy = walk(legacyRoot);
+  const files = walk(canonicalRoot).filter(path => path !== canonicalRoot + "/index.ts");
+  const present = new Set(files);
   const issues = [];
-  if (!canonical.length || canonical.length !== legacy.length) {
-    issues.push("Domain file count mismatch between canonical package and legacy paths");
-  }
-  const present = new Set(canonical);
-  for (const oldPath of legacy) {
-    const suffix = oldPath.slice(legacyRoot.length + 1);
-    const target = canonicalRoot + "/" + suffix;
-    if (!present.has(target)) issues.push(oldPath + ": missing canonical implementation");
-    const expected = 'export * from "../../../packages/core/src/domain/' + suffix.slice(0, -3) + '";\n';
-    if (readFileSync(resolve(root, oldPath), "utf8") !== expected) {
-      issues.push(oldPath + ": legacy module must be an exact compatibility export");
-    }
-  }
-  for (const path of canonical) {
-    const content = readFileSync(resolve(root, path), "utf8");
-    for (const match of content.matchAll(/\b(?:from\s*|import\s*\(\s*|require\s*\(\s*|import\s*)(["'])([^"']+)\1/g)) {
-      const specifier = match[2];
-      if (!specifier.startsWith(".")) {
-        issues.push(path + ": domain cannot import runtime/external module " + specifier);
+  const domains = files.filter(path => path.startsWith(canonicalRoot + "/domain/"));
+  if (domains.length !== 31) issues.push("Expected 31 original canonical domain modules");
+
+  for (const canonical of files) {
+    const suffix = canonical.slice(canonicalRoot.length + 1);
+    const old = legacyRoot + "/" + suffix;
+    const legacy = readFileSync(resolve(root, old), "utf8");
+    const oldDir = posix.dirname(old);
+    const target = canonical.slice(0, -3);
+    const relative = posix.relative(oldDir, target);
+    const specifier = relative.startsWith(".") ? relative : "./" + relative;
+    const expected = 'export * from "' + specifier + '";\n';
+    if (legacy !== expected) issues.push(old + ": duplicate logic, invalid shim or missing compatibility module");
+
+    const source = readFileSync(resolve(root, canonical), "utf8");
+    for (const match of source.matchAll(/\b(?:from\s*|import\s*\(\s*|require\s*\(\s*|import\s*)(["'])([^"']+)\1/g)) {
+      const spec = match[2];
+      if (!spec.startsWith(".")) {
+        issues.push(canonical + ": package core imports runtime/external module " + spec);
       } else {
-        const target = posix.normalize(posix.join(posix.dirname(path), specifier));
-        if (!present.has(target + ".ts") && !present.has(target + "/index.ts")) {
-          issues.push(path + ": dependency escapes canonical domain: " + specifier);
+        const base = posix.normalize(posix.join(posix.dirname(canonical), spec));
+        if (!present.has(base + ".ts") && !present.has(base + "/index.ts")) {
+          issues.push(canonical + ": dependency escapes canonical core: " + spec);
         }
       }
     }
@@ -48,8 +49,6 @@ export function checkPhysicalDomain() {
 const direct = process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url);
 if (direct) {
   const issues = checkPhysicalDomain();
-  if (issues.length) {
-    console.error(issues.join("\n"));
-    process.exitCode = 1;
-  } else console.log("M10.1 domain source ownership verified: 31 canonical modules");
+  if (issues.length) { console.error(issues.join("\n")); process.exitCode = 1; }
+  else console.log("M10.2 physical core source ownership verified");
 }
