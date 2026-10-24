@@ -1,4 +1,7 @@
 import { spawnSync } from "node:child_process";
+import { webcrypto } from "node:crypto";
+import { runInNewContext } from "node:vm";
+import { build } from "esbuild";
 import { cp, copyFile, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
@@ -95,6 +98,47 @@ void [sessions, runtime, request, state];
   ], { encoding: "utf8", cwd: root, timeout: 60_000 });
   if (compiler.status !== 0) throw new Error("External TypeScript consumer failed:\n" +
     compiler.stdout + "\n" + compiler.stderr);
+  // M5: exercise a portable session transaction from the STAGED artifact
+  // under browser resolution, with no Node process, fs or require globals.
+  const browserEntry = `import { SessionController, SessionStore } from "@nox/core";
+globalThis.__noxBrowserCheck = async () => {
+  let committed = {};
+  const store = {
+    read: async () => structuredClone(committed),
+    update: async mutate => { committed = structuredClone(mutate(structuredClone(committed))); },
+  };
+  const session = new SessionController(store, new SessionStore({
+    uuid: () => "browser-session", now: () => 5,
+  }));
+  await session.init();
+  await session.recordUserMessage("portable browser slice", undefined, "ask");
+  return session.getSession().messages[0]?.content === "portable browser slice" &&
+    Boolean(committed["nox-sessions"]);
+};`;
+  const browser = await build({
+    stdin: {
+      contents: browserEntry, sourcefile: "browser-consumer.ts",
+      resolveDir: root, loader: "ts",
+    },
+    platform: "browser", format: "iife", target: "es2022",
+    bundle: true, write: false, metafile: true, logLevel: "silent",
+  });
+  if (browser.outputFiles.length !== 1) throw new Error("Browser smoke output missing");
+  const externals = Object.values(browser.metafile.outputs)
+    .flatMap(output => output.imports).filter(item => item.external).map(item => item.path);
+  if (externals.length) throw new Error("Browser core has runtime externals: " + externals.join(", "));
+  const browserRealm = {
+    structuredClone, crypto: webcrypto, performance, AbortController,
+    TextEncoder, TextDecoder, URL, setTimeout, clearTimeout,
+    setInterval, clearInterval, console,
+  };
+  runInNewContext(browser.outputFiles[0].text, browserRealm, { timeout: 5000 });
+  if (typeof browserRealm.__noxBrowserCheck !== "function" ||
+      await browserRealm.__noxBrowserCheck() !== true) {
+    throw new Error("Bundled browser-like portable session transaction failed");
+  }
+  console.log("@nox/core isolated browser-target bundle and JS realm smoke passed");
+
   const manifest = JSON.parse(await readFile(join(packageDirectory, "package.json"), "utf8"));
   if (manifest.private !== true) throw new Error("M4 must not publish the unapproved core package");
   console.log("@nox/core external package API and standalone TypeScript declarations verified");

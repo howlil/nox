@@ -8,15 +8,12 @@ remains a separately built release (`manifest.json`, `main.js`, `styles.css`).
 `packages/core/src/index.ts` is an intentionally small API facade over the
 canonical NOX `src/` application, domain and session modules. It **contains no
 duplicate learning engine**. Build emits ESM, CommonJS and a self-contained
-declaration tree under `packages/core/dist/`. The M5 Obsidian and headless compositions now import the **public**
-`@nox/core` API. During monorepo compilation, `tsconfig.json` resolves this
-specifier to `packages/core/src/index.ts`, which re-exports the exact canonical
-`src/` implementations. Both hosts bundle the SAME module graph rather than
-importing the compiled package distribution alongside source modules. This
-explicit source-alias policy is temporary until implementation files physically
-move into `packages/core`. A real standalone consumer resolves the built
-exports, never the monorepo alias. Runtime identity and duplicate-module checks
-are mandatory gates.
+declaration tree under `packages/core/dist/`. Neither the Obsidian host nor
+the headless host imports its own built distribution bundle inside the plugin:
+that would risk two copies of stateful constructors. They continue using the
+same canonical source graph, while M4 proves an independent external consumer
+can load the packaged form. Adopting the package as a host's sole runtime
+dependency is a separate planned migration with explicit compatibility tests.
 
 ## Build and verify
 
@@ -82,3 +79,25 @@ Only migrate individual canonical implementation modules into the package's
 own source directory when all imports and state guarantees are covered by
 cross-host conformance. The initial facade is the first distribution boundary,
 not an excuse to copy the engine or to publish an unstable API.
+
+## M5 consumer migration and browser-target contract
+
+Obsidian and headless host compositions now import `@nox/core` (as does the
+plugin's application type facade). The monorepo root declares a `workspace:*`
+dependency. The `tsconfig.json` paths entry explicitly resolves the package
+to `packages/core/src/index.ts`, ensuring esbuild and TypeScript use the
+exact canonical `src/` modules. Neither host bundles `dist/index.*`
+alongside its source modules.
+
+Run `pnpm core:hosts` to verify both host dependency graphs:
+one facade, one set of runtime/session/domain constructors, zero compiled
+package copies, zero unresolved `@nox/core` specifiers. Identity regression
+tests also assert that importing through the public API and the legacy
+source location returns the very same classes (including persistence errors).
+
+`pnpm core:verify` additionally builds an *isolated external consumer*
+for `platform: browser`. It rejects runtime externals and executes a real
+session transaction from the staged browser bundle in a JavaScript VM
+without Node globals. This **does not** certify actual browsers, source
+permissions, browser storage, or provider/auth integration. A full web
+host requires a separate capability contract and real browser E2E tests.

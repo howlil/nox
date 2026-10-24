@@ -84,6 +84,9 @@ jobs:
       - name: Verify portable core package (standalone ESM/CJS/types)
         run: pnpm core:verify
 
+      - name: Verify single-instance core consumption by both hosts
+        run: pnpm core:hosts
+
       - name: Build
         run: pnpm build
 
