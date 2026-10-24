@@ -9,7 +9,8 @@ function walk(directory) {
     return entry.isDirectory() ? walk(pathname) : [pathname.replaceAll("\\", "/")];
   });
 }
-const files = walk("src").filter((pathname) => pathname.endsWith(".ts"))
+const files = [...walk("src"), ...walk("packages/core/src/domain")]
+  .filter((pathname) => pathname.endsWith(".ts"))
   .map((pathname) => ({ path: pathname, source: readFileSync(pathname, "utf8") }));
 const legacy = walk("tests").filter((pathname) =>
   (pathname.startsWith("tests/ui/") ||

@@ -42,7 +42,8 @@ const HOST_GLOBALS = new Set([
 ]);
 
 export function isPortableSource(filename) {
-  return filename.startsWith("src/domain/") && filename.endsWith(".ts") ||
+  return (filename.startsWith("src/domain/") ||
+    filename.startsWith("packages/core/src/domain/")) && filename.endsWith(".ts") ||
     CONTRACTS.has(filename);
 }
 

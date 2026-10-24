@@ -11,10 +11,10 @@ export { LearningProgramOrchestrator } from "../../../src/application/LearningPr
 export { SessionController } from "../../../src/session/SessionController";
 export { SessionStore } from "../../../src/session/SessionStore";
 export { ContextResolver } from "../../../src/context/ContextResolver";
-export { DEFAULT_LEARNING_STATE } from "../../../src/domain/learning-state/types";
-export { decodeProgramCollection } from "../../../src/domain/learning-program/collection-schema";
+export { DEFAULT_LEARNING_STATE } from "./domain/learning-state/types";
+export { decodeProgramCollection } from "./domain/learning-program/collection-schema";
 export { decodeLearningState } from "../../../src/persistence/learning-state-schema";
-export { PersistenceError, LearningStateWriteConflict, SessionWriteConflict, ProgramWriteConflict } from "../../../src/domain/persistence/errors";
+export { PersistenceError, LearningStateWriteConflict, SessionWriteConflict, ProgramWriteConflict } from "./domain/persistence/errors";
 
 export type {
   AgentAdapter, AgentRuntimePort, AgentHealth, AgentInput,
@@ -40,7 +40,7 @@ export type {
 } from "../../../src/context/context-types";
 export type {
   LearningState, LearningEvidence, KnowledgeGap,
-} from "../../../src/domain/learning-state/types";
+} from "./domain/learning-state/types";
 export type {
   LearningProgram, ProgramCollection, ProgramConstraints,
 } from "../../../src/domain/learning-program/types";
