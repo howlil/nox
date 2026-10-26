@@ -1,4 +1,4 @@
-import type { ChatReplyReference } from "../../packages/core/src/types";
+import type { ChatReplyReference } from "@nox/core";
 import { createNoxIconButton } from "./primitives";
 
 /** Native DOM selection scoped strictly to one completed assistant message. */

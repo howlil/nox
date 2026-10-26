@@ -199,3 +199,35 @@ migrated presentation modules, and the isolated consumer verifies TypeScript
 contract availability and ESM/CJS runtime function identity and behavior.
 Not all UI helpers/host adapters are converted yet; no independent
 Obsidian package release or public npm guarantee follows from this milestone.
+
+## M11.4 — Final production host boundary and isolated Obsidian compile
+
+The **complete production host graph** (`src/**`, `browser/src/**`,
+`headless/src/**`) is now subject to a default-deny AST import rule:
+host-owned modules cannot import `packages/core/src/**`, `dist/**`, or
+`@nox/core/*` private subpaths. Only deliberate `src/**` compatibility
+facades with physically equivalent package-owned files are exempt; these are
+tracked by the independently verified legacy-shim usage inventory.
+
+The curated public package contract now includes the pure code-edit planner,
+workspace manifest/lesson planner, onboarding feasibility projection,
+practice answer validator, usage accounting/decoder, associated host data
+types, and the authoritative onboarding approval receipt error. Provider
+and Obsidian adapters keep external I/O and mutation lifecycle ownership.
+The public API is still an internal **private preview**, not a declaration
+of a frozen semver surface.
+
+`pnpm core:verify` stages an **isolated Obsidian host source checkout** and
+a copy of the already-built `@nox/core` package artifact into a temporary
+directory, with no package source or root TypeScript paths alias. esbuild
+bundles `src/main.ts` using only that staged dist entrypoint; the graph
+asserts that the ESM/CJS engine is loaded from the staged artifact and that
+no monorepo core source or compiled developer copy appears. External Obsidian,
+Electron, and third-party host dependencies remain runtime externals.
+
+This establishes **bundle-time source independence** of the Obsidian host
+entrypoint, on top of existing outside-repository runtime/type contracts,
+canonical source identity and real Chromium/IndexedDB conformance. It does
+**not** establish Obsidian runtime E2E with an installed vault, all platform
+packaging, release to npm, or compatibility for third-party deep imports.
+Retain compatibility shims while reference contracts require them.

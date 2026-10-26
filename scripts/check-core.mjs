@@ -33,6 +33,8 @@ import {
   AgentRuntime, LearningController, LearningProgramOrchestrator,
   SessionController, SessionStore, ContextResolver, LocalResearchIndex, validateProgram, isLocallyExecutableCommand,
   DEFAULT_LEARNING_STATE, PersistenceError, LearningStateWriteConflict, SessionWriteConflict, ProgramWriteConflict,
+  OnboardingReceiptWriteError, planReplacement, planWorkspace, planObjectiveLesson,
+  feasibility, validatePracticeAnswer, accumulateUsage, assertUsageReport, decodeUsageSnapshot,
 } from "@nox/core";
 const require = createRequire(import.meta.url);
 const commonjs = require("@nox/core");
@@ -55,6 +57,12 @@ for (const [name, exported] of Object.entries({
 assert.ok(new commonjs.LearningStateWriteConflict() instanceof LearningStateWriteConflict);
 assert.ok(new commonjs.SessionWriteConflict() instanceof SessionWriteConflict);
 assert.equal(DEFAULT_LEARNING_STATE.evidence.length, 0);
+assert.equal(decodeUsageSnapshot(null).entries.length, 0);
+assert.ok(new OnboardingReceiptWriteError() instanceof OnboardingReceiptWriteError);
+for (const symbol of [planReplacement, planWorkspace, planObjectiveLesson,
+  feasibility, validatePracticeAnswer, accumulateUsage, assertUsageReport]) {
+  assert.equal(typeof symbol, "function");
+}
 assert.throws(() => validateProgram({ version: 1 }), /Invalid learning program/);
 assert.equal(isLocallyExecutableCommand("/hint"), true);
 assert.equal(isLocallyExecutableCommand("ordinary question"), false);
@@ -93,6 +101,9 @@ console.log("@nox/core standalone ESM and CJS smoke passed");
   type LearningActionKind, type NoxProgramOverview, type ActivitySummary,
   type PracticeAnswer, type PracticeQuestion, type PracticeEvaluation,
   type ReviewFinding, type CurriculumOperation, type ChatReplyReference,
+  type QuotaReading, type QuotaProvider, type ProviderQuotaSnapshot, type UsageSnapshot,
+  type UsageReportOptions, type OnboardingStage, type ProposedEdit,
+  type TurnContextSnapshot, type AgentFailureCode, type LearningObjective,
 } from "@nox/core";
 const data: SessionDataPort = {
   read: async () => ({}),
@@ -119,8 +130,11 @@ const uiContracts: [NoxProgramOverview, ActivitySummary, PracticeAnswer,
   PracticeQuestion, PracticeEvaluation, ReviewFinding, CurriculumOperation,
   ChatReplyReference] | null = null;
 const hostCommand: (input: string) => boolean = isLocallyExecutableCommand;
+const hostTypes: [QuotaReading, QuotaProvider, ProviderQuotaSnapshot, UsageSnapshot,
+  UsageReportOptions, OnboardingStage, ProposedEdit, TurnContextSnapshot,
+  AgentFailureCode, LearningObjective] | null = null;
 void [sessions, runtime, request, state, policy, research, adapterConfig, draft,
-  validatePersistedProgram, uiAction, uiContracts, hostCommand];
+  validatePersistedProgram, uiAction, uiContracts, hostCommand, hostTypes];
 `;
   await writeFile(join(root, "consumer.ts"), tsSource);
   await writeFile(join(root, "tsconfig.json"), JSON.stringify({
@@ -143,6 +157,39 @@ void [sessions, runtime, request, state, policy, research, adapterConfig, draft,
   ], { encoding: "utf8", cwd: root, timeout: 60_000 });
   if (compiler.status !== 0) throw new Error("External TypeScript consumer failed:\n" +
     compiler.stdout + "\n" + compiler.stderr);
+  // M11.4: compile the Obsidian entrypoint from a separate HOST-ONLY source
+  // checkout plus the built @nox/core package. No package source, root TS
+  // aliases, monorepo src shims, or core checkout exists inside this stage.
+  await cp(resolve("src"), join(root, "src"), { recursive: true });
+  const isolatedHost = await build({
+    entryPoints: [join(root, "src/main.ts")],
+    bundle: true, format: "cjs", platform: "node", target: "node22",
+    write: false, metafile: true, logLevel: "silent",
+    // Third-party Obsidian/plugin dependencies are host runtime externals,
+    // but the public core package MUST be bundled from the staged artifact.
+    packages: "external",
+    plugins: [{
+      name: "resolve-staged-core",
+      setup(bundle) {
+        bundle.onResolve({ filter: /^@nox\/core$/ }, () =>
+          ({ path: join(packageDirectory, "dist", "index.mjs") }));
+      },
+    }],
+  });
+  const hostInputs = Object.keys(isolatedHost.metafile.inputs)
+    .map(path => path.replaceAll(String.fromCharCode(92), "/"));
+  if (!hostInputs.some(path => path.includes("node_modules/@nox/core/dist/index.cjs")) ||
+      !hostInputs.some(path => path.includes("node_modules/@nox/core/dist/index.mjs")) ||
+      hostInputs.some(path => path.includes("packages/core/src/") ||
+        path.includes("packages/core/dist/"))) {
+    throw new Error("Isolated Obsidian host must consume only staged @nox/core dist");
+  }
+  const externalCore = Object.values(isolatedHost.metafile.outputs)
+    .flatMap(output => output.imports).filter(item => item.external)
+    .map(item => item.path).filter(path => path.includes("@nox/core"));
+  if (externalCore.length) throw new Error("Isolated Obsidian host left core unresolved");
+  console.log("M11.4 isolated Obsidian host entry compiled against package-only core dist");
+
   // M5: exercise a portable session transaction from the STAGED artifact
   // under browser resolution, with no Node process, fs or require globals.
   const browserEntry = `import { SessionController, SessionStore } from "@nox/core";

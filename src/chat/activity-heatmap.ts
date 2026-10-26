@@ -1,5 +1,5 @@
 import { setNoxIcon } from "./primitives";
-import type { ActivitySummary } from "../../packages/core/src/domain/activity/aggregation";
+import type { ActivitySummary } from "@nox/core";
 
 function localDay(date: Date): string {
   return [date.getFullYear(), String(date.getMonth() + 1).padStart(2, "0"),

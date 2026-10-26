@@ -1,4 +1,4 @@
-import type { TurnContextSnapshot } from "../../packages/core/src/context/context-types";
+import type { TurnContextSnapshot } from "@nox/core";
 
 /** Beautiful UI-inspired tool chips and context cards, adapted to Obsidian native DOM.
  * Facts only: no inferred tool calls, reasoning, cost, or token estimates.

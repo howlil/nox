@@ -1,4 +1,4 @@
-import type { ProviderQuotaSnapshot, QuotaProvider, QuotaReading } from "../../packages/core/src/types";
+import type { ProviderQuotaSnapshot, QuotaProvider, QuotaReading } from "@nox/core";
 
 type Reader = (signal: AbortSignal) => Promise<QuotaReading[]>;
 

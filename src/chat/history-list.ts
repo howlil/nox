@@ -1,5 +1,5 @@
 import { Menu, Notice } from "obsidian";
-import type { ChatSession } from "../../packages/core/src/types";
+import type { ChatSession } from "@nox/core";
 import { setNoxIcon } from "./primitives";
 import { HISTORY_SWIPE_LEADING, HISTORY_SWIPE_TRAILING, swipeAxis, swipeOffset, swipeRelease } from "./history-swipe";
 

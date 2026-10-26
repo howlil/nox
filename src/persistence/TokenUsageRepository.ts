@@ -1,11 +1,8 @@
-import type { TokenUsage } from "../../packages/core/src/types";
+import { accumulateUsage, assertUsageReport, decodeUsageSnapshot,
+  type TokenUsage, type UsageReportOptions } from "@nox/core";
 import type { PluginDataRepository } from "./PluginDataRepository";
-import {
-  accumulateUsage, assertUsageReport, decodeUsageSnapshot,
-  type UsageReportOptions,
-} from "../../packages/core/src/domain/usage/usage-accounting";
 
-export type { UsageBucket, UsageSnapshot } from "../../packages/core/src/domain/usage/usage-accounting";
+export type { UsageBucket, UsageSnapshot } from "@nox/core";
 
 const KEY = "nox-token-usage-v1";
 
@@ -17,7 +14,7 @@ const KEY = "nox-token-usage-v1";
 export class TokenUsageRepository {
   constructor(private readonly data: PluginDataRepository) {}
 
-  async snapshot(): Promise<import("../../packages/core/src/domain/usage/usage-accounting").UsageSnapshot> {
+  async snapshot(): Promise<import("@nox/core").UsageSnapshot> {
     const stored = await this.data.read();
     return decodeUsageSnapshot(stored[KEY]);
   }

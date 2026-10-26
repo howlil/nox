@@ -37,10 +37,19 @@ export function portableAcceptanceIssues({ ci, release, recovery, core, tsconfig
   if (tsconfig.compilerOptions?.paths?.["@nox/core"]?.[0] !== "packages/core/src/index.ts") {
     issues.push("Hosts must resolve @nox/core through its canonical source-alias");
   }
+  // Preflight checks only declared named exports, not release/runtime validity.
+  // Keep this lightweight: importing the TypeScript compiler here would bundle
+  // its Node-only internals into isolated integration-test ESM runners.
+  const declarations = source
+    .replace(/\/\*[\s\S]*?\*\//g, "")
+    .replace(/^\s*\/\/.*$/gm, "");
+  const exported = new Set([...declarations.matchAll(
+    /^\s*export\s+(?:type\s+)?\{([^}]+)\}/gm,
+  )].flatMap(([, bindings]) => bindings.split(",")
+    .map(name => name.trim().split(/\s+as\s+/).at(-1))
+    .filter(Boolean)));
   for (const name of ["LearningController", "SessionController", "SessionStore", "AgentRuntime"]) {
-    if (!source.includes("export { " + name + " }")) {
-      issues.push("@nox/core public API missing: " + name);
-    }
+    if (!exported.has(name)) issues.push("@nox/core public API missing: " + name);
   }
   return issues;
 }

@@ -62,3 +62,22 @@ test("repository portable gate retains certification without native desktop prer
   assert.equal(report.configuration, "PASS");
   assert.equal(report.completedCiVerified, false);
 });
+
+test("portable preflight recognizes grouped named exports, not comments", () => {
+  const grouped = {
+    ...factory(),
+    source: [
+      'export { LearningController, OnboardingReceiptWriteError } from "./application/LearningController";',
+      'export { SessionController } from "./session/SessionController";',
+      'export { SessionStore } from "./session/SessionStore";',
+      'export { AgentRuntime } from "./agent/AgentRuntime";',
+    ].join("\n"),
+  };
+  assert.deepEqual(portableAcceptanceIssues(grouped), []);
+  const hidden = { ...grouped, source: grouped.source.replace(
+    'export { LearningController, OnboardingReceiptWriteError }',
+    'const text = "export { LearningController }"; export { OnboardingReceiptWriteError }',
+  ) };
+  assert.ok(portableAcceptanceIssues(hidden)
+    .some(issue => issue.includes("public API missing: LearningController")));
+});

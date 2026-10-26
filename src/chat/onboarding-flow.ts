@@ -1,13 +1,10 @@
-import type { LearningProgram } from "../../packages/core/src/domain/learning-program/types";
-import { OnboardingReceiptWriteError, type LearningController } from "../../packages/core/src/application/LearningController";
+import { OnboardingReceiptWriteError, planWorkspace, feasibility,
+  type LearningProgram, type LearningController, type OnboardingDraft } from "@nox/core";
 
 /** Only the operations needed by the stateful onboarding view, never the whole controller API. */
 export type OnboardingLearningPort = Pick<LearningController,
   "saveOnboardingDraft" | "getOnboardingContext" | "checkRuntime" | "previewLearningProgram" | "approveOnboarding" | "getProgramOverview" | "getProgramMenuState" | "recoverOnboardingApproval" | "cancel" >;
-import type { OnboardingDraft } from "../../packages/core/src/domain/onboarding/types";
 import { restoreOnboardingDraft, withOnboardingStage, withOnboardingSource, onboardingConstraints, quickPlanCommand, firstOnboardingObjective } from "../features/learning/onboarding/OnboardingWorkflow";
-import { planWorkspace } from "../../packages/core/src/domain/workspace/plan";
-import { feasibility } from "../../packages/core/src/domain/learning-program/rules";
 import { createNoxButton, setNoxIcon } from "./primitives";
 import { animateNoxEnter } from "./motion";
 

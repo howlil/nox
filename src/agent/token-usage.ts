@@ -1,5 +1,5 @@
 /** Provider reported token counts. Cached input and reasoning are subsets, never additive. */
-import type { TokenUsage } from "../../packages/core/src/types";
+import type { TokenUsage } from "@nox/core";
 
 type RecordValue = Record<string, unknown>;
 const object = (value: unknown): RecordValue =>
