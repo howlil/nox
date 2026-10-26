@@ -41,12 +41,12 @@ export function portableAcceptanceIssues({ ci, release, recovery, core, tsconfig
   // Keep this lightweight: importing the TypeScript compiler here would bundle
   // its Node-only internals into isolated integration-test ESM runners.
   const declarations = source
-    .replace(/\\/\\*[\\s\\S]*?\\*\\//g, "")
-    .replace(/^\\s*\\/\\/.*$/gm, "");
+    .replace(/\/\*[\s\S]*?\*\//g, "")
+    .replace(/^\s*\/\/.*$/gm, "");
   const exported = new Set([...declarations.matchAll(
-    /^\\s*export\\s+(?:type\\s+)?\\{([^}]+)\\}/gm,
+    /^\s*export\s+(?:type\s+)?\{([^}]+)\}/gm,
   )].flatMap(([, bindings]) => bindings.split(",")
-    .map(name => name.trim().split(/\\s+as\\s+/).at(-1))
+    .map(name => name.trim().split(/\s+as\s+/).at(-1))
     .filter(Boolean)));
   for (const name of ["LearningController", "SessionController", "SessionStore", "AgentRuntime"]) {
     if (!exported.has(name)) issues.push("@nox/core public API missing: " + name);
