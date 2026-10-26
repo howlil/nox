@@ -31,7 +31,7 @@ try {
 import { createRequire } from "node:module";
 import {
   AgentRuntime, LearningController, LearningProgramOrchestrator,
-  SessionController, SessionStore, ContextResolver, LocalResearchIndex, validateProgram,
+  SessionController, SessionStore, ContextResolver, LocalResearchIndex, validateProgram, isLocallyExecutableCommand,
   DEFAULT_LEARNING_STATE, PersistenceError, LearningStateWriteConflict, SessionWriteConflict, ProgramWriteConflict,
 } from "@nox/core";
 const require = createRequire(import.meta.url);
@@ -41,14 +41,14 @@ assert.deepEqual(Object.keys(esm).sort(), Object.keys(commonjs).sort(),
   "ESM and CJS must expose the same complete runtime API");
 for (const symbol of [
   AgentRuntime, LearningController, LearningProgramOrchestrator,
-  SessionController, SessionStore, ContextResolver, LocalResearchIndex, validateProgram,
+  SessionController, SessionStore, ContextResolver, LocalResearchIndex, validateProgram, isLocallyExecutableCommand,
   PersistenceError, LearningStateWriteConflict, ProgramWriteConflict,
 ]) assert.equal(typeof symbol, "function");
 assert.equal(typeof commonjs.LearningController, "function");
 assert.equal(typeof commonjs.SessionController, "function");
 for (const [name, exported] of Object.entries({
   AgentRuntime, LearningController, LearningProgramOrchestrator,
-  SessionController, SessionStore, ContextResolver, LocalResearchIndex, validateProgram,
+  SessionController, SessionStore, ContextResolver, LocalResearchIndex, validateProgram, isLocallyExecutableCommand,
   PersistenceError, LearningStateWriteConflict, SessionWriteConflict, ProgramWriteConflict,
 })) assert.strictEqual(commonjs[name], exported,
   "ESM/CJS constructor mismatch: " + name);
@@ -56,6 +56,8 @@ assert.ok(new commonjs.LearningStateWriteConflict() instanceof LearningStateWrit
 assert.ok(new commonjs.SessionWriteConflict() instanceof SessionWriteConflict);
 assert.equal(DEFAULT_LEARNING_STATE.evidence.length, 0);
 assert.throws(() => validateProgram({ version: 1 }), /Invalid learning program/);
+assert.equal(isLocallyExecutableCommand("/hint"), true);
+assert.equal(isLocallyExecutableCommand("ordinary question"), false);
 const researchIndex = new LocalResearchIndex();
 researchIndex.upsert({ path: "allowed.md", content: "Network latency signal", links: [], revision: "1" });
 researchIndex.upsert({ path: "private.md", content: "Network latency signal", links: [], revision: "1" });
@@ -87,6 +89,9 @@ console.log("@nox/core standalone ESM and CJS smoke passed");
   type SessionPort, type LearningState, type LearningRequest,
   LocalResearchIndex, validateProgram, type ResearchResult, type LearningPolicy,
   type AgentRuntimeConfig, type OnboardingDraft, type LearningProgram,
+  type LearningActionKind, type NoxProgramOverview, type ActivitySummary,
+  type PracticeAnswer, type PracticeQuestion, type PracticeEvaluation,
+  type ReviewFinding, type CurriculumOperation, type ChatReplyReference,
 } from "@nox/core";
 const data: SessionDataPort = {
   read: async () => ({}),
@@ -108,7 +113,13 @@ const draft: OnboardingDraft = { version: 1, stage: "welcome", goal: "", interes
   purpose: "career", level: "beginner", minutesPerSession: 30,
   sessionsPerWeek: 3, sourceBound: false };
 const validatePersistedProgram: (program: LearningProgram) => void = validateProgram;
-void [sessions, runtime, request, state, policy, research, adapterConfig, draft, validatePersistedProgram];
+const uiAction: LearningActionKind = "ask";
+const uiContracts: [NoxProgramOverview, ActivitySummary, PracticeAnswer,
+  PracticeQuestion, PracticeEvaluation, ReviewFinding, CurriculumOperation,
+  ChatReplyReference] | null = null;
+const hostCommand: (input: string) => boolean = isLocallyExecutableCommand;
+void [sessions, runtime, request, state, policy, research, adapterConfig, draft,
+  validatePersistedProgram, uiAction, uiContracts, hostCommand];
 `;
   await writeFile(join(root, "consumer.ts"), tsSource);
   await writeFile(join(root, "tsconfig.json"), JSON.stringify({
