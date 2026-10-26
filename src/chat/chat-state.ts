@@ -1,4 +1,4 @@
-import type { LearningActionKind } from "../../packages/core/src/application/learning-types";
+import type { LearningActionKind } from "@nox/core";
 
 export type TerminalOutcome = "completed" | "stopped" | "failed";
 
@@ -37,4 +37,4 @@ export function shouldResetAction(
 }
 
 /** Backwards-compatible pure selector for existing view helper consumers. */
-export { isLocallyExecutableCommand } from "../../packages/core/src/application/local-command";
+export { isLocallyExecutableCommand } from "@nox/core";
