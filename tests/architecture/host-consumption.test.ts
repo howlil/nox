@@ -8,8 +8,9 @@ test("host graph disallows direct imports through an obsolete source shim", () =
   const path = "src/host/obsidian/adapter.ts";
   const bad = [{ path, source: 'import type { PracticeAnswer } from "../../domain/practice/types";' }];
   assert.match(validateHostConsumption(bad, canonical)[0] ?? "", /legacy core shim/);
-  assert.deepEqual(validateHostConsumption([{ path,
-    source: 'import type { PracticeAnswer } from "../../../packages/core/src/domain/practice/types";' }], canonical), []);
+  assert.match(validateHostConsumption([{ path,
+    source: 'import type { PracticeAnswer } from "../../../packages/core/src/domain/practice/types";' }], canonical)[0] ?? "",
+    /must use the @nox\\/core public API/);
 });
 
 test("host graph rejects type-only and re-export shim edges without parsing string literals", () => {
@@ -99,4 +100,31 @@ test("M11.3 presenter and chat UI adapters use only the public core entrypoint",
     assert.deepEqual(validateHostConsumption([{ path, source:
       `const example = 'import { X } from "../../packages/core/src/index"';` }], []), []);
   }
+});
+
+test("M11.4 fail-closed host guard applies to newly added modules and import forms", () => {
+  const paths = [
+    "src/new-feature/FutureView.ts",
+    "src/mutation/FutureAdapter.ts",
+    "headless/src/NewRunner.ts",
+    "browser/src/NewRuntime.ts",
+  ];
+  for (const path of paths) {
+    const privatePath = posix.relative(posix.dirname(path), "packages/core/src/domain/practice/types");
+    for (const source of [
+      `import type { PracticeAnswer } from "${privatePath}";`,
+      `export type { PracticeAnswer } from "${privatePath}";`,
+      'import { LearningController } from "@nox/core/application/LearningController";',
+    ]) {
+      assert.match(validateHostConsumption([{ path, source }], canonical)[0] ?? "",
+        /must use the @nox\\/core public API/);
+    }
+    assert.deepEqual(validateHostConsumption([{ path,
+      source: 'import type { PracticeAnswer } from "@nox/core";' }], canonical), []);
+  }
+  // Legacy compatibility facades are not host implementations. They are
+  // tracked separately by the referenced-shim inventory.
+  const shimPath = "src/domain/practice/types.ts";
+  assert.deepEqual(validateHostConsumption([{ path: shimPath,
+    source: 'export type { PracticeAnswer } from "../../../packages/core/src/domain/practice/types";' }], canonical), []);
 });
