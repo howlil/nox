@@ -2,8 +2,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { TFile, TFolder } from "obsidian";
 import { VaultWorkspaceWriter } from "../../src/persistence/VaultWorkspaceWriter";
-import type { LearningProgram } from "../../src/domain/learning-program/types";
-import { planWorkspace } from "../../src/domain/workspace/plan";
+import type { LearningProgram } from "../../packages/core/src/domain/learning-program/types";
+import { planWorkspace } from "../../packages/core/src/domain/workspace/plan";
 
 const program: LearningProgram = {
   version: 1, id: "11111111-1111-4111-8111-111111111111",

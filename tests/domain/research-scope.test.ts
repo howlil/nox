@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { constrainResearchContext, parseResearchRequest, resolveResearchScope } from "../../src/application/research-scope";
+import { constrainResearchContext, parseResearchRequest, resolveResearchScope } from "../../packages/core/src/application/research-scope";
 
 test("legacy research stays vault-scoped unless an explicit scope is supplied", () => {
   assert.deepEqual(parseResearchRequest("/research consistency"), {

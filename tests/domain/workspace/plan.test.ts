@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { planWorkspace, planObjectiveLesson, workspaceRoot } from "../../../src/domain/workspace/plan";
-import type { LearningProgram } from "../../../src/domain/learning-program/types";
+import { planWorkspace, planObjectiveLesson, workspaceRoot } from "../../../packages/core/src/domain/workspace/plan";
+import type { LearningProgram } from "../../../packages/core/src/domain/learning-program/types";
 
 const program: LearningProgram = {
   version: 1, id: "11111111-1111-4111-8111-111111111111", goal: "Learn Japanese / Basics",

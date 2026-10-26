@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { criterionIdFor, decideFeedback } from "../../../src/domain/learner-model/feedback-policy";
-import type { LearningObjective } from "../../../src/domain/learning-program/types";
-import type { LearningEvidence } from "../../../src/domain/learning-state/types";
+import { criterionIdFor, decideFeedback } from "../../../packages/core/src/domain/learner-model/feedback-policy";
+import type { LearningObjective } from "../../../packages/core/src/domain/learning-program/types";
+import type { LearningEvidence } from "../../../packages/core/src/domain/learning-state/types";
 
 const objective: LearningObjective = {
   id: "obj", title: "Race conditions", outcome: "Prevent duplicate work",
