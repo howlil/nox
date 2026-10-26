@@ -85,6 +85,7 @@ console.log("@nox/core standalone ESM and CJS smoke passed");
 
   const tsSource = `import {
   AgentRuntime, SessionController, SessionStore, DEFAULT_LEARNING_STATE,
+  isLocallyExecutableCommand,
   type AgentAdapter, type AgentRuntimePort, type SessionDataPort,
   type SessionPort, type LearningState, type LearningRequest,
   LocalResearchIndex, validateProgram, type ResearchResult, type LearningPolicy,
