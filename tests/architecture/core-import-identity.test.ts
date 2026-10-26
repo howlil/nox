@@ -20,7 +20,7 @@ import { SessionController } from "../../src/session/SessionController";
 import { SessionStore } from "../../src/session/SessionStore";
 import { ContextResolver } from "../../src/context/ContextResolver";
 import { LocalResearchIndex } from "../../src/context/LocalResearch";
-import { validateProgram } from "../../src/domain/learning-program/collection-schema";
+import { validateProgram } from "../../packages/core/src/domain/learning-program/collection-schema";
 import { LearningStateWriteConflict, PersistenceError, ProgramWriteConflict } from "../../src/domain/persistence/errors";
 
 test("M5 public core API resolves the exact canonical constructors", () => {
