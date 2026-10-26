@@ -13,31 +13,15 @@ function walk(dir) {
 
 /** Consumers must not resolve back through src/ compatibility shims.
  * Use AST imports (including import types and re-exports), not string scanning. */
-// Incrementally migrated adapters consume a curated first-party package API,
-// never private package source or compiled artifacts by deep import.
-const PUBLIC_API_ADAPTERS = new Set([
-  "src/context/ObsidianContext.ts",
-  "src/context/PolicyLoader.ts",
-  // M11.2: provider transports, durable Obsidian stores, and lifecycle adapter.
-  "src/agent/ChatGptAdapter.ts",
-  "src/agent/CodexAdapter.ts",
-  "src/agent/AgyAdapter.ts",
-  "src/persistence/VaultLearningStore.ts",
-  "src/persistence/VaultProgramStore.ts",
-  "src/persistence/PluginDataRepository.ts",
-  "src/persistence/OnboardingStateRepository.ts",
-  "src/host/obsidian/lifecycle.ts",
-  // M11.3: presenters only consume package-owned read models and types.
-  "src/chat/ChatView.ts",
-  "src/features/learning/view/LearningPresenter.ts",
-  "src/features/practice/view/PracticePresenter.ts",
-  "src/chat/learning-panel-state.ts",
-  "src/chat/learning-graph.ts",
-  "src/chat/learning-card-renderers.ts",
-  "src/features/conversation/view/history-presenter.ts",
-  "src/features/conversation/view/transcript-presenter.ts",
-  "src/chat/chat-state.ts",
-]);
+// M11.4: after extracting the canonical engine, ALL executable host modules
+// must depend on @nox/core's curated entrypoint. Compatibility shims are
+// exempt only when there is a package-owned equivalent source file; tests
+// and migration inventories keep those deliberate shims visible.
+function isHost(path, canonical) {
+  return (path.startsWith("src/") ||
+    path.startsWith("browser/src/") || path.startsWith("headless/src/")) &&
+    !(path.startsWith("src/") && canonical.has("packages/core/" + path));
+}
 
 export function validateHostConsumption(files, canonicalPaths) {
   const canonical = new Set(canonicalPaths);
@@ -50,7 +34,7 @@ export function validateHostConsumption(files, canonicalPaths) {
       const spec = importInfo.specifier;
       const absolute = spec.startsWith(".")
         ? posix.normalize(posix.join(posix.dirname(path), spec)) : spec;
-      if (PUBLIC_API_ADAPTERS.has(path) &&
+      if (isHost(path, canonical) &&
           (absolute.startsWith("packages/core/") || spec.startsWith("@nox/core/"))) {
         issues.push(path + ":" + importInfo.line +
           ": adapter must use the @nox/core public API, not " + spec);
@@ -82,5 +66,5 @@ if (direct) {
   if (issues.length) {
     console.error(issues.join("\n"));
     process.exitCode = 1;
-  } else console.log("M10.3: production consumers bypass every legacy core source shim");
+  } else console.log("M11.4: production hosts consume only the curated @nox/core entrypoint");
 }
