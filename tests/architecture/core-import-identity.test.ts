@@ -9,6 +9,7 @@ import {
   ContextResolver as PublicContextResolver,
   LocalResearchIndex as PublicLocalResearchIndex,
   validateProgram as PublicValidateProgram,
+  isLocallyExecutableCommand as PublicLocalCommand,
   LearningStateWriteConflict as PublicConflict,
   PersistenceError as PublicPersistenceError,
   ProgramWriteConflict as PublicProgramConflict,
@@ -21,6 +22,7 @@ import { SessionStore } from "../../src/session/SessionStore";
 import { ContextResolver } from "../../src/context/ContextResolver";
 import { LocalResearchIndex } from "../../src/context/LocalResearch";
 import { validateProgram } from "../../packages/core/src/domain/learning-program/collection-schema";
+import { isLocallyExecutableCommand } from "../../packages/core/src/application/local-command";
 import { LearningStateWriteConflict, PersistenceError, ProgramWriteConflict } from "../../src/domain/persistence/errors";
 
 test("M5 public core API resolves the exact canonical constructors", () => {
@@ -32,6 +34,7 @@ test("M5 public core API resolves the exact canonical constructors", () => {
   assert.strictEqual(PublicContextResolver, ContextResolver);
   assert.strictEqual(PublicLocalResearchIndex, LocalResearchIndex);
   assert.strictEqual(PublicValidateProgram, validateProgram);
+  assert.strictEqual(PublicLocalCommand, isLocallyExecutableCommand);
   assert.strictEqual(PublicConflict, LearningStateWriteConflict);
   assert.strictEqual(PublicPersistenceError, PersistenceError);
   assert.strictEqual(PublicProgramConflict, ProgramWriteConflict);
