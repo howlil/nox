@@ -14,6 +14,7 @@ const ci = [
   "pnpm lint", "pnpm test:unit", "pnpm test:integration",
   "pnpm core:verify", "pnpm core:hosts", "pnpm browser:verify",
   "pnpm build", "pnpm test:artifacts", "pnpm acceptance:runtime",
+  "pnpm test:native-runner",
 ].join("\n");
 const release = [
   "needs: [detect, linux, windows, community]",
