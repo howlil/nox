@@ -1,4 +1,4 @@
-import type { AgentModel } from "../../packages/core/src/types";
+import type { AgentModel } from "@nox/core";
 import { NoxMenuState } from "./menu";
 import { animateNoxPopover } from "./motion";
 import { NoxPopoverState } from "./popover";
