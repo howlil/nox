@@ -27,6 +27,16 @@ const PUBLIC_API_ADAPTERS = new Set([
   "src/persistence/PluginDataRepository.ts",
   "src/persistence/OnboardingStateRepository.ts",
   "src/host/obsidian/lifecycle.ts",
+  // M11.3: presenters only consume package-owned read models and types.
+  "src/chat/ChatView.ts",
+  "src/features/learning/view/LearningPresenter.ts",
+  "src/features/practice/view/PracticePresenter.ts",
+  "src/chat/learning-panel-state.ts",
+  "src/chat/learning-graph.ts",
+  "src/chat/learning-card-renderers.ts",
+  "src/features/conversation/view/history-presenter.ts",
+  "src/features/conversation/view/transcript-presenter.ts",
+  "src/chat/chat-state.ts",
 ]);
 
 export function validateHostConsumption(files, canonicalPaths) {
