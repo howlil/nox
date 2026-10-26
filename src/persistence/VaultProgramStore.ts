@@ -1,9 +1,6 @@
 import { App, TFile } from "obsidian";
-import type { ProgramCollection } from "../../packages/core/src/domain/learning-program/types";
-import { PersistenceError } from "./PersistenceError";
-import { ProgramWriteConflict } from "../../packages/core/src/domain/persistence/errors";
-import { decodeProgramCollection, validateProgram } from "../../packages/core/src/domain/learning-program/collection-schema";
-export { ProgramWriteConflict } from "../../packages/core/src/domain/persistence/errors";
+import { PersistenceError, ProgramWriteConflict, decodeProgramCollection, validateProgram, type ProgramCollection } from "@nox/core";
+export { ProgramWriteConflict } from "@nox/core";
 
 const PATH = "00-learning-os/programs.json";
 const EMPTY: ProgramCollection = { version: 1, programs: [] };
