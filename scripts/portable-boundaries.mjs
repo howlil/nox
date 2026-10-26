@@ -6,15 +6,8 @@ import { createRequire } from "node:module";
 const loadWorkspaceDependency = createRequire(path.resolve(process.cwd(), "package.json"));
 const ts = loadWorkspaceDependency("typescript");
 
-/**
- * M0 portability fence. These modules already expose pure rules or
- * structural contracts; application orchestration and concrete Obsidian
- * adapters are NOT claimed portable yet (they belong to M1/M3).
- *
- * New domain modules are protected automatically. Existing shared contracts
- * stay explicitly listed so a moved/deleted file cannot silently lose its
- * portability promise in repository CI.
- */
+/** M10.2: every physically extracted package module is subject to portable
+ * TypeScript AST checks. Legacy manifest entries remain checked as shims. */
 export const PORTABLE_CONTRACT_FILES = Object.freeze([
   "src/application/learning-state-projection.ts",
   "src/application/learning-types.ts",
@@ -43,7 +36,7 @@ const HOST_GLOBALS = new Set([
 
 export function isPortableSource(filename) {
   return (filename.startsWith("src/domain/") ||
-    filename.startsWith("packages/core/src/domain/")) && filename.endsWith(".ts") ||
+    filename.startsWith("packages/core/src/")) && filename.endsWith(".ts") ||
     CONTRACTS.has(filename);
 }
 

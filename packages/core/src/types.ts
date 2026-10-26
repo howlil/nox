@@ -1,0 +1,167 @@
+export type { ChatSession } from "./session/transcript-types";
+export type { ChatMessage, ChatReplyReference, ResponseVersion, EditProposal, AgentTurnMetrics } from "./session/transcript-types";
+
+// Shared transport/session types.
+
+// ── Context ─────────────────────────────────────────────────────────────────
+
+/** Vault-relative research authority, shared across application and context adapters. */
+export type ResearchScope =
+  | { kind: "vault" }
+  | { kind: "selected"; paths: string[] }
+  | { kind: "folder"; path: string };
+
+
+export type AgentContext =
+  | { type: "selection"; file: string; content: string }
+  | { type: "note"; file: string; content: string };
+
+export interface AgentInput {
+  prompt: string;
+  context: AgentContext[];
+}
+
+// Read-only, provider-reported quota snapshots. Never conflated with NOX tokens or manual balances.
+export type QuotaProvider = "agy" | "codex";
+export interface QuotaReading {
+  provider: QuotaProvider;
+  key: string;
+  label: string;
+  kind: "window" | "credit";
+  remainingPercent?: number;
+  amount?: string;
+  resetAt?: string;
+  model?: string;
+  shared: boolean;
+}
+export interface ProviderQuotaSnapshot {
+  provider: QuotaProvider;
+  status: "live" | "stale" | "unavailable";
+  checkedAt?: string;
+  readings: QuotaReading[];
+  error?: string;
+}
+
+// ── Agent transport ─────────────────────────────────────────────────────────
+
+export interface AgentTurnInput {
+  role: "user";
+  content: string;
+}
+
+export type AgentFailureCode =
+  | "runtime-unavailable"
+  | "permission-required"
+  | "protocol-invalid"
+  | "process-failed"
+  | "persistence-failed"
+  | "unknown";
+
+export interface AgentFailure {
+  code: AgentFailureCode;
+  message: string;
+  diagnostic?: string;
+}
+
+export type AgentHealth =
+  | { status: "ready" }
+  | { status: "unavailable" | "misconfigured"; failure: AgentFailure };
+
+/** Wire-compatible provider usage counters.
+ * Mirrored by the pure usage domain because root transport contracts cannot
+ * depend on a domain feature under the architecture boundary rules.
+ */
+export interface TokenUsage {
+  inputTokens: number;
+  outputTokens: number;
+  totalTokens: number;
+  /** Cached prompt tokens already included in inputTokens. */
+  cachedInputTokens?: number;
+  /** Reasoning tokens already included in outputTokens. */
+  reasoningTokens?: number;
+  cacheWriteTokens?: number;
+}
+
+export type AgentStreamEvent =
+  | { type: "text"; content: string }
+  | { type: "usage"; usage: TokenUsage; model?: string; conversationId?: string;
+      /** AGY reports cumulative conversation usage rather than per-turn deltas. */
+      cumulative?: boolean; turnCount?: number }
+  | { type: "completed"; conversationId?: string; usage?: { inputTokens: number; outputTokens: number } }
+  | { type: "failed"; failure: AgentFailure }
+  | { type: "cancelled" }
+  | { type: "tool-started"; toolCallId: string; name: string }
+  | { type: "tool-completed"; toolCallId: string; outcome: "completed" | "failed" };
+
+// ── Mutation proposal ───────────────────────────────────────────────────────
+
+export type ApplyResult =
+  | { ok: true; statusSync?: "failed"; message?: string }
+  | {
+      ok: false;
+      reason:
+        | "stale"
+        | "ambiguous"
+        | "unauthorized"
+        | "missing-file"
+        | "no-editor"
+        | "status-unsaved"
+        | "error";
+      message: string;
+    };
+
+/** Input estimates and latency are distinct from provider usage and quota. */
+// ── Session ─────────────────────────────────────────────────────────────────
+
+/** Bounded, display-only alternatives; only the selected answer enters model history. */
+export interface AgentModel {
+  id: string;
+  name: string;
+}
+
+// ── Agent runtime boundary ──────────────────────────────────────────────────
+
+/** Host-neutral session document transaction. One existing host implementation owns
+ * the serialized read/modify/write lane; this contract is not a new writer. */
+export interface SessionDataPort {
+  read(): Promise<Record<string, unknown>>;
+  update(mutate: (current: Record<string, unknown>) => Record<string, unknown>): Promise<void>;
+}
+
+export interface AgentAdapter {
+  /** Explicit capability; CLI adapters with filesystem tools must never claim it. */
+  readonly sourceIsolation?: "no-filesystem-tools";
+  check(): Promise<AgentHealth>;
+
+  send(
+    input: AgentInput,
+    opts: SendOptions,
+    signal: AbortSignal,
+  ): AsyncIterable<AgentStreamEvent>;
+
+  listModels(signal?: AbortSignal): Promise<AgentModel[]>;
+
+}
+
+/** Application-facing inference capability. Transport, auth, discovery and
+ * provider process lifetimes remain behind this port. */
+export interface AgentRuntimePort {
+  supportsSourceIsolation?(): boolean;
+  replaceAdapter?(adapter: AgentAdapter): Promise<void>;
+  check(): Promise<AgentHealth>;
+  getModels(): AgentModel[];
+  getModelDiscoveryError?(): string | undefined;
+  refreshModels?(): Promise<void>;
+  send(input: AgentInput, opts: SendOptions, signal: AbortSignal): AsyncIterable<AgentStreamEvent>;
+}
+
+export interface AgentRuntimeConfig {
+  executablePath?: string;
+}
+
+export interface SendOptions {
+  model?: string;
+  conversationId?: string;
+  /** Canonical local transcript for stateless HTTP model transports. */
+  history?: Array<{ role: "user" | "assistant"; content: string }>;
+}

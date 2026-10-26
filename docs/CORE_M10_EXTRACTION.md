@@ -1,17 +1,27 @@
-# M10.1 — Physical domain extraction
+# M10 — Physical Core Extraction
 
-**Implemented:** all 31 canonical domain modules now live in `packages/core/src/domain/`; the existing `src/domain/` paths contain re-export compatibility shims only.
+## M10.1 — Completed on the parent PR
 
-## Contract
+All 31 original domain implementations moved to `packages/core/src/domain/**` without rewrites. Legacy `src/domain/**` modules are exact re-exports.
 
-- Canonical rules, codecs, state machines, learning evidence, program transitions, focus and usage accounting have **one** source implementation.
-- All imports originating from package-owned domain source resolve solely to package-owned domain modules. No Node, Obsidian, Electron, browser APIs or host adapters are allowed.
-- The `@nox/core` package entrypoint points directly to package-owned domain exports for public domain symbols.
-- Existing application, Obsidian, headless and browser code may continue importing the old paths for now without duplicated constructors or error classes.
-- `scripts/check-physical-domain.mjs` and architecture/type/unit/integration/standalone-package/browser/Obsidian CI block duplicate implementations and regressions.
+## M10.2 — Application, Session and Runtime Extraction
 
-## Deliberate next steps
+This stacked milestone moves **37 more canonical TypeScript implementations** physically into `packages/core/src/**`:
+- Application: learning controller, streaming turn, learning program orchestrator, commands, context preparation and contract ports
+- Session: durable session controller, codec/schema and message/transcript types
+- Runtime and parser: agent runtime, streaming parser
+- Context: resolver, source ports, budget and local research
+- Feature internals: conversation turn pipeline and program planning/state transitions
+- Pure persistence decoder and root shared types
 
-M10.2 migrates application orchestration, session state and runtime *after* verifying their inbound/outbound graph. The package remains private and host parity is not claimed. Avoid a speculative rewrite or inventing editor/Undo capabilities in headless/browser.
+The runtime logic is moved using the original source blobs; no duplicated engine or feature rewrite. The old `src/**` paths are temporary compatibility-only re-exports. Host-specific adapters remain in root `src/` (Obsidian Vault/Editor, UI, provider/OAuth/process transports, settings, telemetry, lifecycle and quota process).
 
-The migration is not complete until `src/` no longer owns domain logic and `@nox/core` can be built and consumed with one engine identity by all hosts.
+**Core package API:** `packages/core/src/index.ts` resolves its application, session, runtime and domain exports entirely inside `packages/core/src/`, rather than importing implementation from `../../../src/`.
+
+**Permanent contract:** `scripts/check-physical-domain.mjs` verifies matching compatibility modules and rejects all escaped imports from physically extracted engine source. `scripts/portable-boundaries.mjs` checks every core TS file for host globals/imports. `scripts/check-core-hosts.mjs` verifies one copy of each canonical constructor in both host builds. New identity tests verify Legacy === Canonical runtime constructors.
+
+### Acceptance and limitations
+
+The original Obsidian/Node/browser code paths, on-disk schema decoders and public core API remain compatible. CI must pass full architecture/typecheck, unit/integration, ESM+CJS+types isolated consumer, single-instance identity, real Chromium/IndexedDB, Obsidian build and artifact verification.
+
+**Not yet M10.3:** legacy source shims still exist; host imports may still use their previous internal paths. No standalone production browser provider or public npm package is claimed. Physical extraction is an ownership change, not new runtime functionality.
