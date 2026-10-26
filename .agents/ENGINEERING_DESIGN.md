@@ -8,6 +8,22 @@ Last updated: 2026-10-13
 
 ---
 
+## M11.3 presenter host contract — 2026-10-26
+
+The Obsidian ChatView and migrated presentation modules depend on the
+curated `@nox/core` entrypoint for read-only payload contracts and the
+single core-owned command capability `isLocallyExecutableCommand`.
+Only types are added for learning overview, practice, review, activity,
+curriculum changes and transcript reply references; no DOM or editor API
+enters core. The UI exclusively owns rendering and interaction lifetime.
+
+Guard import specifiers through the architecture AST validator; external
+ESM/CJS/type consumers prove the package boundary; core command identity
+and behavior must match canonical source. This is an incremental migration:
+remaining UI helpers and host adapters still require a separate audit.
+
+---
+
 ## M11.2 provider and persistence host contracts — 2026-10-26
 
 Provider transports (Agy, Codex, ChatGPT), Obsidian Vault learning/program

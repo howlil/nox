@@ -12,6 +12,7 @@ export { SessionController } from "./session/SessionController";
 export { SessionStore } from "./session/SessionStore";
 export { ContextResolver } from "./context/ContextResolver";
 export { LocalResearchIndex } from "./context/LocalResearch";
+export { isLocallyExecutableCommand } from "./application/local-command";
 export { DEFAULT_LEARNING_STATE } from "./domain/learning-state/types";
 export { decodeProgramCollection, validateProgram } from "./domain/learning-program/collection-schema";
 export { decodeLearningState } from "./persistence/learning-state-schema";
@@ -20,7 +21,7 @@ export { PersistenceError, LearningStateWriteConflict, SessionWriteConflict, Pro
 export type {
   AgentAdapter, AgentRuntimePort, AgentHealth, AgentInput,
   AgentModel, AgentStreamEvent, SendOptions, SessionDataPort, AgentRuntimeConfig,
-  ChatSession, ChatMessage, AgentFailure, AgentContext, EditProposal,
+  ChatSession, ChatMessage, ChatReplyReference, AgentFailure, AgentContext, EditProposal,
   ResearchScope, ApplyResult, TokenUsage,
 } from "./types";
 export type {
@@ -28,7 +29,7 @@ export type {
   ProgramStorePort, WorkspaceWriterPort, OnboardingStatePort,
 } from "./application/ports";
 export type {
-  LearningEvent, LearningRequest,
+  LearningEvent, LearningRequest, LearningActionKind, NoxProgramOverview,
 } from "./application/learning-types";
 export type {
   SessionStoreOptions,
@@ -45,5 +46,11 @@ export type {
 } from "./domain/learning-state/types";
 export type { OnboardingDraft } from "./domain/onboarding/types";
 export type {
-  LearningProgram, ProgramCollection, ProgramConstraints,
+  LearningProgram, ProgramCollection, ProgramConstraints, CurriculumOperation,
 } from "./domain/learning-program/types";
+
+// Host-facing, read-only UI payload contracts. Their implementation remains in core;
+// Obsidian owns DOM, rendering, input handling and all adapter capabilities.
+export type { PracticeAnswer, PracticeQuestion, PracticeEvaluation } from "./domain/practice/types";
+export type { ReviewFinding } from "./domain/review/types";
+export type { ActivitySummary } from "./domain/activity/aggregation";

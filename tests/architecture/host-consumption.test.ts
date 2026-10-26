@@ -69,3 +69,34 @@ test("M11.2 provider and persistence adapters consume no private core paths", ()
       'const sample = \'import { AgentAdapter } from "../../packages/core/src/types"\';' }], []), []);
   }
 });
+
+test("M11.3 presenter and chat UI adapters use only the public core entrypoint", () => {
+  const presenters = [
+    "src/chat/ChatView.ts",
+    "src/features/learning/view/LearningPresenter.ts",
+    "src/features/practice/view/PracticePresenter.ts",
+    "src/chat/learning-panel-state.ts",
+    "src/chat/learning-graph.ts",
+    "src/chat/learning-card-renderers.ts",
+    "src/features/conversation/view/history-presenter.ts",
+    "src/features/conversation/view/transcript-presenter.ts",
+    "src/chat/chat-state.ts",
+  ];
+  for (const path of presenters) {
+    assert.deepEqual(validateHostConsumption([{ path,
+      source: 'import type { NoxProgramOverview } from "@nox/core";' }], []), []);
+    const privatePath = posix.relative(posix.dirname(path), "packages/core/src/application/learning-types");
+    const privateRuntimePath = posix.relative(posix.dirname(path), "packages/core/dist/index.mjs");
+    for (const source of [
+      `import type { NoxProgramOverview } from "${privatePath}";`,
+      `export type { LearningActionKind } from "${privatePath}";`,
+      `import { LearningController } from "${privateRuntimePath}";`,
+      'import { isLocallyExecutableCommand } from "@nox/core/application/local-command";',
+    ]) {
+      assert.match(validateHostConsumption([{ path, source }], [])[0] ?? "",
+        /must use the @nox\/core public API/);
+    }
+    assert.deepEqual(validateHostConsumption([{ path, source:
+      `const example = 'import { X } from "../../packages/core/src/index"';` }], []), []);
+  }
+});

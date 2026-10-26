@@ -1,4 +1,4 @@
-import type { ChatMessage } from "../../../../packages/core/src/types";
+import type { ChatMessage } from "@nox/core";
 
 export interface TranscriptRenderer {
   clear(): void;

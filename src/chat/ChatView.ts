@@ -8,25 +8,22 @@ import {
   WorkspaceLeaf,
   type IconName,
 } from "obsidian";
-import { LearningController } from "../../packages/core/src/application/LearningController";
 import {
-  LearningActionKind,
-  LearningEvent,
-  LearningRequest,
-} from "../../packages/core/src/application/learning-types";
-import {
-  ExplicitContextRef,
-  LearningContext,
-} from "../../packages/core/src/context/context-types";
-import {
-  PracticeAnswer,
-  PracticeEvaluation,
-  PracticeQuestion,
-} from "../../packages/core/src/domain/practice/types";
-import { ReviewFinding } from "../../packages/core/src/domain/review/types";
+  LearningController,
+  type LearningActionKind,
+  type LearningEvent,
+  type LearningRequest,
+  type ExplicitContextRef,
+  type LearningContext,
+  type PracticeAnswer,
+  type PracticeEvaluation,
+  type PracticeQuestion,
+  type ReviewFinding,
+  type ChatMessage,
+  type ChatReplyReference,
+} from "@nox/core";
 import { PracticePresenter } from "../features/practice/view/PracticePresenter";
 import { renderReviewFindingCards } from "./learning-card-renderers";
-import { ChatMessage, type ChatReplyReference } from "../../packages/core/src/types";
 import { parsePromptToken, stripPromptToken } from "./prompt-token";
 import { NOX_CAPABILITIES } from "./capabilities";
 import { buildActionMenu, getPrimaryAction, type ActionMenuContext } from "./action-menu";

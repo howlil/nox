@@ -175,3 +175,27 @@ checks preserve one implementation and durable ordering.
 still import private core source. This incremental slice does not guarantee
 standalone distribution of the Obsidian host, npm publication, or a stable
 public-semver API. Those require further host import cleanup and acceptance.
+
+## M11.3 — Presenter contract boundary
+
+The Obsidian view and presentation-only modules consume the `@nox/core`
+entrypoint rather than private `packages/core/src/**` implementations.
+The curated additions are **type-only read models**:
+`NoxProgramOverview`, `LearningActionKind`, `ChatReplyReference`,
+`PracticeAnswer`, `PracticeQuestion`, `PracticeEvaluation`,
+`ReviewFinding`, `ActivitySummary`, and `CurriculumOperation`.
+The existing `LearningEvent`, `LearningRequest`, `LearningContext`,
+`ChatMessage`, and `LearningController` are reused.
+
+The one new runtime helper is `isLocallyExecutableCommand`, a pure core-owned
+business command predicate previously re-exported by `src/chat/chat-state.ts`
+from a package-private file. Its implementation is not copied or moved
+into the UI. The Obsidian view, presenters, and pure projection helpers
+still own DOM updates, navigation, accessibility, timers and UI state;
+the core owns learning command parsing, policy, models and persistence.
+
+M11.3 architecture tests forbid source and compiled deep imports in the
+migrated presentation modules, and the isolated consumer verifies TypeScript
+contract availability and ESM/CJS runtime function identity and behavior.
+Not all UI helpers/host adapters are converted yet; no independent
+Obsidian package release or public npm guarantee follows from this milestone.
