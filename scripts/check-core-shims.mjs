@@ -11,6 +11,17 @@ function walk(directory) {
   });
 }
 
+/** M13 wave 1: deleted facades must never be recreated even if a caller appears. */
+export const RETIRED_CORE_SHIMS = new Set([
+  "src/domain/learner-model/activity-policy.ts",
+  "src/domain/learner-model/feedback-policy.ts",
+  "src/domain/learner-model/learner-profile.ts",
+  "src/domain/activity/aggregation.ts",
+  "src/domain/workspace/plan.ts",
+  "src/domain/mutation/replacement.ts",
+  "src/application/research-scope.ts",
+]);
+
 /** Conservatively catalog static imports into the old compatibility facade.
  * Test references and architecture manifest contracts justify keeping a shim. */
 export function auditLegacyCoreShims() {
@@ -41,6 +52,7 @@ export function auditLegacyCoreShims() {
   const missingReferenced = retained.filter(p => !existsSync(p));
   return {
     retained, unused, missingReferenced,
+    reintroduced: old.filter(p => RETIRED_CORE_SHIMS.has(p) && existsSync(p)),
     evidence: Object.fromEntries(retained.map(p => [p, [...consumers.get(p)].sort()])),
   };
 }
@@ -49,5 +61,5 @@ if (process.argv[1]?.endsWith("/check-core-shims.mjs")) {
   console.log("M10.4 shim inventory:", JSON.stringify({
     retained: result.retained.length, unused: result.unused, missingReferenced: result.missingReferenced,
   }));
-  if (result.missingReferenced.length) process.exitCode = 1;
+  if (result.missingReferenced.length || result.reintroduced.length) process.exitCode = 1;
 }
