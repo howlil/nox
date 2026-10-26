@@ -94,9 +94,9 @@ test("M11.3 presenter and chat UI adapters use only the public core entrypoint",
       'import { isLocallyExecutableCommand } from "@nox/core/application/local-command";',
     ]) {
       assert.match(validateHostConsumption([{ path, source }], [])[0] ?? "",
-        /must use the @nox\\/core public API/);
+        /must use the @nox\/core public API/);
     }
     assert.deepEqual(validateHostConsumption([{ path, source:
-      'const example = \\'import { X } from "../../packages/core/src/index"\\';' }], []), []);
+      `const example = 'import { X } from "../../packages/core/src/index"';` }], []), []);
   }
 });
