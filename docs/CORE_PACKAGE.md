@@ -231,3 +231,23 @@ canonical source identity and real Chromium/IndexedDB conformance. It does
 **not** establish Obsidian runtime E2E with an installed vault, all platform
 packaging, release to npm, or compatibility for third-party deep imports.
 Retain compatibility shims while reference contracts require them.
+
+## M12.1 — Compiled Obsidian plugin lifecycle acceptance
+
+`pnpm acceptance:runtime` loads the real production `dist/main.js` from
+a temporary plugin-install layout (with manifest and CSS) into a controlled
+CommonJS host VM. It supplies an intentionally **limited mock** of the
+Obsidian and Electron APIs rather than importing the TypeScript composition
+root. The executable gate verifies plugin construction, `onload` view and
+command registration, lifecycle subscriptions and timers, real
+`PluginDataRepository`/core session writes, switching to a new session,
+`onunload`, and session restoration after creating and loading a second
+plugin instance. The loader rejects runtime external `@nox/core` requires
+and rejects unexpected network calls during startup and reload.
+
+It runs in CI **after the production artifact build and verification**.
+The check does **not** claim Obsidian desktop API parity, GUI behavior,
+provider connectivity, operating-system installation, screen reader behavior,
+or a successful native-vault integration. Those require actual Obsidian
+desktop acceptance and separately recorded evidence. `@nox/core` remains
+private; no npm publication or plugin release is implied.
