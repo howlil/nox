@@ -1,9 +1,6 @@
-import type { TokenUsage } from "@nox/core";
+import { accumulateUsage, assertUsageReport, decodeUsageSnapshot,
+  type TokenUsage, type UsageReportOptions } from "@nox/core";
 import type { PluginDataRepository } from "./PluginDataRepository";
-import {
-  accumulateUsage, assertUsageReport, decodeUsageSnapshot,
-  type UsageReportOptions,
-} from "@nox/core";
 
 export type { UsageBucket, UsageSnapshot } from "@nox/core";
 
