@@ -171,7 +171,7 @@ void [sessions, runtime, request, state, policy, research, adapterConfig, draft,
     plugins: [{
       name: "resolve-staged-core",
       setup(bundle) {
-        bundle.onResolve({ filter: /^@nox\\/core$/ }, () =>
+        bundle.onResolve({ filter: /^@nox\/core$/ }, () =>
           ({ path: join(packageDirectory, "dist", "index.mjs") }));
       },
     }],
