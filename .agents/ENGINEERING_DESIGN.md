@@ -8,6 +8,24 @@ Last updated: 2026-10-13
 
 ---
 
+## M11.4 final production host boundary — 2026-10-26
+
+All host-owned production TypeScript in the Obsidian, browser and headless
+entrypoints must consume portable functionality through `@nox/core` only;
+do not import private source, private package subpaths or a second compiled
+runtime copy. A package-owned compatibility shim may retain its exact
+canonical target while supported by the referenced-shim inventory, but it
+must not be an application composition entrypoint.
+
+Core owns portable pure domain planning, decoding and validation; concrete
+host adapters own editor writes, plugin settings, provider processes, DOM,
+vault I/O and cancellation. The M11.4 acceptance must stage Obsidian host
+source and a built portable package with **no core source checkout** and
+bundle the host against that dist artifact; this is bundle-time proof,
+not a substitute for installed-plugin runtime E2E or npm publication.
+
+---
+
 ## M11.3 presenter host contract — 2026-10-26
 
 The Obsidian ChatView and migrated presentation modules depend on the
