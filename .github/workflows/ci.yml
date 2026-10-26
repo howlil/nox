@@ -98,3 +98,6 @@ jobs:
 
       - name: Verify artifacts
         run: pnpm test:artifacts
+
+      - name: M12 compiled Obsidian plugin boot and restart
+        run: pnpm acceptance:runtime
