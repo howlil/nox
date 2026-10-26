@@ -18,6 +18,15 @@ function walk(dir) {
 const PUBLIC_API_ADAPTERS = new Set([
   "src/context/ObsidianContext.ts",
   "src/context/PolicyLoader.ts",
+  // M11.2: provider transports, durable Obsidian stores, and lifecycle adapter.
+  "src/agent/ChatGptAdapter.ts",
+  "src/agent/CodexAdapter.ts",
+  "src/agent/AgyAdapter.ts",
+  "src/persistence/VaultLearningStore.ts",
+  "src/persistence/VaultProgramStore.ts",
+  "src/persistence/PluginDataRepository.ts",
+  "src/persistence/OnboardingStateRepository.ts",
+  "src/host/obsidian/lifecycle.ts",
 ]);
 
 export function validateHostConsumption(files, canonicalPaths) {
