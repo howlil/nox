@@ -161,6 +161,10 @@ try {
   }
   const first = loadInstalledPlugin();
   await first.onload();
+  const identity = first.getBuildDiagnostics();
+  assert.match(identity.sourceSha, /^[a-f0-9]{40}$/i,
+    "compiled artifact must expose exact source commit identity");
+  assert.equal(identity.transport, "NOX_RUNTIME_TRANSPORT_V3:node-https-sse");
   assert.ok(first.views.has("nox-sidebar"), "actual plugin must register a view");
   for (const command of ["open-sidebar", "guided-learning-setup",
     "copy-runtime-diagnostics", "focus-composer"]) {
@@ -186,6 +190,8 @@ try {
 
   const restarted = loadInstalledPlugin();
   await restarted.onload();
+  assert.deepEqual(clone(restarted.getBuildDiagnostics()), clone(identity),
+    "reloaded plugin must identify the same compiled artifact");
   assert.equal(restarted.learning.getSession().id, other.id,
     "real compiled plugin must restore last session from plugin data");
   assert.deepEqual(clone(stored.value["nox-settings"] ?? {}),
