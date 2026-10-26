@@ -1,5 +1,4 @@
-import type { OnboardingDraft, OnboardingStage } from "../../../../packages/core/src/domain/onboarding/types";
-import type { LearningProgram, LearningObjective, ProgramConstraints } from "../../../../packages/core/src/domain/learning-program/types";
+import type { OnboardingDraft, OnboardingStage, LearningProgram, LearningObjective, ProgramConstraints } from "@nox/core";
 
 /** UI-independent onboarding state. Draft persistence is still an application port. */
 export function restoreOnboardingDraft(initial?: OnboardingDraft): OnboardingDraft {
