@@ -1,6 +1,6 @@
 import { TFile, type Plugin } from "obsidian";
 import { LearningActivityPresence } from "../../application/LearningActivityPresence";
-import type { LearningProgramOrchestrator } from "../../../packages/core/src/application/LearningProgramOrchestrator";
+import type { LearningProgramOrchestrator } from "@nox/core";
 
 /**
  * Host observation only. All durable activity/focus mutations stay in the
