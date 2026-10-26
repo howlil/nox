@@ -8,6 +8,23 @@ Last updated: 2026-10-13
 
 ---
 
+## M12.2 real Obsidian desktop acceptance setup — 2026-10-26
+
+The native acceptance owner is the official Obsidian desktop CLI, not the
+Node VM mock. Require an explicitly acknowledged disposable vault plus a
+second CLI-reported vault path match before installing compiled plugin
+files, disabling restricted mode, or invoking plugin lifecycle operations.
+
+Acceptance executes actual sidebar open, scratch vault file I/O, session
+creation, app restart and state recovery, and plugin disable. Record only
+minimal build/vault metadata and check results locally; never upload
+credentials, notes, or screenshots implicitly. The CI job tests only
+syntactic and offline fail-closed verdicts. It must never be represented
+as native desktop execution. This milestone is **tooling merged / native
+execution pending**, not desktop certified, until an actual run is observed.
+
+---
+
 ## M12.1 compiled plugin host lifecycle acceptance — 2026-10-26
 
 Package-only source independence (M11.4) does not exercise the actual
