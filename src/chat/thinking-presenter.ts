@@ -1,6 +1,4 @@
-import type { LearningActionKind } from "@nox/core";
-import type { TurnContextSnapshot } from "@nox/core";
-import type { ChatMessage } from "@nox/core";
+import type { LearningActionKind, TurnContextSnapshot, ChatMessage } from "@nox/core";
 import { setNoxIcon } from "./primitives";
 import { animateNoxEnter } from "./motion";
 import { NoxRunInspector } from "./run-inspector";
