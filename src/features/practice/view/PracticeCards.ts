@@ -1,4 +1,4 @@
-import type { PracticeQuestion, PracticeEvaluation } from "../../../../packages/core/src/domain/practice/types";
+import type { PracticeQuestion, PracticeEvaluation } from "@nox/core";
 import { createNoxButton, createNoxSurface, setNoxIcon } from "../../../chat/primitives";
 import { renderQuizCard, type QuizCardActions } from "./quiz-card";
 import { renderPracticeInstructions } from "./practice-instructions";
