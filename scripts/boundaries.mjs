@@ -137,7 +137,10 @@ export function validateArchitecture(files) {
           issues.push(`${filename}: unresolved import "${specifier}" (resolved as ${target})`);
           continue;
         }
-        if (!isApprovedEdge(filename, target)) {
+        // M10 compatibility exports must target the exact package-owned module.
+        const physicalDomain = owner === "domain" && target ===
+          "packages/core/src/domain/" + filename.slice("src/domain/".length);
+        if (!physicalDomain && !isApprovedEdge(filename, target)) {
           issues.push(`${filename}: forbidden dependency -> ${target}`);
         }
       } else if (owner === "domain") {
