@@ -1,4 +1,4 @@
-import type { PracticeQuestion } from "../../../../packages/core/src/domain/practice/types";
+import type { PracticeQuestion } from "@nox/core";
 
 /** Preserve AI-authored words while making inline code identifiers scannable. */
 function inlineText(parent: HTMLElement, value: string): void {
