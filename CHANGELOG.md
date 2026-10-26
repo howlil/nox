@@ -1,5 +1,58 @@
 # Changelog
 
+## [1.3.3]
+
+### Fixes
+
+- correct lexical export parser regex escapes
+- avoid TypeScript compiler in bundled portable preflight tests
+- validate actual TypeScript named exports via AST
+- consolidate host public API imports
+- consolidate host public API imports
+- correctly escape staged core package resolver regex
+
+### Documentation
+
+- record M11.4 package-only host acceptance scope
+- record M11.4 package-only host acceptance scope
+- define M11.3 presenter contract ownership
+- define M11.3 presenter contract ownership
+- record M11.2 ownership boundaries and verification
+- define M11.2 provider and persistence host contracts
+
+### Maintenance
+
+- cover grouped exports and string-spoof failures
+- build isolated host against staged dist without core source checkout
+- correct regex escapes in M11.4 cases
+- enforce future host API gate and explicit shim carveout
+- forbid every production host deep import to private core
+- isolate onboarding and practice components from core source
+- isolate onboarding and practice components from core source
+- isolate onboarding and practice components from core source
+- isolate onboarding and practice components from core source
+- isolate onboarding and practice components from core source
+- decouple remaining Obsidian chat and onboarding core imports
+- decouple remaining Obsidian chat and onboarding core imports
+- decouple remaining Obsidian chat and onboarding core imports
+- decouple remaining Obsidian chat and onboarding core imports
+- decouple remaining Obsidian chat and onboarding core imports
+- decouple remaining Obsidian chat and onboarding core imports
+- decouple remaining Obsidian chat and onboarding core imports
+- consume portable storage and UI types from public API
+- consume portable storage and UI types from public API
+- consume portable storage and UI types from public API
+- consume portable storage and UI types from public API
+- consume portable storage and UI types from public API
+- consume portable storage and UI types from public API
+- consume portable storage and UI types from public API
+- consume public agent and mutation core contracts
+- consume public agent and mutation core contracts
+- consume public agent and mutation core contracts
+- consume public agent and mutation core contracts
+- consume public agent and mutation core contracts
+- consume public agent and mutation core contracts
+
 ## [1.3.2]
 
 ### Improvements
