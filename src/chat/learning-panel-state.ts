@@ -1,5 +1,5 @@
-import type { NoxProgramOverview } from "../application/learning-types";
-import type { CurriculumOperation } from "../domain/learning-program/curriculum-revision";
+import type { NoxProgramOverview } from "../../packages/core/src/application/learning-types";
+import type { CurriculumOperation } from "../../packages/core/src/domain/learning-program/curriculum-revision";
 
 export interface LearningPanelAction { label: string; command: string; destructive?: boolean }
 export interface LearningPanelState {

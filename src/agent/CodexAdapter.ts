@@ -4,7 +4,7 @@ import { dirname, join } from "path";
 import { StringDecoder } from "string_decoder";
 import type { QuotaReading } from "./QuotaProtocol";
 import { runCodexQuotaRead } from "./QuotaProcess";
-import type { AgentAdapter, AgentHealth, AgentInput, AgentModel, AgentRuntimeConfig, AgentStreamEvent, SendOptions } from "../types";
+import type { AgentAdapter, AgentHealth, AgentInput, AgentModel, AgentRuntimeConfig, AgentStreamEvent, SendOptions } from "../../packages/core/src/types";
 import { codexFailure, encodeCodexInput, isCodexThreadId, parseCodexLine, parseCodexModelPage, type CodexProtocolState } from "./CodexProtocol";
 
 export interface CodexRuntimeDeps {

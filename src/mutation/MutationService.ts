@@ -1,6 +1,6 @@
 import { App, MarkdownView, TFile } from "obsidian";
-import { ApplyResult, EditProposal } from "../types";
-import { planReplacement } from "../domain/mutation/replacement";
+import { ApplyResult, EditProposal } from "../../packages/core/src/types";
+import { planReplacement } from "../../packages/core/src/domain/mutation/replacement";
 
 /**
  * Owns user-approved Markdown mutations.

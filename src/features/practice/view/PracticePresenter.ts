@@ -1,5 +1,5 @@
-import type { ChatSession } from "../../../types";
-import type { PracticeAnswer, PracticeQuestion, PracticeEvaluation } from "../../../domain/practice/types";
+import type { ChatSession } from "../../../../packages/core/src/types";
+import type { PracticeAnswer, PracticeQuestion, PracticeEvaluation } from "../../../../packages/core/src/domain/practice/types";
 import { renderPracticeQuestionCard, renderPracticeEvaluationCard } from "./PracticeCards";
 
 /** UI-only capabilities: the caller owns authorization, turn execution and persistence. */

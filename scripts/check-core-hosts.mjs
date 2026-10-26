@@ -1,5 +1,5 @@
 import { build } from "esbuild";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { builtinModules } from "node:module";
 
 /**
@@ -10,6 +10,7 @@ import { builtinModules } from "node:module";
 const entrypoints = [
   "src/host/obsidian/composition.ts",
   "headless/src/composition.ts",
+  "browser/src/composition.ts",
 ];
 for (const entry of entrypoints) {
   const source = readFileSync(entry, "utf8");
@@ -43,6 +44,10 @@ for (const entry of entrypoints) {
     if (count !== 1) throw new Error(entry + ": " + single +
       " must exist exactly once; got " + count);
   }
+  const oldShimModules = inputs.filter(file => file.startsWith("src/") &&
+    existsSync("packages/core/" + file));
+  if (oldShimModules.length) throw new Error(entry +
+    ": host still loads compatibility shim: " + oldShimModules.join(", "));
   const duplicate = inputs.filter(file =>
     file.includes("packages/core/dist/") || file.includes("node_modules/@nox/core/"));
   if (duplicate.length) throw new Error(entry +

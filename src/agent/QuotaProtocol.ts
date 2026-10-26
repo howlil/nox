@@ -1,5 +1,5 @@
-import type { QuotaReading } from "../types";
-export type { QuotaProvider, QuotaReading, ProviderQuotaSnapshot } from "../types";
+import type { QuotaReading } from "../../packages/core/src/types";
+export type { QuotaProvider, QuotaReading, ProviderQuotaSnapshot } from "../../packages/core/src/types";
 type Obj = Record<string, unknown>;
 const obj = (x: unknown): Obj | null => x && typeof x === "object" && !Array.isArray(x) ? x as Obj : null;
 const arr = (x: unknown): unknown[] | null => Array.isArray(x) ? x : null;

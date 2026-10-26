@@ -2,14 +2,12 @@ import { open, readFile, mkdir, lstat, rename, unlink } from "node:fs/promises";
 import type { FileHandle } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
 import { join, resolve } from "node:path";
-import type { SessionDataPort } from "../../src/types";
-import type { LearningStatePort, ProgramStorePort } from "../../src/application/ports";
-import type { ProgramCollection } from "../../src/domain/learning-program/types";
-import { decodeProgramCollection } from "../../src/domain/learning-program/collection-schema";
-import { ProgramWriteConflict } from "../../src/domain/persistence/errors";
-import { DEFAULT_LEARNING_STATE, type LearningState } from "../../src/domain/learning-state/types";
-import { LearningStateWriteConflict } from "../../src/domain/persistence/errors";
-import { decodeLearningState } from "../../src/persistence/learning-state-schema";
+import {
+  decodeProgramCollection, ProgramWriteConflict,
+  DEFAULT_LEARNING_STATE, LearningStateWriteConflict, decodeLearningState,
+  type SessionDataPort, type LearningStatePort, type ProgramStorePort,
+  type ProgramCollection, type LearningState,
+} from "@nox/core";
 
 /** Atomic rename occurred, but syncing the parent directory failed.
  * New bytes may be observable even though power-loss durability is unknown.

@@ -1,6 +1,6 @@
-import type { LearningActionKind } from "../application/learning-types";
-import type { TurnContextSnapshot } from "../context/context-types";
-import type { ChatMessage } from "../types";
+import type { LearningActionKind } from "../../packages/core/src/application/learning-types";
+import type { TurnContextSnapshot } from "../../packages/core/src/context/context-types";
+import type { ChatMessage } from "../../packages/core/src/types";
 import { setNoxIcon } from "./primitives";
 import { animateNoxEnter } from "./motion";
 import { NoxRunInspector } from "./run-inspector";

@@ -1,4 +1,4 @@
-import type { ReviewFinding } from "../domain/review/types";
+import type { ReviewFinding } from "../../packages/core/src/domain/review/types";
 import { createNoxButton, createNoxSurface } from "./primitives";
 
 /** Review finding controls remain in the host view shell; practice has its own view owner. */
