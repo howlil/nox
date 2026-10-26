@@ -13,6 +13,12 @@ const built = spawnSync(process.execPath, [resolve("scripts/build-core.mjs")], {
 });
 if (built.status !== 0) process.exit(built.status ?? 1);
 
+// Prove the source itself compiles without a root checkout or TS project.
+const isolated = spawnSync(process.execPath, [resolve("scripts/check-core-source.mjs")], {
+  stdio: "inherit",
+});
+if (isolated.status !== 0) process.exit(isolated.status ?? 1);
+
 const root = await mkdtemp(join(tmpdir(), "nox-core-external-consumer-"));
 try {
   const packageDirectory = join(root, "node_modules", "@nox", "core");

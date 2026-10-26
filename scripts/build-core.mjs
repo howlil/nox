@@ -1,7 +1,7 @@
 import { build } from "esbuild";
 import { spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { dirname, relative, resolve, sep } from "node:path";
+import { resolve } from "node:path";
 
 const directory = resolve("packages/core");
 const out = resolve(directory, "dist");
@@ -30,6 +30,8 @@ const result = await build({
     "VaultLearningStore.ts", "PluginDataRepository.ts", "MutationService.ts",
     "ChatGptAuth.ts", "CodexAdapter.ts",
   ]);
+  const outsidePackage = Object.keys(result.metafile.inputs).filter(name =>
+    !name.replaceAll(String.fromCharCode(92), "/").startsWith("packages/core/src/"));
   const forbidden = Object.keys(result.metafile.inputs).filter(name => {
     const pathname = name.split(String.fromCharCode(92)).join("/");
     const basename = pathname.split("/").at(-1);
@@ -40,8 +42,8 @@ const result = await build({
   });
   const unresolved = Object.values(result.metafile.outputs).flatMap(entry =>
     entry.imports.filter(dependency => dependency.external).map(dependency => dependency.path));
-  if (forbidden.length || unresolved.length) {
-    throw new Error(`Core CJS contains host imports: ${[...forbidden, ...unresolved].join(", ")}`);
+  if (forbidden.length || unresolved.length || outsidePackage.length) {
+    throw new Error(`Core CJS source boundary violation: ${[...forbidden, ...unresolved, ...outsidePackage].join(", ")}`);
   }
 console.log(`@nox/core canonical CJS bundled ${Object.keys(result.metafile.inputs).length} source files`);
 
@@ -64,33 +66,25 @@ const tsc = spawnSync(process.execPath, [
 ], { stdio: "inherit" });
 if (tsc.status !== 0) process.exit(tsc.status ?? 1);
 
-// The declaration emitter can synthesize a baseUrl-based import() for a type
-// exposed by our own public index. That path only resolves inside this monorepo
-// and must be rewritten to a relative path inside the shipped type graph.
+// Standalone tsconfig: declarations are emitted directly inside the package.
+// No baseUrl import rewrites or references to the monorepo source graph.
 const declarationsRoot = resolve(out, "types");
-const publicModule = resolve(declarationsRoot, "packages/core/src");
 function checkDeclarations(directory) {
   for (const entry of readdirSync(directory, { withFileTypes: true })) {
     const file = resolve(directory, entry.name);
     if (entry.isDirectory()) { checkDeclarations(file); continue; }
     if (!entry.name.endsWith(".d.ts")) continue;
     const source = readFileSync(file, "utf8");
-    const specifier = relative(dirname(file), publicModule).split(sep).join("/");
-    const target = specifier.startsWith(".") ? specifier : "./" + specifier;
-    // TS sometimes emits baseUrl-style references to nested package modules.
-    // Rewrite both the public index and any package-owned domain subpath
-    // relative to this emitted declaration before staging an external consumer.
-    const fixed = source.replace(/(["'])packages\/core\/src(\/[^"']*)?\1/g,
-      (_whole, quote, nested = "") => quote + target + nested + quote);
-    if (fixed.includes('import("obsidian")') || fixed.includes('from "obsidian"')) {
-      throw new Error("Portable core declarations reference the Obsidian SDK: " + file);
+    if (source.includes("packages/core/src") ||
+        source.includes("../../../src/") ||
+        source.includes('import("obsidian")') ||
+        source.includes('from "obsidian"')) {
+      throw new Error("Core declarations contain a monorepo or host reference: " + file);
     }
-    if (fixed !== source) writeFileSync(file, fixed);
   }
 }
 checkDeclarations(declarationsRoot);
-
-if (!existsSync(resolve(out, "types/packages/core/src/index.d.ts"))) {
-  throw new Error("Missing @nox/core public TypeScript declaration entrypoint");
+if (!existsSync(resolve(out, "types/index.d.ts"))) {
+  throw new Error("Missing @nox/core package-local declaration entrypoint");
 }
-console.log("@nox/core standalone ESM/CJS and declaration artifacts are ready");
+console.log("@nox/core independent-source ESM/CJS/declaration artifacts are ready");

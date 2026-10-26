@@ -1,4 +1,4 @@
-import { readdirSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { posix, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { extractImports } from "./architecture-graph.mjs";
@@ -24,13 +24,17 @@ export function checkPhysicalDomain() {
   for (const canonical of files) {
     const suffix = canonical.slice(canonicalRoot.length + 1);
     const old = legacyRoot + "/" + suffix;
-    const legacy = readFileSync(resolve(root, old), "utf8");
-    const oldDir = posix.dirname(old);
-    const target = canonical.slice(0, -3);
-    const relative = posix.relative(oldDir, target);
-    const specifier = relative.startsWith(".") ? relative : "./" + relative;
-    const expected = 'export * from "' + specifier + '";\n';
-    if (legacy !== expected) issues.push(old + ": duplicate logic, invalid shim or missing compatibility module");
+    // Removed shims are legal only when no imports need them; typecheck and
+    // the compatibility inventory enforce the remaining consumer references.
+    if (existsSync(resolve(root, old))) {
+      const legacy = readFileSync(resolve(root, old), "utf8");
+      const oldDir = posix.dirname(old);
+      const target = canonical.slice(0, -3);
+      const relative = posix.relative(oldDir, target);
+      const specifier = relative.startsWith(".") ? relative : "./" + relative;
+      const expected = 'export * from "' + specifier + '";\n';
+      if (legacy !== expected) issues.push(old + ": duplicate logic or invalid compatibility shim");
+    }
 
     const source = readFileSync(resolve(root, canonical), "utf8");
     const parsed = extractImports(canonical, source);
