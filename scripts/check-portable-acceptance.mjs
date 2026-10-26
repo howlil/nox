@@ -1,7 +1,6 @@
 import { appendFileSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { resolve } from "node:path";
-import ts from "typescript";
 
 /**
  * Automated preflight for NOX portable core and release provenance contracts.
@@ -38,15 +37,17 @@ export function portableAcceptanceIssues({ ci, release, recovery, core, tsconfig
   if (tsconfig.compilerOptions?.paths?.["@nox/core"]?.[0] !== "packages/core/src/index.ts") {
     issues.push("Hosts must resolve @nox/core through its canonical source-alias");
   }
-  // Validate actual named exports, not a brittle exact string match.
-  // Grouped exports (e.g. export { LearningController, SomeError }) must
-  // remain valid; text in comments or string literals cannot spoof the API.
-  const ast = ts.createSourceFile("core-index.ts", source, ts.ScriptTarget.Latest,
-    true, ts.ScriptKind.TS);
-  const exported = new Set(ast.statements
-    .filter(node => ts.isExportDeclaration(node) && node.exportClause &&
-      ts.isNamedExports(node.exportClause))
-    .flatMap(node => node.exportClause.elements.map(element => element.name.text)));
+  // Preflight checks only declared named exports, not release/runtime validity.
+  // Keep this lightweight: importing the TypeScript compiler here would bundle
+  // its Node-only internals into isolated integration-test ESM runners.
+  const declarations = source
+    .replace(/\\/\\*[\\s\\S]*?\\*\\//g, "")
+    .replace(/^\\s*\\/\\/.*$/gm, "");
+  const exported = new Set([...declarations.matchAll(
+    /^\\s*export\\s+(?:type\\s+)?\\{([^}]+)\\}/gm,
+  )].flatMap(([, bindings]) => bindings.split(",")
+    .map(name => name.trim().split(/\\s+as\\s+/).at(-1))
+    .filter(Boolean)));
   for (const name of ["LearningController", "SessionController", "SessionStore", "AgentRuntime"]) {
     if (!exported.has(name)) issues.push("@nox/core public API missing: " + name);
   }
