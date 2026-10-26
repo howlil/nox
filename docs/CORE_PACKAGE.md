@@ -135,3 +135,19 @@ After installing the package's own development dependencies, run `pnpm build` fr
 **Scope of independence:** the core source and its own build can run outside the repository; the current Obsidian UI and some adapters still import package-internal source via monorepo paths. Those host-facing interfaces require an intentionally designed public/first-party contracts surface before distributing the hosts as independent repositories. Do not expose the entire internal package just to remove these imports.
 
 The package-local `pnpm verify` runs its own build and checks ESM/CJS constructor identity and emitted declarations. The repository's `pnpm core:verify` invokes that package-owned verification first and then runs isolated package/source consumers. Both entrypoints are available without a second runtime implementation.
+
+## M11.1 — Context adapter public API boundary
+
+`ObsidianContext` and `PolicyLoader` consume the curated `@nox/core`
+entrypoint. `LearningPolicy` and `ResearchScope` remain portable types.
+`LocalResearchIndex` and `ResearchResult` form the narrow, explicitly
+exported host-owned research indexing interface, sharing constructor identity
+with the canonical source. The index is derived: the host still owns note
+enumeration, authorization allowlists, editor freshness, vault events and
+lifecycle.
+
+The source-only build and isolated ESM/CJS/TypeScript consumers prove the
+new API, and architecture CI prevents private package imports in these
+two migrated adapters. Other Obsidian adapters/presenters still require
+a future contract audit; `@nox/core` remains private and this does not yet
+certify independent Obsidian-host packaging or semver stability.
