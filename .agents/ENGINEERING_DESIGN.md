@@ -8,6 +8,23 @@ Last updated: 2026-10-13
 
 ---
 
+## M12.1 compiled plugin host lifecycle acceptance — 2026-10-26
+
+Package-only source independence (M11.4) does not exercise the actual
+installed plugin JavaScript entrypoint or lifecycle. Add a CI acceptance
+that loads the production `dist/main.js` from a temporary install layout
+with a controlled, incomplete Obsidian API double. It must observe actual
+`onload`/registration, plugin data writes, state continuity across a
+second plugin constructor, and `onunload` without provider network access.
+
+Keep the runtime double out of production source and `@nox/core`. This
+is **artifact lifecycle acceptance**, not native installed desktop,
+WebView, Electron, Accessibility or OS lifecycle acceptance. Native
+Obsidian installation and operator-recorded desktop evidence remain a
+separate gate before claiming full runtime certification.
+
+---
+
 ## M11.4 final production host boundary — 2026-10-26
 
 All host-owned production TypeScript in the Obsidian, browser and headless
