@@ -14,6 +14,7 @@ const ci = [
   "pnpm lint", "pnpm test:unit", "pnpm test:integration",
   "pnpm core:verify", "pnpm core:hosts", "pnpm browser:verify",
   "pnpm build", "pnpm test:artifacts", "pnpm acceptance:runtime",
+  "pnpm test:native-runner",
 ].join("\n");
 const release = [
   "needs: [detect, linux, windows, community]",
@@ -80,4 +81,10 @@ test("portable preflight recognizes grouped named exports, not comments", () => 
   ) };
   assert.ok(portableAcceptanceIssues(hidden)
     .some(issue => issue.includes("public API missing: LearningController")));
+});
+
+test("native Obsidian CLI must not be silently reported as CI desktop acceptance", () => {
+  const fake = { ...factory(), ci: ci + "\nrun: pnpm acceptance:native" };
+  assert.ok(portableAcceptanceIssues(fake).some(x =>
+    x.includes("must never run as a simulated CI gate")));
 });
