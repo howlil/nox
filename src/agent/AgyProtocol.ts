@@ -3,7 +3,7 @@ import type {
   AgentFailure,
   AgentFailureCode,
   AgentStreamEvent,
-} from "../../packages/core/src/types";
+} from "@nox/core";
 
 export interface AgyProtocolState {
   conversationId?: string;
