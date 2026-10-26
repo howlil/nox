@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { posix } from "node:path";
 import { checkHostConsumption, validateHostConsumption } from "../../scripts/check-host-consumption.mjs";
 
 const canonical = ["packages/core/src/domain/practice/types.ts"];
@@ -54,9 +55,11 @@ test("M11.2 provider and persistence adapters consume no private core paths", ()
   for (const path of adapters) {
     const approved = [{ path, source: 'import type { AgentAdapter } from "@nox/core";' }];
     assert.deepEqual(validateHostConsumption(approved, []), []);
+    const typePath = posix.relative(posix.dirname(path), "packages/core/src/types");
+    const conflictPath = posix.relative(posix.dirname(path), "packages/core/src/domain/persistence/errors");
     for (const source of [
-      'import type { AgentAdapter } from "../../packages/core/src/types";',
-      'export { ProgramWriteConflict } from "../../packages/core/src/domain/persistence/errors";',
+      `import type { AgentAdapter } from "${typePath}";`,
+      `export { ProgramWriteConflict } from "${conflictPath}";`,
       'import { validateProgram } from "@nox/core/domain/learning-program/collection-schema";',
     ]) {
       assert.match(validateHostConsumption([{ path, source }], [])[0] ?? "",
