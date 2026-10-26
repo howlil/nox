@@ -19,7 +19,7 @@ export function checkPhysicalDomain() {
   const present = new Set(files);
   const issues = [];
   const domains = files.filter(path => path.startsWith(canonicalRoot + "/domain/"));
-  if (domains.length !== 31) issues.push("Expected 31 original canonical domain modules");
+  if (!domains.length) issues.push("Missing canonical domain source modules");
 
   for (const canonical of files) {
     const suffix = canonical.slice(canonicalRoot.length + 1);

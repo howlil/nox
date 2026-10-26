@@ -6,9 +6,10 @@ import { cp, copyFile, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/p
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 
-// Validate the artifact as a self-contained package: no source checkout,
+// First run package-owned build/verify, then validate the artifact as a
+// self-contained external package with no source checkout:
 // workspace path aliases, or Node module resolution into the NOX repository.
-const built = spawnSync(process.execPath, [resolve("scripts/build-core.mjs")], {
+const built = spawnSync(process.execPath, [resolve("packages/core/scripts/verify.mjs")], {
   stdio: "inherit",
 });
 if (built.status !== 0) process.exit(built.status ?? 1);
@@ -35,6 +36,9 @@ import {
 } from "@nox/core";
 const require = createRequire(import.meta.url);
 const commonjs = require("@nox/core");
+const esm = await import("@nox/core");
+assert.deepEqual(Object.keys(esm).sort(), Object.keys(commonjs).sort(),
+  "ESM and CJS must expose the same complete runtime API");
 for (const symbol of [
   AgentRuntime, LearningController, LearningProgramOrchestrator,
   SessionController, SessionStore, ContextResolver,

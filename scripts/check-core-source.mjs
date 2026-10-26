@@ -21,6 +21,11 @@ try {
 
   const manifest = JSON.parse(await readFile(join(pkg, "package.json"), "utf8"));
   if (manifest.private !== true) throw new Error("Core must remain private");
+  if (manifest.scripts?.build !== "node ./scripts/build.mjs" ||
+      manifest.scripts?.verify !== "node ./scripts/verify.mjs" ||
+      !manifest.devDependencies?.esbuild || !manifest.devDependencies?.typescript) {
+    throw new Error("Core must own its build script and toolchain dependencies");
+  }
   const types = manifest.exports?.["."]?.types;
   if (types !== "./dist/types/index.d.ts") throw new Error("Nonportable types export path");
   const exported = await readFile(join(pkg, types), "utf8");
@@ -37,9 +42,14 @@ try {
   const escaped = inputs.filter(p => !p.startsWith("core/src/"));
   const external = Object.values(bundled.metafile.outputs)
     .flatMap(out => out.imports).filter(i => i.external).map(i => i.path);
-  if (escaped.length || external.length || inputs.length < 40) {
+  const required = ["core/src/index.ts", "core/src/agent/AgentRuntime.ts",
+    "core/src/application/LearningController.ts",
+    "core/src/application/LearningProgramOrchestrator.ts",
+    "core/src/session/SessionController.ts"];
+  const missing = required.filter(file => !inputs.includes(file));
+  if (escaped.length || external.length || missing.length) {
     throw new Error("Isolated source graph escaped canonical package: " +
-      [...escaped, ...external].join(", ") + " (" + inputs.length + " modules)");
+      [...escaped, ...external, ...missing].join(", ") + " (" + inputs.length + " modules)");
   }
 
   const smoke = `const assert = require("node:assert/strict");

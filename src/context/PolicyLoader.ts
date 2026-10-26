@@ -7,6 +7,12 @@ import { LearningPolicy } from "../../packages/core/src/context/context-types";
  * The raw file is intentionally preserved as policy text. We only parse policy
  * into structured fields when application behavior truly needs those fields.
  */
+const OBSIDIAN_HOST_INSTRUCTIONS = [
+  "This host is an Obsidian vault. The user may provide selected notes, links, and AGENTS.md as contextual learning material.",
+  "In research answers cite supplied note paths using Obsidian [[note path]] links, including a section or line when available.",
+  "HTML previews appear inside potentially narrow Obsidian panes; keep content naturally sized and avoid nested scroll regions.",
+].join("\n");
+
 export class PolicyLoader {
   private readonly skillCache = new Map<string, { mtime: number; size: number; content: string }>();
   private cached:
@@ -47,6 +53,7 @@ export class PolicyLoader {
       return {
         path: "AGENTS.md",
         rawInstructions: "",
+        hostInstructions: OBSIDIAN_HOST_INSTRUCTIONS,
       };
     }
 
@@ -57,6 +64,7 @@ export class PolicyLoader {
     const policy: LearningPolicy = {
       path: file.path,
       rawInstructions: await this.app.vault.cachedRead(file),
+      hostInstructions: OBSIDIAN_HOST_INSTRUCTIONS,
     };
 
     this.cached = {

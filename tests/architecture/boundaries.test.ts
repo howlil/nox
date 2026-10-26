@@ -313,3 +313,47 @@ test("M1 portable controllers can depend on the shared runtime and session contr
   ];
   assert.deepEqual(validateArchitecture(sources), []);
 });
+
+test("M10 canonical domain cannot import application or context, even within package", () => {
+  const files = [
+    { path: "packages/core/src/domain/practice/NewRule.ts",
+      source: 'import type { Port } from "../../application/ports";\nimport { Resolver } from "../../context/ContextResolver";' },
+    { path: "packages/core/src/application/ports.ts", source: "export interface Port {}" },
+    { path: "packages/core/src/context/ContextResolver.ts", source: "export class Resolver {}" },
+  ];
+  const problems = validateArchitecture(files);
+  assert.equal(problems.filter(p => p.includes("forbidden dependency")).length, 2);
+});
+
+test("M10 canonical application preserves restricted session and feature edges", () => {
+  const files = [
+    { path: "packages/core/src/application/NewUseCase.ts",
+      source: 'import { SessionController } from "../session/SessionController";' },
+    { path: "packages/core/src/session/SessionController.ts", source: "export class SessionController {}" },
+    { path: "packages/core/src/application/RunLearningTurn.ts",
+      source: 'import { StructuredTurnBuffer } from "../features/conversation/turn/StructuredTurnBuffer";' },
+    { path: "packages/core/src/features/conversation/turn/StructuredTurnBuffer.ts", source: "export class StructuredTurnBuffer {}" },
+  ];
+  const problems = validateArchitecture(files);
+  assert.equal(problems.filter(p => p.includes("forbidden dependency")).length, 1);
+});
+
+test("M10 canonical domain permits its own domain rules without requiring legacy shims", () => {
+  assert.deepEqual(validateArchitecture([
+    { path: "packages/core/src/domain/practice/NewRule.ts",
+      source: 'import type { PracticeAnswer } from "./types";' },
+    { path: "packages/core/src/domain/practice/types.ts",
+      source: "export interface PracticeAnswer {}" },
+  ]), []);
+});
+
+test("M10 canonical source rejects unknown owners, invalid features, and unresolved imports", () => {
+  const problems = validateArchitecture([
+    { path: "packages/core/src/domain/practice/Bad.ts", source: 'import type { X } from "./missing";' },
+    { path: "packages/core/src/features/misc/hack/Bogus.ts", source: "" },
+    { path: "packages/core/src/unsafe/fake.ts", source: "" },
+  ]);
+  assert.ok(problems.some(p => p.includes("unresolved import")));
+  assert.ok(problems.some(p => p.includes("unknown feature package")));
+  assert.ok(problems.some(p => p.includes("unrecognized module owner")));
+});

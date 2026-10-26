@@ -33,6 +33,8 @@ export interface LearningContext {
 export interface LearningPolicy {
   path: string;
   rawInstructions: string;
+  /** Trusted host-owned format guidance; not sourced from user documents. */
+  hostInstructions?: string;
 }
 
 export interface TurnContextSnapshot {

@@ -109,15 +109,21 @@ export function validateArchitecture(files) {
   const issues = [];
   const present = new Set(files.map((entry) => entry.path));
   for (const { path: filename, source } of files) {
-    if (!filename.startsWith("src/") || !filename.endsWith(".ts")) continue;
-    const parts = filename.split("/");
+    if (!filename.endsWith(".ts") ||
+        (!filename.startsWith("src/") && !filename.startsWith("packages/core/src/"))) continue;
+    // The public index only declares the exported API, not an application layer.
+    // Its inside-package dependencies are checked by check-physical-domain.mjs.
+    if (filename === "packages/core/src/index.ts") continue;
+    const logicalFilename = filename.startsWith("packages/core/src/")
+      ? "src/" + filename.slice("packages/core/src/".length) : filename;
+    const parts = logicalFilename.split("/");
     const owner = parts[1];
     if (owner === "features" && (parts.length < 5 ||
         !FEATURE_PACKAGES.has(parts.slice(2, 4).join("/")))) {
       issues.push(`${filename}: unknown feature package; use a documented capability owner`);
       continue;
     }
-    if (!ROOT_FILES.has(filename) && owner !== "features" && (!ALLOWED_OWNERS[owner] || parts.length < 3)) {
+    if (!ROOT_FILES.has(logicalFilename) && owner !== "features" && (!ALLOWED_OWNERS[owner] || parts.length < 3)) {
       issues.push(`${filename}: unrecognized module owner; place code in a documented boundary`);
       continue;
     }
@@ -138,12 +144,13 @@ export function validateArchitecture(files) {
           continue;
         }
         // M10 compatibility exports must target the exact package-owned module.
-        const physicalCore = target === "packages/core/src/" + filename.slice("src/".length);
+        const physicalCore = filename.startsWith("src/") &&
+          target === "packages/core/src/" + filename.slice("src/".length);
         // The canonical package path has the same logical owner as its previous
         // src/ path; preserve every existing feature and layer rule.
         const logicalTarget = target.startsWith("packages/core/src/")
           ? "src/" + target.slice("packages/core/src/".length) : target;
-        if (!physicalCore && !isApprovedEdge(filename, logicalTarget)) {
+        if (!physicalCore && !isApprovedEdge(logicalFilename, logicalTarget)) {
           issues.push(`${filename}: forbidden dependency -> ${target}`);
         }
       } else if (owner === "domain") {
@@ -157,7 +164,7 @@ export function validateArchitecture(files) {
           ["fs", "fs/promises", "path", "child_process", "os"].includes(specifier)) {
         issues.push(`${filename}: settings UI cannot own host filesystem or process I/O`);
       } else if (owner === "agent" && ["child_process", "fs", "os", "path"].includes(specifier)
-        && filename !== "src/agent/AgyAdapter.ts" && filename !== "src/agent/CodexAdapter.ts" && filename !== "src/agent/ChatGptAuth.ts") {
+        && logicalFilename !== "src/agent/AgyAdapter.ts" && logicalFilename !== "src/agent/CodexAdapter.ts" && logicalFilename !== "src/agent/ChatGptAuth.ts") {
         issues.push(`${filename}: provider/process I/O belongs in a concrete agent adapter`);
       }
     }
