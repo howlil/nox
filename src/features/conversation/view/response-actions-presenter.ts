@@ -1,4 +1,4 @@
-import type { ChatSession, ChatMessage } from "../../../../packages/core/src/types";
+import type { ChatSession, ChatMessage } from "@nox/core";
 import { appendMessageActions } from "../../../chat/message-actions";
 import { createNoxIconButton } from "../../../chat/primitives";
 
