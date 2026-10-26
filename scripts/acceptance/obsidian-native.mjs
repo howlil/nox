@@ -45,7 +45,7 @@ function parseProbe(output) {
 }
 function probe(bin, vault, expression) {
   const code = "(() => { const value=(" + expression + "); return " +
-    JSON.stringify(PREFIX) + "+btoa(JSON.stringify(value)); })()";
+    JSON.stringify(PREFIX) + "+btoa(String.fromCharCode(...new TextEncoder().encode(JSON.stringify(value)))); })()";
   return parseProbe(cli(bin, vault, ["eval", "code=" + code]));
 }
 async function poll(read, accept, label, tries = 32) {
