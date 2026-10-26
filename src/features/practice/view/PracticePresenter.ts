@@ -1,5 +1,4 @@
-import type { ChatSession } from "../../../../packages/core/src/types";
-import type { PracticeAnswer, PracticeQuestion, PracticeEvaluation } from "../../../../packages/core/src/domain/practice/types";
+import type { ChatSession, PracticeAnswer, PracticeQuestion, PracticeEvaluation } from "@nox/core";
 import { renderPracticeQuestionCard, renderPracticeEvaluationCard } from "./PracticeCards";
 
 /** UI-only capabilities: the caller owns authorization, turn execution and persistence. */
