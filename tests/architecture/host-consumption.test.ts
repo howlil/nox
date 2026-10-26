@@ -39,3 +39,30 @@ test("M11.1 context adapters reject package-private imports", () => {
       source: 'const example = \'import { X } from "../../packages/core/src/X"\';' }], []), []);
   }
 });
+
+test("M11.2 provider and persistence adapters consume no private core paths", () => {
+  const adapters = [
+    "src/agent/ChatGptAdapter.ts",
+    "src/agent/CodexAdapter.ts",
+    "src/agent/AgyAdapter.ts",
+    "src/persistence/VaultLearningStore.ts",
+    "src/persistence/VaultProgramStore.ts",
+    "src/persistence/PluginDataRepository.ts",
+    "src/persistence/OnboardingStateRepository.ts",
+    "src/host/obsidian/lifecycle.ts",
+  ];
+  for (const path of adapters) {
+    const approved = [{ path, source: 'import type { AgentAdapter } from "@nox/core";' }];
+    assert.deepEqual(validateHostConsumption(approved, []), []);
+    for (const source of [
+      'import type { AgentAdapter } from "../../packages/core/src/types";',
+      'export { ProgramWriteConflict } from "../../packages/core/src/domain/persistence/errors";',
+      'import { validateProgram } from "@nox/core/domain/learning-program/collection-schema";',
+    ]) {
+      assert.match(validateHostConsumption([{ path, source }], [])[0] ?? "",
+        /must use the @nox\/core public API/);
+    }
+    assert.deepEqual(validateHostConsumption([{ path, source:
+      'const sample = \'import { AgentAdapter } from "../../packages/core/src/types"\';' }], []), []);
+  }
+});
