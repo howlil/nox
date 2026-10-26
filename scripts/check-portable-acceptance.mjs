@@ -1,6 +1,7 @@
 import { appendFileSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { resolve } from "node:path";
+import ts from "typescript";
 
 /**
  * Automated preflight for NOX portable core and release provenance contracts.
@@ -37,10 +38,17 @@ export function portableAcceptanceIssues({ ci, release, recovery, core, tsconfig
   if (tsconfig.compilerOptions?.paths?.["@nox/core"]?.[0] !== "packages/core/src/index.ts") {
     issues.push("Hosts must resolve @nox/core through its canonical source-alias");
   }
+  // Validate actual named exports, not a brittle exact string match.
+  // Grouped exports (e.g. export { LearningController, SomeError }) must
+  // remain valid; text in comments or string literals cannot spoof the API.
+  const ast = ts.createSourceFile("core-index.ts", source, ts.ScriptTarget.Latest,
+    true, ts.ScriptKind.TS);
+  const exported = new Set(ast.statements
+    .filter(node => ts.isExportDeclaration(node) && node.exportClause &&
+      ts.isNamedExports(node.exportClause))
+    .flatMap(node => node.exportClause.elements.map(element => element.name.text)));
   for (const name of ["LearningController", "SessionController", "SessionStore", "AgentRuntime"]) {
-    if (!source.includes("export { " + name + " }")) {
-      issues.push("@nox/core public API missing: " + name);
-    }
+    if (!exported.has(name)) issues.push("@nox/core public API missing: " + name);
   }
   return issues;
 }
