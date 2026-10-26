@@ -101,3 +101,8 @@ jobs:
 
       - name: M12 compiled Obsidian plugin boot and restart
         run: pnpm acceptance:runtime
+
+      # This does not substitute for real Obsidian desktop acceptance.
+      # The native CLI runner requires a separately acknowledged scratch vault.
+      - name: M12.2 native CLI runner offline safeguards
+        run: pnpm test:native-runner
