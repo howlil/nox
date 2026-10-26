@@ -13,13 +13,13 @@ export { SessionStore } from "./session/SessionStore";
 export { ContextResolver } from "./context/ContextResolver";
 export { LocalResearchIndex } from "./context/LocalResearch";
 export { DEFAULT_LEARNING_STATE } from "./domain/learning-state/types";
-export { decodeProgramCollection } from "./domain/learning-program/collection-schema";
+export { decodeProgramCollection, validateProgram } from "./domain/learning-program/collection-schema";
 export { decodeLearningState } from "./persistence/learning-state-schema";
 export { PersistenceError, LearningStateWriteConflict, SessionWriteConflict, ProgramWriteConflict } from "./domain/persistence/errors";
 
 export type {
   AgentAdapter, AgentRuntimePort, AgentHealth, AgentInput,
-  AgentModel, AgentStreamEvent, SendOptions, SessionDataPort,
+  AgentModel, AgentStreamEvent, SendOptions, SessionDataPort, AgentRuntimeConfig,
   ChatSession, ChatMessage, AgentFailure, AgentContext, EditProposal,
   ResearchScope, ApplyResult, TokenUsage,
 } from "./types";
@@ -43,6 +43,7 @@ export type {
 export type {
   LearningState, LearningEvidence, KnowledgeGap,
 } from "./domain/learning-state/types";
+export type { OnboardingDraft } from "./domain/onboarding/types";
 export type {
   LearningProgram, ProgramCollection, ProgramConstraints,
 } from "./domain/learning-program/types";

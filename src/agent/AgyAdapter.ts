@@ -5,7 +5,7 @@ import { homedir } from "os";
 import { join } from "path";
 import { parseAgyUsage, parseAgyCredits, type QuotaReading } from "./QuotaProtocol";
 import { runAgyQuotaCommands } from "./QuotaProcess";
-import {
+import type {
   AgentAdapter,
   AgentInput,
   AgentContext,
@@ -15,7 +15,7 @@ import {
   AgentHealth,
   AgentRuntimeConfig,
   SendOptions,
-} from "../../packages/core/src/types";
+} from "@nox/core";
 import {
   AgyProtocolState,
   encodeAgyUserMessage,

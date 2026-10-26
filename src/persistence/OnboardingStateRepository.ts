@@ -1,4 +1,4 @@
-import type { OnboardingDraft } from "../../packages/core/src/domain/onboarding/types";
+import type { OnboardingDraft } from "@nox/core";
 import type { PluginDataRepository } from "./PluginDataRepository";
 
 const KEY = "nox-onboarding";

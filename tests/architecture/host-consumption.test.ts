@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { posix } from "node:path";
 import { checkHostConsumption, validateHostConsumption } from "../../scripts/check-host-consumption.mjs";
 
 const canonical = ["packages/core/src/domain/practice/types.ts"];
@@ -37,5 +38,34 @@ test("M11.1 context adapters reject package-private imports", () => {
     }
     assert.deepEqual(validateHostConsumption([{ path,
       source: 'const example = \'import { X } from "../../packages/core/src/X"\';' }], []), []);
+  }
+});
+
+test("M11.2 provider and persistence adapters consume no private core paths", () => {
+  const adapters = [
+    "src/agent/ChatGptAdapter.ts",
+    "src/agent/CodexAdapter.ts",
+    "src/agent/AgyAdapter.ts",
+    "src/persistence/VaultLearningStore.ts",
+    "src/persistence/VaultProgramStore.ts",
+    "src/persistence/PluginDataRepository.ts",
+    "src/persistence/OnboardingStateRepository.ts",
+    "src/host/obsidian/lifecycle.ts",
+  ];
+  for (const path of adapters) {
+    const approved = [{ path, source: 'import type { AgentAdapter } from "@nox/core";' }];
+    assert.deepEqual(validateHostConsumption(approved, []), []);
+    const typePath = posix.relative(posix.dirname(path), "packages/core/src/types");
+    const conflictPath = posix.relative(posix.dirname(path), "packages/core/src/domain/persistence/errors");
+    for (const source of [
+      `import type { AgentAdapter } from "${typePath}";`,
+      `export { ProgramWriteConflict } from "${conflictPath}";`,
+      'import { validateProgram } from "@nox/core/domain/learning-program/collection-schema";',
+    ]) {
+      assert.match(validateHostConsumption([{ path, source }], [])[0] ?? "",
+        /must use the @nox\/core public API/);
+    }
+    assert.deepEqual(validateHostConsumption([{ path, source:
+      'const sample = \'import { AgentAdapter } from "../../packages/core/src/types"\';' }], []), []);
   }
 });
