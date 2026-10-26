@@ -151,3 +151,27 @@ new API, and architecture CI prevents private package imports in these
 two migrated adapters. Other Obsidian adapters/presenters still require
 a future contract audit; `@nox/core` remains private and this does not yet
 certify independent Obsidian-host packaging or semver stability.
+
+## M11.2 — Provider and Obsidian persistence contracts
+
+Provider adapters (`ChatGptAdapter`, `CodexAdapter`, `AgyAdapter`),
+vault learning/program stores, plugin-data writer, onboarding repository,
+and the Obsidian learning lifecycle consume `@nox/core`'s curated package
+entrypoint, not `packages/core/src/**`.
+
+The only additional public contracts are `AgentRuntimeConfig`,
+`OnboardingDraft` (both type-only) and `validateProgram`, the canonical
+portable validation function used by durable program stores. Existing
+`AgentAdapter`, `SessionDataPort`, `LearningState`, `ProgramCollection`,
+decoders and persistence error constructors are reused. No new state owner,
+concrete provider implementation or Obsidian dependency enters core.
+
+Architecture CI guards these migrated host adapters against source/deep
+package imports. Outside-monorepo ESM, CJS and strict TypeScript consumers
+exercise the new validation/types; identity and existing CAS regression
+checks preserve one implementation and durable ordering.
+
+**Not certified:** unconverted Obsidian UI presenters and ancillary adapters
+still import private core source. This incremental slice does not guarantee
+standalone distribution of the Obsidian host, npm publication, or a stable
+public-semver API. Those require further host import cleanup and acceptance.
