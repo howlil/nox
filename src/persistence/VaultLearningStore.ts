@@ -1,8 +1,6 @@
 import { App, TFile } from "obsidian";
-import { PersistenceError, LearningStateWriteConflict } from "./PersistenceError";
-export { LearningStateWriteConflict } from "./PersistenceError";
-import { DEFAULT_LEARNING_STATE, type LearningState } from "../../packages/core/src/domain/learning-state/types";
-import { decodeLearningState } from "../../packages/core/src/persistence/learning-state-schema";
+import { PersistenceError, LearningStateWriteConflict, DEFAULT_LEARNING_STATE, decodeLearningState, type LearningState } from "@nox/core";
+export { LearningStateWriteConflict } from "@nox/core";
 
 const ROOT = "00-learning-os";
 const PROGRESS_PATH = `${ROOT}/progress.json`;
