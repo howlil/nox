@@ -13,6 +13,13 @@ function walk(dir) {
 
 /** Consumers must not resolve back through src/ compatibility shims.
  * Use AST imports (including import types and re-exports), not string scanning. */
+// Incrementally migrated adapters consume a curated first-party package API,
+// never private package source or compiled artifacts by deep import.
+const PUBLIC_API_ADAPTERS = new Set([
+  "src/context/ObsidianContext.ts",
+  "src/context/PolicyLoader.ts",
+]);
+
 export function validateHostConsumption(files, canonicalPaths) {
   const canonical = new Set(canonicalPaths);
   const issues = [];
@@ -22,8 +29,14 @@ export function validateHostConsumption(files, canonicalPaths) {
     if (path.startsWith("src/") && canonical.has("packages/core/" + path)) continue;
     for (const importInfo of extractImports(path, source).imports) {
       const spec = importInfo.specifier;
+      const absolute = spec.startsWith(".")
+        ? posix.normalize(posix.join(posix.dirname(path), spec)) : spec;
+      if (PUBLIC_API_ADAPTERS.has(path) &&
+          (absolute.startsWith("packages/core/") || spec.startsWith("@nox/core/"))) {
+        issues.push(path + ":" + importInfo.line +
+          ": adapter must use the @nox/core public API, not " + spec);
+      }
       if (!spec.startsWith(".")) continue;
-      const absolute = posix.normalize(posix.join(posix.dirname(path), spec));
       const candidates = [absolute, absolute + ".ts", absolute + "/index.ts"];
       for (const candidate of candidates) {
         if (candidate.startsWith("src/") && canonical.has("packages/core/" + candidate)) {

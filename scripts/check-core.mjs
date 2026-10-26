@@ -31,7 +31,7 @@ try {
 import { createRequire } from "node:module";
 import {
   AgentRuntime, LearningController, LearningProgramOrchestrator,
-  SessionController, SessionStore, ContextResolver,
+  SessionController, SessionStore, ContextResolver, LocalResearchIndex,
   DEFAULT_LEARNING_STATE, PersistenceError, LearningStateWriteConflict, SessionWriteConflict, ProgramWriteConflict,
 } from "@nox/core";
 const require = createRequire(import.meta.url);
@@ -41,20 +41,25 @@ assert.deepEqual(Object.keys(esm).sort(), Object.keys(commonjs).sort(),
   "ESM and CJS must expose the same complete runtime API");
 for (const symbol of [
   AgentRuntime, LearningController, LearningProgramOrchestrator,
-  SessionController, SessionStore, ContextResolver,
+  SessionController, SessionStore, ContextResolver, LocalResearchIndex,
   PersistenceError, LearningStateWriteConflict, ProgramWriteConflict,
 ]) assert.equal(typeof symbol, "function");
 assert.equal(typeof commonjs.LearningController, "function");
 assert.equal(typeof commonjs.SessionController, "function");
 for (const [name, exported] of Object.entries({
   AgentRuntime, LearningController, LearningProgramOrchestrator,
-  SessionController, SessionStore, ContextResolver,
+  SessionController, SessionStore, ContextResolver, LocalResearchIndex,
   PersistenceError, LearningStateWriteConflict, SessionWriteConflict, ProgramWriteConflict,
 })) assert.strictEqual(commonjs[name], exported,
   "ESM/CJS constructor mismatch: " + name);
 assert.ok(new commonjs.LearningStateWriteConflict() instanceof LearningStateWriteConflict);
 assert.ok(new commonjs.SessionWriteConflict() instanceof SessionWriteConflict);
 assert.equal(DEFAULT_LEARNING_STATE.evidence.length, 0);
+const researchIndex = new LocalResearchIndex();
+researchIndex.upsert({ path: "allowed.md", content: "Network latency signal", links: [], revision: "1" });
+researchIndex.upsert({ path: "private.md", content: "Network latency signal", links: [], revision: "1" });
+assert.deepEqual(researchIndex.search("network latency",
+  { allowedPaths: ["allowed.md"] }).hits.map(hit => hit.path), ["allowed.md"]);
 let data = {};
 const port = {
   read: async () => structuredClone(data),
@@ -79,6 +84,7 @@ console.log("@nox/core standalone ESM and CJS smoke passed");
   AgentRuntime, SessionController, SessionStore, DEFAULT_LEARNING_STATE,
   type AgentAdapter, type AgentRuntimePort, type SessionDataPort,
   type SessionPort, type LearningState, type LearningRequest,
+  LocalResearchIndex, type ResearchResult, type LearningPolicy,
 } from "@nox/core";
 const data: SessionDataPort = {
   read: async () => ({}),
@@ -93,7 +99,9 @@ const adapter: AgentAdapter = {
 const runtime: AgentRuntimePort = new AgentRuntime(adapter);
 const request: LearningRequest = { prompt: "hello", action: "ask", explicitContext: [] };
 const state: LearningState = DEFAULT_LEARNING_STATE;
-void [sessions, runtime, request, state];
+const policy: LearningPolicy = { path: "AGENTS.md", rawInstructions: "" };
+const research: ResearchResult = new LocalResearchIndex().search("network");
+void [sessions, runtime, request, state, policy, research];
 `;
   await writeFile(join(root, "consumer.ts"), tsSource);
   await writeFile(join(root, "tsconfig.json"), JSON.stringify({

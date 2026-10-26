@@ -7,6 +7,7 @@ import {
   SessionController as PublicSessionController,
   SessionStore as PublicSessionStore,
   ContextResolver as PublicContextResolver,
+  LocalResearchIndex as PublicLocalResearchIndex,
   LearningStateWriteConflict as PublicConflict,
   PersistenceError as PublicPersistenceError,
   ProgramWriteConflict as PublicProgramConflict,
@@ -17,6 +18,7 @@ import { LearningProgramOrchestrator } from "../../src/application/LearningProgr
 import { SessionController } from "../../src/session/SessionController";
 import { SessionStore } from "../../src/session/SessionStore";
 import { ContextResolver } from "../../src/context/ContextResolver";
+import { LocalResearchIndex } from "../../src/context/LocalResearch";
 import { LearningStateWriteConflict, PersistenceError, ProgramWriteConflict } from "../../src/domain/persistence/errors";
 
 test("M5 public core API resolves the exact canonical constructors", () => {
@@ -26,6 +28,7 @@ test("M5 public core API resolves the exact canonical constructors", () => {
   assert.strictEqual(PublicSessionController, SessionController);
   assert.strictEqual(PublicSessionStore, SessionStore);
   assert.strictEqual(PublicContextResolver, ContextResolver);
+  assert.strictEqual(PublicLocalResearchIndex, LocalResearchIndex);
   assert.strictEqual(PublicConflict, LearningStateWriteConflict);
   assert.strictEqual(PublicPersistenceError, PersistenceError);
   assert.strictEqual(PublicProgramConflict, ProgramWriteConflict);

@@ -22,3 +22,20 @@ test("host graph rejects type-only and re-export shim edges without parsing stri
 test("all production host and adapter source uses canonical core directly", () => {
   assert.deepEqual(checkHostConsumption(), []);
 });
+
+test("M11.1 context adapters reject package-private imports", () => {
+  for (const path of ["src/context/ObsidianContext.ts", "src/context/PolicyLoader.ts"]) {
+    assert.deepEqual(validateHostConsumption([{ path,
+      source: 'import { LocalResearchIndex } from "@nox/core";' }], []), []);
+    for (const source of [
+      'import type { LearningPolicy } from "../../packages/core/src/context/context-types";',
+      'export { LocalResearchIndex } from "../../packages/core/src/context/LocalResearch";',
+      'import { LocalResearchIndex } from "@nox/core/context/LocalResearch";',
+    ]) {
+      assert.match(validateHostConsumption([{ path, source }], [])[0] ?? "",
+        /must use the @nox\/core public API/);
+    }
+    assert.deepEqual(validateHostConsumption([{ path,
+      source: 'const example = \'import { X } from "../../packages/core/src/X"\';' }], []), []);
+  }
+});

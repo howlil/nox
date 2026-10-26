@@ -11,6 +11,7 @@ export { LearningProgramOrchestrator } from "./application/LearningProgramOrches
 export { SessionController } from "./session/SessionController";
 export { SessionStore } from "./session/SessionStore";
 export { ContextResolver } from "./context/ContextResolver";
+export { LocalResearchIndex } from "./context/LocalResearch";
 export { DEFAULT_LEARNING_STATE } from "./domain/learning-state/types";
 export { decodeProgramCollection } from "./domain/learning-program/collection-schema";
 export { decodeLearningState } from "./persistence/learning-state-schema";
@@ -35,6 +36,7 @@ export type {
 export type {
   ContextSourcePort,
 } from "./context/ContextSourcePort";
+export type { ResearchResult } from "./context/LocalResearch";
 export type {
   LearningContext, LearningPolicy, ExplicitContextRef,
 } from "./context/context-types";

@@ -4,8 +4,7 @@ import {
   Plugin,
   TFile,
 } from "obsidian";
-import { LocalResearchIndex, type ResearchResult } from "../../packages/core/src/context/LocalResearch";
-import type { ResearchScope } from "../../packages/core/src/types";
+import { LocalResearchIndex, type ResearchResult, type ResearchScope } from "@nox/core";
 
 /**
  * Select the newest k files without sorting an entire large vault.
