@@ -159,6 +159,20 @@ async function main() {
       x=>x.root && x.sidebar>0 && x.sessionId,"sidebar");
     evidence.sourceSha = pre.sourceSha;
     evidence.checks.push({id:"installed-sidebar",status:"PASS"});
+    // Exercise real vault I/O via Obsidian CLI using a unique scratch note.
+    const note = "nox-m12-" + Date.now() + ".md";
+    const fixture = "# NOX M12 acceptance\\n\\nNative vault persistence probe";
+    cli(binary,name,["create","path="+note,"content="+fixture]);
+    if (!cli(binary,name,["read","path="+note]).includes("Native vault persistence probe")) {
+      throw new Error("Native Obsidian vault did not persist the scratch note");
+    }
+    evidence.checks.push({id:"native-vault-write-read",status:"PASS"});
+    const screenshotPath = join(vault,".obsidian","nox-m12-sidebar.png");
+    cli(binary,name,["dev:screenshot","path="+screenshotPath],30_000);
+    if (!existsSync(screenshotPath) || readFileSync(screenshotPath).length < 1024) {
+      throw new Error("Native desktop sidebar screenshot not captured");
+    }
+    evidence.screenshot = ".obsidian/nox-m12-sidebar.png";
     if (!probe(binary,name,startExpr).started) throw new Error("Cannot create native session");
     const created = await poll(()=>probe(binary,name,readResultExpr),
       x=>x.status==="done" || x.status==="error","new session");
@@ -170,6 +184,9 @@ async function main() {
     cli(binary,name,["command","id=nox:open-sidebar"]);
     const post = await poll(()=>probe(binary,name,snapshotExpr),
       x=>x.root && x.sidebar>0,"sidebar after restart");
+    if (!cli(binary,name,["read","path="+note]).includes("Native vault persistence probe")) {
+      throw new Error("Scratch vault note was lost on real Obsidian restart");
+    }
     evidence.checks.push({id:"restart-recovered",status:"PASS"});
     cli(binary,name,["plugin:disable","id=nox","filter=community"]);
     const disabled = await poll(()=>probe(binary,name,snapshotExpr),
