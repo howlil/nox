@@ -8,6 +8,19 @@ Last updated: 2026-10-13
 
 ---
 
+## M11.1 context host contract — 2026-10-26
+
+The Obsidian context and policy adapters import from the curated
+`@nox/core` entrypoint, never from `packages/core/src/**` or `dist/**`.
+`LocalResearchIndex` is portable derived retrieval state; Obsidian owns
+source authorization, indexing freshness and vault events. `LearningPolicy`,
+`ResearchResult`, and `ResearchScope` are shared contracts, not permission
+checks. Preserve one constructor identity across source and ESM/CJS,
+standalone package consumer type checks and host graph conformance.
+Remaining private source imports in other Obsidian adapters are a separate
+M11 migration; do not export all internal modules to paper over them.
+
+---
 
 ## M7 automated portability acceptance — 2026-10-25
 
