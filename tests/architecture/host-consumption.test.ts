@@ -10,7 +10,7 @@ test("host graph disallows direct imports through an obsolete source shim", () =
   assert.match(validateHostConsumption(bad, canonical)[0] ?? "", /legacy core shim/);
   assert.match(validateHostConsumption([{ path,
     source: 'import type { PracticeAnswer } from "../../../packages/core/src/domain/practice/types";' }], canonical)[0] ?? "",
-    /must use the @nox\\/core public API/);
+    /must use the @nox\/core public API/);
 });
 
 test("host graph rejects type-only and re-export shim edges without parsing string literals", () => {
@@ -117,7 +117,7 @@ test("M11.4 fail-closed host guard applies to newly added modules and import for
       'import { LearningController } from "@nox/core/application/LearningController";',
     ]) {
       assert.match(validateHostConsumption([{ path, source }], canonical)[0] ?? "",
-        /must use the @nox\\/core public API/);
+        /must use the @nox\/core public API/);
     }
     assert.deepEqual(validateHostConsumption([{ path,
       source: 'import type { PracticeAnswer } from "@nox/core";' }], canonical), []);
