@@ -269,3 +269,17 @@ Run the real test in a separate desktop environment as documented in
 `docs/NATIVE_OBSIDIAN_M12_ACCEPTANCE.md`. No desktop run was observed at
 the time of the code change, and therefore **M12.2 native certification
 remains pending** until native evidence from a real Obsidian process exists.
+
+## M13.1 — Incremental legacy shim elimination
+
+The first seven obsolete `src/` re-export facades (learner-model activity,
+feedback and profile; activity aggregation; workspace planning; mutation
+replacement; application research scope) were removed after dependent test
+imports were retargeted to `packages/core/src/`. The canonical engine was
+**not copied or rewritten**. The architecture checker now fails if any of
+those retired facades reappear, or a consumer still references a removed shim.
+
+**Remaining:** 51 legacy re-export facades still require migration in further
+bounded batches. Do not describe M13 as fully completed until all of them
+are gone and host/core/browser CI passes. Public API stability and native
+Obsidian acceptance remain independent requirements.

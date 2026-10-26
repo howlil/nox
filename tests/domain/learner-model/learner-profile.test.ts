@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { deriveLearnerProfile, toLearnerProfileContext } from "../../../src/domain/learner-model/learner-profile";
-import type { LearningProgram } from "../../../src/domain/learning-program/types";
-import type { LearningState, LearningEvidence } from "../../../src/domain/learning-state/types";
+import { deriveLearnerProfile, toLearnerProfileContext } from "../../../packages/core/src/domain/learner-model/learner-profile";
+import type { LearningProgram } from "../../../packages/core/src/domain/learning-program/types";
+import type { LearningState, LearningEvidence } from "../../../packages/core/src/domain/learning-state/types";
 
 function program(revision = 1): LearningProgram {
   return { version: 2, id: "p", goal: "Concurrency", createdAt: 0, planVersion: revision,

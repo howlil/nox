@@ -15,6 +15,7 @@ import { SessionController as LegacySessions } from "../../src/session/SessionCo
 import { AgentRuntime as CanonicalRuntime } from "../../packages/core/src/agent/AgentRuntime";
 import { AgentRuntime as LegacyRuntime } from "../../src/agent/AgentRuntime";
 import { checkPhysicalDomain } from "../../scripts/check-physical-domain.mjs";
+import { auditLegacyCoreShims, RETIRED_CORE_SHIMS } from "../../scripts/check-core-shims.mjs";
 
 test("M10 canonical domain and application constructors have one runtime identity", () => {
   assert.strictEqual(CanonicalPractice, LegacyPractice);
@@ -29,4 +30,12 @@ test("M10 canonical domain and application constructors have one runtime identit
 
 test("M10 physically extracted core rejects duplicated logic or outward dependency", () => {
   assert.deepEqual(checkPhysicalDomain(), []);
+});
+
+
+test("M13 retired core shims cannot silently return", () => {
+  assert.equal(RETIRED_CORE_SHIMS.size, 7);
+  const inventory = auditLegacyCoreShims();
+  assert.deepEqual(inventory.reintroduced, []);
+  assert.deepEqual(inventory.missingReferenced, []);
 });

@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { LearningProgramOrchestrator } from "../../src/application/LearningProgramOrchestrator";
-import { selectAdaptiveActivity } from "../../src/domain/learner-model/activity-policy";
-import type { LearningEvidence, LearningState } from "../../src/domain/learning-state/types";
-import type { LearningProgram, ProgramCollection } from "../../src/domain/learning-program/types";
+import { selectAdaptiveActivity } from "../../packages/core/src/domain/learner-model/activity-policy";
+import type { LearningEvidence, LearningState } from "../../packages/core/src/domain/learning-state/types";
+import type { LearningProgram, ProgramCollection } from "../../packages/core/src/domain/learning-program/types";
 
 const NOW = Date.UTC(2026, 9, 18, 8);
 function program(version = 2): LearningProgram {

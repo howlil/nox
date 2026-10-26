@@ -23,6 +23,7 @@ const shimReport = auditLegacyCoreShims();
 console.log("M10.4 legacy compatibility shims still referenced:", shimReport.retained.length);
 console.log("M10.4 unused shims:", JSON.stringify(shimReport.unused));
 const issues = [...shimReport.missingReferenced.map(p => p + ": imported compatibility shim missing"),
+  ...shimReport.reintroduced.map(p => p + ": retired M13 shim must not return"),
   ...shimReport.unused.map(p => p + ": unreferenced legacy shim must be deleted"),
   ...checkPhysicalDomain(), ...checkHostConsumption(), ...validateArchitecture(files),
   ...validatePortableBoundaries(files, { requireManifest: true }),

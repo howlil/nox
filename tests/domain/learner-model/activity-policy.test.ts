@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { selectAdaptiveActivity } from "../../../src/domain/learner-model/activity-policy";
-import { startObjectiveFocus, transitionObjectiveFocus } from "../../../src/domain/learning-program/focus-transitions";
-import type { LearningProgram, LearningObjective } from "../../../src/domain/learning-program/types";
-import type { LearningEvidence, LearningState } from "../../../src/domain/learning-state/types";
+import { selectAdaptiveActivity } from "../../../packages/core/src/domain/learner-model/activity-policy";
+import { startObjectiveFocus, transitionObjectiveFocus } from "../../../packages/core/src/domain/learning-program/focus-transitions";
+import type { LearningProgram, LearningObjective } from "../../../packages/core/src/domain/learning-program/types";
+import type { LearningEvidence, LearningState } from "../../../packages/core/src/domain/learning-state/types";
 
 const HOUR = 3_600_000;
 const DAY = 24 * HOUR;

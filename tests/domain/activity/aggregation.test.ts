@@ -1,9 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { checkpointTiming, distributeLocalDays, newSessionTiming, setTimingPause,
-  focusSessionMaterial } from "../../../src/domain/learning-program/session-time";
-import { summarizeActivity } from "../../../src/domain/activity/aggregation";
-import type { LearningProgram } from "../../../src/domain/learning-program/types";
+  focusSessionMaterial } from "../../../packages/core/src/domain/learning-program/session-time";
+import { summarizeActivity } from "../../../packages/core/src/domain/activity/aggregation";
+import type { LearningProgram } from "../../../packages/core/src/domain/learning-program/types";
 
 test("active checkpoint attributes material and day, while AI wait never counts as focus", () => {
   const start = Date.now();
