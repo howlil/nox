@@ -14,6 +14,7 @@ export function portableAcceptanceIssues({ ci, release, recovery, core, tsconfig
     "pnpm typecheck", "pnpm lint", "pnpm test:unit",
     "pnpm test:integration", "pnpm core:verify", "pnpm core:hosts",
     "pnpm browser:verify", "pnpm build", "pnpm test:artifacts",
+    "pnpm acceptance:runtime",
   ];
   for (const name of ciGates) {
     if (!ci.includes(name)) issues.push("Missing portable CI gate: " + name);
