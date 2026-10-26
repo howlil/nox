@@ -8,6 +8,25 @@ Last updated: 2026-10-13
 
 ---
 
+## M11.2 provider and persistence host contracts — 2026-10-26
+
+Provider transports (Agy, Codex, ChatGPT), Obsidian Vault learning/program
+stores, PluginDataRepository, onboarding state and Obsidian learning lifecycle
+consume `@nox/core` only through its curated entrypoint. No direct
+`packages/core/src/**` or package deep import is permitted from these adapters.
+Portable API additions are the `AgentRuntimeConfig` and `OnboardingDraft`
+types plus the canonical `validateProgram` function; all other engine/port
+types, codecs and conflicts reuse existing exports.
+
+Source truth and writer guarantees do not change: each Obsidian data owner
+remains the only writer of its backing state, and the core cannot import
+vault/provider/UI logic. Test using AST import guards, outside-repository
+ESM/CJS and TypeScript consumers, source identity, CAS integration and
+host/browser builds. UI presenters and other adapters remain a separate
+migration before any standalone Obsidian package guarantee.
+
+---
+
 ## M11.1 context host contract — 2026-10-26
 
 The Obsidian context and policy adapters import from the curated
