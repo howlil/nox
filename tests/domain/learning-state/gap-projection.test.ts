@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { deriveGapStatus } from "../../../src/domain/learning-state/gap-projection";
+import { deriveGapStatus } from "../../../packages/core/src/domain/learning-state/gap-projection";
 import { recordPracticeEvaluation } from "../../../src/domain/learning-state/transitions";
 import type { LearningState, LearningEvidence, KnowledgeGap } from "../../../src/domain/learning-state/types";
 
