@@ -1,5 +1,4 @@
-import { open, readFile, mkdir, lstat, rename, unlink } from "node:fs/promises";
-import type { FileHandle } from "node:fs/promises";
+import { open, readFile, mkdir, lstat, rename, unlink, type FileHandle } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
 import { join, resolve } from "node:path";
 import {
