@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { LearningController, OnboardingReceiptWriteError } from "../../src/application/LearningController";
-import type { OnboardingDraft } from "../../src/domain/onboarding/types";
+import type { OnboardingDraft } from "../../packages/core/src/domain/onboarding/types";
 import type { LearningProgram } from "../../src/domain/learning-program/types";
 
 const draft: OnboardingDraft = {

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { buildLearningContextPackage } from "../../src/application/LearningContextOrchestrator";
+import { buildLearningContextPackage } from "../../packages/core/src/application/LearningContextOrchestrator";
 import { prepareContextEnvelope } from "../../src/context/ContextBudget";
 import type { LearningProgram } from "../../src/domain/learning-program/types";
 import type { LearningEvidence, LearningState } from "../../src/domain/learning-state/types";

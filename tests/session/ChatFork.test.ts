@@ -3,7 +3,7 @@ import test from "node:test";
 import { SessionStore } from "../../src/session/SessionStore";
 import { SessionController } from "../../src/session/SessionController";
 import { PluginDataRepository } from "../../src/persistence/PluginDataRepository";
-import { formatReplyPrompt } from "../../src/application/reply-context";
+import { formatReplyPrompt } from "../../packages/core/src/application/reply-context";
 
 function harness() {
   let saved: Record<string, unknown> | null = null;

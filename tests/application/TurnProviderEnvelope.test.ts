@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { prepareTurnInvocation } from "../../src/features/conversation/turn/TurnProviderEnvelope";
+import { prepareTurnInvocation } from "../../packages/core/src/features/conversation/turn/TurnProviderEnvelope";
 import type { LearningRequest } from "../../src/application/learning-types";
 import type { ChatSession } from "../../src/types";
 import type { TurnContextSnapshot } from "../../src/context/context-types";

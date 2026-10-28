@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { coversCriteria } from "../../../src/domain/learning-program/assessment-rubric";
+import { coversCriteria } from "../../../packages/core/src/domain/learning-program/assessment-rubric";
 
 test("assessment covers all expected criteria with matching outcome", () => {
   const criteria = ["Explain rollback", "Describe commit"];

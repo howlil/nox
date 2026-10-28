@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import type { LearningEvidence } from "../../../src/domain/learning-state/types";
 import type { LearningProgram } from "../../../src/domain/learning-program/types";
-import { estimateRemainingWork } from "../../../src/domain/learning-program/estimate";
+import { estimateRemainingWork } from "../../../packages/core/src/domain/learning-program/estimate";
 
 const DAY = 86_400_000;
 const now = Date.UTC(2026, 9, 14);
