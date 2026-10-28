@@ -24,7 +24,7 @@
     "dev:build": "node esbuild.config.mjs",
     "build": "node esbuild.config.mjs production",
     "deploy": "pnpm run build && node scripts/deploy.mjs",
-    "lint": "eslint src",
+    "lint": "eslint src packages/core/src headless/src browser/src",
     "lint:typed": "eslint src/agent/ChatGptAdapter.ts src/agent/CodexAdapter.ts src/chat/preview-frame.ts",
     "check:boundaries": "node scripts/check-boundaries.mjs",
     "typecheck": "tsc --noEmit",

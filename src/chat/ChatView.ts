@@ -1,5 +1,6 @@
 import { renderLearningActivity } from "./activity-heatmap";
 import { OnboardingFlow } from "./onboarding-flow";
+import { LatestAsyncResult } from "./latest-async-result";
 import {
   ItemView,
   Notice,
@@ -47,7 +48,8 @@ import { TranscriptPresenter } from "../features/conversation/view/transcript-pr
 import { ModelMenuPresenter } from "./model-menu";
 import { createNoxPopover } from "./popover";
 import { PromptMenuPresenter, type PromptMenuItem } from "./prompt-menu-presenter";
-import { NoxComposer, type NoxComposerContext } from "./composer";
+import { NoxComposer } from "./composer";
+import { projectComposerPlaceholder, projectComposerContextChips } from "./composer-view-projection";
 import { ComposerAttachmentDraft } from "./composer-draft";
 import { ThinkingPresenter } from "./thinking-presenter";
 import { ProposalPresenter } from "./proposal-presenter";
@@ -134,6 +136,7 @@ export class ChatView extends ItemView {
   private turnStarting = false;
   /** Invalidates in-flight admission after session change or view close/reopen. */
   private viewEpoch = 0;
+  private readonly runtimeHealth = new LatestAsyncResult();
   private restoringSession = false;
   private workspaceEventsRegistered = false;
   private runtimeReady = false;
@@ -209,7 +212,8 @@ export class ChatView extends ItemView {
   }
 
   async onOpen(): Promise<void> {
-    ++this.viewEpoch;
+    const openingEpoch = ++this.viewEpoch;
+    this.runtimeHealth.invalidate();
     const root = this.contentEl;
     root.empty();
     root.addClass("nox-root");
@@ -250,7 +254,9 @@ export class ChatView extends ItemView {
 
     // Local transcripts remain available even if the runtime is offline.
     await this.restoreRuntimeState();
+    if (openingEpoch !== this.viewEpoch) return;
     await this.ensureRuntimeReady();
+    if (openingEpoch !== this.viewEpoch) return;
     void this.refreshFocusStrip();
     this.learningUi.startClock(this.sessionClockEl!, this.sessionClockTextEl!, this.sessionClockButtonEl!);
     void this.refreshSessionClock();
@@ -258,6 +264,7 @@ export class ChatView extends ItemView {
 
   async onClose(): Promise<void> {
     ++this.viewEpoch;
+    this.runtimeHealth.invalidate();
     try {
       await this.practiceUi.flushDraft();
     } catch {
@@ -281,31 +288,39 @@ export class ChatView extends ItemView {
   }
 
   async refreshRuntime(recheckHealth = true): Promise<void> {
+    const epoch = this.viewEpoch;
     if (recheckHealth) {
+      // Invalidate before any awaits so a previous provider cannot revive UI state.
+      this.runtimeHealth.invalidate();
       this.runtimeReady = false;
       this.setUIState(this.uiState);
     }
     await this.refreshModelList();
+    // Closing during model refresh must not start a new check on detached DOM.
+    if (epoch !== this.viewEpoch) return;
     if (recheckHealth) await this.ensureRuntimeReady(true);
   }
 
   private async ensureRuntimeReady(preserveState = false): Promise<boolean> {
-    try {
-      const health = await this.learning.checkRuntime();
-      if (health.status === "ready") {
-        this.runtimeReady = true;
-        this.runtimeFailureMessage = null;
-        this.thread.querySelector(".nox-runtime-error")?.remove();
-        if (this.uiState !== "RUNNING") {
-          this.setUIState(preserveState && this.uiState !== "ERROR" ? this.uiState
-            : this.learning.getSession().messages.length ? "ANSWER" : "EMPTY");
-        }
-        return true;
-      }
-      this.showRuntimeError(health.failure.message);
-    } catch {
+    const outcome = await this.runtimeHealth.run(() => this.learning.checkRuntime());
+    // A newer check, provider refresh, or closed view owns the visible state.
+    if (outcome.status === "stale") return false;
+    if (outcome.status === "failed") {
       this.showRuntimeError("Agent runtime is unavailable. Check Nox runtime settings.");
+      return false;
     }
+    const health = outcome.value;
+    if (health.status === "ready") {
+      this.runtimeReady = true;
+      this.runtimeFailureMessage = null;
+      this.thread.querySelector(".nox-runtime-error")?.remove();
+      if (this.uiState !== "RUNNING") {
+        this.setUIState(preserveState && this.uiState !== "ERROR" ? this.uiState
+          : this.learning.getSession().messages.length ? "ANSWER" : "EMPTY");
+      }
+      return true;
+    }
+    this.showRuntimeError(health.failure.message);
     return false;
   }
 
@@ -1091,35 +1106,12 @@ export class ChatView extends ItemView {
   }
 
   private updatePlaceholder(): void {
-    const hasSelection = Boolean(this.currentContext?.selection);
-    const hasNote = Boolean(this.currentContext?.activeNote);
-
-    const askPlaceholder = hasSelection
-      ? "Ask about this selection..."
-      : hasNote
-        ? "Ask about this note..."
-        : "Ask Nox...";
-
-    const placeholders: Record<LearningActionKind, string> = {
-      ask: askPlaceholder,
-      explain: hasSelection
-        ? "What should I explain about this selection?"
-        : "What should I explain?",
-      practice: hasSelection
-        ? "Practice this selection..."
-        : "What should we practice?",
-      review: hasNote
-        ? "What should I review in this note?"
-        : "What should I review?",
-      edit: hasNote
-        ? "How should I improve this note?"
-        : "What should I improve?",
-    };
-
     if (this.input) {
-      this.input.placeholder = this.learning.isActiveLearningScope(this.learning.getSession().learningScope)
-        ? "Answer or clarify the current question · /pause to leave"
-        : placeholders[this.selectedAction];
+      this.input.placeholder = projectComposerPlaceholder(
+        this.selectedAction,
+        this.currentContext,
+        this.learning.isActiveLearningScope(this.learning.getSession().learningScope),
+      );
     }
   }
 
@@ -1156,49 +1148,12 @@ export class ChatView extends ItemView {
   }
 
   private syncContextChips(): void {
-    const contexts: NoxComposerContext[] = [];
-    const selection = this.currentContext?.selection;
-    const pinned = this.pendingFindingSource &&
-      (this.selectedAction === "practice" || this.selectedAction === "edit")
-        ? this.pendingFindingSource
-        : null;
-    const automaticPath = selection?.file ?? this.currentContext?.activeNote?.path;
-    if (pinned && pinned !== automaticPath) {
-      contexts.push({
-        key: "review-source",
-        text: `@${pinned.split("/").pop() ?? pinned}`,
-        title: `Pinned review source: ${pinned}`,
-        icon: "file-text",
-      });
-    } else if (selection) {
-      contexts.push({
-        key: "selection",
-        text: "@selection",
-        title: selection.file,
-        icon: "file-text",
-      });
-    }
-
-    const activeNote = this.currentContext?.activeNote;
-    if (!selection && activeNote && !(pinned && pinned !== automaticPath)) {
-      contexts.push({
-        key: "note",
-        text: `@${activeNote.path.split("/").pop() ?? activeNote.path}`,
-        title: activeNote.path,
-        icon: "file-text",
-      });
-    }
-
-    if (this.systemContextFiles.length > 0) {
-      contexts.push({
-        key: "system",
-        text: "@nox-system",
-        title: this.systemContextFiles.join("\n"),
-        icon: "file-text",
-      });
-    }
-
-    this.composerUi.setContexts(contexts);
+    this.composerUi.setContexts(projectComposerContextChips(
+      this.currentContext,
+      this.pendingFindingSource,
+      this.selectedAction,
+      this.systemContextFiles,
+    ));
   }
 
   private onInput(): void {

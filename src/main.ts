@@ -11,6 +11,7 @@ import { QuotaSync } from "./application/QuotaSync";
 import type { AgentRuntime, LearningController } from "@nox/core";
 import { createObsidianLearningHost } from "./host/obsidian/composition";
 import { bindObsidianLearningLifecycle } from "./host/obsidian/lifecycle";
+import { BackgroundWriteFeedback } from "./host/obsidian/background-write-feedback";
 import { ChatView, NOX_VIEW_TYPE } from "./chat/ChatView";
 import { PluginDataRepository } from "./persistence/PluginDataRepository";
 import { TokenUsageRepository } from "./persistence/TokenUsageRepository";
@@ -59,6 +60,7 @@ export default class NoxPlugin extends Plugin {
     this.tokenUsage = new TokenUsageRepository(this.pluginData);
     this.noxSettings = decodeNoxSettings(await this.pluginData.read());
     this.quotaSync = this.createQuotaSync(this.noxSettings);
+    const backgroundWrites = new BackgroundWriteFeedback(message => { new Notice(message); });
     const host = await createObsidianLearningHost({
       plugin: this,
       app: this.app,
@@ -68,10 +70,14 @@ export default class NoxPlugin extends Plugin {
       preferredModel: this.noxSettings.preferredModel || undefined,
       onUsage: (usage, model, metadata) =>
         this.tokenUsage.record(this.noxSettings.provider, model, usage, metadata),
+      onCheckpointResult: error => {
+        if (error === null) backgroundWrites.success("checkpoint");
+        else backgroundWrites.failure("checkpoint", error);
+      },
     });
     this.runtime = host.runtime;
     // Listener ownership stays with Obsidian and its Plugin.register* cleanup.
-    bindObsidianLearningLifecycle(this, host.programs);
+    bindObsidianLearningLifecycle(this, host.programs, backgroundWrites);
 
     // Do not charge inactive wall-clock time after Obsidian restart or hot reload.
     try { await host.programs.recoverSessions(); }
