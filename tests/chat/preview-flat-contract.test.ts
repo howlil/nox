@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { buildActionInstruction, buildPracticeQuestionInstruction } from "../../src/application/action-builders";
+import { buildActionInstruction, buildPracticeQuestionInstruction } from "../../packages/core/src/application/action-builders";
 import { createNoxPreviewDocument } from "../../src/chat/response-spec";
 import { HOWLIL_FLAT_PREVIEW_CSS } from "../../src/chat/preview-design-tokens";
 

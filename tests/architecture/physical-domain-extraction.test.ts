@@ -34,7 +34,7 @@ test("M10 physically extracted core rejects duplicated logic or outward dependen
 
 
 test("M13 retired core shims cannot silently return", () => {
-  assert.equal(RETIRED_CORE_SHIMS.size, 7);
+  assert.equal(RETIRED_CORE_SHIMS.size, 12);
   const inventory = auditLegacyCoreShims();
   assert.deepEqual(inventory.reintroduced, []);
   assert.deepEqual(inventory.missingReferenced, []);

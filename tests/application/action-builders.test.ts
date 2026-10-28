@@ -5,7 +5,7 @@ import {
   buildPracticeEvaluationInstruction,
   buildPracticeQuestionInstruction,
   buildProgramScopedPracticeInstruction,
-} from "../../src/application/action-builders";
+} from "../../packages/core/src/application/action-builders";
 
 test("action instructions preserve each learning contract", () => {
   assert.match(
