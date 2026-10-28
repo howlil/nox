@@ -18,11 +18,13 @@ const draft = (refs: string[] = []) => ({
       rubric: ["Respond in context"], sourceRefs: refs, priority: "core" },
   ],
 });
-function rig(payload: unknown = draft(), success = true, activePath?: string) {
+function rig(payload: unknown = draft(), success = true, activePath?: string,
+  onCheckpointResult?: (error: unknown | null) => void) {
   let currentTime = Date.now();
   let stored: ProgramCollection = { version: 1, programs: [] };
   let writes = 0;
   let reads = 0;
+  let failWrites = 0;
   const context = { activeNote: { path: "notes/spanish.md", content: "Hola means hello." }, explicit: [] };
   const runtime = {
     supportsSourceIsolation: () => true,
@@ -39,6 +41,7 @@ function rig(payload: unknown = draft(), success = true, activePath?: string) {
     { load: async () => ({ evidence: [] }) } as never,
     { load: async () => { reads++; return structuredClone(stored); },
       save: async (next: ProgramCollection, expected: ProgramCollection) => {
+        if (failWrites > 0) { failWrites--; throw new Error("injected checkpoint storage failure"); }
         assert.notStrictEqual(next, expected, "Never mutate the expected loaded CAS snapshot");
         assert.deepEqual(expected, stored, "Expected CAS bytes must match the authoritative previous state");
         stored = structuredClone(next);
@@ -47,9 +50,11 @@ function rig(payload: unknown = draft(), success = true, activePath?: string) {
     () => undefined,
     () => "chatgpt",
     () => currentTime,
+    onCheckpointResult,
   );
   return { orchestrator, stored: () => structuredClone(stored), writes: () => writes,
     reads: () => reads,
+    failNextWrites: (count: number) => { failWrites = count; },
     advance: (ms: number) => { currentTime += ms; } };
 }
 test("plan creation persists validated objectives, updates active identity and feasibility", async () => {
@@ -282,4 +287,41 @@ test("M9 startSession performs one CAS commit including optional material metada
   assert.equal(started.session?.timing?.focusMaterialPath, "notes/spanish.md");
   assert.equal(h.stored().programs[0].session?.timing?.focusMaterialPath, "notes/spanish.md");
   await h.orchestrator.endSession();
+});
+
+test("M2 failed automatic checkpoint is observed and next tick retries without double charging time", async () => {
+  const originalSetInterval = globalThis.setInterval;
+  const originalClearInterval = globalThis.clearInterval;
+  let checkpointTick: (() => void) | undefined;
+  globalThis.setInterval = ((callback: () => void) => {
+    checkpointTick = callback;
+    return 4321 as unknown as ReturnType<typeof setInterval>;
+  }) as typeof setInterval;
+  globalThis.clearInterval = (() => {}) as typeof clearInterval;
+  const outcomes: Array<unknown | null> = [];
+  const rigged = rig(draft(), true, undefined, error => outcomes.push(error));
+  try {
+    await rigged.orchestrator.createProgram("Timing", base);
+    await rigged.orchestrator.startSession();
+    rigged.advance(30_000);
+    rigged.failNextWrites(1);
+    checkpointTick?.();
+    await new Promise<void>(resolve => setImmediate(resolve));
+    assert.equal(outcomes.length, 1);
+    assert.match(String(outcomes[0]), /injected checkpoint storage failure/);
+    assert.equal(rigged.stored().programs[0].session?.timing?.activeMs, 0,
+      "failed CAS must not advance persisted time");
+    checkpointTick?.();
+    await new Promise<void>(resolve => setImmediate(resolve));
+    assert.deepEqual(outcomes, [outcomes[0], null]);
+    assert.equal(rigged.stored().programs[0].session?.timing?.activeMs, 30_000);
+    checkpointTick?.();
+    await new Promise<void>(resolve => setImmediate(resolve));
+    assert.equal(rigged.stored().programs[0].session?.timing?.activeMs, 30_000,
+      "successive checkpoints must not double count the same interval");
+  } finally {
+    rigged.orchestrator.dispose();
+    globalThis.setInterval = originalSetInterval;
+    globalThis.clearInterval = originalClearInterval;
+  }
 });

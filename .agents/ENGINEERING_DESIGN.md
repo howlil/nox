@@ -1,10 +1,60 @@
 # Nox — Engineering Design
 
-Status: **Canonical target architecture with incremental migration**
+Status: **Current implemented engineering contract + historical milestone records**
 Depends on: `PRODUCT_DESIGN.md`, `../DESIGN.md`
 Scope: Obsidian plugin runtime, learning orchestration, context, agent adapter,
 persistence, mutation, testing, and delivery
-Last updated: 2026-10-13
+Current baseline: `master` `7a6602f80ed50ebcbbcd7b5f625e66e44d0292ed` (2026-10-29).
+Update this baseline after future merges; treat the source code and CI as the
+authority for what is actually implemented.
+
+## Current architecture contract
+
+1. **Single portable source of truth:** `packages/core/src/**` is the physically
+   canonical implementation for portable application/domain/session/runtime
+   logic. The curated public entrypoint is `@nox/core`
+   (`packages/core/src/index.ts`). Do not create a second learning engine,
+   session authority or alternate package-internal deep import for hosts.
+2. **Host responsibility:** `src/host/obsidian/**`, `src/main.ts`,
+   `headless/src/**` and `browser/src/**` own host composition and effects.
+   Obsidian owns vault/editor/DOM/plugin lifecycle; provider transports and
+   settings remain in their respective host adapters. No Obsidian, Electron,
+   Node-only or network authority belongs in portable core.
+3. **State and durability:** `SessionController` and `PluginDataRepository`
+   preserve serialized session/plugin writes; `LearningProgramOrchestrator`
+   owns program mutation serialization, with vault program/evidence adapters
+   enforcing snapshot/CAS transitions. Durable transcript/evidence and
+   approval rules must not migrate into view or transport code.
+4. **Host consumption:** Obsidian, headless and browser use curated
+   `@nox/core` entrypoint through the workspace source alias. Isolated
+   ESM/CJS/types consumers are verified against built core. Tests enforce
+   single constructor identity and no private host deep imports.
+5. **Compatibility transition:** M13 waves retired 32 obsolete
+   `src/**` core facades. The audited inventory still retains **26**
+   reference-backed facade paths (test/architecture consumers); delete only
+   after migrating their actual references. `check-core-shims.mjs` and
+   `check-physical-domain.mjs` enforce these counts/invariants.
+6. **Verification / limits:** `pnpm verify` includes architecture, typecheck,
+   lint, CSS, tests, package/host conformance, real Chromium/IndexedDB proof,
+   compiled Obsidian plugin smoke and artifact checks. These are **not**
+   evidence of an installed native Obsidian desktop journey or live-provider
+   entitlement. Release preparation and publication require manual dispatch;
+   Cloudflare landing CI/CD is independent of plugin CI.
+
+The current code, package exports, `AGENTS.md`, and verification scripts
+override historical milestones when the two disagree. See
+`docs/CORE_PACKAGE.md` for the package and host contract.
+
+---
+
+## Historical milestone records (preserved for rationale)
+
+The sections below are snapshots of what was proposed, pending or implemented
+**at the date of each heading**. References to PR #134 being unmerged,
+`src/` being canonical, tests awaiting CI, or future portability extraction
+are historical and **do not describe current master**. Keep this record for
+decision provenance; do not use an old status sentence as an implementation
+gate unless it is reconfirmed against current source and CI.
 
 ---
 

@@ -1,5 +1,6 @@
 import { renderLearningActivity } from "./activity-heatmap";
 import { OnboardingFlow } from "./onboarding-flow";
+import { LatestAsyncResult } from "./latest-async-result";
 import {
   ItemView,
   Notice,
@@ -135,6 +136,7 @@ export class ChatView extends ItemView {
   private turnStarting = false;
   /** Invalidates in-flight admission after session change or view close/reopen. */
   private viewEpoch = 0;
+  private readonly runtimeHealth = new LatestAsyncResult();
   private restoringSession = false;
   private workspaceEventsRegistered = false;
   private runtimeReady = false;
@@ -210,7 +212,8 @@ export class ChatView extends ItemView {
   }
 
   async onOpen(): Promise<void> {
-    ++this.viewEpoch;
+    const openingEpoch = ++this.viewEpoch;
+    this.runtimeHealth.invalidate();
     const root = this.contentEl;
     root.empty();
     root.addClass("nox-root");
@@ -251,7 +254,9 @@ export class ChatView extends ItemView {
 
     // Local transcripts remain available even if the runtime is offline.
     await this.restoreRuntimeState();
+    if (openingEpoch !== this.viewEpoch) return;
     await this.ensureRuntimeReady();
+    if (openingEpoch !== this.viewEpoch) return;
     void this.refreshFocusStrip();
     this.learningUi.startClock(this.sessionClockEl!, this.sessionClockTextEl!, this.sessionClockButtonEl!);
     void this.refreshSessionClock();
@@ -259,6 +264,7 @@ export class ChatView extends ItemView {
 
   async onClose(): Promise<void> {
     ++this.viewEpoch;
+    this.runtimeHealth.invalidate();
     try {
       await this.practiceUi.flushDraft();
     } catch {
@@ -282,31 +288,39 @@ export class ChatView extends ItemView {
   }
 
   async refreshRuntime(recheckHealth = true): Promise<void> {
+    const epoch = this.viewEpoch;
     if (recheckHealth) {
+      // Invalidate before any awaits so a previous provider cannot revive UI state.
+      this.runtimeHealth.invalidate();
       this.runtimeReady = false;
       this.setUIState(this.uiState);
     }
     await this.refreshModelList();
+    // Closing during model refresh must not start a new check on detached DOM.
+    if (epoch !== this.viewEpoch) return;
     if (recheckHealth) await this.ensureRuntimeReady(true);
   }
 
   private async ensureRuntimeReady(preserveState = false): Promise<boolean> {
-    try {
-      const health = await this.learning.checkRuntime();
-      if (health.status === "ready") {
-        this.runtimeReady = true;
-        this.runtimeFailureMessage = null;
-        this.thread.querySelector(".nox-runtime-error")?.remove();
-        if (this.uiState !== "RUNNING") {
-          this.setUIState(preserveState && this.uiState !== "ERROR" ? this.uiState
-            : this.learning.getSession().messages.length ? "ANSWER" : "EMPTY");
-        }
-        return true;
-      }
-      this.showRuntimeError(health.failure.message);
-    } catch {
+    const outcome = await this.runtimeHealth.run(() => this.learning.checkRuntime());
+    // A newer check, provider refresh, or closed view owns the visible state.
+    if (outcome.status === "stale") return false;
+    if (outcome.status === "failed") {
       this.showRuntimeError("Agent runtime is unavailable. Check Nox runtime settings.");
+      return false;
     }
+    const health = outcome.value;
+    if (health.status === "ready") {
+      this.runtimeReady = true;
+      this.runtimeFailureMessage = null;
+      this.thread.querySelector(".nox-runtime-error")?.remove();
+      if (this.uiState !== "RUNNING") {
+        this.setUIState(preserveState && this.uiState !== "ERROR" ? this.uiState
+          : this.learning.getSession().messages.length ? "ANSWER" : "EMPTY");
+      }
+      return true;
+    }
+    this.showRuntimeError(health.failure.message);
     return false;
   }
 

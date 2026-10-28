@@ -1,23 +1,37 @@
-# @nox/core — portable package (M4)
+# @nox/core — portable package
 
-Status: **private preview**, not a published npm package. The Obsidian plugin
-remains a separately built release (`manifest.json`, `main.js`, `styles.css`).
+Status: **private, implemented portable package**, not published to npm.
+The Obsidian plugin is separately published through
+`manifest.json`, `main.js` and `styles.css`.
 
-## Ownership and scope
+## Current ownership and consumption
 
-`packages/core/src/index.ts` remains a public API facade. Since M10.1, **all 31
-canonical domain modules live physically at `packages/core/src/domain/`**.
-Legacy `src/domain/` paths are compatibility-only exports of that single
-implementation; application, session and runtime were extracted in M10.2; their old root paths
-remain temporary re-exports pending M10.3 host import cleanup. This **does not duplicate the learning engine**. Build emits ESM, CommonJS and a self-contained
-declaration tree under `packages/core/dist/`. Neither the Obsidian host nor
-the headless host imports its own built distribution bundle inside the plugin:
-that would risk two copies of stateful constructors. They continue using the
-same canonical source graph, while M4 proves an independent external consumer
-can load the packaged form. Adopting the package as a host's sole runtime
-dependency is a separate planned migration with explicit compatibility tests.
+- **Canonical source:** `packages/core/src/**` physically owns portable
+  application, domain, session, runtime and context code. The curated public
+  API is `packages/core/src/index.ts`; do not duplicate implementation in
+  Obsidian, headless or browser.
+- **Host integration:** Obsidian, headless and browser compositions consume
+  the `@nox/core` entrypoint. Within the monorepo, the root TypeScript
+  source alias resolves to that same canonical implementation. The hosts
+  must not bundle a second compiled engine or import package-private sources.
+- **Distribution:** the private package emits ESM, CJS and TypeScript
+  declarations for isolated consumer verification; no public npm or
+  production browser app publication is implied.
+- **Compatibility:** M13 retired 32 obsolete `src/**` facades; 26 remain
+  because identified tests or architecture contracts still reference them.
+  The old re-exports are not a second source of truth or a public API.
+  Retire additional facades only after migrating real consumers and
+  preserving architecture guards.
+- **Proof boundary:** package, host-identity, browser IndexedDB and compiled
+  plugin-host tests run in CI. They do not certify a real installed Obsidian
+  desktop session, OAuth entitlement or a live provider.
+
+The later sections document successive build and migration decisions. Their
+older milestones are preserved for provenance; superseded statements about
+`src/` being canonical, CI pending, or a future extraction **are historical**.
 
 ## Build and verify
+
 
 ```sh
 pnpm install --frozen-lockfile
@@ -43,7 +57,7 @@ Node filesystem, login, provider transports or internal capability exports**.
 ## A / E / R contract
 
 ```text
-Canonical NOX src/
+Canonical packages/core/src/
   → packages/core/src/index.ts (curated public API, no new business logic)
   → esbuild ESM + CJS, tsc declaration emit
   → staged external consumer (package.json + dist only)
@@ -261,7 +275,9 @@ imports were retargeted to `packages/core/src/`. The canonical engine was
 **not copied or rewritten**. The architecture checker now fails if any of
 those retired facades reappear, or a consumer still references a removed shim.
 
-**Remaining:** 51 legacy re-export facades still require migration in further
-bounded batches. Do not describe M13 as fully completed until all of them
-are gone and host/core/browser CI passes. Public API stability and native
-Obsidian acceptance remain independent requirements.
+**Current inventory after M13 waves 1–5:** 32 retired facades are protected
+against reintroduction; 26 reference-backed facades remain for separate,
+bounded consumer migrations. This later state supersedes the first-wave
+51-remaining count. Do not describe facade elimination as fully completed.
+Public API stability and native Obsidian acceptance remain independent
+requirements.

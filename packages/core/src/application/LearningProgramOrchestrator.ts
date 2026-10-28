@@ -34,7 +34,8 @@ export class LearningProgramOrchestrator {
     private readonly learningState: LearningStatePort, private readonly store: ProgramStorePort,
     private readonly currentModel: () => string | undefined,
     private readonly currentProvider: () => string | undefined = () => undefined,
-    private readonly now: () => number = () => Date.now()) {
+    private readonly now: () => number = () => Date.now(),
+    private readonly onCheckpointResult?: (error: unknown | null) => void) {
     this.planGenerator = new ProgramPlanGenerator(this.runtime, this.contexts, this.currentModel, this.now);
   }
 
@@ -49,10 +50,22 @@ export class LearningProgramOrchestrator {
   private startCheckpointLoop(): void {
     if (this.checkpointTimer !== undefined) return;
     this.checkpointTimer = setInterval(() => {
-      if (!this.isPlanning()) void this.checkpointCurrentSession().catch(() => {
-        // Keep the prior durable checkpoint; explicit commands report persistence failures.
-      });
+      if (this.isPlanning()) return;
+      void this.checkpointCurrentSession().then(
+        () => this.reportCheckpointResult(null),
+        error => this.reportCheckpointResult(error),
+      );
     }, 30_000);
+  }
+
+  /** Checkpoint telemetry is a host concern; a failing reporter must not break the timer. */
+  private reportCheckpointResult(error: unknown | null): void {
+    try {
+      if (this.onCheckpointResult) this.onCheckpointResult(error);
+      else if (error !== null) console.warn("[Nox] Background learning checkpoint failed", error);
+    } catch (reportError) {
+      console.warn("[Nox] Background checkpoint reporting failed", reportError);
+    }
   }
 
   private stopCheckpointLoop(): void {
