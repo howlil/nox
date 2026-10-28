@@ -7,10 +7,11 @@ on:
   workflow_dispatch:
     inputs:
       bump:
-        description: "Manual override; current only bootstraps the first release"
+        description: "Infer SemVer from commits by default; choose a manual override when needed"
         required: true
+        default: auto
         type: choice
-        options: [current, patch, minor, major]
+        options: [auto, current, patch, minor, major]
 
 permissions:
   contents: write
@@ -28,7 +29,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: master
+          ref: ${{ github.sha }}
           fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
@@ -38,10 +39,24 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           MANUAL_BUMP: ${{ inputs.bump }}
+          DISPATCH_SHA: ${{ github.sha }}
         shell: bash
         run: |
           set -euo pipefail
-          bump="$MANUAL_BUMP"
+          test "$(git rev-parse HEAD)" = "$DISPATCH_SHA" || {
+            echo "::error::Checkout is not the source selected at dispatch."
+            exit 1
+          }
+          current_master="$(git ls-remote --exit-code origin refs/heads/master | cut -f1)"
+          test "$current_master" = "$DISPATCH_SHA" || {
+            echo "::error::Master advanced after dispatch; start preparation again."
+            exit 1
+          }
+          if [ "$MANUAL_BUMP" = "auto" ]; then
+            bump="$(node scripts/select-release-bump.mjs)"
+          else
+            bump="$MANUAL_BUMP"
+          fi
           if [ "$bump" = "none" ]; then
             echo "No releasable changes, or previous release still pending."
             exit 0
@@ -67,9 +82,14 @@ jobs:
         if: steps.select.outputs.bump != ''
         env:
           GH_TOKEN: ${{ github.token }}
+          DISPATCH_SHA: ${{ github.sha }}
         shell: bash
         run: |
           set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$DISPATCH_SHA" || {
+            echo "::error::Release candidate source changed after dispatch."
+            exit 1
+          }
           version="$(node -p 'JSON.parse(require("fs").readFileSync(".release-plan.json")).version')"
           branch="release/$version"
           if git ls-remote --exit-code --heads origin "$branch" >/dev/null 2>&1; then
@@ -85,6 +105,11 @@ jobs:
           git checkout -b "$branch"
           git add manifest.json package.json CHANGELOG.md versions.json .release-plan.json
           git commit -m "chore(release): prepare $version"
+          current_master="$(git ls-remote --exit-code origin refs/heads/master | cut -f1)"
+          test "$current_master" = "$DISPATCH_SHA" || {
+            echo "::error::Master advanced during preparation; refusing to publish a stale release branch."
+            exit 1
+          }
           git push -u origin "$branch"
           gh pr create --base master --head "$branch" \
             --title "chore(release): prepare $version" \

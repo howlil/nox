@@ -9,8 +9,11 @@ exclusively owns `landing/` deployment.
 
 1. Code merges into `master` after plugin CI without advancing the public
    manifest version prematurely.
-2. Manually dispatch `Prepare release PR` from `master` to produce
-   `release/x.y.z` with synchronized version metadata, changelog and release plan.
+2. Manually dispatch `Prepare release PR` from `master` (default `auto`
+   derives SemVer from conventional commits; explicit overrides are available).
+   The checkout is pinned to the dispatch SHA and a fresh `master` ref check
+   rejects stale preparation before publishing `release/x.y.z`, with
+   synchronized version metadata, changelog and release plan.
 3. `ci-release.yml` certifies the exact candidate SHA (Linux reproducible
    plugin assets, Windows provider transport, Community scanner and policy).
 4. Explicitly dispatch `.github/workflows/release.yml` on the certified
