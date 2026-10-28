@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { parseProgramCommand } from "../../../src/domain/learning-program/commands";
+import { parseProgramCommand } from "../../../packages/core/src/domain/learning-program/commands";
 test("goal command parses explicit constraints without inventing a deadline", () => {
   const command = parseProgramCommand("/plan Learn conversational Spanish | minutes=30 | sessions=5 | exclude=poetry,history");
   assert.equal(command?.kind, "plan");

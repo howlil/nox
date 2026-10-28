@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { TranscriptEvidenceReconciler } from "../../src/features/conversation/turn/TranscriptEvidenceReconciler";
+import { TranscriptEvidenceReconciler } from "../../packages/core/src/features/conversation/turn/TranscriptEvidenceReconciler";
 import { LearningStateWriteConflict } from "../../src/persistence/PersistenceError";
 import { recordReviewFindings } from "../../src/domain/learning-state/transitions";
 import type { LearningState } from "../../src/domain/learning-state/types";
