@@ -1,26 +1,9 @@
 name: Verify and publish Obsidian release
 
 # Obsidian plugin release only; Cloudflare owns the landing deployment.
-# Publish staged release/x.y.z commits using workflow_dispatch AFTER
-# release certification, BEFORE merging the release manifest into master.
-# Existing master-triggered recovery remains for already prepared releases.
+# Publish source-bound, certified release/x.y.z candidates only after an
+# explicit operator dispatch. Ordinary master pushes never start the publisher.
 on:
-  push:
-    branches: [master]
-    paths:
-      - '.release-plan.json'
-      - '.github/workflows/release.yml'
-      - '.github/workflows/ci.yml'
-      - '.github/workflows/ci-release.yml'
-      - '.github/workflows/publish-release.yml'
-      - 'src/**'
-      - 'styles.css'
-      - 'scripts/**'
-      - 'tests/**'
-      - 'manifest.json'
-      - 'package.json'
-      - 'CHANGELOG.md'
-      - 'versions.json'
   workflow_dispatch:
 
 permissions:

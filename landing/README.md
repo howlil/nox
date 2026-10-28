@@ -17,7 +17,11 @@ pnpm preview
 
 ## Cloudflare-managed CI/CD
 
-Live production: https://nox.howlil.site (Cloudflare Worker: `nox`). Landing builds and deployment are owned by **Cloudflare Workers Builds**, independently of GitHub Actions. Cloudflare determines branch and path build triggers in its project settings. Keep the build root set to `landing/` and the build/deploy commands aligned with this Astro project. GitHub plugin CI explicitly ignores `landing/**`-only changes.
+Live production: https://nox.howlil.site (Cloudflare Worker: `nox`). Landing builds and deployment are owned by **Cloudflare Workers Builds**, independently of GitHub Actions. Cloudflare determines branch and path build triggers in its project settings. The
+canonical production branch is `master`; watch only `landing/*` and keep
+preview builds off unless needed. Build root remains `/`, with commands that
+explicitly enter `landing/` (or change the root and both commands together).
+GitHub plugin CI explicitly ignores `landing/**`-only changes.
 
 If an automatic Cloudflare build fails, diagnose it in the Cloudflare Workers Builds dashboard rather than adding a second deployment workflow in GitHub.
 
@@ -34,7 +38,7 @@ pnpm exec wrangler deploy
 ```
 
 Use `pnpm exec wrangler whoami` to confirm the target account before deploying.
-The first manual deploy creates the `nox` Worker; later deploys update it. Assign a custom domain in Cloudflare Dashboard → Workers & Pages → nox → Settings/Domains. Do not turn on Git integration or Workers Builds.
+The first manual deploy creates the `nox` Worker; later deploys update it. Assign a custom domain in Cloudflare Dashboard → Workers & Pages → nox → Settings/Domains. Do not connect a second competing deployment pipeline.
 
 The header keeps **Star on GitHub** and **Sponsor** actions (no section-navigation links). Sponsor defaults to the same GitHub Sponsors destination used in Modu; `PUBLIC_SPONSOR_URL` can override it at build time. The hero alone contains **Download plugin**, implemented with the free Arc UI Action Button and pointing to NOX GitHub Releases. The button confirms opening the page, **not** downloading or installing a plugin. Verify installable release assets before describing this as a direct download.
 

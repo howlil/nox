@@ -11,6 +11,12 @@ on:
     paths-ignore: ['landing/**']
   workflow_dispatch:
 
+# Skip superseded PR runs. Master and PR runs have distinct keys; the current
+# head still receives the same stable 'build' and 'pr-title' checks.
+concurrency:
+  group: nox-plugin-ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   pr-title:
     if: github.event_name == 'pull_request'
@@ -44,9 +50,6 @@ jobs:
 
       - name: Architecture boundaries
         run: pnpm check:boundaries
-
-      - name: Architecture dependency baseline
-        run: pnpm architecture:graph >> "$GITHUB_STEP_SUMMARY"
 
       - name: Typecheck
         run: pnpm typecheck
