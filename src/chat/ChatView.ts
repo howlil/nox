@@ -287,6 +287,7 @@ export class ChatView extends ItemView {
   }
 
   async refreshRuntime(recheckHealth = true): Promise<void> {
+    const epoch = this.viewEpoch;
     if (recheckHealth) {
       // Invalidate before any awaits so a previous provider cannot revive UI state.
       this.runtimeHealth.invalidate();
@@ -294,6 +295,8 @@ export class ChatView extends ItemView {
       this.setUIState(this.uiState);
     }
     await this.refreshModelList();
+    // Closing during model refresh must not start a new check on detached DOM.
+    if (epoch !== this.viewEpoch) return;
     if (recheckHealth) await this.ensureRuntimeReady(true);
   }
 
