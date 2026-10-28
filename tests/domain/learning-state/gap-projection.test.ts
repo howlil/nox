@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { deriveGapStatus } from "../../../packages/core/src/domain/learning-state/gap-projection";
-import { recordPracticeEvaluation } from "../../../src/domain/learning-state/transitions";
+import { recordPracticeEvaluation } from "../../../packages/core/src/domain/learning-state/transitions";
 import type { LearningState, LearningEvidence, KnowledgeGap } from "../../../src/domain/learning-state/types";
 
 const gap: KnowledgeGap = { id: "gap", concept: "Race", reason: "Missing mutex",

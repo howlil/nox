@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { TranscriptEvidenceReconciler } from "../../packages/core/src/features/conversation/turn/TranscriptEvidenceReconciler";
 import { LearningStateWriteConflict } from "../../src/persistence/PersistenceError";
-import { recordReviewFindings } from "../../src/domain/learning-state/transitions";
+import { recordReviewFindings } from "../../packages/core/src/domain/learning-state/transitions";
 import type { LearningState } from "../../src/domain/learning-state/types";
 import type { LearningStatePort } from "../../src/application/ports";
 import type { ChatSession } from "../../src/types";
