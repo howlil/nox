@@ -8,6 +8,8 @@ test("plugin CI has no Cloudflare or landing jobs", () => {
   const dev = read(".github/workflows/ci.yml");
   assert.match(dev, /paths-ignore: \['landing\/\*\*'\]/);
   assert.match(dev, /run: pnpm ci:critical/);
+  assert.match(dev, /run: pnpm lint/);
+  assert.doesNotMatch(dev, /run: pnpm lint:typed/);
   assert.match(dev, /node scripts\/ci\/check-public-release\.mjs/);
   // Candidate release PRs are verified by ci-release.yml; master still checks
   // parity against the public tag to prevent Obsidian manifest mismatch.
@@ -29,6 +31,9 @@ test("release certification is strict and requires Windows plus reproducible art
   assert.match(release, /scanner-lint: "true"/);
   assert.match(release, /strict: "false"/);
   assert.match(release, /pnpm ci:critical/);
+  assert.match(release, /      - run: pnpm verify/);
+  assert.doesNotMatch(release, /pnpm lint:typed/);
+  assert.doesNotMatch(release, /pnpm ci:critical && pnpm verify/);
   assert.match(release, /Reproducible|deterministic production bundle/);
   assert.match(release, /NodeInferenceTransport\.test\.ts/);
 });
@@ -37,6 +42,8 @@ test("auto-publication requires strict source-bound attestations on the exact do
   const release = read(".github/workflows/release.yml");
   const recovery = read(".github/workflows/publish-release.yml");
   assert.match(release, /needs: \[detect, linux, windows, community\]/);
+  assert.match(release, /pnpm ci:critical && pnpm verify/);
+  assert.doesNotMatch(release, /pnpm lint:typed/);
   assert.match(release, /lint: "true"/);
   assert.match(release, /Detect unshipped release by ID rather than public tag/);
   assert.match(release, /contents: write/);

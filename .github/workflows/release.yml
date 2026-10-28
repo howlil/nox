@@ -1,26 +1,9 @@
 name: Verify and publish Obsidian release
 
 # Obsidian plugin release only; Cloudflare owns the landing deployment.
-# Publish staged release/x.y.z commits using workflow_dispatch AFTER
-# release certification, BEFORE merging the release manifest into master.
-# Existing master-triggered recovery remains for already prepared releases.
+# Publish source-bound, certified release/x.y.z candidates only after an
+# explicit operator dispatch. Ordinary master pushes never start the publisher.
 on:
-  push:
-    branches: [master]
-    paths:
-      - '.release-plan.json'
-      - '.github/workflows/release.yml'
-      - '.github/workflows/ci.yml'
-      - '.github/workflows/ci-release.yml'
-      - '.github/workflows/publish-release.yml'
-      - 'src/**'
-      - 'styles.css'
-      - 'scripts/**'
-      - 'tests/**'
-      - 'manifest.json'
-      - 'package.json'
-      - 'CHANGELOG.md'
-      - 'versions.json'
   workflow_dispatch:
 
 permissions:
@@ -97,7 +80,8 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: pnpm docs:check && pnpm release:check && pnpm ci:critical && pnpm lint:typed && pnpm verify
+      # verify includes docs, release metadata and type-aware lint; keep P0 settings guard.
+      - run: pnpm ci:critical && pnpm verify
       # Attest the exact production bytes; no attestations are issued for CI preview builds.
       - name: Attest plugin JavaScript
         uses: actions/attest@v4

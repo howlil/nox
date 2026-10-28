@@ -8,37 +8,19 @@ Last updated: 2026-10-13
 
 ---
 
-## M12.2 real Obsidian desktop acceptance setup — 2026-10-26
-
-The native acceptance owner is the official Obsidian desktop CLI, not the
-Node VM mock. Require an explicitly acknowledged disposable vault plus a
-second CLI-reported vault path match before installing compiled plugin
-files, disabling restricted mode, or invoking plugin lifecycle operations.
-
-Acceptance executes actual sidebar open, scratch vault file I/O, session
-creation, app restart and state recovery, and plugin disable. Record only
-minimal build/vault metadata and check results locally; never upload
-credentials, notes, or screenshots implicitly. The CI job tests only
-syntactic and offline fail-closed verdicts. It must never be represented
-as native desktop execution. This milestone is **tooling merged / native
-execution pending**, not desktop certified, until an actual run is observed.
-
----
-
-## M12.1 compiled plugin host lifecycle acceptance — 2026-10-26
+## M12.1 compiled plugin host lifecycle smoke test — 2026-10-26
 
 Package-only source independence (M11.4) does not exercise the actual
-installed plugin JavaScript entrypoint or lifecycle. Add a CI acceptance
+installed plugin JavaScript entrypoint or lifecycle. Run a CI smoke test
 that loads the production `dist/main.js` from a temporary install layout
 with a controlled, incomplete Obsidian API double. It must observe actual
 `onload`/registration, plugin data writes, state continuity across a
 second plugin constructor, and `onunload` without provider network access.
 
 Keep the runtime double out of production source and `@nox/core`. This
-is **artifact lifecycle acceptance**, not native installed desktop,
-WebView, Electron, Accessibility or OS lifecycle acceptance. Native
-Obsidian installation and operator-recorded desktop evidence remain a
-separate gate before claiming full runtime certification.
+is **artifact lifecycle smoke coverage**, not native installed desktop,
+WebView, Electron, Accessibility or OS lifecycle certification. No separate
+native desktop run is required for ordinary review or release.
 
 ---
 
@@ -642,8 +624,9 @@ No persistence schema, provider protocol, timer accounting definition, or
 editor proposal transaction boundary is changed by this slice.
 
 Verification requires CI (architecture, typecheck, lint, unit/integration,
-build) and native Obsidian Desktop acceptance for host lifecycle behaviors.
-GitHub CI alone does not establish desktop acceptance.
+build and compiled-plugin lifecycle smoke). Real Obsidian desktop behavior
+remains outside the automated proof boundary; no separate native acceptance
+gate is required.
 
 
 ## M5 feature-private physical package checkpoint — 2026-10-20
@@ -3034,5 +3017,6 @@ DOM, callbacks and draft save port. Practice UI is exclusively
 must remain intact. The architecture checker enforces explicitly enumerated UI bridge
 imports and denies private cross-feature access to persistence or unrelated domain policy.
 Consult `docs/FEATURE_OWNERSHIP_R1_R4.md` for code graph, failures and acceptance.
-The existing native Obsidian desktop gate is still outstanding; passing unit/integration
-CI alone does not authorize merge or release.
+There is no additional native Obsidian desktop gate. Review and release
+remain subject to existing CI and release provenance rules, not the retired
+manual desktop acceptance workflow.

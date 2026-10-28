@@ -7,7 +7,8 @@ See [CI ownership and recovery](RELEASE_CI.md).
 
 ```text
 Feature/fix PR → plugin CI → merge code to master (unchanged public manifest)
-  → prepare release/x.y.z branch with synchronized version metadata
+  → manually dispatch Prepare release PR on master (auto SemVer by default)
+  → guard dispatch SHA against current master before creating release/x.y.z
   → release-certified (Linux reproducibility, Windows providers, Community scanner)
   → explicitly dispatch publication on release/x.y.z
   → validate current source SHA, signed attestations and SHA-256 asset allowlist
@@ -24,8 +25,8 @@ Do not merge a manifest version that has not been published.
 Candidate publication requires an explicit workflow dispatch against
 `release/x.y.z`, source SHA identity, Linux/Windows release certification,
 Community scanner, signed build attestations, exact artifact digests and
-strict asset allowlist. The guarded master recovery trigger skips previously
-published versions.
+strict asset allowlist. The publication workflow has no master-push
+trigger: ordinary development merges cannot invoke it.
 
 **The former D01–D10 desktop acceptance gate is retired.** CI does not prove
 live Obsidian UI interactions, real provider entitlement or Community Directory
@@ -35,9 +36,15 @@ required release attestation.
 ## Ownership
 
 GitHub Actions owns the NOX plugin release; Cloudflare owns the `landing/`
-deployment. The automated release preparation workflow derives SemVer from
-conventional commits, synchronizing `manifest.json`, `package.json`,
-`versions.json`, `CHANGELOG.md`, and `.release-plan.json` on the release branch.
+deployment. Explicitly dispatch `Prepare release PR` on `master`: the default
+`auto` option infers SemVer from conventional commits and skips unchanged
+releases; `current`, `patch`, `minor`, and `major` are explicit overrides.
+Preparation uses the dispatch commit SHA and refuses to create a release
+branch if `master` has moved. The workflow synchronizes `manifest.json`, `package.json`, `versions.json`,
+`CHANGELOG.md`, and `.release-plan.json` on the release branch.
+The standard plugin CI remains on PRs and `master`; superseded PR runs
+are canceled to save runner time. Cosmetic architecture graphs are available
+on demand via `pnpm architecture:graph`, not generated on every CI run.
 
 ## Recovery and security
 

@@ -34,8 +34,10 @@ test("M10 physically extracted core rejects duplicated logic or outward dependen
 
 
 test("M13 retired core shims cannot silently return", () => {
-  assert.equal(RETIRED_CORE_SHIMS.size, 7);
+  assert.equal(RETIRED_CORE_SHIMS.size, 32);
   const inventory = auditLegacyCoreShims();
+  // The migration tracks the actual number of remaining compatibility files.
+  assert.equal(inventory.retained.length + inventory.unused.length, 26);
   assert.deepEqual(inventory.reintroduced, []);
   assert.deepEqual(inventory.missingReferenced, []);
 });

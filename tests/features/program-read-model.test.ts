@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { projectProgramFocus } from "../../src/features/learning/program/ProgramReadModel";
+import { projectProgramFocus } from "../../packages/core/src/features/learning/program/ProgramReadModel";
 import type { LearningProgram, ProgramCollection } from "../../src/domain/learning-program/types";
 
 const example = (id: string): LearningProgram => ({ id, goal: id, createdAt: 1, planVersion: 1,

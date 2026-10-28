@@ -14,13 +14,10 @@ export function portableAcceptanceIssues({ ci, release, recovery, core, tsconfig
     "pnpm typecheck", "pnpm lint", "pnpm test:unit",
     "pnpm test:integration", "pnpm core:verify", "pnpm core:hosts",
     "pnpm browser:verify", "pnpm build", "pnpm test:artifacts",
-    "pnpm acceptance:runtime", "pnpm test:native-runner",
+    "pnpm test:plugin-runtime",
   ];
   for (const name of ciGates) {
     if (!ci.includes(name)) issues.push("Missing portable CI gate: " + name);
-  }
-  if (/^\s*run:\s*pnpm acceptance:native\s*$/m.test(ci)) {
-    issues.push("Native Obsidian desktop acceptance must never run as a simulated CI gate");
   }
   if (!release.includes("needs: [detect, linux, windows, community]")) {
     issues.push("Publication must depend on Linux, Windows, and Community certification");

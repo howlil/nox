@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { ProgramPlanGenerator } from "../../src/features/learning/program/ProgramPlanGenerator";
+import { ProgramPlanGenerator } from "../../packages/core/src/features/learning/program/ProgramPlanGenerator";
 import type { ProgramConstraints } from "../../src/domain/learning-program/types";
 
 const base: ProgramConstraints = {

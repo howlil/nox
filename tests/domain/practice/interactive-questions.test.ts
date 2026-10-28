@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { isPracticeQuestion, validatePracticeAnswer, gradeMultipleChoice } from "../../../src/domain/practice/question-schema";
+import { isPracticeQuestion, validatePracticeAnswer, gradeMultipleChoice } from "../../../packages/core/src/domain/practice/question-schema";
 import type { PracticeQuestion } from "../../../src/domain/practice/types";
 import { PracticeStateMachine } from "../../../src/domain/practice/PracticeStateMachine";
 

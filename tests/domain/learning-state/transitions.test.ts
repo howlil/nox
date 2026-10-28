@@ -3,7 +3,7 @@ import test from "node:test";
 import {
   recordPracticeEvaluation,
   recordReviewFindings,
-} from "../../../src/domain/learning-state/transitions";
+} from "../../../packages/core/src/domain/learning-state/transitions";
 import { LearningState } from "../../../src/domain/learning-state/types";
 
 function baseState(): LearningState {
