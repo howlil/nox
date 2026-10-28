@@ -10,7 +10,12 @@ test("M0 protects all domain files and explicitly declared shared contracts", ()
   assert.equal(isPortableSource("src/context/ContextResolver.ts"), true);
   assert.equal(isPortableSource("src/application/RunLearningTurn.ts"), false,
     "M0 must not falsely claim the unextracted orchestrator is portable");
-  assert.ok(PORTABLE_CONTRACT_FILES.includes("src/session/transcript-types.ts"));
+  for (const name of ["message-types", "transcript-part-types", "transcript-schema", "transcript-types"]) {
+    assert.ok(PORTABLE_CONTRACT_FILES.includes(`packages/core/src/session/${name}.ts`));
+    assert.equal(PORTABLE_CONTRACT_FILES.includes(`src/session/${name}.ts`), false);
+    assert.equal(isPortableSource(`src/session/${name}.ts`), false);
+    assert.equal(isPortableSource(`packages/core/src/session/${name}.ts`), true);
+  }
 });
 
 test("M0 permits pure domain imports, including type-only contracts", () => {
@@ -72,6 +77,8 @@ test("M0 refuses missing dependencies and deleted declared contract files", () =
     x.includes("unresolved portable dependency")));
   assert.ok(validatePortableBoundaries(files, { requireManifest: true }).some((x: string) =>
     x.includes("src/application/ports.ts: declared portable contract file is missing")));
+  assert.ok(validatePortableBoundaries(files, { requireManifest: true }).some((x: string) =>
+    x.includes("packages/core/src/session/transcript-types.ts: declared portable contract file is missing")));
 });
 
 test("M0 rejects host globals while ignoring comments, strings and object keys", () => {
