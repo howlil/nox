@@ -23,13 +23,14 @@ export async function createObsidianLearningHost(options: {
   provider: string;
   preferredModel?: string;
   onUsage: ConstructorParameters<typeof AgentRuntime>[1];
+  onCheckpointResult?: (error: unknown | null) => void;
 }): Promise<{
   learning: LearningController;
   programs: LearningProgramOrchestrator;
   runtime: AgentRuntime;
   sessions: SessionController;
 }> {
-  const { plugin, app, data, adapter, provider, preferredModel, onUsage } = options;
+  const { plugin, app, data, adapter, provider, preferredModel, onUsage, onCheckpointResult } = options;
   const runtime = new AgentRuntime(adapter, onUsage);
   try {
     const sessions = new SessionController(data, new SessionStore());
@@ -50,6 +51,7 @@ export async function createObsidianLearningHost(options: {
       runtime, contexts, learningState, programStore,
       () => sessions.getSession().model,
       () => sessions.getSession().runtimeProvider,
+      undefined, onCheckpointResult,
     );
     const learning = new LearningController(
       sessions, runtime, contexts, policies, mutations, learningState,
