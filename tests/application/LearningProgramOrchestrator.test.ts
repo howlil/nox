@@ -309,15 +309,15 @@ test("M2 failed automatic checkpoint is observed and next tick retries without d
     await new Promise<void>(resolve => setImmediate(resolve));
     assert.equal(outcomes.length, 1);
     assert.match(String(outcomes[0]), /injected checkpoint storage failure/);
-    assert.equal((await rigged.orchestrator.getSessionTime())?.activeMs, 0,
+    assert.equal(rigged.stored().programs[0].session?.timing?.activeMs, 0,
       "failed CAS must not advance persisted time");
     checkpointTick?.();
     await new Promise<void>(resolve => setImmediate(resolve));
     assert.deepEqual(outcomes, [outcomes[0], null]);
-    assert.equal((await rigged.orchestrator.getSessionTime())?.activeMs, 30_000);
+    assert.equal(rigged.stored().programs[0].session?.timing?.activeMs, 30_000);
     checkpointTick?.();
     await new Promise<void>(resolve => setImmediate(resolve));
-    assert.equal((await rigged.orchestrator.getSessionTime())?.activeMs, 30_000,
+    assert.equal(rigged.stored().programs[0].session?.timing?.activeMs, 30_000,
       "successive checkpoints must not double count the same interval");
   } finally {
     rigged.orchestrator.dispose();
