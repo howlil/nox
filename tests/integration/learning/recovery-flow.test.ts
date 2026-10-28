@@ -808,11 +808,12 @@ test("M14.1 note Explain -> Practice -> evidence survives controller recreation 
   }));
   assert.ok(explained.some(event => event.type === "response-delta" &&
     event.text.includes("Atomicity")));
-  assert.ok(rig.getSentContexts()[0]?.some(context =>
-    context.file === "notes/acid.md" && context.content.includes("atomicity")),
-    "explicit source material must reach the provider boundary");
-  assert.equal(rig.getSentContexts()[0]?.some(context => context.file === "notes/support.md"), false,
-    "unapproved supporting note must not enter context");
+  const explicitNote = "ACID means atomicity, consistency, isolation, durability.";
+  const hasExplicitNote = (turnIndex: number) => rig.getSentContexts()[turnIndex]?.some(
+    context => context.type === "note" &&
+      context.file === "notes/acid.md" && context.content === explicitNote);
+  assert.equal(hasExplicitNote(0), true,
+    "Explain must forward the full explicitly attached note, not just its selection");
 
   rig.queue(practice({
     kind: "question", concept: "ACID", question: "What does transaction atomicity guarantee?",
@@ -823,6 +824,8 @@ test("M14.1 note Explain -> Practice -> evidence survives controller recreation 
   const question = asked.find(event => event.type === "practice-question");
   assert.ok(question && question.type === "practice-question");
   assert.equal(first.learning.hasActivePracticeQuestion(), true);
+  assert.equal(hasExplicitNote(1), true,
+    "Practice question must retain the explicitly attached note as source material");
   assert.equal((await first.learningState.load()).evidence.length, 0,
     "asking a question cannot grant learner evidence");
 
@@ -841,7 +844,18 @@ test("M14.1 note Explain -> Practice -> evidence survives controller recreation 
   assert.equal(beforeEvidence.length, 1);
   const beforeParts = before.messages.flatMap(message => message.parts ?? []);
   assert.equal(beforeParts.filter(part => part.type === "practice-question").length, 1);
-  assert.equal(beforeParts.filter(part => part.type === "practice-evaluation").length, 1);
+  const evaluations = beforeParts.filter(part => part.type === "practice-evaluation");
+  assert.equal(evaluations.length, 1);
+  const committed = evaluations[0];
+  assert.ok(committed && committed.type === "practice-evaluation");
+  assert.equal(committed.questionId, question.questionId);
+  assert.equal(committed.sourcePath, "notes/acid.md");
+  assert.equal(committed.evaluation.outcome, "correct");
+  assert.equal(beforeEvidence[0].id, committed.operationId,
+    "learner evidence must belong to this committed transcript operation");
+  assert.equal(beforeEvidence[0].questionId, question.questionId);
+  assert.equal(beforeEvidence[0].source, "notes/acid.md");
+  assert.equal(beforeEvidence[0].outcome, "correct");
   assert.ok(before.messages.some(message => message.role === "assistant" &&
     message.content.includes("Atomicity means all transaction changes")));
   assert.ok(before.messages.some(message => message.role === "user" &&
@@ -862,6 +876,11 @@ test("M14.1 note Explain -> Practice -> evidence survives controller recreation 
     prompt: "What should I study next?", action: "ask", explicitContext: noteRef,
   }));
   assert.ok(continued.some(event => event.type === "completed"));
+  assert.equal(rig.getSentContexts().length, 4,
+    "all four successful turns must reach the provider boundary exactly once");
+  assert.ok(rig.getSentContexts().every(contexts =>
+    contexts.every(context => context.file !== "notes/support.md")),
+    "unapproved support note must not leak into any provider turn");
   assert.deepEqual((await restored.learningState.load()).evidence, beforeEvidence,
     "reconciling a committed transcript must not award evidence twice");
   assert.equal(rig.currentAgentCalls(), 4,
