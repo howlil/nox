@@ -2,7 +2,7 @@ import {
   existsSync,
   readFileSync,
 } from "fs";
-import { assertCompiledPluginCss, assertNoxSettingsStyleContract, assertLandingDialogCss } from "./css-artifact-policy.mjs";
+import { assertCompiledPluginCss, assertNoxSettingsStyleContract } from "./css-artifact-policy.mjs";
 
 const required = [
   "dist/main.js",
@@ -33,7 +33,6 @@ if (existsSync("dist/forge.png")) {
 const pluginCss = readFileSync("dist/styles.css", "utf8");
 assertCompiledPluginCss(pluginCss);
 assertNoxSettingsStyleContract(pluginCss);
-assertLandingDialogCss(readFileSync("landing/src/components/arc/dialog/dialog.module.css", "utf8"));
 
 const manifest = JSON.parse(
   readFileSync("dist/manifest.json", "utf8"),

@@ -4,12 +4,9 @@ name: Stage NOX Release Draft
 # requires release certification and matching artifact attestations.
 # For a refreshed release candidate, the staged draft is a testing artifact only:
 # the canonical manifest on master remains at the last publicly shipped version.
+# Optional draft staging is operator-triggered; no release branch push
+# should spend CI minutes or create a draft as a side effect.
 on:
-  push:
-    branches:
-      - "release/*"
-    paths:
-      - ".github/workflows/stage-release-draft.yml"
   workflow_dispatch:
 
 permissions:

@@ -1,4 +1,4 @@
-# NOX portable core — automated acceptance (M0–M7)
+# NOX portable core — automated verification (M0–M7)
 
 Portable NOX shares one learning engine between Obsidian, Node/headless and
 browser/IndexedDB hosts, with host-specific capabilities.
@@ -16,11 +16,11 @@ M6 real Chromium/IndexedDB proof ───┤   └─ pass: eligible for review
 M7 release/build gate auditing ─────┘
 ```
 
-`pnpm acceptance:portable` checks CI commands, private core exports and
+The existing integration suite checks CI commands, private core exports and
 source aliases, release job dependency on Linux/Windows/Community
 certification, and mandatory signed artifact and SHA checks. It audits
-**configuration only**; a successful run is not evidence that the entire
-CI workflow completed.
+**configuration only** and needs no duplicate standalone CI step; a passing
+preflight is not evidence that the entire CI workflow completed.
 
 `pnpm verify` validates typing, lint, domain/host boundaries, storage
 transactions and CAS, legacy schema compatibility, outside-consumer
