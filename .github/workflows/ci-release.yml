@@ -58,7 +58,8 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: pnpm ci:critical && pnpm lint:typed && pnpm verify
+      # Policy job owns the critical settings check; verify already runs type-aware ESLint.
+      - run: pnpm verify
       - name: Prove deterministic production bundle
         shell: bash
         run: |

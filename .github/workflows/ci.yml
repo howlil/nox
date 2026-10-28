@@ -57,9 +57,6 @@ jobs:
       - name: Lint
         run: pnpm lint
 
-      - name: Typed trust-boundary lint
-        run: pnpm lint:typed
-
       - name: Critical Obsidian settings policy
         run: pnpm ci:critical
 
