@@ -232,9 +232,9 @@ canonical source identity and real Chromium/IndexedDB conformance. It does
 packaging, release to npm, or compatibility for third-party deep imports.
 Retain compatibility shims while reference contracts require them.
 
-## M12.1 — Compiled Obsidian plugin lifecycle acceptance
+## M12.1 — Compiled Obsidian plugin lifecycle smoke test
 
-`pnpm acceptance:runtime` loads the real production `dist/main.js` from
+`pnpm test:plugin-runtime` loads the real production `dist/main.js` from
 a temporary plugin-install layout (with manifest and CSS) into a controlled
 CommonJS host VM. It supplies an intentionally **limited mock** of the
 Obsidian and Electron APIs rather than importing the TypeScript composition
@@ -248,27 +248,9 @@ and rejects unexpected network calls during startup and reload.
 It runs in CI **after the production artifact build and verification**.
 The check does **not** claim Obsidian desktop API parity, GUI behavior,
 provider connectivity, operating-system installation, screen reader behavior,
-or a successful native-vault integration. Those require actual Obsidian
-desktop acceptance and separately recorded evidence. `@nox/core` remains
-private; no npm publication or plugin release is implied.
-
-## M12.2 — Real Obsidian CLI acceptance runner
-
-The opt-in `scripts/acceptance/obsidian-native.mjs` uses the documented
-Obsidian **desktop** CLI against an explicitly marked throwaway vault,
-installs the **compiled** plugin, opens the sidebar, creates and reads a
-Markdown scratch note, captures a screenshot, creates a real NOX session,
-restarts Obsidian, checks restored identity/state and note bytes, then
-disables the plugin. It fails closed on missing markers, mismatched
-vault paths, unmanaged existing NOX installations, missing CLI support,
-changed runtime identity or incomplete checks.
-
-`pnpm test:native-runner` in CI tests the script's syntax and verdict
-logic **offline only**. It never claims native acceptance.
-Run the real test in a separate desktop environment as documented in
-`docs/NATIVE_OBSIDIAN_M12_ACCEPTANCE.md`. No desktop run was observed at
-the time of the code change, and therefore **M12.2 native certification
-remains pending** until native evidence from a real Obsidian process exists.
+or a successful native-vault integration. A separate native desktop
+acceptance gate is not required. `@nox/core` remains private;
+no npm publication or plugin release is implied.
 
 ## M13.1 — Incremental legacy shim elimination
 

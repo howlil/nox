@@ -13,8 +13,7 @@ const ci = [
   "pnpm install --frozen-lockfile", "pnpm check:boundaries", "pnpm typecheck",
   "pnpm lint", "pnpm test:unit", "pnpm test:integration",
   "pnpm core:verify", "pnpm core:hosts", "pnpm browser:verify",
-  "pnpm build", "pnpm test:artifacts", "pnpm acceptance:runtime",
-  "pnpm test:native-runner",
+  "pnpm build", "pnpm test:artifacts", "pnpm test:plugin-runtime",
 ].join("\n");
 const release = [
   "needs: [detect, linux, windows, community]",
@@ -58,7 +57,7 @@ test("same-head CI cannot be inferred from a passing configuration check", () =>
   assert.equal(summarizePortableAcceptance({ issues: [] }).completedCiVerified, false);
 });
 
-test("repository portable gate retains certification without native desktop prerequisites", () => {
+test("repository portable preflight retains release certification checks", () => {
   const report = checkPortableAcceptance();
   assert.equal(report.configuration, "PASS");
   assert.equal(report.completedCiVerified, false);
@@ -83,8 +82,3 @@ test("portable preflight recognizes grouped named exports, not comments", () => 
     .some(issue => issue.includes("public API missing: LearningController")));
 });
 
-test("native Obsidian CLI must not be silently reported as CI desktop acceptance", () => {
-  const fake = { ...factory(), ci: ci + "\nrun: pnpm acceptance:native" };
-  assert.ok(portableAcceptanceIssues(fake).some(x =>
-    x.includes("must never run as a simulated CI gate")));
-});

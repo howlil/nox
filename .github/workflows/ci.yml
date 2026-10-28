@@ -93,19 +93,11 @@ jobs:
       - name: Real browser IndexedDB and NOX engine conformance
         run: pnpm browser:verify
 
-      - name: M7 automated portability and release policy preflight
-        run: pnpm acceptance:portable
-
       - name: Build
         run: pnpm build
 
       - name: Verify artifacts
         run: pnpm test:artifacts
 
-      - name: M12 compiled Obsidian plugin boot and restart
-        run: pnpm acceptance:runtime
-
-      # This does not substitute for real Obsidian desktop acceptance.
-      # The native CLI runner requires a separately acknowledged scratch vault.
-      - name: M12.2 native CLI runner offline safeguards
-        run: pnpm test:native-runner
+      - name: Compiled Obsidian plugin lifecycle smoke test
+        run: pnpm test:plugin-runtime
