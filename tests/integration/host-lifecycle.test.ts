@@ -196,3 +196,12 @@ test("M2 idle and focus background write failures are visible without blocking c
     else Reflect.deleteProperty(globalThis, "window");
   }
 });
+
+test("M2 failure notice errors never escape the observed background operation", async () => {
+  const { BackgroundWriteFeedback } = await import("../../src/host/obsidian/background-write-feedback");
+  const feedback = new BackgroundWriteFeedback(() => { throw new Error("notice host unavailable"); });
+  await assert.doesNotReject(feedback.observe("focus", async () => {
+    throw new Error("vault write failed");
+  }));
+  await assert.doesNotReject(feedback.observe("focus", async () => {}));
+});

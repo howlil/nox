@@ -18,8 +18,14 @@ export class BackgroundWriteFeedback {
     if (this.failedKinds.has(kind)) return;
     this.failedKinds.add(kind);
     console.warn("[Nox] Could not save " + subjects[kind], error);
-    this.notify("Nox could not save " + subjects[kind] +
-      ". Check vault storage. Background updates may retry while Nox is open.");
+    try {
+      this.notify("Nox could not save " + subjects[kind] +
+        ". Check vault storage. Background updates may retry while Nox is open.");
+    } catch (notifyError) {
+      // Failure reporting must not turn an observed background rejection into
+      // an unhandled rejection when the Obsidian notice surface is unavailable.
+      console.warn("[Nox] Background failure notice unavailable", notifyError);
+    }
   }
 
   success(kind: BackgroundWriteKind): void {
