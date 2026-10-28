@@ -11,7 +11,7 @@ function walk(directory) {
   });
 }
 
-/** M13 waves 1–4: deleted facades must never be recreated even if a caller appears. */
+/** M13 waves 1–5: deleted facades must never be recreated even if a caller appears. */
 export const RETIRED_CORE_SHIMS = new Set([
   "src/domain/learner-model/activity-policy.ts",
   "src/domain/learner-model/feedback-policy.ts",
@@ -40,6 +40,11 @@ export const RETIRED_CORE_SHIMS = new Set([
   "src/features/conversation/turn/TranscriptEvidenceReconciler.ts",
   "src/features/conversation/turn/TurnProviderEnvelope.ts",
   "src/domain/learning-program/commands.ts",
+  "src/domain/learning-program/curriculum-preview.ts",
+  "src/domain/learning-state/transitions.ts",
+  "src/domain/practice/learning-scope.ts",
+  "src/features/conversation/turn/StructuredTurnBuffer.ts",
+  "src/domain/onboarding/types.ts",
 ]);
 
 /** Conservatively catalog static imports into the old compatibility facade.

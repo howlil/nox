@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { PluginDataRepository } from "../../src/persistence/PluginDataRepository";
 import { OnboardingStateRepository } from "../../src/persistence/OnboardingStateRepository";
-import type { OnboardingDraft } from "../../src/domain/onboarding/types";
+import type { OnboardingDraft } from "../../packages/core/src/domain/onboarding/types";
 
 test("onboarding draft persists via serialized plugin data and skip removes draft", async () => {
   let current: Record<string, unknown> = { "nox-settings": { provider: "agy" } };
