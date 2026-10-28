@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { buildActionInstruction, selectGraphPresentation } from "../../src/application/action-builders";
+import { buildActionInstruction, selectGraphPresentation } from "../../packages/core/src/application/action-builders";
 
 test("general diagrams route to Mermaid without suppressing legacy histories", () => {
   for (const prompt of ["buatkan diagram arsitektur", "show graph", "flowchart runtime", "peta konsep", "architecture map"]) {

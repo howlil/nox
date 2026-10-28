@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { checkpointTiming, focusSessionObjective, newSessionTiming, recoverTiming, sessionRemainingMs, setTimingPause } from "../../../src/domain/learning-program/session-time";
+import { checkpointTiming, focusSessionObjective, newSessionTiming, recoverTiming, sessionRemainingMs, setTimingPause } from "../../../packages/core/src/domain/learning-program/session-time";
 
 const MIN = 60_000;
 function advance(timing: ReturnType<typeof newSessionTiming>, from: number, to: number) {
