@@ -48,7 +48,8 @@ import { TranscriptPresenter } from "../features/conversation/view/transcript-pr
 import { ModelMenuPresenter } from "./model-menu";
 import { createNoxPopover } from "./popover";
 import { PromptMenuPresenter, type PromptMenuItem } from "./prompt-menu-presenter";
-import { NoxComposer, type NoxComposerContext } from "./composer";
+import { NoxComposer } from "./composer";
+import { projectComposerPlaceholder, projectComposerContextChips } from "./composer-view-projection";
 import { ComposerAttachmentDraft } from "./composer-draft";
 import { ThinkingPresenter } from "./thinking-presenter";
 import { ProposalPresenter } from "./proposal-presenter";
@@ -1105,35 +1106,12 @@ export class ChatView extends ItemView {
   }
 
   private updatePlaceholder(): void {
-    const hasSelection = Boolean(this.currentContext?.selection);
-    const hasNote = Boolean(this.currentContext?.activeNote);
-
-    const askPlaceholder = hasSelection
-      ? "Ask about this selection..."
-      : hasNote
-        ? "Ask about this note..."
-        : "Ask Nox...";
-
-    const placeholders: Record<LearningActionKind, string> = {
-      ask: askPlaceholder,
-      explain: hasSelection
-        ? "What should I explain about this selection?"
-        : "What should I explain?",
-      practice: hasSelection
-        ? "Practice this selection..."
-        : "What should we practice?",
-      review: hasNote
-        ? "What should I review in this note?"
-        : "What should I review?",
-      edit: hasNote
-        ? "How should I improve this note?"
-        : "What should I improve?",
-    };
-
     if (this.input) {
-      this.input.placeholder = this.learning.isActiveLearningScope(this.learning.getSession().learningScope)
-        ? "Answer or clarify the current question · /pause to leave"
-        : placeholders[this.selectedAction];
+      this.input.placeholder = projectComposerPlaceholder(
+        this.selectedAction,
+        this.currentContext,
+        this.learning.isActiveLearningScope(this.learning.getSession().learningScope),
+      );
     }
   }
 
@@ -1170,49 +1148,12 @@ export class ChatView extends ItemView {
   }
 
   private syncContextChips(): void {
-    const contexts: NoxComposerContext[] = [];
-    const selection = this.currentContext?.selection;
-    const pinned = this.pendingFindingSource &&
-      (this.selectedAction === "practice" || this.selectedAction === "edit")
-        ? this.pendingFindingSource
-        : null;
-    const automaticPath = selection?.file ?? this.currentContext?.activeNote?.path;
-    if (pinned && pinned !== automaticPath) {
-      contexts.push({
-        key: "review-source",
-        text: `@${pinned.split("/").pop() ?? pinned}`,
-        title: `Pinned review source: ${pinned}`,
-        icon: "file-text",
-      });
-    } else if (selection) {
-      contexts.push({
-        key: "selection",
-        text: "@selection",
-        title: selection.file,
-        icon: "file-text",
-      });
-    }
-
-    const activeNote = this.currentContext?.activeNote;
-    if (!selection && activeNote && !(pinned && pinned !== automaticPath)) {
-      contexts.push({
-        key: "note",
-        text: `@${activeNote.path.split("/").pop() ?? activeNote.path}`,
-        title: activeNote.path,
-        icon: "file-text",
-      });
-    }
-
-    if (this.systemContextFiles.length > 0) {
-      contexts.push({
-        key: "system",
-        text: "@nox-system",
-        title: this.systemContextFiles.join("\n"),
-        icon: "file-text",
-      });
-    }
-
-    this.composerUi.setContexts(contexts);
+    this.composerUi.setContexts(projectComposerContextChips(
+      this.currentContext,
+      this.pendingFindingSource,
+      this.selectedAction,
+      this.systemContextFiles,
+    ));
   }
 
   private onInput(): void {
