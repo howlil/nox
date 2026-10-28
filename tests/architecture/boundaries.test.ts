@@ -165,15 +165,15 @@ test("M5 feature modules cannot import Obsidian or node filesystem", () => {
 
 test("public session message types must pass through the stable transcript contract", () => {
   const contracts = [
-    { path: "src/session/message-types.ts", source: "export interface ChatMessage {}" },
-    { path: "src/session/transcript-types.ts", source:
+    { path: "packages/core/src/session/message-types.ts", source: "export interface ChatMessage {}" },
+    { path: "packages/core/src/session/transcript-types.ts", source:
       'export type { ChatMessage } from "./message-types";' },
   ];
-  const publicRoot = { path: "src/types.ts", source:
+  const publicRoot = { path: "packages/core/src/types.ts", source:
     'export type { ChatMessage } from "./session/transcript-types";' };
   assert.deepEqual(validateArchitecture([...contracts, publicRoot]), [],
     "public transport compatibility should use the approved session type gateway");
-  const direct = { path: "src/types.ts", source:
+  const direct = { path: "packages/core/src/types.ts", source:
     'export type { ChatMessage } from "./session/message-types";' };
   assert.ok(validateArchitecture([...contracts, direct])
     .some((issue: string) => issue.includes("forbidden dependency")),

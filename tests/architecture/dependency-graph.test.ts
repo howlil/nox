@@ -138,11 +138,16 @@ test("durable program model must never depend back on executable curriculum revi
 
 test("session wire and transcript contracts form no root-to-session back-edge", () => {
   const graph = analyzeSources(collectSources());
-  assert.equal(graph.edges.some(edge => edge.from === "src/session/transcript-types.ts" &&
-    edge.to === "src/types.ts"), false,
+  const transcript = "packages/core/src/session/transcript-types.ts";
+  const publicRoot = "packages/core/src/types.ts";
+  assert.equal(graph.edges.some(edge => edge.from === publicRoot &&
+    edge.to === transcript), true,
+  "the canonical transport contract must still re-export session transcript types");
+  assert.equal(graph.edges.some(edge => edge.from === transcript &&
+    edge.to === publicRoot), false,
   "transcript services must not import their public root re-export");
-  assert.equal(graph.cycles.some(group => group.includes("src/types.ts") &&
-    group.includes("src/session/transcript-types.ts")), false);
+  assert.equal(graph.cycles.some(group => group.includes(publicRoot) &&
+    group.includes(transcript)), false);
   assert.equal(graph.summary.cycles, 0,
     "all historical dependency cycles should be eliminated without changing provider runtime");
 });
