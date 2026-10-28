@@ -3,7 +3,7 @@ import test from "node:test";
 import { renderPracticeInstructions, legacyInstructionParagraphs } from "../../src/features/practice/view/practice-instructions";
 import { renderQuizCard } from "../../src/features/practice/view/quiz-card";
 import type { PracticeQuestion } from "../../src/domain/practice/types";
-import { isPracticeQuestion } from "../../src/domain/practice/question-schema";
+import { isPracticeQuestion } from "../../packages/core/src/domain/practice/question-schema";
 
 class FakeElement {
   children: FakeElement[] = [];
