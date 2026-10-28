@@ -9,7 +9,7 @@ pnpm install --frozen-lockfile
 pnpm verify
 ```
 
-For a shorter feedback loop use `pnpm typecheck`, `pnpm lint`, `pnpm test:unit`, or `pnpm build`. Built release assets are `dist/main.js`, `dist/manifest.json`, and `dist/styles.css`. Do not commit generated bundles.
+For a shorter feedback loop use `pnpm typecheck`, `pnpm lint`, `pnpm test:unit`, or `pnpm build`. The default lint command checks `src/`, `packages/core/src/`, `headless/src/`, and `browser/src/` with baseline TypeScript rules. Targeted type-aware safety rules remain limited to the high-risk files listed in `eslint.config.mjs`; broader typed/CSS scanner triage is tracked separately in Issue #82. Built release assets are `dist/main.js`, `dist/manifest.json`, and `dist/styles.css`. Do not commit generated bundles.
 
 ## Test-vault development
 
