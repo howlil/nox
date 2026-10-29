@@ -17,7 +17,7 @@ The Obsidian plugin is separately published through
 - **Distribution:** the private package emits ESM, CJS and TypeScript
   declarations for isolated consumer verification; no public npm or
   production browser app publication is implied.
-- **Compatibility:** M13 retired 38 obsolete `src/**` facades; 20 remain
+- **Compatibility:** M13 retired 40 obsolete `src/**` facades; 18 remain
   because identified tests or architecture contracts still reference them.
   The old re-exports are not a second source of truth or a public API.
   Retire additional facades only after migrating real consumers and
@@ -286,8 +286,18 @@ ownership checks, and actual learning/practice behavior proofs are preserved.
 This cleanup does not change the persisted learning model or extend the
 private `@nox/core` public export surface.
 
-**Current inventory after M13 waves 1–7:** 38 retired facades are protected
-against reintroduction; 20 reference-backed facades remain for separate,
+### M13.8 — Context contract-only facade retirement
+
+The test consumers of `ContextBudget` and the `ContextSourcePort` type
+now import the existing canonical `packages/core/src/context/**` modules.
+Their `src/context/**` compatibility re-exports are deleted and tracked
+as retired. The portability AST contract manifest now checks the canonical
+paths, while the remaining logical boundary rules stay enforced. No
+context trimming policy, source authorization, adapter, or public package
+API changes in this cleanup.
+
+**Current inventory after M13 waves 1–8:** 40 retired facades are protected
+against reintroduction; 18 reference-backed facades remain for separate,
 bounded consumer migrations. This later state supersedes the first-wave
 51-remaining count. Do not describe facade elimination as fully completed.
 Public API stability and native Obsidian acceptance remain independent

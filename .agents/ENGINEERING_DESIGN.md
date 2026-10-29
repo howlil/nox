@@ -29,8 +29,8 @@ the authority for implemented behavior.
    `@nox/core` entrypoint through the workspace source alias. Isolated
    ESM/CJS/types consumers are verified against built core. Tests enforce
    single constructor identity and no private host deep imports.
-5. **Compatibility transition:** M13 waves 1–7 retire 38 obsolete
-   `src/**` core facades. The audited inventory still retains **20**
+5. **Compatibility transition:** M13 waves 1–8 retire 40 obsolete
+   `src/**` core facades. The audited inventory still retains **18**
    reference-backed facade paths (test/architecture consumers); delete only
    after migrating their actual references. `check-core-shims.mjs` and
    `check-physical-domain.mjs` enforce these counts/invariants.

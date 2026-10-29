@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { prepareContextEnvelope, compactHistory, estimateTokens } from "../../src/context/ContextBudget";
+import { prepareContextEnvelope, compactHistory, estimateTokens } from "../../packages/core/src/context/ContextBudget";
 
 test("context budget bounds oversized attachments without mutating input", () => {
   const note = { type: "note" as const, file: "large.md", content: "TCP congestion control RTT throughput. ".repeat(4000) };

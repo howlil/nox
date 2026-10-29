@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { ContextResolver } from "../../src/context/ContextResolver";
-import type { ContextSourcePort } from "../../src/context/ContextSourcePort";
+import type { ContextSourcePort } from "../../packages/core/src/context/ContextSourcePort";
 
 test("resolves vault-note refs using latest content at turn start", async () => {
   let noteContent = "old";
