@@ -286,6 +286,16 @@ ownership checks, and actual learning/practice behavior proofs are preserved.
 This cleanup does not change the persisted learning model or extend the
 private `@nox/core` public export surface.
 
+### M13.8 — Context contract-only facade retirement
+
+The test consumers of `ContextBudget` and the `ContextSourcePort` type
+now import the existing canonical `packages/core/src/context/**` modules.
+Their `src/context/**` compatibility re-exports are deleted and tracked
+as retired. The portability AST contract manifest now checks the canonical
+paths, while the remaining logical boundary rules stay enforced. No
+context trimming policy, source authorization, adapter, or public package
+API changes in this cleanup.
+
 **Current inventory after M13 waves 1–8:** 40 retired facades are protected
 against reintroduction; 18 reference-backed facades remain for separate,
 bounded consumer migrations. This later state supersedes the first-wave
