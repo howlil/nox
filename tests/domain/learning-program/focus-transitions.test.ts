@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { authorizeFocusIntent, startObjectiveFocus, startEligibleObjectiveFocus, transitionObjectiveFocus, validateObjectiveFocus } from "../../../packages/core/src/domain/learning-program/focus-transitions";
-import { chooseFocusedActivity } from "../../../src/domain/learning-program/rules";
+import { chooseFocusedActivity } from "../../../packages/core/src/domain/learning-program/rules";
 import type { LearningProgram } from "../../../src/domain/learning-program/types";
 
 function program(): LearningProgram {
