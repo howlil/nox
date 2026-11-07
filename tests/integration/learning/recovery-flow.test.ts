@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { MarkdownView, TFile } from "obsidian";
-import type { AgentStreamEvent, EditProposal } from "../../../src/types";
+import type { AgentInput, AgentStreamEvent, EditProposal } from "../../../src/types";
 import { AgentRuntime } from "../../../src/agent/AgentRuntime";
 import { ContextResolver } from "../../../src/context/ContextResolver";
 import { ObsidianContext } from "../../../src/context/ObsidianContext";
@@ -115,10 +115,12 @@ function makeRig(withProgram = false) {
 
   const pending: AgentStreamEvent[][] = [];
   let runtimeCalls = 0;
+  const sentContexts: AgentInput["context"][] = [];
   const agent = {
     check: async () => ({ status: "ready" as const }),
     listModels: async () => [],
-    send: async function* () {
+    send: async function* (input: AgentInput) {
+      sentContexts.push(structuredClone(input.context));
       runtimeCalls++;
       const events = pending.shift();
       if (!events) throw new Error("unexpected agent invocation");
@@ -167,6 +169,7 @@ function makeRig(withProgram = false) {
     getEditedNote: () => editorBuffer,
     undoMockEditor: () => { if (undoBuffer !== null) editorBuffer = undoBuffer; },
     currentAgentCalls: () => runtimeCalls,
+    getSentContexts: () => sentContexts,
     app,
   };
 }
@@ -789,4 +792,105 @@ test("informational progress message cannot hide an unanswered Practice question
   initial.learning.dispose();
   const restored = await rig.createLearning();
   assert.equal(restored.learning.hasActivePracticeQuestion(), true);
+});
+test("M14.1 note Explain -> Practice -> evidence survives controller recreation without duplicates", async () => {
+  const rig = makeRig();
+  const first = await rig.createLearning();
+  // Real ObsidianContext resolves the selected note even when the sidebar owns focus.
+  rig.focusNox();
+  const noteRef = [{ kind: "vault-note" as const, path: "notes/acid.md" }];
+  rig.queue([
+    { type: "text", content: "Atomicity means all transaction changes commit or roll back." },
+    { type: "completed" },
+  ]);
+  const explained = await collectEvents(first.learning.run({
+    prompt: "Explain atomicity in this note", action: "explain", explicitContext: noteRef,
+  }));
+  assert.ok(explained.some(event => event.type === "response-delta" &&
+    event.text.includes("Atomicity")));
+  const explicitNote = "ACID means atomicity, consistency, isolation, durability.";
+  const hasExplicitNote = (turnIndex: number) => rig.getSentContexts()[turnIndex]?.some(
+    context => context.type === "note" &&
+      context.file === "notes/acid.md" && context.content === explicitNote);
+  assert.equal(hasExplicitNote(0), true,
+    "Explain must forward the full explicitly attached note, not just its selection");
+
+  rig.queue(practice({
+    kind: "question", concept: "ACID", question: "What does transaction atomicity guarantee?",
+  }));
+  const asked = await collectEvents(first.learning.run({
+    prompt: "Practice this explanation", action: "practice", explicitContext: noteRef,
+  }));
+  const question = asked.find(event => event.type === "practice-question");
+  assert.ok(question && question.type === "practice-question");
+  assert.equal(first.learning.hasActivePracticeQuestion(), true);
+  assert.equal(hasExplicitNote(1), true,
+    "Practice question must retain the explicitly attached note as source material");
+  assert.equal((await first.learningState.load()).evidence.length, 0,
+    "asking a question cannot grant learner evidence");
+
+  rig.queue(practice({
+    kind: "evaluation", concept: "ACID", outcome: "correct",
+    feedback: "Correct: atomicity is all-or-nothing.", misconceptions: [],
+  }));
+  const evaluated = await collectEvents(first.learning.run({
+    prompt: "Either every write commits or every write rolls back.",
+    action: "practice", explicitContext: noteRef,
+  }));
+  assert.ok(evaluated.some(event => event.type === "practice-evaluation" &&
+    event.questionId === question.questionId));
+  const before = first.sessions.getSession();
+  const beforeEvidence = (await first.learningState.load()).evidence;
+  assert.equal(beforeEvidence.length, 1);
+  const beforeParts = before.messages.flatMap(message => message.parts ?? []);
+  assert.equal(beforeParts.filter(part => part.type === "practice-question").length, 1);
+  const evaluations = beforeParts.filter(part => part.type === "practice-evaluation");
+  assert.equal(evaluations.length, 1);
+  const committed = evaluations[0];
+  assert.ok(committed && committed.type === "practice-evaluation");
+  assert.equal(committed.questionId, question.questionId);
+  assert.equal(committed.sourcePath, "notes/acid.md");
+  assert.equal(committed.evaluation.outcome, "correct");
+  assert.equal(beforeEvidence[0].id, committed.operationId,
+    "learner evidence must belong to this committed transcript operation");
+  assert.equal(beforeEvidence[0].questionId, question.questionId);
+  assert.equal(beforeEvidence[0].source, "notes/acid.md");
+  assert.equal(beforeEvidence[0].outcome, "correct");
+  assert.ok(before.messages.some(message => message.role === "assistant" &&
+    message.content.includes("Atomicity means all transaction changes")));
+  assert.ok(before.messages.some(message => message.role === "user" &&
+    message.content.includes("every write rolls back")));
+
+  first.learning.dispose();
+  const restored = await rig.createLearning();
+  assert.equal(restored.sessions.getSession().id, before.id);
+  assert.deepEqual(restored.sessions.getSession().messages, before.messages,
+    "completed explanation, question, answer and evaluation must survive recreation");
+  assert.deepEqual((await restored.learningState.load()).evidence, beforeEvidence);
+  assert.equal(restored.learning.hasActivePracticeQuestion(), false,
+    "a completed question must not silently reopen");
+
+  rig.queue([{ type: "text", content: "Continue with transaction isolation." },
+    { type: "completed" }]);
+  const continued = await collectEvents(restored.learning.run({
+    prompt: "What should I study next?", action: "ask", explicitContext: noteRef,
+  }));
+  assert.ok(continued.some(event => event.type === "completed"));
+  assert.equal(rig.getSentContexts().length, 4,
+    "all four successful turns must reach the provider boundary exactly once");
+  assert.ok(rig.getSentContexts().every(contexts =>
+    contexts.every(context => context.file !== "notes/support.md")),
+    "unapproved support note must not leak into any provider turn");
+  assert.deepEqual((await restored.learningState.load()).evidence, beforeEvidence,
+    "reconciling a committed transcript must not award evidence twice");
+  assert.equal(rig.currentAgentCalls(), 4,
+    "recovery and evidence reconciliation must not invoke inference again");
+
+  restored.learning.dispose();
+  const third = await rig.createLearning();
+  assert.equal(third.sessions.getSession().id, before.id);
+  assert.equal(third.sessions.getSession().messages.flatMap(message => message.parts ?? [])
+    .filter(part => part.type === "practice-evaluation").length, 1);
+  assert.deepEqual((await third.learningState.load()).evidence, beforeEvidence);
+  third.learning.dispose();
 });
