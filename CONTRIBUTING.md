@@ -4,7 +4,9 @@ Nox is an Obsidian **desktop** plugin. Prefer small changes with a reproducible 
 
 ## Start
 
-Requires Node.js 22 and pnpm 10.
+Use Node.js 22.23.4 (`.node-version`) and pnpm 10.34.9 (`packageManager`
+in `package.json`), matching plugin CI. Enable Corepack if needed to select
+the pinned pnpm version.
 
 ```sh
 pnpm install --frozen-lockfile

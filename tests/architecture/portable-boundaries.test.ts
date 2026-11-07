@@ -10,7 +10,7 @@ test("M0 protects all domain files and explicitly declared shared contracts", ()
   assert.equal(isPortableSource("src/context/ContextResolver.ts"), true);
   assert.equal(isPortableSource("src/application/RunLearningTurn.ts"), false,
     "M0 must not falsely claim the unextracted orchestrator is portable");
-  assert.ok(PORTABLE_CONTRACT_FILES.includes("src/session/transcript-types.ts"));
+  assert.ok(PORTABLE_CONTRACT_FILES.includes("packages/core/src/session/transcript-types.ts"));
 });
 
 test("M0 permits pure domain imports, including type-only contracts", () => {

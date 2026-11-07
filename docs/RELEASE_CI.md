@@ -38,9 +38,30 @@ Directory approval.
 
 ## Branch protection
 
-Require plugin `build` and PR title checks, and `release-certified` for
-candidate release PRs. Do not require retired landing or desktop-acceptance
-jobs. Repository branch-protection settings may require administrator access.
+Require `build`, `pr-title`, `public-release-parity`, and `release-certified`
+from GitHub Actions on PRs into `master`. Enable these repository settings
+only after the updated workflows have run and all four check names exist.
+Require PRs and block force pushes and deletion of `master`; keep any
+administrator recovery bypass explicit. Settings require administrator access.
+
+Both CI workflows run for every PR. The diff classifier uses base/head commit
+SHAs, manifest version changes and release-policy paths as well as branch names.
+Landing-only PRs get a lightweight `build` result; master pushes run the full
+plugin suite. `release-certified` explicitly reports that certification is
+unnecessary for an ordinary diff, or requires successful Linux artifacts,
+Windows provider proof and Community policy for a release-sensitive diff.
+Failed classification, cancellation or an unexpectedly skipped proof blocks
+the final check. Cloudflare remains responsible for landing builds/deployment.
+
+`public-release-parity` always runs independently, including on `release/*`
+PRs. An unpublished candidate can finish certification while parity correctly
+blocks merging its version metadata. After explicit publication, re-run the
+failed parity job on the unchanged candidate; publication itself does not
+refresh the PR check. Re-certify after any candidate source change.
+
+Plugin CI uses `.node-version` and the root `packageManager` pin. Release
+preparation, staging and publication share those pins. These workflows do not
+automatically publish when code merges to `master`.
 
 ## Recovery
 

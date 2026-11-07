@@ -5,11 +5,12 @@ name: CI
 on:
   push:
     branches: [master]
-    paths-ignore: ['landing/**']
   pull_request:
     branches: [master]
-    paths-ignore: ['landing/**']
   workflow_dispatch:
+
+permissions:
+  contents: read
 
 # Skip superseded PR runs. Master and PR runs have distinct keys; the current
 # head still receives the same stable 'build' and 'pr-title' checks.
@@ -18,9 +19,29 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  changes:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    outputs:
+      plugin: ${{ steps.scope.outputs.plugin }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+      - id: scope
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          HEAD_REF: ${{ github.head_ref }}
+        run: node scripts/ci/change-scope.mjs
+
   pr-title:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
+    timeout-minutes: 2
     steps:
       - name: Enforce conventional PR title
         env:
@@ -28,73 +49,102 @@ jobs:
         run: |
           node -e 'const t = process.env.PR_TITLE ?? ""; if (!/^(feat|fix|docs|chore|refactor|perf|test|ci|build)(\([a-z0-9./_-]+\))?!?: .{3,}$/.test(t)) { console.error("PR title must use Conventional Commits (e.g. feat(chat): add review), got:", t); process.exit(1); }'
   build:
+    if: always()
+    needs: changes
     runs-on: ubuntu-latest
+    timeout-minutes: 15
 
     steps:
+      - name: Require successful change classification
+        env:
+          SCOPE_RESULT: ${{ needs.changes.result }}
+          PLUGIN_NEEDED: ${{ needs.changes.outputs.plugin }}
+        run: test "$SCOPE_RESULT" = success && [[ "$PLUGIN_NEEDED" = true || "$PLUGIN_NEEDED" = false ]]
+
       - name: Checkout
+        if: needs.changes.outputs.plugin == 'true'
         uses: actions/checkout@v4
 
       - name: Setup pnpm
+        if: needs.changes.outputs.plugin == 'true'
         uses: pnpm/action-setup@v4
-        with:
-          version: 10
 
       - name: Setup Node
+        if: needs.changes.outputs.plugin == 'true'
         uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version-file: .node-version
           cache: pnpm
 
       - name: Install dependencies
+        if: needs.changes.outputs.plugin == 'true'
         run: pnpm install --frozen-lockfile
 
       - name: Architecture boundaries
+        if: needs.changes.outputs.plugin == 'true'
         run: pnpm check:boundaries
 
       - name: Typecheck
+        if: needs.changes.outputs.plugin == 'true'
         run: pnpm typecheck
 
       - name: Lint
+        if: needs.changes.outputs.plugin == 'true'
         run: pnpm lint
 
       - name: Critical Obsidian settings policy
+        if: needs.changes.outputs.plugin == 'true'
         run: pnpm ci:critical
 
       - name: Parse CSS source stylesheets
+        if: needs.changes.outputs.plugin == 'true'
         run: pnpm lint:css
 
       - name: Documentation and release metadata checks
+        if: needs.changes.outputs.plugin == 'true'
         run: pnpm docs:check && pnpm release:check
 
-      - name: Enforce Obsidian public manifest = published release
-        # Staged release PRs intentionally have no public tag until source-bound
-        # release certification and source-bound artifact checks pass. Master/push and
-        # ordinary PRs must still prove public manifest parity.
-        if: ${{ !(github.event_name == 'pull_request' && startsWith(github.head_ref, 'release/')) }}
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: node scripts/ci/check-public-release.mjs
-
       - name: Unit tests
+        if: needs.changes.outputs.plugin == 'true'
         run: pnpm test:unit
 
       - name: Integration tests
+        if: needs.changes.outputs.plugin == 'true'
         run: pnpm test:integration
 
       - name: Verify portable core package (standalone ESM/CJS/types)
+        if: needs.changes.outputs.plugin == 'true'
         run: pnpm core:verify
 
       - name: Verify single-instance core consumption by both hosts
+        if: needs.changes.outputs.plugin == 'true'
         run: pnpm core:hosts
 
       - name: Real browser IndexedDB and NOX engine conformance
+        if: needs.changes.outputs.plugin == 'true'
         run: pnpm browser:verify
 
       - name: Build
+        if: needs.changes.outputs.plugin == 'true'
         run: pnpm build
 
       - name: Verify artifacts
+        if: needs.changes.outputs.plugin == 'true'
         run: pnpm test:artifacts
 
       - name: Compiled Obsidian plugin lifecycle smoke test
+        if: needs.changes.outputs.plugin == 'true'
         run: pnpm test:plugin-runtime
+
+  public-release-parity:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+      - name: Require the manifest version to be publicly installable before merge
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: node scripts/ci/check-public-release.mjs

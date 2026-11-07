@@ -3,19 +3,18 @@ import { posix, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { extractImports } from "./architecture-graph.mjs";
 
-const root = process.cwd();
 const canonicalRoot = "packages/core/src";
 const legacyRoot = "src";
-function walk(directory) {
+function walk(root, directory) {
   return readdirSync(resolve(root, directory), { withFileTypes: true }).flatMap(entry => {
     const filename = directory + "/" + entry.name;
-    return entry.isDirectory() ? walk(filename) : filename.endsWith(".ts") ? [filename] : [];
+    return entry.isDirectory() ? walk(root, filename) : filename.endsWith(".ts") ? [filename] : [];
   }).sort();
 }
 
 /** Guard all physically extracted core modules, not just domain. */
-export function checkPhysicalDomain() {
-  const files = walk(canonicalRoot).filter(path => path !== canonicalRoot + "/index.ts");
+export function checkPhysicalDomain(root = process.cwd()) {
+  const files = walk(root, canonicalRoot).filter(path => path !== canonicalRoot + "/index.ts");
   const present = new Set(files);
   const issues = [];
   const domains = files.filter(path => path.startsWith(canonicalRoot + "/domain/"));
@@ -27,7 +26,7 @@ export function checkPhysicalDomain() {
     // Removed shims are legal only when no imports need them; typecheck and
     // the compatibility inventory enforce the remaining consumer references.
     if (existsSync(resolve(root, old))) {
-      const legacy = readFileSync(resolve(root, old), "utf8");
+      const legacy = readFileSync(resolve(root, old), "utf8").replace(/\r\n/g, "\n");
       const oldDir = posix.dirname(old);
       const target = canonical.slice(0, -3);
       const relative = posix.relative(oldDir, target);

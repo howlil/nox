@@ -45,6 +45,10 @@ export const RETIRED_CORE_SHIMS = new Set([
   "src/domain/practice/learning-scope.ts",
   "src/features/conversation/turn/StructuredTurnBuffer.ts",
   "src/domain/onboarding/types.ts",
+  "src/session/message-types.ts",
+  "src/session/transcript-part-types.ts",
+  "src/session/transcript-schema.ts",
+  "src/session/transcript-types.ts",
 ]);
 
 /** Conservatively catalog static imports into the old compatibility facade.

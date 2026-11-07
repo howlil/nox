@@ -21,6 +21,10 @@ Feature/fix PR → plugin CI → merge code to master (unchanged public manifest
 non-draft GitHub Release with the exact unprefixed tag and three valid assets:
 `main.js`, `manifest.json`, `styles.css`. PR CI verifies the live release.
 Do not merge a manifest version that has not been published.
+The independent `public-release-parity` check intentionally fails on an
+unpublished release PR. After publishing from the certified candidate,
+re-run that failed job on the same candidate SHA before merging. A source
+change requires fresh certification; publication does not refresh PR checks.
 
 Candidate publication requires an explicit workflow dispatch against
 `release/x.y.z`, source SHA identity, Linux/Windows release certification,

@@ -10,7 +10,7 @@
     "moduleResolution": "bundler",
     "importHelpers": true,
     "isolatedModules": true,
-    "strictNullChecks": true,
+    "strict": true,
     "lib": ["ES2018", "DOM"],
     "skipLibCheck": true
   },

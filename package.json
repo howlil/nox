@@ -3,6 +3,11 @@
   "version": "1.3.2",
   "description": "Nox is an AI learning companion for Obsidian with a pluggable agent runtime",
   "private": true,
+  "packageManager": "pnpm@10.34.9",
+  "engines": {
+    "node": "22.x",
+    "pnpm": "10.x"
+  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/howlil/nox.git"

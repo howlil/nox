@@ -20,10 +20,10 @@ export const PORTABLE_CONTRACT_FILES = Object.freeze([
   "src/persistence/learning-state-schema.ts",
   "src/session/SessionController.ts",
   "src/session/SessionStore.ts",
-  "src/session/message-types.ts",
-  "src/session/transcript-part-types.ts",
-  "src/session/transcript-schema.ts",
-  "src/session/transcript-types.ts",
+  "packages/core/src/session/message-types.ts",
+  "packages/core/src/session/transcript-part-types.ts",
+  "packages/core/src/session/transcript-schema.ts",
+  "packages/core/src/session/transcript-types.ts",
   "src/types.ts",
 ]);
 
