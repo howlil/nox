@@ -4,9 +4,9 @@ Status: **Current implemented engineering contract + historical milestone record
 Depends on: `PRODUCT_DESIGN.md`, `../DESIGN.md`
 Scope: Obsidian plugin runtime, learning orchestration, context, agent adapter,
 persistence, mutation, testing, and delivery
-Current baseline: `master` `7a6602f80ed50ebcbbcd7b5f625e66e44d0292ed` (2026-10-29).
-Update this baseline after future merges; treat the source code and CI as the
-authority for what is actually implemented.
+M13.6 baseline: `master` `49a2a599906e04f49a3378411891a202a0c8e2c8` (2026-10-29).
+Recheck the actual `master` HEAD after future merges; source and CI remain
+the authority for implemented behavior.
 
 ## Current architecture contract
 
@@ -29,8 +29,8 @@ authority for what is actually implemented.
    `@nox/core` entrypoint through the workspace source alias. Isolated
    ESM/CJS/types consumers are verified against built core. Tests enforce
    single constructor identity and no private host deep imports.
-5. **Compatibility transition:** M13 waves retired 32 obsolete
-   `src/**` core facades. The audited inventory still retains **26**
+5. **Compatibility transition:** M13 waves 1–6 retire 36 obsolete
+   `src/**` core facades. The audited inventory still retains **22**
    reference-backed facade paths (test/architecture consumers); delete only
    after migrating their actual references. `check-core-shims.mjs` and
    `check-physical-domain.mjs` enforce these counts/invariants.
