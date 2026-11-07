@@ -6,14 +6,20 @@ const read = (file: string) => readFileSync(file, "utf8");
 
 test("plugin CI has no Cloudflare or landing jobs", () => {
   const dev = read(".github/workflows/ci.yml");
-  assert.match(dev, /paths-ignore: \['landing\/\*\*'\]/);
+  assert.doesNotMatch(dev, /paths-ignore:/);
+  assert.match(dev, /run: node scripts\/ci\/change-scope\.mjs/);
+  assert.match(dev, /if: always\(\)\s+needs: changes/);
+  assert.match(dev, /PLUGIN_NEEDED: \$\{\{ needs\.changes\.outputs\.plugin \}\}/);
   assert.match(dev, /run: pnpm ci:critical/);
   assert.match(dev, /run: pnpm lint/);
   assert.doesNotMatch(dev, /run: pnpm lint:typed/);
   assert.match(dev, /node scripts\/ci\/check-public-release\.mjs/);
-  // Candidate release PRs are verified by ci-release.yml; master still checks
-  // parity against the public tag to prevent Obsidian manifest mismatch.
-  assert.match(dev, /startsWith\(github\.head_ref, 'release\/'\)/);
+  // Public parity runs independently so certification can finish while an
+  // unpublished candidate is correctly blocked from merging.
+  const parity = dev.slice(dev.indexOf("  public-release-parity:"));
+  assert.match(parity, /run: node scripts\/ci\/check-public-release\.mjs/);
+  assert.doesNotMatch(parity, /if:/);
+  assert.doesNotMatch(dev, /startsWith\(github\.head_ref, 'release\/'\)/);
   assert.match(dev, /github\.event_name == 'pull_request'/);
   assert.doesNotMatch(dev, /^  landing:/m);
   assert.doesNotMatch(dev, /npm run build/);
@@ -23,10 +29,12 @@ test("plugin CI has no Cloudflare or landing jobs", () => {
 test("release certification is strict and requires Windows plus reproducible artifacts", () => {
   const release = read(".github/workflows/ci-release.yml");
   assert.match(release, /name: release-certified/);
-  assert.match(release, /needs: \[policy, artifacts, windows-dpapi\]/);
-  assert.match(release, /test "\$POLICY" = success/);
-  assert.match(release, /test "\$ARTIFACTS" = success/);
-  assert.match(release, /test "\$WINDOWS" = success/);
+  assert.doesNotMatch(release, /^    paths:/m);
+  assert.match(release, /needs: \[changes, policy, artifacts, windows-dpapi\]/);
+  assert.match(release, /SCOPE_RESULT: \$\{\{ needs\.changes\.result \}\}/);
+  assert.match(release, /RELEASE_NEEDED: \$\{\{ needs\.changes\.outputs\.release \}\}/);
+  assert.match(release, /run: node scripts\/ci\/change-scope\.mjs certify/);
+  assert.equal((release.match(/if: needs\.changes\.outputs\.release == 'true'/g) ?? []).length, 3);
   assert.match(release, /lint: "true"/);
   assert.match(release, /scanner-lint: "true"/);
   assert.match(release, /strict: "false"/);

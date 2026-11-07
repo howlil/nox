@@ -5,11 +5,6 @@ name: CI / Release
 on:
   pull_request:
     branches: [master]
-    paths:
-      - '.release-plan.json'
-      - '.github/workflows/ci-release.yml'
-      - '.github/workflows/release.yml'
-      - '.github/workflows/publish-release.yml'
   workflow_dispatch:
 
 permissions:
@@ -20,18 +15,37 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  changes:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    outputs:
+      release: ${{ steps.scope.outputs.release }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+      - id: scope
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          HEAD_REF: ${{ github.head_ref }}
+        run: node scripts/ci/change-scope.mjs
+
   policy:
-    if: github.event_name == 'workflow_dispatch' || github.event_name == 'pull_request'
+    if: needs.changes.outputs.release == 'true'
+    needs: changes
     name: release-policy
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
-        with:
-          version: 10
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version-file: .node-version
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - name: Release metadata and blocking P0 settings policy
@@ -45,17 +59,17 @@ jobs:
           strict: "false"
 
   artifacts:
-    if: github.event_name == 'workflow_dispatch' || github.event_name == 'pull_request'
+    if: needs.changes.outputs.release == 'true'
+    needs: changes
     name: release-artifacts
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
-        with:
-          version: 10
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version-file: .node-version
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       # Policy job owns the critical settings check; verify already runs type-aware ESLint.
@@ -82,17 +96,17 @@ jobs:
           retention-days: 14
 
   windows-dpapi:
-    if: github.event_name == 'workflow_dispatch' || github.event_name == 'pull_request'
+    if: needs.changes.outputs.release == 'true'
+    needs: changes
     name: windows-dpapi
     runs-on: windows-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
-        with:
-          version: 10
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version-file: .node-version
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - name: Windows OAuth, DPAPI and inference regressions
@@ -106,18 +120,20 @@ jobs:
 
   certified:
     if: always() && (github.event_name == 'workflow_dispatch' || github.event_name == 'pull_request')
-    needs: [policy, artifacts, windows-dpapi]
+    needs: [changes, policy, artifacts, windows-dpapi]
     name: release-certified
     runs-on: ubuntu-latest
+    timeout-minutes: 3
     steps:
-      - name: All three proofs must succeed
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+      - name: Require all applicable proofs after successful classification
         env:
+          SCOPE_RESULT: ${{ needs.changes.result }}
+          RELEASE_NEEDED: ${{ needs.changes.outputs.release }}
           POLICY: ${{ needs.policy.result }}
           ARTIFACTS: ${{ needs.artifacts.result }}
           WINDOWS: ${{ needs.windows-dpapi.result }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          test "$POLICY" = success
-          test "$ARTIFACTS" = success
-          test "$WINDOWS" = success
+        run: node scripts/ci/change-scope.mjs certify

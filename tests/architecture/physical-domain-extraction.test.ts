@@ -1,4 +1,7 @@
 import assert from "node:assert/strict";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { dirname, join } from "node:path";
 import test from "node:test";
 import { ProgramWriteConflict as CanonicalConflict } from "../../packages/core/src/domain/persistence/errors";
 import { ProgramWriteConflict as LegacyConflict } from "../../src/domain/persistence/errors";
@@ -26,6 +29,27 @@ test("M10 physically extracted core rejects duplicated logic or outward dependen
   assert.deepEqual(checkPhysicalDomain(), []);
 });
 
+
+for (const newline of ["\n", "\r\n"]) {
+  test(`core facade accepts ${newline === "\n" ? "LF" : "CRLF"} without allowing extra logic`, (t) => {
+    const root = mkdtempSync(join(tmpdir(), "nox-facade-"));
+    t.after(() => rmSync(root, { recursive: true, force: true }));
+    const write = (path: string, source: string) => {
+      const filename = join(root, path);
+      mkdirSync(dirname(filename), { recursive: true });
+      writeFileSync(filename, source);
+    };
+    write("packages/core/src/domain/value.ts", "export const value = 1;\n");
+    write("packages/core/src/index.ts", 'export * from "./domain/value";\n');
+    const facade = 'export * from "../../packages/core/src/domain/value";' + newline;
+    write("src/domain/value.ts", facade);
+    assert.deepEqual(checkPhysicalDomain(root), []);
+    write("src/domain/value.ts", facade + "export const duplicate = 2;" + newline);
+    assert.ok(checkPhysicalDomain(root).some(issue => issue.includes("invalid compatibility shim")));
+    write("src/domain/value.ts", 'export * from "./wrong-owner";' + newline);
+    assert.ok(checkPhysicalDomain(root).some(issue => issue.includes("invalid compatibility shim")));
+  });
+}
 
 test("M13 retired core shims cannot silently return", () => {
   assert.equal(RETIRED_CORE_SHIMS.size, 40);
