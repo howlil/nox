@@ -17,7 +17,7 @@ The Obsidian plugin is separately published through
 - **Distribution:** the private package emits ESM, CJS and TypeScript
   declarations for isolated consumer verification; no public npm or
   production browser app publication is implied.
-- **Compatibility:** M13 retired 36 obsolete `src/**` facades; 22 remain
+- **Compatibility:** M13 retired 38 obsolete `src/**` facades; 20 remain
   because identified tests or architecture contracts still reference them.
   The old re-exports are not a second source of truth or a public API.
   Retire additional facades only after migrating real consumers and
@@ -275,8 +275,19 @@ imports were retargeted to `packages/core/src/`. The canonical engine was
 **not copied or rewritten**. The architecture checker now fails if any of
 those retired facades reappear, or a consumer still references a removed shim.
 
-**Current inventory after M13 waves 1–6:** 36 retired facades are protected
-against reintroduction; 22 reference-backed facades remain for separate,
+### M13.7 — Domain test-consumer migration
+
+Following M13.6, the package-owned curriculum policy (`domain/learning-program/rules.ts`)
+and practice state machine (`domain/practice/PracticeStateMachine.ts`) are
+imported directly by their existing behavioral tests. Their legacy `src/**`
+re-export facades and the corresponding old-vs-new shim identity assertions
+are removed; remaining compatibility identity tests, canonical module
+ownership checks, and actual learning/practice behavior proofs are preserved.
+This cleanup does not change the persisted learning model or extend the
+private `@nox/core` public export surface.
+
+**Current inventory after M13 waves 1–7:** 38 retired facades are protected
+against reintroduction; 20 reference-backed facades remain for separate,
 bounded consumer migrations. This later state supersedes the first-wave
 51-remaining count. Do not describe facade elimination as fully completed.
 Public API stability and native Obsidian acceptance remain independent
