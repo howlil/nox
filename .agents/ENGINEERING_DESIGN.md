@@ -98,8 +98,8 @@ capability that actually guarantees it. Credentials live outside the vault.
 structured stdin rather than shell interpolation. Normalize protocol output before
 product consumption; bound buffers/timeouts, sanitize failures and clean up owned
 processes on cancel, view close and unload. Model discovery never starts inference
-and availability is not entitlement. Host lifecycle drains owned pending writes;
-background failures remain observable without rewriting successful turn outcomes.
+and availability is not entitlement. Unload observes a final session-time checkpoint
+before learning disposal; background failures do not rewrite successful turn outcomes.
 
 ## Contracts and compatibility
 
