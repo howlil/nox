@@ -108,10 +108,10 @@ legacy data for recovery. Repositories stage snapshots, serialize mutation and
 check conflicts at the storage boundary; never overwrite an unverified snapshot.
 One shared plugin writer does not replace session-level snapshot serialization.
 
-36 retired `src/**` core facades are blocked from reintroduction; 22 remain because
+40 retired `src/**` core facades are blocked from reintroduction; 18 remain because
 actual tests/architecture consumers reference them. Migrate references and enforce
-identity before deleting another facade. Four transcript contract manifest entries
-now point directly to their canonical core source. Do not create parallel engines,
+identity before deleting another facade. Session and context contract manifest entries point directly to their
+canonical core source. Do not create parallel engines,
 state stores, broad helpers or new layers without an actual boundary requirement.
 
 ## Fitness and debt

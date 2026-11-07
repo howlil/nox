@@ -7,14 +7,14 @@ const loadWorkspaceDependency = createRequire(path.resolve(process.cwd(), "packa
 const ts = loadWorkspaceDependency("typescript");
 
 /** M10.2: every physically extracted package module is subject to portable
- * TypeScript AST checks. Legacy manifest entries remain checked as shims. */
+ * TypeScript AST checks. Package-owned session contracts are checked at canonical paths; retained legacy contracts remain guarded. */
 export const PORTABLE_CONTRACT_FILES = Object.freeze([
   "src/application/learning-state-projection.ts",
   "src/application/learning-types.ts",
   "src/application/ports.ts",
-  "src/context/ContextBudget.ts",
+  "packages/core/src/context/ContextBudget.ts",
   "src/context/ContextResolver.ts",
-  "src/context/ContextSourcePort.ts",
+  "packages/core/src/context/ContextSourcePort.ts",
   "src/context/LocalResearch.ts",
   "src/context/context-types.ts",
   "src/persistence/learning-state-schema.ts",

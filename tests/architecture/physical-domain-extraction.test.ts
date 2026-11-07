@@ -3,12 +3,8 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import test from "node:test";
-import { PracticeStateMachine as CanonicalPractice } from "../../packages/core/src/domain/practice/PracticeStateMachine";
-import { PracticeStateMachine as LegacyPractice } from "../../src/domain/practice/PracticeStateMachine";
 import { ProgramWriteConflict as CanonicalConflict } from "../../packages/core/src/domain/persistence/errors";
 import { ProgramWriteConflict as LegacyConflict } from "../../src/domain/persistence/errors";
-import { validateCurriculum as canonicalValidate } from "../../packages/core/src/domain/learning-program/rules";
-import { validateCurriculum as legacyValidate } from "../../src/domain/learning-program/rules";
 import { LearningController as CanonicalLearning } from "../../packages/core/src/application/LearningController";
 import { LearningController as LegacyLearning } from "../../src/application/LearningController";
 import { LearningProgramOrchestrator as CanonicalPrograms } from "../../packages/core/src/application/LearningProgramOrchestrator";
@@ -21,9 +17,7 @@ import { checkPhysicalDomain } from "../../scripts/check-physical-domain.mjs";
 import { auditLegacyCoreShims, RETIRED_CORE_SHIMS } from "../../scripts/check-core-shims.mjs";
 
 test("M10 canonical domain and application constructors have one runtime identity", () => {
-  assert.strictEqual(CanonicalPractice, LegacyPractice);
   assert.strictEqual(CanonicalConflict, LegacyConflict);
-  assert.strictEqual(canonicalValidate, legacyValidate);
   assert.strictEqual(CanonicalLearning, LegacyLearning);
   assert.strictEqual(CanonicalPrograms, LegacyPrograms);
   assert.strictEqual(CanonicalSessions, LegacySessions);
@@ -34,6 +28,7 @@ test("M10 canonical domain and application constructors have one runtime identit
 test("M10 physically extracted core rejects duplicated logic or outward dependency", () => {
   assert.deepEqual(checkPhysicalDomain(), []);
 });
+
 
 for (const newline of ["\n", "\r\n"]) {
   test(`core facade accepts ${newline === "\n" ? "LF" : "CRLF"} without allowing extra logic`, (t) => {
@@ -56,12 +51,11 @@ for (const newline of ["\n", "\r\n"]) {
   });
 }
 
-
 test("M13 retired core shims cannot silently return", () => {
-  assert.equal(RETIRED_CORE_SHIMS.size, 36);
+  assert.equal(RETIRED_CORE_SHIMS.size, 40);
   const inventory = auditLegacyCoreShims();
   // The migration tracks the actual number of remaining compatibility files.
-  assert.equal(inventory.retained.length + inventory.unused.length, 22);
+  assert.equal(inventory.retained.length + inventory.unused.length, 18);
   assert.deepEqual(inventory.reintroduced, []);
   assert.deepEqual(inventory.missingReferenced, []);
 });
